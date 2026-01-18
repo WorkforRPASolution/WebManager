@@ -6,7 +6,7 @@
     </div>
 
     <!-- Filter Bar -->
-    <MasterFilterBar @filter-change="handleFilterChange" />
+    <MasterFilterBar ref="filterBarRef" @filter-change="handleFilterChange" />
 
     <!-- Toolbar -->
     <MasterToolbar
@@ -129,6 +129,7 @@ import DeleteConfirmModal from './components/DeleteConfirmModal.vue'
 import { useMasterData } from './composables/useMasterData'
 
 const gridRef = ref(null)
+const filterBarRef = ref(null)
 const selectedIds = ref([])
 const showDeleteModal = ref(false)
 const currentFiltersLocal = ref(null)  // Local copy for retry button
@@ -304,6 +305,9 @@ const handleSave = async () => {
     if (parts.length > 0) message = parts.join(', ')
 
     showToast('success', message)
+
+    // Refresh filter options to include new values
+    await filterBarRef.value?.refreshFilters()
 
     // Refresh current page to get latest data
     await refreshCurrentPage()

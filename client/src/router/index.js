@@ -94,6 +94,22 @@ const routes = [
     }
   },
   {
+    path: '/email-template',
+    name: 'EmailTemplate',
+    component: () => import('../features/email-template/EmailTemplateView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      menu: {
+        mainMenu: 'system',
+        subMenu: 'email-template',
+        subMenuLabel: 'Email Template',
+        subMenuIcon: 'mail',
+        subMenuOrder: 2
+      }
+    }
+  },
+  {
     path: '/alerts',
     name: 'Alerts',
     component: () => import('../features/alerts/AlertsView.vue'),
@@ -105,7 +121,7 @@ const routes = [
         subMenu: 'alerts',
         subMenuLabel: 'Alerts History',
         subMenuIcon: 'notifications',
-        subMenuOrder: 2
+        subMenuOrder: 3
       }
     }
   },
@@ -121,7 +137,7 @@ const routes = [
         subMenu: 'settings',
         subMenuLabel: 'Settings',
         subMenuIcon: 'tune',
-        subMenuOrder: 3
+        subMenuOrder: 4
       }
     }
   },

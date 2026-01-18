@@ -134,10 +134,16 @@ const handleClear = () => {
   emit('filter-change', null)
 }
 
-onMounted(async () => {
+const refreshFilters = async () => {
   await Promise.all([
     fetchProcesses(),
     fetchAllModels()
   ])
+}
+
+onMounted(async () => {
+  await refreshFilters()
 })
+
+defineExpose({ refreshFilters })
 </script>
