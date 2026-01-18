@@ -18,8 +18,8 @@
       @cell-editing-stopped="onCellEditingStopped"
       @cell-value-changed="onCellValueChanged"
       @selection-changed="onSelectionChanged"
-      @paste-end="onPasteEnd"
       @cell-clicked="onCellClicked"
+      @cell-double-clicked="onCellDoubleClicked"
       @sort-changed="onSortChanged"
       style="width: 100%; height: 100%;"
     />
@@ -37,7 +37,7 @@ ModuleRegistry.registerModules([AllCommunityModule])
 
 const { isDark } = useTheme()
 
-// AG Grid 35 Theme API - 커스텀 테마 생성
+// AG Grid Theme
 const lightTheme = themeQuartz.withParams({
   fontSize: 12,
   spacing: 6,
@@ -96,19 +96,14 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['cell-edit', 'selection-change', 'paste', 'paste-rows', 'paste-cells'])
+const emit = defineEmits(['cell-edit', 'selection-change', 'paste-rows', 'paste-cells', 'edit-html'])
 
 const gridContainer = ref(null)
 const gridApi = ref(null)
 
-// Shift+클릭 행 범위 선택을 위한 마지막 선택 행
-const lastSelectedRowIndex = ref(null)
-
-// Shift+클릭 셀 범위 선택
-const cellSelectionStart = ref(null)  // { rowIndex, colId }
-const cellSelectionEnd = ref(null)    // { rowIndex, colId }
-
-// 일괄 편집을 위한 선택 범위 저장
+// Cell selection state
+const cellSelectionStart = ref(null)
+const cellSelectionEnd = ref(null)
 const pendingBulkEditRange = ref(null)
 
 // 일괄 편집 모드 플래그 (Excel 스타일: 첫 번째 셀 편집 후 Enter로 전체 적용)
@@ -157,35 +152,10 @@ const onSortChanged = () => {
   }
 }
 
-// 셀이 선택 범위 안에 있는지 확인
-const isCellInSelectionRange = (rowIndex, colId) => {
-  if (!cellSelectionStart.value || !cellSelectionEnd.value) return false
+// Editable columns
+const editableColumns = ['app', 'process', 'model', 'code', 'subcode', 'title', 'htmp']
 
-  const startRowIndex = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-  const endRowIndex = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-
-  const startColIndex = editableColumns.indexOf(cellSelectionStart.value.colId)
-  const endColIndex = editableColumns.indexOf(cellSelectionEnd.value.colId)
-  const colIndex = editableColumns.indexOf(colId)
-
-  if (startColIndex === -1 || endColIndex === -1 || colIndex === -1) return false
-
-  const minColIndex = Math.min(startColIndex, endColIndex)
-  const maxColIndex = Math.max(startColIndex, endColIndex)
-
-  return rowIndex >= startRowIndex && rowIndex <= endRowIndex &&
-         colIndex >= minColIndex && colIndex <= maxColIndex
-}
-
-// 편집 가능한 컬럼 목록 (순서대로)
-const editableColumns = [
-  'line', 'lineDesc', 'process', 'eqpModel', 'eqpId', 'category',
-  'IpAddr', 'IpAddrL', 'localpcNunber', 'emailcategory', 'osVer',
-  'onoffNunber', 'webmanagerUse', 'installdate', 'scFirstExcute',
-  'snapshotTimeDiff', 'usereleasemsg', 'usetkincancel'
-]
-
-// AG Grid 35 rowSelection API - 체크박스와 클릭 선택 비활성화
+// Row selection config
 const rowSelection = ref({
   mode: 'multiRow',
   checkboxes: true,
@@ -194,80 +164,39 @@ const rowSelection = ref({
 })
 
 const columnDefs = ref([
-  // 체크박스 컬럼은 rowSelection.checkboxes로 자동 생성됨
-  { field: 'line', headerName: 'Line', width: 100, editable: true },
-  { field: 'lineDesc', headerName: 'Line Desc', width: 150, editable: true },
+  { field: 'app', headerName: 'App', width: 80, editable: true },
   { field: 'process', headerName: 'Process', width: 120, editable: true },
-  { field: 'eqpModel', headerName: 'Model', width: 120, editable: true },
-  { field: 'eqpId', headerName: 'Eqp ID', width: 120, editable: true },
-  { field: 'category', headerName: 'Category', width: 100, editable: true },
-  { field: 'IpAddr', headerName: 'IP Address', width: 130, editable: true },
-  { field: 'IpAddrL', headerName: 'Inner IP', width: 130, editable: true },
+  { field: 'model', headerName: 'Model', width: 120, editable: true },
+  { field: 'code', headerName: 'Code', width: 120, editable: true },
+  { field: 'subcode', headerName: 'Subcode', width: 120, editable: true },
+  { field: 'title', headerName: 'Title', width: 200, editable: true },
   {
-    field: 'localpcNunber',
-    headerName: 'Local PC',
-    width: 90,
-    editable: true,
-    cellEditor: 'agSelectCellEditor',
-    cellEditorParams: { values: [0, 1] },
-    valueFormatter: params => params.value === 1 ? 'Yes' : 'No',
-  },
-  { field: 'emailcategory', headerName: 'Email Cat.', width: 100, editable: true },
-  { field: 'osVer', headerName: 'OS Version', width: 120, editable: true },
-  {
-    field: 'onoffNunber',
-    headerName: 'On/Off',
-    width: 80,
-    editable: true,
-    cellEditor: 'agSelectCellEditor',
-    cellEditorParams: { values: [0, 1] },
-    valueFormatter: params => params.value === 1 ? 'On' : 'Off',
-  },
-  {
-    field: 'webmanagerUse',
-    headerName: 'WebMgr',
-    width: 90,
-    editable: true,
-    cellEditor: 'agSelectCellEditor',
-    cellEditorParams: { values: [0, 1] },
-    valueFormatter: params => params.value === 1 ? 'Yes' : 'No',
-  },
-  { field: 'installdate', headerName: 'Install Date', width: 110, editable: true },
-  { field: 'scFirstExcute', headerName: 'First Exec', width: 110, editable: true },
-  {
-    field: 'snapshotTimeDiff',
-    headerName: 'Time Diff',
-    width: 90,
-    editable: true,
-    valueParser: params => params.newValue === '' ? null : Number(params.newValue),
-  },
-  {
-    field: 'usereleasemsg',
-    headerName: 'Release Msg',
-    width: 100,
-    editable: true,
-    cellEditor: 'agSelectCellEditor',
-    cellEditorParams: { values: [0, 1] },
-    valueFormatter: params => params.value === 1 ? 'Yes' : 'No',
-  },
-  {
-    field: 'usetkincancel',
-    headerName: 'TKIN Cancel',
-    width: 100,
-    editable: true,
-    cellEditor: 'agSelectCellEditor',
-    cellEditorParams: { values: [0, 1] },
-    valueFormatter: params => params.value === 1 ? 'Yes' : 'No',
+    field: 'htmp',
+    headerName: 'HTML',
+    width: 300,
+    editable: false,
+    cellRenderer: (params) => {
+      const value = params.value || ''
+      const truncated = value.length > 100 ? value.substring(0, 100) + '...' : value
+      return `<span class="text-gray-500 dark:text-gray-400 text-xs font-mono">${escapeHtml(truncated)}</span>`
+    },
+    tooltipValueGetter: (params) => 'Double-click to edit HTML'
   },
 ])
 
-// 셀 스타일 함수 - AG Grid에서 매번 호출됨
+// Escape HTML for display
+const escapeHtml = (str) => {
+  const div = document.createElement('div')
+  div.textContent = str
+  return div.innerHTML
+}
+
+// Cell style function
 const getCellStyle = (params) => {
   const rowId = params.data?._id || params.data?._tempId
   if (!rowId) return null
 
-  // Check for cell range selection (highest priority for visual feedback)
-  // 직접 ref 값 접근
+  // Check for cell range selection
   const start = cellSelectionStart.value
   const end = cellSelectionEnd.value
 
@@ -301,7 +230,7 @@ const getCellStyle = (params) => {
     }
   }
 
-  // Check if cell is modified (for existing rows)
+  // Check if cell is modified
   if (props.modifiedRows.has(rowId)) {
     return {
       backgroundColor: isDark.value ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.15)',
@@ -318,7 +247,7 @@ const getCellStyle = (params) => {
   return null
 }
 
-// 셀 클래스 함수 - 수정된 셀에만 클래스 적용
+// Cell class function
 const getCellClass = (params) => {
   const rowId = params.data?._id || params.data?._tempId
   if (!rowId) return null
@@ -326,7 +255,6 @@ const getCellClass = (params) => {
   const field = params.colDef.field
   const cellFields = props.modifiedCells.get(rowId)
 
-  // 해당 셀이 수정되었는지 확인
   if (cellFields && cellFields.has(field)) {
     return 'cell-value-changed'
   }
@@ -368,21 +296,7 @@ const getRowStyle = (params) => {
 }
 
 const processCellFromClipboard = (params) => {
-  const value = params.value?.toString().trim() || ''
-
-  // Convert to number for numeric fields
-  const numericFields = ['localpcNunber', 'onoffNunber', 'webmanagerUse', 'usereleasemsg', 'usetkincancel']
-  if (numericFields.includes(params.column.colId)) {
-    const num = parseInt(value)
-    return isNaN(num) ? 0 : num
-  }
-
-  if (params.column.colId === 'snapshotTimeDiff') {
-    const num = parseFloat(value)
-    return isNaN(num) ? null : num
-  }
-
-  return value
+  return params.value?.toString().trim() || ''
 }
 
 const onGridReady = (params) => {
@@ -440,7 +354,6 @@ const onCellValueChanged = (params) => {
 
       for (let colIdx = minColIndex; colIdx <= maxColIndex; colIdx++) {
         const targetField = editableColumns[colIdx]
-        // 편집한 셀은 이미 업데이트되므로 나머지만 추가
         if (targetRowId === rowId && targetField === field) continue
         cellUpdates.push({ rowId: targetRowId, field: targetField, value: newValue })
       }
@@ -450,18 +363,15 @@ const onCellValueChanged = (params) => {
       emit('paste-cells', cellUpdates)
     }
 
-    // 범위 초기화
     pendingBulkEditRange.value = null
     cellSelectionStart.value = null
     cellSelectionEnd.value = null
 
-    // 일괄 편집 후 화면 새로고침 (하이라이트 표시)
     setTimeout(() => {
       gridApi.value?.refreshCells({ force: true })
     }, 0)
   }
 
-  // 기존 동작: 편집한 셀 업데이트
   emit('cell-edit', rowId, field, newValue)
 }
 
@@ -472,50 +382,35 @@ const onSelectionChanged = () => {
   emit('selection-change', selectedIds)
 }
 
-const onPasteEnd = (params) => {
-  // Handle paste event - new rows might be added
-  emit('paste', params)
-}
-
-// Shift+클릭으로 체크박스 범위 선택 및 셀 범위 선택 (페이지 내에서만 동작)
 const onCellClicked = (params) => {
   const colId = params.colDef.field
   const rowIndex = params.rowIndex
 
-  // 체크박스 컬럼 클릭 처리
+  // Checkbox column click
   if (colId === '_selection') {
-    if (params.event.shiftKey && lastSelectedRowIndex.value !== null) {
-      // Shift+클릭: 행 범위 선택 (현재 페이지 내에서만)
-      const start = Math.min(lastSelectedRowIndex.value, rowIndex)
-      const end = Math.max(lastSelectedRowIndex.value, rowIndex)
-
-      for (let i = start; i <= end; i++) {
-        const node = gridApi.value.getDisplayedRowAtIndex(i)
-        node?.setSelected(true)
-      }
-    } else if (params.event.ctrlKey || params.event.metaKey) {
-      // Ctrl+클릭: 개별 토글 (기본 체크박스 동작이 처리함)
-      lastSelectedRowIndex.value = rowIndex
-    } else {
-      // 일반 클릭: 마지막 선택 행 업데이트
-      lastSelectedRowIndex.value = rowIndex
-    }
-    // 체크박스 클릭 시 셀 범위 선택 초기화
     cellSelectionStart.value = null
     cellSelectionEnd.value = null
     return
   }
 
-  // 일반 셀 클릭 - 셀 범위 선택 처리
+  // Cell range selection
   if (params.event.shiftKey && cellSelectionStart.value) {
-    // Shift+클릭: 셀 범위 선택 (현재 페이지 내에서만)
     cellSelectionEnd.value = { rowIndex, colId }
   } else {
-    // 일반 클릭: 새로운 셀 범위 시작점 (기존 선택 해제)
     cellSelectionStart.value = { rowIndex, colId }
     cellSelectionEnd.value = null
   }
-  // watcher가 refreshCells 처리함
+}
+
+const onCellDoubleClicked = (params) => {
+  const field = params.colDef.field
+
+  // Open HTML editor for htmp field
+  if (field === 'htmp') {
+    const rowId = params.data._id || params.data._tempId
+    const currentValue = params.data.htmp || ''
+    emit('edit-html', { rowId, value: currentValue })
+  }
 }
 
 // 선택된 셀들 비우기 (Delete/Backspace)
@@ -658,28 +553,17 @@ const onCellEditingStopped = (params) => {
   gridApi.value?.refreshCells({ force: true })
 }
 
-// 컬럼 순서 정의 (스프레드시트에서 복사할 때 사용)
-const pasteColumnOrder = [
-  'line', 'lineDesc', 'process', 'eqpModel', 'eqpId', 'category',
-  'IpAddr', 'IpAddrL', 'localpcNunber', 'emailcategory', 'osVer',
-  'onoffNunber', 'webmanagerUse', 'installdate', 'scFirstExcute',
-  'snapshotTimeDiff', 'usereleasemsg', 'usetkincancel'
-]
+// Paste column order
+const pasteColumnOrder = ['app', 'process', 'model', 'code', 'subcode', 'title', 'htmp']
 
-// 숫자 필드 목록
-const numericFields = ['localpcNunber', 'onoffNunber', 'webmanagerUse', 'usereleasemsg', 'usetkincancel', 'snapshotTimeDiff']
-
-// 직접 copy 이벤트 처리 (AG Grid Community는 clipboard 미지원)
+// Copy handler
 const handleCopy = (event) => {
   if (!gridApi.value) return
 
   let copyData = ''
-
-  // 1. 체크박스로 선택된 행들 확인
   const selectedRows = gridApi.value.getSelectedRows()
 
   if (selectedRows.length > 0) {
-    // 선택된 행들 복사 (모든 편집 가능한 컬럼)
     const rows = selectedRows.map(rowData => {
       return editableColumns.map(colId => {
         const value = rowData[colId]
@@ -688,7 +572,6 @@ const handleCopy = (event) => {
     })
     copyData = rows.join('\n')
   } else if (cellSelectionStart.value && cellSelectionEnd.value) {
-    // 2. 셀 범위가 선택되어 있으면 해당 범위 복사
     const startRowIndex = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
     const endRowIndex = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
 
@@ -712,7 +595,6 @@ const handleCopy = (event) => {
     }
     copyData = rows.join('\n')
   } else {
-    // 3. 선택된 행이나 셀 범위가 없으면 포커스된 셀 값만 복사
     const focusedCell = gridApi.value.getFocusedCell()
     if (focusedCell) {
       const rowNode = gridApi.value.getDisplayedRowAtIndex(focusedCell.rowIndex)
@@ -729,7 +611,7 @@ const handleCopy = (event) => {
   }
 }
 
-// 직접 paste 이벤트 처리 (AG Grid Community는 paste 미지원)
+// Paste handler
 const handlePaste = (event) => {
   const clipboardData = event.clipboardData || window.clipboardData
   if (!clipboardData) return
@@ -737,28 +619,23 @@ const handlePaste = (event) => {
   const pastedText = clipboardData.getData('text')
   if (!pastedText) return
 
-  event.preventDefault() // 기본 paste 동작 방지
+  event.preventDefault()
 
-  // 셀이 포커스된 상태인지 확인
   const focusedCell = gridApi.value?.getFocusedCell()
 
   if (focusedCell) {
-    // 셀이 포커스된 상태 → 해당 셀부터 가로로 붙여넣기
     const startRowIndex = focusedCell.rowIndex
     const startColId = focusedCell.column.colId
     const startColIndex = editableColumns.indexOf(startColId)
 
-    if (startColIndex === -1) return // 편집 불가능한 컬럼
+    if (startColIndex === -1) return
 
-    // 데이터 파싱: 탭이 있으면 탭으로, 없으면 줄바꿈으로 구분
     const hasTab = pastedText.includes('\t')
     let dataRows
 
     if (hasTab) {
-      // 스프레드시트 형식: 탭으로 열 구분, 줄바꿈으로 행 구분
       dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => row.split('\t'))
     } else {
-      // 세로 복사 형식: 줄바꿈으로 행 구분, 각 행은 단일 셀
       dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => [row])
     }
 
@@ -769,7 +646,7 @@ const handlePaste = (event) => {
       const targetRowIndex = startRowIndex + rowOffset
       const rowNode = gridApi.value.getDisplayedRowAtIndex(targetRowIndex)
 
-      if (!rowNode) continue // 행이 없으면 스킵
+      if (!rowNode) continue
 
       const rowId = rowNode.data._id || rowNode.data._tempId
 
@@ -778,24 +655,16 @@ const handlePaste = (event) => {
         if (targetColIndex >= editableColumns.length) break
 
         const field = editableColumns[targetColIndex]
-        let value = cells[colOffset]?.trim() || ''
-
-        // 숫자 필드 변환
-        if (numericFields.includes(field)) {
-          const num = field === 'snapshotTimeDiff' ? parseFloat(value) : parseInt(value)
-          value = isNaN(num) ? (field === 'snapshotTimeDiff' ? null : 0) : num
-        }
+        const value = cells[colOffset]?.trim() || ''
 
         cellUpdates.push({ rowId, field, value })
       }
     }
 
-    // 셀 업데이트 emit
     if (cellUpdates.length > 0) {
       emit('paste-cells', cellUpdates)
     }
   } else {
-    // 셀이 선택되지 않은 상태 → 새 행 추가
     const rows = pastedText.split('\n').filter(row => row.trim())
     if (rows.length === 0) return
 
@@ -805,28 +674,18 @@ const handlePaste = (event) => {
       const cells = row.split('\t')
       if (cells.length === 0) continue
 
-      // 첫 번째 셀이 헤더인지 확인 (line, process 등)
       const firstCell = cells[0]?.trim().toLowerCase()
-      if (firstCell === 'line' || firstCell === 'process' || firstCell === 'eqpid') {
-        continue // 헤더 행 스킵
+      if (firstCell === 'app' || firstCell === 'process' || firstCell === 'model') {
+        continue
       }
 
       const rowData = {}
       for (let i = 0; i < Math.min(cells.length, pasteColumnOrder.length); i++) {
         const field = pasteColumnOrder[i]
-        let value = cells[i]?.trim() || ''
-
-        // 숫자 필드 변환
-        if (numericFields.includes(field)) {
-          const num = field === 'snapshotTimeDiff' ? parseFloat(value) : parseInt(value)
-          value = isNaN(num) ? (field === 'snapshotTimeDiff' ? null : 0) : num
-        }
-
-        rowData[field] = value
+        rowData[field] = cells[i]?.trim() || ''
       }
 
-      // 최소한 하나의 필드에 값이 있어야 추가
-      const hasValue = Object.values(rowData).some(v => v !== '' && v !== null && v !== 0)
+      const hasValue = Object.values(rowData).some(v => v !== '' && v !== null)
       if (hasValue) {
         parsedRows.push(rowData)
       }
@@ -838,30 +697,26 @@ const handlePaste = (event) => {
   }
 }
 
-// Refresh cells when validation errors change
+// Watch for changes and refresh
 watch(() => props.validationErrors, () => {
   if (gridApi.value) {
     gridApi.value.refreshCells({ force: true })
   }
 }, { deep: true })
 
-// Refresh cells when row states change
 watch([() => props.modifiedRows, () => props.newRows, () => props.deletedRows], () => {
   if (gridApi.value) {
     gridApi.value.refreshCells({ force: true })
   }
 }, { deep: true })
 
-// Clear cell selection when rowData changes (page change, etc.)
 watch(() => props.rowData, () => {
   cellSelectionStart.value = null
   cellSelectionEnd.value = null
 }, { deep: false })
 
-// Watch cell selection changes and force redraw
 watch([cellSelectionStart, cellSelectionEnd], () => {
   if (gridApi.value) {
-    // 편집 중인 셀이 있으면 redraw 하지 않음 (편집 모드 취소 방지)
     const editingCells = gridApi.value.getEditingCells()
     if (editingCells && editingCells.length > 0) {
       return
@@ -872,7 +727,7 @@ watch([cellSelectionStart, cellSelectionEnd], () => {
   }
 })
 
-// Expose methods for parent component
+// Expose methods
 defineExpose({
   getSelectedRows: () => gridApi.value?.getSelectedRows() || [],
   clearSelection: () => {
@@ -881,16 +736,11 @@ defineExpose({
     cellSelectionEnd.value = null
   },
   refreshCells: () => gridApi.value?.refreshCells({ force: true }),
-  clearCellSelection: () => {
-    cellSelectionStart.value = null
-    cellSelectionEnd.value = null
-    gridApi.value?.refreshCells({ force: true })
-  },
 })
 </script>
 
 <style>
-/* macOS에서 스크롤바 항상 표시 - AG Grid 35 */
+/* macOS scrollbar */
 .ag-root-wrapper *::-webkit-scrollbar {
   -webkit-appearance: none !important;
   width: 10px !important;
@@ -912,7 +762,6 @@ defineExpose({
   background-color: rgba(0, 0, 0, 0.1) !important;
 }
 
-/* 스크롤 영역 강제 표시 */
 .ag-body-horizontal-scroll,
 .ag-horizontal-scroll {
   display: block !important;
@@ -927,7 +776,7 @@ defineExpose({
   overflow-x: scroll !important;
 }
 
-/* 수정된 셀 글자색 - 빨간색으로 눈에 띄게 */
+/* Modified cell style */
 .ag-cell.cell-value-changed,
 .ag-cell.cell-value-changed .ag-cell-value,
 .ag-cell.cell-value-changed .ag-cell-wrapper,
@@ -936,4 +785,3 @@ defineExpose({
   font-weight: 600 !important;
 }
 </style>
-
