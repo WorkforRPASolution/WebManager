@@ -55,6 +55,14 @@
             @update:model-value="handleModelChange"
           />
 
+          <!-- Status Filter -->
+          <MultiSelect
+            v-model="selectedStatus"
+            :options="statusOptions"
+            label="Status"
+            placeholder="Select Status..."
+          />
+
           <!-- IP Search -->
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">IP</label>
@@ -70,7 +78,7 @@
           <!-- Search Button -->
           <button
             @click="handleSearch"
-            :disabled="selectedProcesses.length === 0 && selectedModels.length === 0 && !ipSearch"
+            :disabled="selectedProcesses.length === 0 && selectedModels.length === 0 && selectedStatus.length === 0 && !ipSearch"
             class="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition text-sm h-[38px]"
           >
             Search
@@ -91,7 +99,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { masterApi } from '../api'
+import { clientListApi } from '../api'
 import MultiSelect from '../../../shared/components/MultiSelect.vue'
 import FilterBookmarks from '../../../shared/components/FilterBookmarks.vue'
 import { useFilterBookmarks } from '../../../shared/composables/useFilterBookmarks'
@@ -102,14 +110,17 @@ defineProps({
 
 const emit = defineEmits(['filter-change', 'toggle'])
 
-const { bookmarks, add: addBookmark, remove: removeBookmark } = useFilterBookmarks('master')
+const { bookmarks, add: addBookmark, remove: removeBookmark } = useFilterBookmarks('clients')
 
 const processes = ref([])
 const allModels = ref([])
 const filteredModels = ref([])
 const selectedProcesses = ref([])
 const selectedModels = ref([])
+const selectedStatus = ref([])
 const ipSearch = ref('')
+
+const statusOptions = ['online', 'offline']
 
 // Show filtered models if processes are selected, otherwise show all models
 const availableModels = computed(() => {
@@ -124,13 +135,14 @@ const filterSummary = computed(() => {
   const parts = []
   if (selectedProcesses.value.length) parts.push(`Process: ${selectedProcesses.value.length}`)
   if (selectedModels.value.length) parts.push(`Model: ${selectedModels.value.length}`)
+  if (selectedStatus.value.length) parts.push(`Status: ${selectedStatus.value.length}`)
   if (ipSearch.value) parts.push(`IP: "${ipSearch.value}"`)
   return parts.length ? parts.join(', ') : 'No filters'
 })
 
 const fetchProcesses = async () => {
   try {
-    const response = await masterApi.getProcesses()
+    const response = await clientListApi.getProcesses()
     processes.value = response.data
   } catch (error) {
     console.error('Failed to fetch processes:', error)
@@ -139,7 +151,7 @@ const fetchProcesses = async () => {
 
 const fetchAllModels = async () => {
   try {
-    const response = await masterApi.getModels()
+    const response = await clientListApi.getModels()
     allModels.value = response.data
   } catch (error) {
     console.error('Failed to fetch all models:', error)
@@ -152,7 +164,7 @@ const fetchModelsForProcesses = async (processArray) => {
     return
   }
   try {
-    const response = await masterApi.getModels(processArray.join(','))
+    const response = await clientListApi.getModels(processArray.join(','))
     filteredModels.value = response.data
   } catch (error) {
     console.error('Failed to fetch models:', error)
@@ -176,6 +188,7 @@ const handleSearch = () => {
   // Allow search if any filter is set
   if (selectedProcesses.value.length === 0 &&
       selectedModels.value.length === 0 &&
+      selectedStatus.value.length === 0 &&
       !ipSearch.value) {
     return
   }
@@ -183,6 +196,7 @@ const handleSearch = () => {
   emit('filter-change', {
     processes: selectedProcesses.value,
     models: selectedModels.value,
+    status: selectedStatus.value,
     ipSearch: ipSearch.value,
   })
 }
@@ -190,6 +204,7 @@ const handleSearch = () => {
 const handleClear = () => {
   selectedProcesses.value = []
   selectedModels.value = []
+  selectedStatus.value = []
   ipSearch.value = ''
   filteredModels.value = []
   emit('filter-change', null)
@@ -199,6 +214,7 @@ const handleClear = () => {
 const hasActiveFilters = computed(() =>
   selectedProcesses.value.length > 0 ||
   selectedModels.value.length > 0 ||
+  selectedStatus.value.length > 0 ||
   ipSearch.value
 )
 
@@ -206,6 +222,7 @@ const handleSaveBookmark = (name) => {
   addBookmark(name, {
     processes: selectedProcesses.value,
     models: selectedModels.value,
+    status: selectedStatus.value,
     ipSearch: ipSearch.value
   })
 }
@@ -213,8 +230,10 @@ const handleSaveBookmark = (name) => {
 const handleApplyBookmark = async (bookmark) => {
   selectedProcesses.value = bookmark.filters.processes || []
   selectedModels.value = bookmark.filters.models || []
+  selectedStatus.value = bookmark.filters.status || []
   ipSearch.value = bookmark.filters.ipSearch || ''
 
+  // Fetch models for selected processes
   if (selectedProcesses.value.length > 0) {
     await fetchModelsForProcesses(selectedProcesses.value)
   }

@@ -6,7 +6,12 @@
     </div>
 
     <!-- Filter Bar -->
-    <EmailTemplateFilterBar ref="filterBarRef" @filter-change="handleFilterChange" />
+    <EmailTemplateFilterBar
+      ref="filterBarRef"
+      :collapsed="filterCollapsed"
+      @toggle="handleFilterToggle"
+      @filter-change="handleFilterChange"
+    />
 
     <!-- Toolbar -->
     <EmailTemplateToolbar
@@ -146,6 +151,12 @@ const htmlEditorRowId = ref(null)
 const currentFiltersLocal = ref(null)
 const toast = ref({ show: false, type: 'success', message: '' })
 const hasSearched = ref(false)
+const filterCollapsed = ref(false)
+
+// Toggle filter bar collapse
+const handleFilterToggle = () => {
+  filterCollapsed.value = !filterCollapsed.value
+}
 
 const {
   currentData,

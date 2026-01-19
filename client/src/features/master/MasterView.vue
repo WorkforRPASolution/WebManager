@@ -6,7 +6,12 @@
     </div>
 
     <!-- Filter Bar -->
-    <MasterFilterBar ref="filterBarRef" @filter-change="handleFilterChange" />
+    <MasterFilterBar
+      ref="filterBarRef"
+      :collapsed="filterCollapsed"
+      @toggle="handleFilterToggle"
+      @filter-change="handleFilterChange"
+    />
 
     <!-- Toolbar -->
     <MasterToolbar
@@ -135,6 +140,12 @@ const showDeleteModal = ref(false)
 const currentFiltersLocal = ref(null)  // Local copy for retry button
 const toast = ref({ show: false, type: 'success', message: '' })
 const hasSearched = ref(false)
+const filterCollapsed = ref(false)
+
+// Toggle filter bar collapse
+const handleFilterToggle = () => {
+  filterCollapsed.value = !filterCollapsed.value
+}
 
 const {
   // Data

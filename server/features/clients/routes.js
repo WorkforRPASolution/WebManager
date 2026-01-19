@@ -70,6 +70,166 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/clients/list - Get clients with server-side pagination and filters
+// Supports multiple process/model/status values (comma-separated)
+router.get('/list', async (req, res) => {
+  try {
+    const { process, model, status, ipSearch, page, pageSize } = req.query;
+
+    const query = {};
+
+    // Handle multiple processes (comma-separated)
+    if (process) {
+      const processes = process.split(',').map(p => p.trim()).filter(p => p);
+      if (processes.length === 1) {
+        query.process = processes[0];
+      } else if (processes.length > 1) {
+        query.process = { $in: processes };
+      }
+    }
+
+    // Handle multiple models (comma-separated)
+    if (model) {
+      const models = model.split(',').map(m => m.trim()).filter(m => m);
+      if (models.length === 1) {
+        query.eqpModel = models[0];
+      } else if (models.length > 1) {
+        query.eqpModel = { $in: models };
+      }
+    }
+
+    // Handle status filter (online/offline)
+    if (status) {
+      const statuses = status.split(',').map(s => s.trim().toLowerCase()).filter(s => s);
+      if (statuses.length > 0) {
+        const onoffValues = statuses.map(s => s === 'online' ? 1 : 0);
+        if (onoffValues.length === 1) {
+          query.onoffNunber = onoffValues[0];
+        } else {
+          query.onoffNunber = { $in: onoffValues };
+        }
+      }
+    }
+
+    // IP search (case-insensitive partial match)
+    if (ipSearch) {
+      query.IpAddr = { $regex: ipSearch, $options: 'i' };
+    }
+
+    // Server-side pagination
+    const currentPage = parseInt(page) || 1;
+    const limit = parseInt(pageSize) || 25;
+    const skip = (currentPage - 1) * limit;
+
+    // Execute query with pagination and count in parallel
+    const [clients, total] = await Promise.all([
+      Client.find(query)
+        .select('eqpId eqpModel process IpAddr onoffNunber osVer category line')
+        .sort({ eqpId: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Client.countDocuments(query)
+    ]);
+
+    // Transform to frontend format
+    const data = clients.map(client => ({
+      id: client.eqpId,
+      eqpId: client.eqpId,
+      eqpModel: client.eqpModel,
+      process: client.process,
+      ipAddress: client.IpAddr,
+      status: client.onoffNunber === 1 ? 'online' : 'offline',
+      osVersion: client.osVer,
+      category: client.category,
+      line: client.line,
+    }));
+
+    res.json({
+      data,
+      total,
+      page: currentPage,
+      pageSize: limit,
+      totalPages: Math.ceil(total / limit)
+    });
+  } catch (error) {
+    console.error('Error fetching client list:', error);
+    res.status(500).json({ error: 'Failed to fetch client list' });
+  }
+});
+
+// POST /api/clients/control - Batch control clients (Mock for Phase 2)
+router.post('/control', async (req, res) => {
+  try {
+    const { ids, action } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids array is required' });
+    }
+
+    if (!['start', 'stop', 'restart'].includes(action)) {
+      return res.status(400).json({ error: 'action must be start, stop, or restart' });
+    }
+
+    // Mock response (will connect to Akka server in Phase 3)
+    res.json({
+      success: true,
+      message: `${action} command sent to ${ids.length} client(s)`,
+      affectedIds: ids,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error controlling clients:', error);
+    res.status(500).json({ error: 'Failed to control clients' });
+  }
+});
+
+// POST /api/clients/update - Batch software update (Mock for Phase 2)
+router.post('/update', async (req, res) => {
+  try {
+    const { ids, version } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids array is required' });
+    }
+
+    // Mock response (will connect to Akka server in Phase 3)
+    res.json({
+      success: true,
+      message: `Update command sent to ${ids.length} client(s)`,
+      version: version || 'latest',
+      affectedIds: ids,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error updating clients:', error);
+    res.status(500).json({ error: 'Failed to update clients' });
+  }
+});
+
+// POST /api/clients/config - Batch config change (Mock for Phase 2)
+router.post('/config', async (req, res) => {
+  try {
+    const { ids, settings } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids array is required' });
+    }
+
+    // Mock response (will connect to Akka server in Phase 3)
+    res.json({
+      success: true,
+      message: `Config command sent to ${ids.length} client(s)`,
+      settings: settings || {},
+      affectedIds: ids,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error configuring clients:', error);
+    res.status(500).json({ error: 'Failed to configure clients' });
+  }
+});
+
 // ============================================
 // Master Data Management APIs
 // ============================================
