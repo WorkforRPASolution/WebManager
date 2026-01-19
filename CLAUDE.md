@@ -65,13 +65,27 @@ DELETE /api/clients/master         # 다중 삭제
 WebManager/
 ├── client/src/
 │   ├── features/           # 기능별 모듈 (auth, dashboard, clients, master, ...)
-│   ├── shared/             # 공통 컴포넌트, composables, utils
+│   ├── shared/
+│   │   ├── components/     # 공용 컴포넌트 (BaseDataGridToolbar 등)
+│   │   ├── composables/    # 공용 composables (useToast, useTheme 등)
+│   │   ├── utils/          # 유틸리티 (dataGridValidation 등)
+│   │   ├── stores/         # Pinia stores
+│   │   └── api/            # API 클라이언트
 │   ├── layouts/            # DefaultLayout, AuthLayout
 │   └── router/             # Vue Router (메뉴 구조 정의)
 ├── server/
-│   ├── features/           # 기능별 라우트 및 서비스
-│   └── shared/             # 미들웨어, DB 연결, 유틸리티
-└── docs/                   # 스키마, 개발 가이드
+│   ├── features/
+│   │   └── clients/        # 서비스 레이어 구조
+│   │       ├── routes.js       # 라우트 정의
+│   │       ├── controller.js   # 요청/응답 처리
+│   │       ├── service.js      # DB 쿼리, 비즈니스 로직
+│   │       ├── validation.js   # 유효성 검사
+│   │       └── model.js        # Mongoose 모델
+│   └── shared/
+│       ├── middleware/     # 미들웨어 (errorHandler 등)
+│       ├── utils/          # 유틸리티 (pagination, queryBuilder)
+│       └── db/             # DB 연결
+└── docs/                   # 스키마, 개발 가이드, 코드 리뷰 보고서
 ```
 
 ## MongoDB Configuration
@@ -96,12 +110,22 @@ cd server && npm run dev
 npm run dev
 ```
 
-## Current Status (2026-01-16)
+## Current Status (2026-01-19)
 - 메가 메뉴 + 사이드바 + 탭 바 레이아웃 완료
 - 다크/라이트 모드 지원
 - MongoDB API 연동 완료
 - Master Data Management 페이지 완료 (AG Grid)
+- Email Template Management 페이지 완료 (Monaco Editor)
 - 라우트 기반 메뉴 시스템 (`router/index.js`만 수정하면 메뉴 자동 생성)
+- 공용 컴포넌트 리팩토링 완료 (BaseDataGridToolbar, useToast, dataGridValidation)
+- Backend 서비스 레이어 분리 완료 (clients: routes → controller → service)
+- 보안 개선 완료 (helmet, CORS, bcrypt)
+
+## Security Configuration
+- **helmet**: 보안 헤더 자동 설정
+- **CORS**: `ALLOWED_ORIGINS` 환경변수로 허용 origin 관리
+- **bcrypt**: 비밀번호 해싱 (BCRYPT_SALT_ROUNDS=12)
+- **에러 핸들러**: 중앙집중식 에러 처리 (`shared/middleware/errorHandler.js`)
 
 ## UI Reference
 - Dashboard: `/Users/hyunkyungmin/Developer/ARS/WebServer/UI_Refer/OverView/screen.png`
