@@ -104,12 +104,20 @@
         <div class="flex-1 overflow-hidden">
           <!-- HTML Code Tab -->
           <div v-show="activeTab === 'code'" class="h-full p-4">
-            <textarea
-              v-model="htmlContent"
-              class="w-full h-full p-3 font-mono text-sm bg-gray-50 dark:bg-dark-bg border border-gray-300 dark:border-dark-border rounded-lg text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-              placeholder="Enter HTML content here..."
-              spellcheck="false"
-            ></textarea>
+            <div class="w-full h-full rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
+              <MonacoEditor
+                v-model="htmlContent"
+                language="html"
+                :theme="isDark ? 'vs-dark' : 'vs'"
+                :options="{
+                  minimap: { enabled: false },
+                  fontSize: 14,
+                  wordWrap: 'on',
+                  automaticLayout: true,
+                  scrollBeyondLastLine: false
+                }"
+              />
+            </div>
           </div>
 
           <!-- Preview Tab -->
@@ -158,6 +166,10 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import MonacoEditor from '../../../shared/components/MonacoEditor.vue'
+import { useTheme } from '../../../shared/composables/useTheme'
+
+const { isDark } = useTheme()
 
 const props = defineProps({
   modelValue: {
