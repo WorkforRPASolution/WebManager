@@ -119,7 +119,7 @@ onUnmounted(() => {
     <!-- Input Field -->
     <div
       @click="toggleDropdown"
-      class="flex items-center justify-between px-3 py-2 rounded-lg border cursor-pointer transition-colors min-w-[180px]"
+      class="flex items-center justify-between px-3 py-2 rounded-lg border cursor-pointer transition-colors w-[180px]"
       :class="[
         disabled
           ? 'bg-gray-100 dark:bg-dark-border cursor-not-allowed opacity-50'
@@ -213,23 +213,6 @@ onUnmounted(() => {
           No options found
         </div>
       </div>
-    </div>
-
-    <!-- Selected Items Chips -->
-    <div v-if="modelValue.length > 0" class="flex flex-wrap gap-1 mt-2">
-      <span
-        v-for="item in modelValue"
-        :key="item"
-        class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-full"
-      >
-        {{ item }}
-        <button
-          @click.stop="removeItem(item)"
-          class="hover:text-primary-900 dark:hover:text-primary-100"
-        >
-          <AppIcon name="x" size="3" />
-        </button>
-      </span>
     </div>
   </div>
 </template>
