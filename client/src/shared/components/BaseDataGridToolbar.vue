@@ -25,7 +25,7 @@
               v-model.number="rowCount"
               type="number"
               min="1"
-              max="500"
+              :max="maxRows"
               class="w-16 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-green-500"
               @keyup.enter="handleAdd"
               @input="enforceMaxRows"
@@ -37,7 +37,7 @@
               Add
             </button>
           </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Max 500 rows</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Max {{ maxRows }} rows</p>
         </div>
       </div>
 
@@ -101,15 +101,11 @@
           @change="$emit('page-size-change', Number($event.target.value))"
           class="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-dark-card text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-500"
         >
-          <option :value="10">10</option>
-          <option :value="25">25</option>
-          <option :value="50">50</option>
-          <option :value="75">75</option>
-          <option :value="100">100</option>
+          <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }}</option>
         </select>
       </div>
 
-      <!-- Pagination controls -->
+      <!-- Pagination controls (server-side) -->
       <div v-if="totalPages > 1" class="flex items-center gap-2 ml-2 pl-2 border-l border-gray-300 dark:border-gray-600">
         <button
           @click="$emit('page-change', 1)"
@@ -164,7 +160,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 
-defineProps({
+const props = defineProps({
   selectedCount: {
     type: Number,
     default: 0
@@ -192,6 +188,14 @@ defineProps({
   totalPages: {
     type: Number,
     default: 1
+  },
+  maxRows: {
+    type: Number,
+    default: 500
+  },
+  pageSizeOptions: {
+    type: Array,
+    default: () => [10, 25, 50, 75, 100]
   }
 })
 
@@ -203,20 +207,21 @@ const rowCount = ref(1)
 const addPopoverRef = ref(null)
 
 const enforceMaxRows = () => {
-  if (rowCount.value > 500) {
-    rowCount.value = 500
+  if (rowCount.value > props.maxRows) {
+    rowCount.value = props.maxRows
   } else if (rowCount.value < 1) {
     rowCount.value = 1
   }
 }
 
 const handleAdd = () => {
-  const count = Math.max(1, Math.min(500, rowCount.value || 1))
+  const count = Math.max(1, Math.min(props.maxRows, rowCount.value || 1))
   emit('add', count)
   showAddPopover.value = false
   rowCount.value = 1
 }
 
+// Close popover on outside click
 const handleClickOutside = (event) => {
   if (showAddPopover.value && addPopoverRef.value && !addPopoverRef.value.contains(event.target)) {
     showAddPopover.value = false

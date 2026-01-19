@@ -14,7 +14,7 @@
     />
 
     <!-- Toolbar -->
-    <EmailTemplateToolbar
+    <BaseDataGridToolbar
       :selected-count="selectedIds.length"
       :has-changes="hasUnsavedChanges"
       :saving="saving"
@@ -135,11 +135,12 @@
 <script setup>
 import { ref, computed } from 'vue'
 import EmailTemplateFilterBar from './components/EmailTemplateFilterBar.vue'
-import EmailTemplateToolbar from './components/EmailTemplateToolbar.vue'
+import BaseDataGridToolbar from '@/shared/components/BaseDataGridToolbar.vue'
 import EmailTemplateGrid from './components/EmailTemplateGrid.vue'
 import DeleteConfirmModal from '../master/components/DeleteConfirmModal.vue'
 import HtmlEditorModal from './components/HtmlEditorModal.vue'
 import { useEmailTemplateData } from './composables/useEmailTemplateData'
+import { useToast } from '@/shared/composables/useToast'
 
 const gridRef = ref(null)
 const filterBarRef = ref(null)
@@ -149,7 +150,7 @@ const showHtmlEditor = ref(false)
 const htmlEditorContent = ref('')
 const htmlEditorRowId = ref(null)
 const currentFiltersLocal = ref(null)
-const toast = ref({ show: false, type: 'success', message: '' })
+const { toast, showToast } = useToast()
 const hasSearched = ref(false)
 const filterCollapsed = ref(false)
 
@@ -217,13 +218,6 @@ const deletedRowsSet = computed(() => {
   }
   return set
 })
-
-const showToast = (type, message) => {
-  toast.value = { show: true, type, message }
-  setTimeout(() => {
-    toast.value.show = false
-  }, 3000)
-}
 
 const handleFilterChange = async (filters) => {
   if (!filters) {

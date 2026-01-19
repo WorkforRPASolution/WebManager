@@ -1,3 +1,9 @@
+import {
+  validateRow as baseValidateRow,
+  validateAllRows as baseValidateAllRows
+} from '@/shared/utils/dataGridValidation'
+
+// Email template-specific validation rules
 export const validationRules = {
   app: {
     required: true,
@@ -31,45 +37,11 @@ export const validationRules = {
   },
 }
 
-// Client-side validation: format/required checks only
+// Client-side validation using shared utility
 export function validateRow(row) {
-  const errors = {}
-
-  for (const [field, rules] of Object.entries(validationRules)) {
-    const value = row[field]
-
-    // Required check
-    if (rules.required) {
-      if (value === null || value === undefined || value === '') {
-        errors[field] = rules.message
-        continue
-      }
-    }
-
-    // Skip further validation if empty and not required
-    if (value === null || value === undefined || value === '') {
-      continue
-    }
-
-    // Max length check
-    if (rules.maxLength && String(value).length > rules.maxLength) {
-      errors[field] = `Max ${rules.maxLength} characters`
-    }
-  }
-
-  return Object.keys(errors).length > 0 ? errors : null
+  return baseValidateRow(row, validationRules)
 }
 
 export function validateAllRows(rows) {
-  const allErrors = {}
-
-  for (const row of rows) {
-    const rowId = row._id || row._tempId
-    const errors = validateRow(row)
-    if (errors) {
-      allErrors[rowId] = errors
-    }
-  }
-
-  return allErrors
+  return baseValidateAllRows(rows, validationRules)
 }

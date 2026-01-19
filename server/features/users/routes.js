@@ -1,6 +1,9 @@
 const express = require('express')
 const router = express.Router()
+const bcrypt = require('bcrypt')
 const User = require('./model')
+
+const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
 
 // 유효성 검사 함수
 function validateUserData(data, isUpdate = false) {
@@ -124,10 +127,13 @@ router.post('/', async (req, res) => {
       })
     }
 
+    // Hash password before saving
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS)
+
     const user = new User({
       username,
       email,
-      password, // 실제 서비스에서는 해시 처리 필요
+      password: hashedPassword,
       name,
       role: role || 'viewer',
       department: department || ''
@@ -188,7 +194,9 @@ router.put('/:id', async (req, res) => {
     // 업데이트
     if (username) user.username = username
     if (email) user.email = email
-    if (password) user.password = password // 실제 서비스에서는 해시 처리 필요
+    if (password) {
+      user.password = await bcrypt.hash(password, SALT_ROUNDS)
+    }
     if (name) user.name = name
     if (role) user.role = role
     if (department !== undefined) user.department = department

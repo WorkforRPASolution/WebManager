@@ -14,7 +14,7 @@
     />
 
     <!-- Toolbar -->
-    <MasterToolbar
+    <BaseDataGridToolbar
       :selected-count="selectedIds.length"
       :has-changes="hasUnsavedChanges"
       :saving="saving"
@@ -128,17 +128,18 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import MasterFilterBar from './components/MasterFilterBar.vue'
-import MasterToolbar from './components/MasterToolbar.vue'
+import BaseDataGridToolbar from '@/shared/components/BaseDataGridToolbar.vue'
 import MasterDataGrid from './components/MasterDataGrid.vue'
 import DeleteConfirmModal from './components/DeleteConfirmModal.vue'
 import { useMasterData } from './composables/useMasterData'
+import { useToast } from '@/shared/composables/useToast'
 
 const gridRef = ref(null)
 const filterBarRef = ref(null)
 const selectedIds = ref([])
 const showDeleteModal = ref(false)
 const currentFiltersLocal = ref(null)  // Local copy for retry button
-const toast = ref({ show: false, type: 'success', message: '' })
+const { toast, showToast } = useToast()
 const hasSearched = ref(false)
 const filterCollapsed = ref(false)
 
@@ -216,13 +217,6 @@ const deletedRowsSet = computed(() => {
   }
   return set
 })
-
-const showToast = (type, message) => {
-  toast.value = { show: true, type, message }
-  setTimeout(() => {
-    toast.value.show = false
-  }, 3000)
-}
 
 const handleFilterChange = async (filters) => {
   // filters is null when Clear is clicked

@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebManager Code Review Report</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            dark: {
+              bg: '#0f172a',
+              card: '#1e293b',
+              border: '#334155'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .code-block {
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 0.85rem;
+    }
+    .severity-critical { @apply bg-red-500/20 text-red-400 border-red-500/50; }
+    .severity-high { @apply bg-orange-500/20 text-orange-400 border-orange-500/50; }
+    .severity-medium { @apply bg-yellow-500/20 text-yellow-400 border-yellow-500/50; }
+    .severity-low { @apply bg-blue-500/20 text-blue-400 border-blue-500/50; }
+    details[open] summary { @apply border-b border-dark-border pb-2 mb-4; }
+    details summary::-webkit-details-marker { display: none; }
+  </style>
+</head>
+<body class="bg-dark-bg text-gray-200 min-h-screen">
+  <!-- Header -->
+  <header class="bg-dark-card border-b border-dark-border sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-white">WebManager Code Review Report</h1>
+        <p class="text-gray-400 text-sm">Generated: 2026-01-19</p>
+      </div>
+      <button id="themeToggle" class="p-2 rounded-lg bg-dark-border hover:bg-slate-600 transition-colors">
+        <svg id="sunIcon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/>
+        </svg>
+        <svg id="moonIcon" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 py-8">
+    <!-- Executive Summary -->
+    <section class="mb-12">
+      <h2 class="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+        <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+        Executive Summary
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+          <div class="text-3xl font-bold text-red-400">3</div>
+          <div class="text-sm text-gray-400">Critical Issues</div>
+        </div>
+        <div class="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4">
+          <div class="text-3xl font-bold text-orange-400">5</div>
+          <div class="text-sm text-gray-400">High Priority</div>
+        </div>
+        <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+          <div class="text-3xl font-bold text-yellow-400">8</div>
+          <div class="text-sm text-gray-400">Medium Priority</div>
+        </div>
+        <div class="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+          <div class="text-3xl font-bold text-blue-400">4</div>
+          <div class="text-sm text-gray-400">Low Priority</div>
+        </div>
+      </div>
+
+      <div class="bg-dark-card border border-dark-border rounded-xl p-6">
+        <h3 class="text-lg font-medium text-white mb-4">Overview</h3>
+        <p class="text-gray-300 leading-relaxed mb-4">
+          WebManager 프로젝트의 전체 코드베이스를 분석한 결과입니다. 전체적인 아키텍처 구조는 양호하나,
+          <strong class="text-red-400">보안 취약점</strong>, <strong class="text-orange-400">중복 코드</strong>,
+          <strong class="text-yellow-400">성능 이슈</strong>가 발견되었습니다.
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <span class="px-3 py-1 bg-slate-700 rounded-full text-sm">Vue.js 3</span>
+          <span class="px-3 py-1 bg-slate-700 rounded-full text-sm">Express</span>
+          <span class="px-3 py-1 bg-slate-700 rounded-full text-sm">MongoDB</span>
+          <span class="px-3 py-1 bg-slate-700 rounded-full text-sm">AG Grid</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Navigation -->
+    <nav class="mb-8 flex flex-wrap gap-2">
+      <a href="#frontend" class="px-4 py-2 bg-dark-card border border-dark-border rounded-lg hover:bg-slate-700 transition-colors">Frontend</a>
+      <a href="#backend" class="px-4 py-2 bg-dark-card border border-dark-border rounded-lg hover:bg-slate-700 transition-colors">Backend</a>
+      <a href="#security" class="px-4 py-2 bg-dark-card border border-dark-border rounded-lg hover:bg-slate-700 transition-colors">Security</a>
+      <a href="#roadmap" class="px-4 py-2 bg-dark-card border border-dark-border rounded-lg hover:bg-slate-700 transition-colors">Roadmap</a>
+    </nav>
+
+    <!-- Frontend Analysis -->
+    <section id="frontend" class="mb-12">
+      <h2 class="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+        <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+        </svg>
+        Frontend Analysis
+      </h2>
+
+      <!-- Unused Code -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4" open>
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-low border">LOW</span>
+            <span class="font-medium">Unused Code</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <div class="bg-slate-800 rounded-lg p-4 mb-4">
+            <div class="flex items-center gap-2 text-sm text-gray-400 mb-2">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"/>
+              </svg>
+              client/src/components/HelloWorld.vue
+            </div>
+            <p class="text-gray-300 text-sm">
+              Vue 프로젝트 생성 시 자동 생성된 기본 컴포넌트. 프로젝트 어디에서도 import되지 않음.
+            </p>
+          </div>
+          <div class="flex items-center gap-2 text-sm">
+            <span class="text-green-400">Action:</span>
+            <span class="text-gray-300">파일 삭제</span>
+          </div>
+        </div>
+      </details>
+
+      <!-- Duplicate Toolbar -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4" open>
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-high border">HIGH</span>
+            <span class="font-medium">Duplicate Toolbar Components (100% identical)</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <div class="grid md:grid-cols-2 gap-4 mb-4">
+            <div class="bg-slate-800 rounded-lg p-4">
+              <div class="text-sm text-gray-400 mb-1">File 1</div>
+              <code class="text-blue-400 text-sm">features/master/components/MasterToolbar.vue</code>
+              <div class="text-gray-500 text-xs mt-1">235 lines</div>
+            </div>
+            <div class="bg-slate-800 rounded-lg p-4">
+              <div class="text-sm text-gray-400 mb-1">File 2</div>
+              <code class="text-blue-400 text-sm">features/email-template/components/EmailTemplateToolbar.vue</code>
+              <div class="text-gray-500 text-xs mt-1">234 lines</div>
+            </div>
+          </div>
+          <div class="bg-slate-900 rounded-lg p-4 code-block overflow-x-auto mb-4">
+            <pre class="text-gray-300"><span class="text-gray-500">// 동일한 구조: props, emits, 페이지네이션, 필터, 버튼</span>
+defineProps({
+  totalItems: { type: Number, default: 0 },
+  currentPage: { type: Number, default: 1 },
+  pageSize: { type: Number, default: 25 },
+  hasChanges: { type: Boolean, default: false },
+  selectedCount: { type: Number, default: 0 },
+  isValid: { type: Boolean, default: true }
+})</pre>
+          </div>
+          <div class="flex items-center gap-2 text-sm">
+            <span class="text-green-400">Solution:</span>
+            <span class="text-gray-300">BaseDataGridToolbar.vue로 통합</span>
+          </div>
+        </div>
+      </details>
+
+      <!-- Duplicate Validation -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4">
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-medium border">MEDIUM</span>
+            <span class="font-medium">Duplicate Validation Logic (90% similar)</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <div class="grid md:grid-cols-2 gap-4 mb-4">
+            <div class="bg-slate-800 rounded-lg p-4">
+              <code class="text-blue-400 text-sm">features/master/validation.js</code>
+              <div class="text-gray-500 text-xs mt-1">151 lines</div>
+            </div>
+            <div class="bg-slate-800 rounded-lg p-4">
+              <code class="text-blue-400 text-sm">features/email-template/validation.js</code>
+              <div class="text-gray-500 text-xs mt-1">76 lines</div>
+            </div>
+          </div>
+          <p class="text-gray-300 text-sm mb-4">
+            동일한 validation 구조 사용: required, pattern, enum, maxLength, type 검사
+          </p>
+          <div class="flex items-center gap-2 text-sm">
+            <span class="text-green-400">Solution:</span>
+            <span class="text-gray-300">shared/utils/dataGridValidation.js로 통합</span>
+          </div>
+        </div>
+      </details>
+
+      <!-- Duplicate Composables -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4">
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-high border">HIGH</span>
+            <span class="font-medium">Duplicate Composables (90% similar)</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <div class="grid md:grid-cols-2 gap-4 mb-4">
+            <div class="bg-slate-800 rounded-lg p-4">
+              <code class="text-blue-400 text-sm">features/master/composables/useMasterData.js</code>
+              <div class="text-gray-500 text-xs mt-1">371 lines</div>
+            </div>
+            <div class="bg-slate-800 rounded-lg p-4">
+              <code class="text-blue-400 text-sm">features/email-template/composables/useEmailTemplateData.js</code>
+              <div class="text-gray-500 text-xs mt-1">332 lines</div>
+            </div>
+          </div>
+          <div class="bg-slate-900 rounded-lg p-4 mb-4">
+            <h4 class="text-sm font-medium text-white mb-2">중복되는 로직:</h4>
+            <ul class="text-gray-300 text-sm space-y-1">
+              <li>• fetchData() - 서버 사이드 페이지네이션, 데이터 머징</li>
+              <li>• trackChange() - 행 수정 추적 (modifiedCells Map)</li>
+              <li>• markForDeletion() - 삭제 마킹</li>
+              <li>• validate(), save(), discardChanges(), resetAllData()</li>
+            </ul>
+          </div>
+          <div class="flex items-center gap-2 text-sm">
+            <span class="text-green-400">Solution:</span>
+            <span class="text-gray-300">useDataGrid composable로 추상화 (차후 고려)</span>
+          </div>
+        </div>
+      </details>
+
+      <!-- Memory Leak -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4">
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-medium border">MEDIUM</span>
+            <span class="font-medium">Potential Memory Leak</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <div class="bg-slate-900 rounded-lg p-4 code-block overflow-x-auto mb-4">
+            <pre class="text-gray-300"><span class="text-gray-500">// composables에서 Map이 무제한 성장</span>
+const modifiedRowData = ref(new Map())  <span class="text-yellow-400">// 편집할 때마다 증가</span>
+const modifiedCells = ref(new Map())    <span class="text-yellow-400">// 모든 셀 변경 추적</span></pre>
+          </div>
+          <p class="text-gray-300 text-sm">
+            페이지네이션으로 데이터가 교체되어도 Map은 정리되지 않음. 1000+ 행 편집 시 메모리 이슈 가능성.
+          </p>
+        </div>
+      </details>
+    </section>
+
+    <!-- Backend Analysis -->
+    <section id="backend" class="mb-12">
+      <h2 class="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+        <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+        </svg>
+        Backend Analysis
+      </h2>
+
+      <!-- N+1 Query -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4" open>
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-high border">HIGH</span>
+            <span class="font-medium">N+1 Query Problem</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <div class="bg-slate-800 rounded-lg p-4 mb-4">
+            <code class="text-blue-400 text-sm">features/clients/routes.js:446-448</code>
+          </div>
+          <div class="bg-slate-900 rounded-lg p-4 code-block overflow-x-auto mb-4">
+            <pre class="text-gray-300"><span class="text-gray-500">// PUT /api/clients/master - 루프 안에서 쿼리 실행!</span>
+for (let i = 0; i < clients.length; i++) {
+  <span class="text-red-400">const otherClients = await Client.find({ _id: { $ne: _id } }, 'eqpId IpAddr');</span>
+  <span class="text-gray-500">// 10개 업데이트 시 10번 쿼리 실행</span>
+  <span class="text-gray-500">// 100개 업데이트 시 100번 쿼리 실행</span>
+}</pre>
+          </div>
+          <div class="flex items-center gap-2 text-sm">
+            <span class="text-green-400">Solution:</span>
+            <span class="text-gray-300">루프 외부에서 한 번만 쿼리하거나 unique index 활용</span>
+          </div>
+        </div>
+      </details>
+
+      <!-- No Service Layer -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4">
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-medium border">MEDIUM</span>
+            <span class="font-medium">Missing Service Layer</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <p class="text-gray-300 text-sm mb-4">
+            현재 routes.js 파일에 라우팅, 비즈니스 로직, DB 쿼리가 모두 혼재되어 있음.
+            clients/routes.js는 500+ 라인으로 과도하게 큼.
+          </p>
+          <div class="bg-slate-900 rounded-lg p-4 code-block mb-4">
+            <pre class="text-gray-300"><span class="text-gray-500">// 권장 구조:</span>
+features/clients/
+├── routes.js        <span class="text-green-400">// 라우트 정의만</span>
+├── controller.js    <span class="text-green-400">// 요청/응답 처리</span>
+├── service.js       <span class="text-green-400">// 비즈니스 로직</span>
+└── validation.js    <span class="text-green-400">// 유효성 검사</span></pre>
+          </div>
+        </div>
+      </details>
+
+      <!-- No Error Handler -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4">
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-medium border">MEDIUM</span>
+            <span class="font-medium">No Centralized Error Handler</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <div class="bg-slate-900 rounded-lg p-4 code-block overflow-x-auto mb-4">
+            <pre class="text-gray-300"><span class="text-gray-500">// 현재: 각 라우트에서 개별적으로 에러 처리</span>
+try {
+  // ... 비즈니스 로직
+} catch (error) {
+  console.error('Error:', error);
+  res.status(500).json({ error: 'Internal server error' });
+}
+
+<span class="text-gray-500">// 권장: 중앙집중식 에러 핸들러</span>
+app.use((err, req, res, next) => {
+  logger.error(err);
+  res.status(err.status || 500).json({
+    error: err.message,
+    code: err.code
+  });
+});</pre>
+          </div>
+        </div>
+      </details>
+
+      <!-- Empty Directories -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4">
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-low border">LOW</span>
+            <span class="font-medium">Empty Shared Directories</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <div class="bg-slate-800 rounded-lg p-4 mb-4">
+            <ul class="text-gray-300 text-sm space-y-1">
+              <li>• <code class="text-blue-400">server/shared/middleware/</code> - 비어있음 (auth, errorHandler 필요)</li>
+              <li>• <code class="text-blue-400">server/shared/utils/</code> - 비어있음 (pagination, queryBuilder 필요)</li>
+            </ul>
+          </div>
+        </div>
+      </details>
+
+      <!-- No Pagination Validation -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4">
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-medium border">MEDIUM</span>
+            <span class="font-medium">Missing Pagination Validation</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <div class="bg-slate-900 rounded-lg p-4 code-block overflow-x-auto mb-4">
+            <pre class="text-gray-300"><span class="text-gray-500">// 현재 코드: 경계 검사 없음</span>
+const currentPage = parseInt(page) || 1;  <span class="text-red-400">// 음수 가능!</span>
+const limit = parseInt(pageSize) || 25;   <span class="text-red-400">// 999999 가능!</span>
+
+<span class="text-gray-500">// 권장: 경계 검사 추가</span>
+const currentPage = Math.max(1, parseInt(page) || 1);
+const limit = Math.min(100, Math.max(1, parseInt(pageSize) || 25));</pre>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- Security Analysis -->
+    <section id="security" class="mb-12">
+      <h2 class="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+        <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        </svg>
+        Security Analysis (OWASP Top 10)
+      </h2>
+
+      <!-- Critical: Plain Text Passwords -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4" open>
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-critical border">CRITICAL</span>
+            <span class="font-medium">A02:2021 - Cryptographic Failures (Plain Text Passwords)</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <div class="bg-slate-800 rounded-lg p-4 mb-4">
+            <code class="text-blue-400 text-sm">features/users/routes.js:130-131, 191</code>
+          </div>
+          <div class="bg-slate-900 rounded-lg p-4 code-block overflow-x-auto mb-4">
+            <pre class="text-gray-300"><span class="text-gray-500">// POST /api/users - 비밀번호 평문 저장</span>
+const newUser = new User({
+  username,
+  email,
+  <span class="text-red-400">password,</span>  <span class="text-gray-500">// 실제 서비스에서는 해시 처리 필요</span>
+  role,
+  isActive
+});
+
+<span class="text-gray-500">// PUT /api/users/:id</span>
+if (password) {
+  <span class="text-red-400">user.password = password;</span>  <span class="text-gray-500">// 실제 서비스에서는 해시 처리 필요</span>
+}</pre>
+          </div>
+          <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-4">
+            <h4 class="text-red-400 font-medium mb-2">Risk</h4>
+            <p class="text-gray-300 text-sm">
+              데이터베이스 침해 시 모든 사용자 자격 증명이 즉시 노출됨.
+              공격자가 모든 계정에 접근 가능.
+            </p>
+          </div>
+          <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+            <h4 class="text-green-400 font-medium mb-2">Solution</h4>
+            <div class="bg-slate-900 rounded-lg p-4 code-block overflow-x-auto">
+              <pre class="text-gray-300"><span class="text-green-400">const bcrypt = require('bcrypt');</span>
+const SALT_ROUNDS = 12;
+
+<span class="text-gray-500">// 저장 시</span>
+const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+
+<span class="text-gray-500">// 검증 시</span>
+const isValid = await bcrypt.compare(inputPassword, user.password);</pre>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- Critical: Mock Authentication -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4" open>
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-critical border">CRITICAL</span>
+            <span class="font-medium">A07:2021 - Identification and Authentication Failures</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <div class="bg-slate-800 rounded-lg p-4 mb-4">
+            <code class="text-blue-400 text-sm">features/auth/routes.js:4-26</code>
+          </div>
+          <div class="bg-slate-900 rounded-lg p-4 code-block overflow-x-auto mb-4">
+            <pre class="text-gray-300"><span class="text-gray-500">// 하드코딩된 자격 증명</span>
+if (username === <span class="text-red-400">'admin'</span> && password === <span class="text-red-400">'admin'</span>) {
+  res.json({
+    token: <span class="text-red-400">'mock-jwt-token-' + Date.now()</span>,  <span class="text-gray-500">// 가짜 토큰</span>
+    user: { username: 'admin', role: 'admin' }
+  });
+}</pre>
+          </div>
+          <div class="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 mb-4">
+            <h4 class="text-yellow-400 font-medium mb-2">Note</h4>
+            <p class="text-gray-300 text-sm">
+              현재 Phase 2 (MongoDB 연결)로 Mock 인증이 의도된 상태입니다.
+              Phase 3에서 실제 JWT 인증 구현 예정.
+            </p>
+          </div>
+        </div>
+      </details>
+
+      <!-- High: CORS -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4" open>
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-high border">HIGH</span>
+            <span class="font-medium">A05:2021 - Security Misconfiguration (Open CORS)</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <div class="bg-slate-800 rounded-lg p-4 mb-4">
+            <code class="text-blue-400 text-sm">app.js:7</code>
+          </div>
+          <div class="bg-slate-900 rounded-lg p-4 code-block overflow-x-auto mb-4">
+            <pre class="text-gray-300"><span class="text-gray-500">// 현재: 모든 origin 허용</span>
+app.use(<span class="text-red-400">cors()</span>);
+
+<span class="text-gray-500">// 권장: 특정 origin만 허용</span>
+app.use(cors({
+  <span class="text-green-400">origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173'],</span>
+  credentials: true
+}));</pre>
+          </div>
+        </div>
+      </details>
+
+      <!-- High: No Security Headers -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4">
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-high border">HIGH</span>
+            <span class="font-medium">A05:2021 - Missing Security Headers</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <p class="text-gray-300 text-sm mb-4">
+            보안 헤더 (X-Content-Type-Options, X-Frame-Options, CSP 등)가 설정되지 않음.
+          </p>
+          <div class="bg-slate-900 rounded-lg p-4 code-block overflow-x-auto">
+            <pre class="text-gray-300"><span class="text-gray-500">// helmet 패키지 사용 권장</span>
+<span class="text-green-400">const helmet = require('helmet');
+app.use(helmet());</span></pre>
+          </div>
+        </div>
+      </details>
+
+      <!-- Medium: No Input Validation -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4">
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-medium border">MEDIUM</span>
+            <span class="font-medium">A03:2021 - Injection (Insufficient Input Validation)</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <p class="text-gray-300 text-sm mb-4">
+            쿼리 파라미터와 요청 본문에 대한 체계적인 검증이 부족함.
+            수동 검증 로직이 라우트마다 중복되어 있음.
+          </p>
+          <div class="bg-slate-900 rounded-lg p-4 code-block overflow-x-auto">
+            <pre class="text-gray-300"><span class="text-gray-500">// 권장: express-validator 또는 zod 사용</span>
+<span class="text-green-400">const { body, validationResult } = require('express-validator');
+
+router.post('/clients/master', [
+  body('*.eqpId').isString().trim().notEmpty(),
+  body('*.IpAddr').isIP(),
+], validateRequest, handler);</span></pre>
+          </div>
+        </div>
+      </details>
+
+      <!-- Medium: No Rate Limiting -->
+      <details class="bg-dark-card border border-dark-border rounded-xl mb-4">
+        <summary class="p-4 cursor-pointer flex items-center justify-between hover:bg-slate-700/50 transition-colors">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-1 rounded text-xs font-medium severity-medium border">MEDIUM</span>
+            <span class="font-medium">No Rate Limiting</span>
+          </div>
+          <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </summary>
+        <div class="p-4 pt-0">
+          <p class="text-gray-300 text-sm mb-4">
+            로그인, 비밀번호 변경, 배치 작업에 Rate Limiting이 없어 Brute Force 공격에 취약함.
+          </p>
+          <div class="bg-slate-900 rounded-lg p-4 code-block overflow-x-auto">
+            <pre class="text-gray-300"><span class="text-gray-500">// 권장: express-rate-limit 사용</span>
+<span class="text-green-400">const rateLimit = require('express-rate-limit');
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15분
+  max: 5, // 5회 시도
+  message: 'Too many login attempts'
+});
+
+router.post('/auth/login', loginLimiter, handler);</span></pre>
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <!-- Improvement Roadmap -->
+    <section id="roadmap" class="mb-12">
+      <h2 class="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+        <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+        </svg>
+        Improvement Roadmap
+      </h2>
+
+      <div class="space-y-4">
+        <!-- Phase 1: Immediate -->
+        <div class="bg-dark-card border border-dark-border rounded-xl p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-sm font-medium">Phase 1</span>
+            <span class="text-white font-medium">Immediate Fixes (Security & Cleanup)</span>
+          </div>
+          <div class="space-y-3">
+            <div class="flex items-start gap-3">
+              <input type="checkbox" class="mt-1 rounded bg-slate-700 border-slate-500" />
+              <div>
+                <span class="text-gray-300">Password hashing with bcrypt</span>
+                <code class="ml-2 text-xs text-blue-400">users/routes.js</code>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <input type="checkbox" class="mt-1 rounded bg-slate-700 border-slate-500" />
+              <div>
+                <span class="text-gray-300">CORS configuration</span>
+                <code class="ml-2 text-xs text-blue-400">app.js</code>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <input type="checkbox" class="mt-1 rounded bg-slate-700 border-slate-500" />
+              <div>
+                <span class="text-gray-300">Security headers with helmet</span>
+                <code class="ml-2 text-xs text-blue-400">app.js</code>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <input type="checkbox" class="mt-1 rounded bg-slate-700 border-slate-500" />
+              <div>
+                <span class="text-gray-300">Delete unused HelloWorld.vue</span>
+                <code class="ml-2 text-xs text-blue-400">components/</code>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phase 2: Refactoring -->
+        <div class="bg-dark-card border border-dark-border rounded-xl p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="px-3 py-1 bg-orange-500/20 text-orange-400 rounded-full text-sm font-medium">Phase 2</span>
+            <span class="text-white font-medium">Code Refactoring (Duplication Removal)</span>
+          </div>
+          <div class="space-y-3">
+            <div class="flex items-start gap-3">
+              <input type="checkbox" class="mt-1 rounded bg-slate-700 border-slate-500" />
+              <div>
+                <span class="text-gray-300">Create BaseDataGridToolbar.vue</span>
+                <code class="ml-2 text-xs text-blue-400">shared/components/</code>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <input type="checkbox" class="mt-1 rounded bg-slate-700 border-slate-500" />
+              <div>
+                <span class="text-gray-300">Create dataGridValidation.js</span>
+                <code class="ml-2 text-xs text-blue-400">shared/utils/</code>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <input type="checkbox" class="mt-1 rounded bg-slate-700 border-slate-500" />
+              <div>
+                <span class="text-gray-300">Create useToast.js composable</span>
+                <code class="ml-2 text-xs text-blue-400">shared/composables/</code>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <input type="checkbox" class="mt-1 rounded bg-slate-700 border-slate-500" />
+              <div>
+                <span class="text-gray-300">Create backend utilities (pagination, queryBuilder, errorHandler)</span>
+                <code class="ml-2 text-xs text-blue-400">server/shared/</code>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phase 3: Future -->
+        <div class="bg-dark-card border border-dark-border rounded-xl p-6">
+          <div class="flex items-center gap-3 mb-4">
+            <span class="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-sm font-medium">Phase 3</span>
+            <span class="text-white font-medium">Future Improvements (Akka Integration)</span>
+          </div>
+          <div class="space-y-3 text-gray-400">
+            <div class="flex items-start gap-3">
+              <input type="checkbox" class="mt-1 rounded bg-slate-700 border-slate-500" disabled />
+              <span>Implement JWT authentication with refresh tokens</span>
+            </div>
+            <div class="flex items-start gap-3">
+              <input type="checkbox" class="mt-1 rounded bg-slate-700 border-slate-500" disabled />
+              <span>Add auth middleware to protected routes</span>
+            </div>
+            <div class="flex items-start gap-3">
+              <input type="checkbox" class="mt-1 rounded bg-slate-700 border-slate-500" disabled />
+              <span>Implement rate limiting</span>
+            </div>
+            <div class="flex items-start gap-3">
+              <input type="checkbox" class="mt-1 rounded bg-slate-700 border-slate-500" disabled />
+              <span>Add request validation with express-validator</span>
+            </div>
+            <div class="flex items-start gap-3">
+              <input type="checkbox" class="mt-1 rounded bg-slate-700 border-slate-500" disabled />
+              <span>Add database indexes</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Files Summary -->
+    <section class="mb-12">
+      <h2 class="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+        <svg class="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+        </svg>
+        Files to Modify
+      </h2>
+
+      <div class="grid md:grid-cols-2 gap-6">
+        <!-- Frontend -->
+        <div class="bg-dark-card border border-dark-border rounded-xl p-6">
+          <h3 class="text-lg font-medium text-white mb-4 flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-green-500"></span>
+            Frontend
+          </h3>
+
+          <div class="mb-4">
+            <h4 class="text-sm text-red-400 mb-2">Delete</h4>
+            <div class="bg-slate-800 rounded-lg p-2">
+              <code class="text-sm text-gray-300">client/src/components/HelloWorld.vue</code>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <h4 class="text-sm text-green-400 mb-2">Create</h4>
+            <div class="space-y-1">
+              <div class="bg-slate-800 rounded-lg p-2">
+                <code class="text-sm text-gray-300">shared/components/BaseDataGridToolbar.vue</code>
+              </div>
+              <div class="bg-slate-800 rounded-lg p-2">
+                <code class="text-sm text-gray-300">shared/composables/useToast.js</code>
+              </div>
+              <div class="bg-slate-800 rounded-lg p-2">
+                <code class="text-sm text-gray-300">shared/utils/dataGridValidation.js</code>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="text-sm text-yellow-400 mb-2">Update</h4>
+            <div class="space-y-1">
+              <div class="bg-slate-800 rounded-lg p-2">
+                <code class="text-sm text-gray-300">features/master/MasterView.vue</code>
+              </div>
+              <div class="bg-slate-800 rounded-lg p-2">
+                <code class="text-sm text-gray-300">features/email-template/EmailTemplateView.vue</code>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Backend -->
+        <div class="bg-dark-card border border-dark-border rounded-xl p-6">
+          <h3 class="text-lg font-medium text-white mb-4 flex items-center gap-2">
+            <span class="w-3 h-3 rounded-full bg-purple-500"></span>
+            Backend
+          </h3>
+
+          <div class="mb-4">
+            <h4 class="text-sm text-green-400 mb-2">Create</h4>
+            <div class="space-y-1">
+              <div class="bg-slate-800 rounded-lg p-2">
+                <code class="text-sm text-gray-300">shared/utils/pagination.js</code>
+              </div>
+              <div class="bg-slate-800 rounded-lg p-2">
+                <code class="text-sm text-gray-300">shared/utils/queryBuilder.js</code>
+              </div>
+              <div class="bg-slate-800 rounded-lg p-2">
+                <code class="text-sm text-gray-300">shared/middleware/errorHandler.js</code>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h4 class="text-sm text-yellow-400 mb-2">Update</h4>
+            <div class="space-y-1">
+              <div class="bg-slate-800 rounded-lg p-2">
+                <code class="text-sm text-gray-300">app.js (security headers, CORS)</code>
+              </div>
+              <div class="bg-slate-800 rounded-lg p-2">
+                <code class="text-sm text-gray-300">features/users/routes.js (bcrypt)</code>
+              </div>
+              <div class="bg-slate-800 rounded-lg p-2">
+                <code class="text-sm text-gray-300">features/clients/routes.js (service layer)</code>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-dark-border py-6 text-center text-gray-500 text-sm">
+    <p>WebManager Code Review Report - Generated by Claude</p>
+  </footer>
+
+  <script>
+    // Theme toggle
+    const themeToggle = document.getElementById('themeToggle');
+    const html = document.documentElement;
+    const sunIcon = document.getElementById('sunIcon');
+    const moonIcon = document.getElementById('moonIcon');
+
+    themeToggle.addEventListener('click', () => {
+      html.classList.toggle('dark');
+      sunIcon.classList.toggle('hidden');
+      moonIcon.classList.toggle('hidden');
+
+      // Update body classes for light mode
+      if (!html.classList.contains('dark')) {
+        document.body.classList.remove('bg-dark-bg', 'text-gray-200');
+        document.body.classList.add('bg-gray-100', 'text-gray-800');
+      } else {
+        document.body.classList.add('bg-dark-bg', 'text-gray-200');
+        document.body.classList.remove('bg-gray-100', 'text-gray-800');
+      }
+    });
+
+    // Smooth scroll for navigation
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.querySelector(this.getAttribute('href')).scrollIntoView({
+          behavior: 'smooth'
+        });
+      });
+    });
+  </script>
+</body>
+</html>
