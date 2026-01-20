@@ -26,12 +26,12 @@ const generateSampleData = () => {
           eqpModel: eqpModel,
           eqpId: eqpId,
           category: categories[Math.floor(Math.random() * categories.length)],
-          IpAddr: `192.168.${10 + pIdx}.${100 + mIdx * 10 + cIdx}`,
-          IpAddrL: `10.0.${pIdx}.${mIdx * 10 + cIdx}`,
-          localpcNunber: Math.random() > 0.8 ? 1 : 0,
+          ipAddr: `192.168.${10 + pIdx}.${100 + mIdx * 10 + cIdx}`,
+          ipAddrL: `10.0.${pIdx}.${mIdx * 10 + cIdx}`,
+          localpc: Math.random() > 0.8 ? 1 : 0,
           emailcategory: 'DEFAULT',
           osVer: osVersions[Math.floor(Math.random() * osVersions.length)],
-          onoffNunber: Math.random() > 0.15 ? 1 : 0, // 85% online
+          onoff: Math.random() > 0.15 ? 1 : 0, // 85% online
           webmanagerUse: 1,
           installdate: `2024-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
           scFirstExcute: `2024-${String(Math.floor(Math.random() * 12) + 1).padStart(2, '0')}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
@@ -72,7 +72,7 @@ const seedDatabase = async () => {
       console.log(`  ${process}: ${count} clients (${models.length} models)`);
     }
 
-    const onlineCount = await Client.countDocuments({ onoffNunber: 1 });
+    const onlineCount = await Client.countDocuments({ onoff: 1 });
     console.log(`\nOnline clients: ${onlineCount}/${insertResult.length}`);
 
     process.exit(0);

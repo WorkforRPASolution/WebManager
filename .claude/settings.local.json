@@ -9,7 +9,14 @@
       "Bash(npm run build:*)",
       "Bash(curl:*)",
       "Bash(NODE_PATH=/Users/hyunkyungmin/.nvm/versions/node/v24.12.0/lib/node_modules node:*)",
-      "WebFetch(domain:www.ag-grid.com)"
+      "WebFetch(domain:www.ag-grid.com)",
+      "Bash(git checkout:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
+      "Bash(npm run dev:*)",
+      "Bash(lsof:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

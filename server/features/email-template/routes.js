@@ -6,7 +6,7 @@ const EmailTemplate = require('./model');
 const validateEmailTemplateData = (data, isUpdate = false) => {
   const errors = {};
 
-  const requiredFields = ['app', 'process', 'model', 'code', 'subcode', 'title', 'htmp'];
+  const requiredFields = ['app', 'process', 'model', 'code', 'subcode', 'title', 'html'];
 
   for (const field of requiredFields) {
     if (!data[field] || (typeof data[field] === 'string' && !data[field].trim())) {

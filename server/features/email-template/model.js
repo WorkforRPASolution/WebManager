@@ -26,7 +26,7 @@ const emailTemplateSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  htmp: {
+  html: {
     type: String,
     required: true
   }

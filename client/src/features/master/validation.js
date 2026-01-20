@@ -1,3 +1,10 @@
+import {
+  validateRow as baseValidateRow,
+  validateAllRows as baseValidateAllRows,
+  patterns
+} from '@/shared/utils/dataGridValidation'
+
+// Master-specific validation rules
 export const validationRules = {
   line: {
     required: true,
@@ -19,24 +26,24 @@ export const validationRules = {
   },
   eqpId: {
     required: true,
-    pattern: /^[A-Za-z0-9_-]+$/,
+    pattern: patterns.alphanumericWithSymbols,
     message: 'Equipment ID is required (alphanumeric, _, -)'
   },
   category: {
     required: true,
     message: 'Category is required'
   },
-  IpAddr: {
+  ipAddr: {
     required: true,
-    pattern: /^(\d{1,3}\.){3}\d{1,3}$/,
+    pattern: patterns.ipv4,
     message: 'Valid IPv4 address required'
   },
-  IpAddrL: {
+  ipAddrL: {
     required: false,
-    pattern: /^(\d{1,3}\.){3}\d{1,3}$/,
+    pattern: patterns.ipv4,
     message: 'Valid IPv4 format if provided'
   },
-  localpcNunber: {
+  localpc: {
     required: true,
     enum: [0, 1],
     message: 'Must be 0 or 1'
@@ -49,7 +56,7 @@ export const validationRules = {
     required: true,
     message: 'OS version is required'
   },
-  onoffNunber: {
+  onoff: {
     required: true,
     enum: [0, 1],
     message: 'Must be 0 or 1'
@@ -61,12 +68,12 @@ export const validationRules = {
   },
   installdate: {
     required: false,
-    pattern: /^\d{4}-\d{2}-\d{2}$/,
+    pattern: patterns.date,
     message: 'Date format: yyyy-MM-dd'
   },
   scFirstExcute: {
     required: false,
-    pattern: /^\d{4}-\d{2}-\d{2}$/,
+    pattern: patterns.date,
     message: 'Date format: yyyy-MM-dd'
   },
   snapshotTimeDiff: {
@@ -86,65 +93,12 @@ export const validationRules = {
   },
 }
 
-// Client-side validation: format/required checks only
-// Duplicate validation (eqpId, IpAddr) is handled server-side during save
+// Client-side validation using shared utility
+// Note: Duplicate checks for eqpId and ipAddr are handled by the server
 export function validateRow(row) {
-  const errors = {}
-
-  for (const [field, rules] of Object.entries(validationRules)) {
-    const value = row[field]
-
-    // Required check
-    if (rules.required) {
-      if (value === null || value === undefined || value === '') {
-        errors[field] = rules.message
-        continue
-      }
-    }
-
-    // Skip further validation if empty and not required
-    if (value === null || value === undefined || value === '') {
-      continue
-    }
-
-    // Pattern check
-    if (rules.pattern && !rules.pattern.test(String(value))) {
-      errors[field] = rules.message
-    }
-
-    // Enum check
-    if (rules.enum && !rules.enum.includes(Number(value))) {
-      errors[field] = rules.message
-    }
-
-    // Max length check
-    if (rules.maxLength && String(value).length > rules.maxLength) {
-      errors[field] = `Max ${rules.maxLength} characters`
-    }
-
-    // Type check
-    if (rules.type === 'number' && isNaN(Number(value))) {
-      errors[field] = rules.message
-    }
-  }
-
-  // Note: Duplicate checks for eqpId and IpAddr are handled by the server
-  // during create/update operations since with server-side pagination,
-  // we don't have access to all data on the client
-
-  return Object.keys(errors).length > 0 ? errors : null
+  return baseValidateRow(row, validationRules)
 }
 
 export function validateAllRows(rows) {
-  const allErrors = {}
-
-  for (const row of rows) {
-    const rowId = row._id || row._tempId
-    const errors = validateRow(row)
-    if (errors) {
-      allErrors[rowId] = errors
-    }
-  }
-
-  return allErrors
+  return baseValidateAllRows(rows, validationRules)
 }
