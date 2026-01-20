@@ -33,17 +33,17 @@ export const validationRules = {
     required: true,
     message: 'Category is required'
   },
-  IpAddr: {
+  ipAddr: {
     required: true,
     pattern: patterns.ipv4,
     message: 'Valid IPv4 address required'
   },
-  IpAddrL: {
+  ipAddrL: {
     required: false,
     pattern: patterns.ipv4,
     message: 'Valid IPv4 format if provided'
   },
-  localpcNunber: {
+  localpc: {
     required: true,
     enum: [0, 1],
     message: 'Must be 0 or 1'
@@ -56,7 +56,7 @@ export const validationRules = {
     required: true,
     message: 'OS version is required'
   },
-  onoffNunber: {
+  onoff: {
     required: true,
     enum: [0, 1],
     message: 'Must be 0 or 1'
@@ -94,7 +94,7 @@ export const validationRules = {
 }
 
 // Client-side validation using shared utility
-// Note: Duplicate checks for eqpId and IpAddr are handled by the server
+// Note: Duplicate checks for eqpId and ipAddr are handled by the server
 export function validateRow(row) {
   return baseValidateRow(row, validationRules)
 }

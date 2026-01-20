@@ -180,8 +180,8 @@ const isCellInSelectionRange = (rowIndex, colId) => {
 // 편집 가능한 컬럼 목록 (순서대로)
 const editableColumns = [
   'line', 'lineDesc', 'process', 'eqpModel', 'eqpId', 'category',
-  'IpAddr', 'IpAddrL', 'localpcNunber', 'emailcategory', 'osVer',
-  'onoffNunber', 'webmanagerUse', 'installdate', 'scFirstExcute',
+  'ipAddr', 'ipAddrL', 'localpc', 'emailcategory', 'osVer',
+  'onoff', 'webmanagerUse', 'installdate', 'scFirstExcute',
   'snapshotTimeDiff', 'usereleasemsg', 'usetkincancel'
 ]
 
@@ -201,27 +201,25 @@ const columnDefs = ref([
   { field: 'eqpModel', headerName: 'Model', width: 120, editable: true },
   { field: 'eqpId', headerName: 'Eqp ID', width: 120, editable: true },
   { field: 'category', headerName: 'Category', width: 100, editable: true },
-  { field: 'IpAddr', headerName: 'IP Address', width: 130, editable: true },
-  { field: 'IpAddrL', headerName: 'Inner IP', width: 130, editable: true },
+  { field: 'ipAddr', headerName: 'IP Address', width: 130, editable: true },
+  { field: 'ipAddrL', headerName: 'Inner IP', width: 130, editable: true },
   {
-    field: 'localpcNunber',
+    field: 'localpc',
     headerName: 'Local PC',
     width: 90,
     editable: true,
     cellEditor: 'agSelectCellEditor',
     cellEditorParams: { values: [0, 1] },
-    valueFormatter: params => params.value === 1 ? 'Yes' : 'No',
   },
   { field: 'emailcategory', headerName: 'Email Cat.', width: 100, editable: true },
   { field: 'osVer', headerName: 'OS Version', width: 120, editable: true },
   {
-    field: 'onoffNunber',
+    field: 'onoff',
     headerName: 'On/Off',
     width: 80,
     editable: true,
     cellEditor: 'agSelectCellEditor',
     cellEditorParams: { values: [0, 1] },
-    valueFormatter: params => params.value === 1 ? 'On' : 'Off',
   },
   {
     field: 'webmanagerUse',
@@ -230,7 +228,6 @@ const columnDefs = ref([
     editable: true,
     cellEditor: 'agSelectCellEditor',
     cellEditorParams: { values: [0, 1] },
-    valueFormatter: params => params.value === 1 ? 'Yes' : 'No',
   },
   { field: 'installdate', headerName: 'Install Date', width: 110, editable: true },
   { field: 'scFirstExcute', headerName: 'First Exec', width: 110, editable: true },
@@ -248,7 +245,6 @@ const columnDefs = ref([
     editable: true,
     cellEditor: 'agSelectCellEditor',
     cellEditorParams: { values: [0, 1] },
-    valueFormatter: params => params.value === 1 ? 'Yes' : 'No',
   },
   {
     field: 'usetkincancel',
@@ -257,7 +253,6 @@ const columnDefs = ref([
     editable: true,
     cellEditor: 'agSelectCellEditor',
     cellEditorParams: { values: [0, 1] },
-    valueFormatter: params => params.value === 1 ? 'Yes' : 'No',
   },
 ])
 
@@ -371,7 +366,7 @@ const processCellFromClipboard = (params) => {
   const value = params.value?.toString().trim() || ''
 
   // Convert to number for numeric fields
-  const numericFields = ['localpcNunber', 'onoffNunber', 'webmanagerUse', 'usereleasemsg', 'usetkincancel']
+  const numericFields = ['localpc', 'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel']
   if (numericFields.includes(params.column.colId)) {
     const num = parseInt(value)
     return isNaN(num) ? 0 : num
@@ -661,13 +656,13 @@ const onCellEditingStopped = (params) => {
 // 컬럼 순서 정의 (스프레드시트에서 복사할 때 사용)
 const pasteColumnOrder = [
   'line', 'lineDesc', 'process', 'eqpModel', 'eqpId', 'category',
-  'IpAddr', 'IpAddrL', 'localpcNunber', 'emailcategory', 'osVer',
-  'onoffNunber', 'webmanagerUse', 'installdate', 'scFirstExcute',
+  'ipAddr', 'ipAddrL', 'localpc', 'emailcategory', 'osVer',
+  'onoff', 'webmanagerUse', 'installdate', 'scFirstExcute',
   'snapshotTimeDiff', 'usereleasemsg', 'usetkincancel'
 ]
 
 // 숫자 필드 목록
-const numericFields = ['localpcNunber', 'onoffNunber', 'webmanagerUse', 'usereleasemsg', 'usetkincancel', 'snapshotTimeDiff']
+const numericFields = ['localpc', 'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel', 'snapshotTimeDiff']
 
 // 직접 copy 이벤트 처리 (AG Grid Community는 clipboard 미지원)
 const handleCopy = (event) => {

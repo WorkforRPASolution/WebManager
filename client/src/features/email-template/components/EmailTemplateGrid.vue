@@ -153,7 +153,7 @@ const onSortChanged = () => {
 }
 
 // Editable columns
-const editableColumns = ['app', 'process', 'model', 'code', 'subcode', 'title', 'htmp']
+const editableColumns = ['app', 'process', 'model', 'code', 'subcode', 'title', 'html']
 
 // Row selection config
 const rowSelection = ref({
@@ -171,7 +171,7 @@ const columnDefs = ref([
   { field: 'subcode', headerName: 'Subcode', width: 120, editable: true },
   { field: 'title', headerName: 'Title', width: 200, editable: true },
   {
-    field: 'htmp',
+    field: 'html',
     headerName: 'HTML',
     width: 300,
     editable: false,
@@ -405,10 +405,10 @@ const onCellClicked = (params) => {
 const onCellDoubleClicked = (params) => {
   const field = params.colDef.field
 
-  // Open HTML editor for htmp field
-  if (field === 'htmp') {
+  // Open HTML editor for html field
+  if (field === 'html') {
     const rowId = params.data._id || params.data._tempId
-    const currentValue = params.data.htmp || ''
+    const currentValue = params.data.html || ''
     emit('edit-html', { rowId, value: currentValue })
   }
 }
@@ -554,7 +554,7 @@ const onCellEditingStopped = (params) => {
 }
 
 // Paste column order
-const pasteColumnOrder = ['app', 'process', 'model', 'code', 'subcode', 'title', 'htmp']
+const pasteColumnOrder = ['app', 'process', 'model', 'code', 'subcode', 'title', 'html']
 
 // Copy handler
 const handleCopy = (event) => {

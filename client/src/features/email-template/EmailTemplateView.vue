@@ -354,7 +354,7 @@ const handleEditHtml = ({ rowId, value }) => {
 
 const handleHtmlSave = (newHtml) => {
   if (htmlEditorRowId.value) {
-    trackChange(htmlEditorRowId.value, 'htmp', newHtml)
+    trackChange(htmlEditorRowId.value, 'html', newHtml)
     if (gridRef.value) {
       gridRef.value.refreshCells()
     }

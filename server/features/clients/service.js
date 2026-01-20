@@ -37,12 +37,12 @@ function buildClientQuery(filters) {
     const statuses = filters.status.split(',').map(s => s.trim().toLowerCase()).filter(s => s)
     if (statuses.length > 0) {
       const onoffValues = statuses.map(s => s === 'online' ? 1 : 0)
-      query.onoffNunber = onoffValues.length === 1 ? onoffValues[0] : { $in: onoffValues }
+      query.onoff = onoffValues.length === 1 ? onoffValues[0] : { $in: onoffValues }
     }
   }
 
   if (filters.ipSearch) {
-    query.IpAddr = { $regex: filters.ipSearch, $options: 'i' }
+    query.ipAddr = { $regex: filters.ipSearch, $options: 'i' }
   }
 
   return query
@@ -57,8 +57,8 @@ function transformClient(client) {
     eqpId: client.eqpId,
     eqpModel: client.eqpModel,
     process: client.process,
-    ipAddress: client.IpAddr,
-    status: client.onoffNunber === 1 ? 'online' : 'offline',
+    ipAddress: client.ipAddr,
+    status: client.onoff === 1 ? 'online' : 'offline',
     osVersion: client.osVer,
     category: client.category,
     line: client.line
@@ -74,15 +74,15 @@ function transformClientDetail(client) {
     eqpId: client.eqpId,
     eqpModel: client.eqpModel,
     process: client.process,
-    ipAddress: client.IpAddr,
-    innerIp: client.IpAddrL,
-    status: client.onoffNunber === 1 ? 'online' : 'offline',
+    ipAddress: client.ipAddr,
+    innerIp: client.ipAddrL,
+    status: client.onoff === 1 ? 'online' : 'offline',
     osVersion: client.osVer,
     category: client.category,
     line: client.line,
     lineDesc: client.lineDesc,
     installDate: client.installdate,
-    localPc: client.localpcNunber === 1,
+    localPc: client.localpc === 1,
     webmanagerUse: client.webmanagerUse === 1,
     // Mock resource data (will be from Akka server in Phase 3)
     resources: {
@@ -125,7 +125,7 @@ async function getModels(processFilter) {
 async function getClients(filters) {
   const query = buildClientQuery(filters)
   const clients = await Client.find(query)
-    .select('eqpId eqpModel process IpAddr onoffNunber osVer category line')
+    .select('eqpId eqpModel process ipAddr onoff osVer category line')
     .sort({ eqpId: 1 })
 
   return clients.map(transformClient)
@@ -140,7 +140,7 @@ async function getClientsPaginated(filters, paginationQuery) {
 
   const [clients, total] = await Promise.all([
     Client.find(query)
-      .select('eqpId eqpModel process IpAddr onoffNunber osVer category line')
+      .select('eqpId eqpModel process ipAddr onoff osVer category line')
       .sort({ eqpId: 1 })
       .skip(skip)
       .limit(limit)
@@ -232,9 +232,9 @@ async function getMasterData(filters, paginationQuery) {
  */
 async function createClients(clientsData) {
   // Get existing IDs and IPs for validation
-  const existingClients = await Client.find({}, 'eqpId IpAddr').lean()
+  const existingClients = await Client.find({}, 'eqpId ipAddr').lean()
   const existingIds = existingClients.map(c => c.eqpId)
-  const existingIps = existingClients.map(c => c.IpAddr)
+  const existingIps = existingClients.map(c => c.ipAddr)
 
   // Validate
   const { valid, errors } = validateBatchCreate(clientsData, existingIds, existingIps)
@@ -257,7 +257,7 @@ async function updateClients(clientsData) {
   let updated = 0
 
   // Get all other clients' IDs and IPs once (avoid N+1)
-  const allClients = await Client.find({}, '_id eqpId IpAddr').lean()
+  const allClients = await Client.find({}, '_id eqpId ipAddr').lean()
 
   for (let i = 0; i < clientsData.length; i++) {
     const clientData = clientsData[i]
@@ -271,7 +271,7 @@ async function updateClients(clientsData) {
     // Get other clients (excluding current one)
     const otherClients = allClients.filter(c => c._id.toString() !== _id)
     const existingIds = otherClients.map(c => c.eqpId)
-    const existingIps = otherClients.map(c => c.IpAddr)
+    const existingIps = otherClients.map(c => c.ipAddr)
 
     // Validate
     const validation = validateUpdate(updateData, existingIds, existingIps)

@@ -18,12 +18,12 @@
 | eqpModel | String | Required | Equipment Model |
 | eqpId | String | Required (PK) | Equipment ID |
 | category | String | Required | Equipment Category |
-| IpAddr | String | Required (PK) | Equipment IP Address |
-| IpAddrL | String | Optional | Inner Network IP |
-| localpcNunber | Long | Required | Local PC 여부 (1: Yes, 0: No) |
+| ipAddr | String | Required (PK) | Equipment IP Address |
+| ipAddrL | String | Optional | Inner Network IP |
+| localpc | Long | Required | Local PC 여부 (1: Yes, 0: No) |
 | emailcategory | String | Required | Email category |
 | osVer | String | Required | OS version |
-| onoffNunber | Long | Required | 사용 여부 (1: 사용, 0: 미사용) |
+| onoff | Long | Required | 사용 여부 (1: 사용, 0: 미사용)|
 | webmanagerUse | Number | Required | WebManager 사용 여부 (1: 사용, 0: 미사용) |
 | installdate | String | Optional | 설치일자 (yyyy-MM-dd) |
 | scFirstExcute | String | Optional | Scenario 최초 동작 일자 |
@@ -50,7 +50,28 @@
 | code | String | 필수(PK) | Action code |
 | subcode | String | 필수(PK) | Action sub code |
 | title | String | 필수 | email title |
-| htmp | String | 필수 | email html contents |
+| html | String | 필수 | email html contents |
+
+---
+
+## ARS_USER_INFO (시스템 사용자 정보 저장소)
+
+시스템 사용자의 정보를 저장하는 컬렉션
+
+### Fields
+
+| Field Name | Type | 필수/선택 | Description |
+|------------|------|---------|-------------|
+| name | String | 필수 | 이름 |
+| singleid | String | 필수 (PK) | ID |
+| line | String | 필수 | line info |
+| process | String | 필수 | Process Name |
+| authority | String | 필수 | 권한. (WRITE or 빈값) |
+| authorityManager | NumberLong | 필수 | 사용자 등급(0 ~ 3) |
+| note | String | 필수 | 사용자 관련 note(설명) |
+| accessnum | NumberLong | 선택 | 시스템접속 횟수(자동 update) |
+| accessnum_desktop | NumberLong | 선택 | Desktop시스템 접속횟수(자동 Update) |
+| lastExecution | String | 선택 | 마지막 접속 일자. format : yyyy-MM-ddTHH:mm:ss.SSS+09:00" (자동 update) |
 
 ---
 

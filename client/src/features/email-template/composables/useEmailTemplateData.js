@@ -139,7 +139,7 @@ export function useEmailTemplateData() {
       code: '',
       subcode: '',
       title: '',
-      htmp: '',
+      html: '',
     }
     currentData.value.unshift(newRow)
     unsavedNewRows.value.unshift(newRow)
@@ -159,7 +159,7 @@ export function useEmailTemplateData() {
         code: rowData.code || '',
         subcode: rowData.subcode || '',
         title: rowData.title || '',
-        htmp: rowData.htmp || '',
+        html: rowData.html || '',
       }
       currentData.value.unshift(newRow)
       unsavedNewRows.value.unshift(newRow)

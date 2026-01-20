@@ -6,7 +6,7 @@ const { asyncHandler } = require('../../shared/middleware/errorHandler');
 // GET /api/dashboard/summary - Get dashboard KPI summary
 router.get('/summary', asyncHandler(async (req, res) => {
   const totalClients = await Client.countDocuments();
-  const activeClients = await Client.countDocuments({ onoffNunber: 1 });
+  const activeClients = await Client.countDocuments({ onoff: 1 });
   const inactiveClients = totalClients - activeClients;
 
   // Get clients by process for breakdown

@@ -11,12 +11,12 @@ const patterns = {
 // Required fields for client data
 const requiredFields = [
   'line', 'lineDesc', 'process', 'eqpModel', 'eqpId', 'category',
-  'IpAddr', 'emailcategory', 'osVer'
+  'ipAddr', 'emailcategory', 'osVer'
 ]
 
 // Required number fields (0 is valid)
 const requiredNumberFields = [
-  'localpcNunber', 'onoffNunber', 'webmanagerUse', 'usereleasemsg', 'usetkincancel'
+  'localpc', 'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel'
 ]
 
 /**
@@ -47,11 +47,11 @@ function validateClientData(data, existingIds = [], existingIps = [], isUpdate =
   }
 
   // IP address format
-  if (data.IpAddr && !patterns.ip.test(data.IpAddr)) {
-    errors.IpAddr = 'Invalid IP address format'
+  if (data.ipAddr && !patterns.ip.test(data.ipAddr)) {
+    errors.ipAddr = 'Invalid IP address format'
   }
-  if (data.IpAddrL && data.IpAddrL.trim() && !patterns.ip.test(data.IpAddrL)) {
-    errors.IpAddrL = 'Invalid IP address format'
+  if (data.ipAddrL && data.ipAddrL.trim() && !patterns.ip.test(data.ipAddrL)) {
+    errors.ipAddrL = 'Invalid IP address format'
   }
 
   // Date format (optional fields)
@@ -67,8 +67,8 @@ function validateClientData(data, existingIds = [], existingIps = [], isUpdate =
     if (data.eqpId && existingIds.includes(data.eqpId)) {
       errors.eqpId = 'Equipment ID already exists'
     }
-    if (data.IpAddr && existingIps.includes(data.IpAddr)) {
-      errors.IpAddr = 'IP address already exists'
+    if (data.ipAddr && existingIps.includes(data.ipAddr)) {
+      errors.ipAddr = 'IP address already exists'
     }
   }
 
@@ -96,8 +96,8 @@ function validateBatchCreate(clients, existingIds, existingIps) {
       errors.push({ rowIndex: i, field: 'eqpId', message: 'Duplicate Equipment ID in batch' })
       continue
     }
-    if (batchIps.includes(clientData.IpAddr)) {
-      errors.push({ rowIndex: i, field: 'IpAddr', message: 'Duplicate IP address in batch' })
+    if (batchIps.includes(clientData.ipAddr)) {
+      errors.push({ rowIndex: i, field: 'ipAddr', message: 'Duplicate IP address in batch' })
       continue
     }
 
@@ -113,7 +113,7 @@ function validateBatchCreate(clients, existingIds, existingIps) {
       }
     } else {
       batchIds.push(clientData.eqpId)
-      batchIps.push(clientData.IpAddr)
+      batchIps.push(clientData.ipAddr)
       valid.push(clientData)
     }
   }
@@ -135,8 +135,8 @@ function validateUpdate(data, existingIds, existingIps) {
   if (data.eqpId && existingIds.includes(data.eqpId)) {
     errors.eqpId = 'Equipment ID already exists'
   }
-  if (data.IpAddr && existingIps.includes(data.IpAddr)) {
-    errors.IpAddr = 'IP address already exists'
+  if (data.ipAddr && existingIps.includes(data.ipAddr)) {
+    errors.ipAddr = 'IP address already exists'
   }
 
   if (Object.keys(errors).length > 0) {

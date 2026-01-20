@@ -31,7 +31,7 @@ export const validationRules = {
     maxLength: 200,
     message: 'Title is required (max 200 chars)'
   },
-  htmp: {
+  html: {
     required: true,
     message: 'HTML content is required'
   },
