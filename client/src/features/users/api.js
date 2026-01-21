@@ -1,24 +1,37 @@
+/**
+ * User Management API
+ */
+
 import api from '../../shared/api'
 
 export const usersApi = {
-  // 유저 목록 조회
-  getUsers: (params) => api.get('/users', { params }),
+  // Get users with pagination and filtering
+  getAll: (filters = {}, page = 1, pageSize = 25) =>
+    api.get('/users', {
+      params: { ...filters, page, pageSize }
+    }),
 
-  // 역할 목록 조회
+  // Get distinct processes for filter
+  getProcesses: () => api.get('/users/processes'),
+
+  // Get distinct lines for filter
+  getLines: (process) => api.get('/users/lines', { params: { process } }),
+
+  // Get role definitions
   getRoles: () => api.get('/users/roles'),
 
-  // 유저 상세 조회
-  getUser: (id) => api.get(`/users/${id}`),
+  // Update role permissions
+  updateRole: (level, permissions) => api.put(`/users/roles/${level}`, { permissions }),
 
-  // 유저 생성
-  createUser: (data) => api.post('/users', data),
+  // Get user by ID
+  getById: (id) => api.get(`/users/${id}`),
 
-  // 유저 수정
-  updateUser: (id, data) => api.put(`/users/${id}`, data),
+  // Create users (batch)
+  create: (users) => api.post('/users', { users }),
 
-  // 유저 삭제
-  deleteUser: (id) => api.delete(`/users/${id}`),
+  // Update users (batch)
+  update: (users) => api.put('/users', { users }),
 
-  // 다중 유저 삭제
-  deleteUsers: (ids) => api.delete('/users', { data: { ids } })
+  // Delete users (batch)
+  delete: (ids) => api.delete('/users', { data: { ids } })
 }

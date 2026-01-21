@@ -3,6 +3,19 @@
     <!-- Header -->
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Email Template Management</h1>
+      <!-- Permission Settings Button (Admin only) -->
+      <button
+        v-if="isAdmin"
+        @click="showPermissionDialog = true"
+        class="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+        title="Feature Permissions"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        Feature Permissions
+      </button>
     </div>
 
     <!-- Filter Bar -->
@@ -22,6 +35,8 @@
       :page-size="pageSize"
       :current-page="currentPage"
       :total-pages="totalPages"
+      :can-write="canWrite"
+      :can-delete="canDelete"
       @add="handleAddRow"
       @delete="handleDeleteClick"
       @save="handleSave"
@@ -106,6 +121,14 @@
       @save="handleHtmlSave"
     />
 
+    <!-- Permission Settings Dialog (Admin only) -->
+    <PermissionSettingsDialog
+      v-model="showPermissionDialog"
+      feature="emailTemplate"
+      @saved="handlePermissionsSaved"
+      @error="handlePermissionsError"
+    />
+
     <!-- Toast Notification -->
     <Teleport to="body">
       <div
@@ -139,20 +162,26 @@ import BaseDataGridToolbar from '@/shared/components/BaseDataGridToolbar.vue'
 import EmailTemplateGrid from './components/EmailTemplateGrid.vue'
 import DeleteConfirmModal from '../master/components/DeleteConfirmModal.vue'
 import HtmlEditorModal from './components/HtmlEditorModal.vue'
+import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDialog.vue'
 import { useEmailTemplateData } from './composables/useEmailTemplateData'
 import { useToast } from '@/shared/composables/useToast'
+import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
 
 const gridRef = ref(null)
 const filterBarRef = ref(null)
 const selectedIds = ref([])
 const showDeleteModal = ref(false)
 const showHtmlEditor = ref(false)
+const showPermissionDialog = ref(false)
 const htmlEditorContent = ref('')
 const htmlEditorRowId = ref(null)
 const currentFiltersLocal = ref(null)
 const { toast, showToast } = useToast()
 const hasSearched = ref(false)
 const filterCollapsed = ref(false)
+
+// Permission hooks
+const { canRead, canWrite, canDelete, isAdmin, refresh: refreshPermissions } = useFeaturePermission('emailTemplate')
 
 // Toggle filter bar collapse
 const handleFilterToggle = () => {
@@ -362,5 +391,14 @@ const handleHtmlSave = (newHtml) => {
   }
   htmlEditorRowId.value = null
   htmlEditorContent.value = ''
+}
+
+const handlePermissionsSaved = async () => {
+  showToast('success', 'Permissions updated')
+  await refreshPermissions()
+}
+
+const handlePermissionsError = (message) => {
+  showToast('error', message)
 }
 </script>

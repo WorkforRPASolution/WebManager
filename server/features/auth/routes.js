@@ -1,49 +1,23 @@
-const express = require('express');
-const router = express.Router();
+/**
+ * Authentication routes
+ */
 
-// POST /api/auth/login - Mock login
-router.post('/login', (req, res) => {
-  const { username, password } = req.body;
+const express = require('express')
+const router = express.Router()
+const controller = require('./controller')
+const { asyncHandler } = require('../../shared/middleware/errorHandler')
+const { authenticate } = require('../../shared/middleware/authMiddleware')
 
-  // Mock authentication (will implement proper auth in future)
-  if (username === 'admin' && password === 'admin') {
-    res.json({
-      success: true,
-      token: 'mock-jwt-token-' + Date.now(),
-      user: {
-        id: 1,
-        username: 'admin',
-        name: 'Admin User',
-        email: 'admin@webmanager.com',
-        role: 'admin'
-      }
-    });
-  } else {
-    res.status(401).json({
-      success: false,
-      error: 'Invalid credentials'
-    });
-  }
-});
+// POST /api/auth/login - Login with credentials
+router.post('/login', asyncHandler(controller.login))
 
-// POST /api/auth/logout - Mock logout
-router.post('/logout', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Logged out successfully'
-  });
-});
+// POST /api/auth/refresh - Refresh access token
+router.post('/refresh', asyncHandler(controller.refresh))
 
-// GET /api/auth/me - Get current user
-router.get('/me', (req, res) => {
-  // Mock user data (will implement proper auth in future)
-  res.json({
-    id: 1,
-    username: 'admin',
-    name: 'Admin User',
-    email: 'admin@webmanager.com',
-    role: 'admin'
-  });
-});
+// POST /api/auth/logout - Logout
+router.post('/logout', authenticate, asyncHandler(controller.logout))
 
-module.exports = router;
+// GET /api/auth/me - Get current user info
+router.get('/me', authenticate, asyncHandler(controller.me))
+
+module.exports = router

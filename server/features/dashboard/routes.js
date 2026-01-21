@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const Client = require('../clients/model');
 const { asyncHandler } = require('../../shared/middleware/errorHandler');
+const { authenticate, requireMenuPermission } = require('../../shared/middleware/authMiddleware');
 
-// GET /api/dashboard/summary - Get dashboard KPI summary
-router.get('/summary', asyncHandler(async (req, res) => {
+// GET /api/dashboard/summary - Get dashboard KPI summary (requires 'dashboard' permission)
+router.get('/summary', authenticate, requireMenuPermission('dashboard'), asyncHandler(async (req, res) => {
   const totalClients = await Client.countDocuments();
   const activeClients = await Client.countDocuments({ onoff: 1 });
   const inactiveClients = totalClients - activeClients;

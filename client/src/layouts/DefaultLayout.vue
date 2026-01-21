@@ -15,6 +15,11 @@ const tabsStore = useTabsStore()
 watch(
   () => route.path,
   (path) => {
+    // Skip non-default layout routes (e.g., unauthorized, login)
+    if (route.meta?.layout !== 'default') {
+      return
+    }
+
     if (route.meta?.mainMenu) {
       menuStore.setActiveMainMenu(route.meta.mainMenu)
     } else {
@@ -41,7 +46,16 @@ watch(
 
       <!-- Page Content -->
       <main class="flex-1 overflow-y-auto p-6 bg-white dark:bg-dark-bg">
-        <slot />
+        <!-- 탭이 없을 때 빈 상태 표시 -->
+        <div v-if="tabsStore.tabs.length === 0" class="flex items-center justify-center h-full">
+          <div class="text-center text-gray-400 dark:text-gray-500">
+            <svg class="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+            </svg>
+            <p class="text-lg">사이드바에서 메뉴를 선택하세요</p>
+          </div>
+        </div>
+        <slot v-else />
       </main>
     </div>
 

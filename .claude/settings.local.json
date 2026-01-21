@@ -16,7 +16,9 @@
       "Bash(npm run dev:*)",
       "Bash(lsof:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(gh pr view:*)",
+      "Bash(npm run seed:all:*)"
     ]
   }
 }

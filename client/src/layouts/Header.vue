@@ -1,14 +1,25 @@
 <script setup>
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMenuStore } from '../shared/stores/menu'
 import { useTabsStore } from '../shared/stores/tabs'
+import { useAuthStore } from '../shared/stores/auth'
 import { useTheme } from '../shared/composables/useTheme'
 import AppIcon from '../shared/components/AppIcon.vue'
 
 const router = useRouter()
 const menuStore = useMenuStore()
 const tabsStore = useTabsStore()
+const authStore = useAuthStore()
 const { isDark, toggleTheme } = useTheme()
+
+const userInitial = computed(() => {
+  const name = authStore.user?.name || 'U'
+  return name.charAt(0).toUpperCase()
+})
+
+const userName = computed(() => authStore.user?.name || 'User')
+const userEmail = computed(() => authStore.user?.email || '')
 
 const handleSubMenuClick = (subMenu, mainMenuId) => {
   menuStore.setActiveMainMenu(mainMenuId)
@@ -16,8 +27,9 @@ const handleSubMenuClick = (subMenu, mainMenuId) => {
   router.push(subMenu.path)
 }
 
-const handleLogout = () => {
-  localStorage.removeItem('token')
+const handleLogout = async () => {
+  tabsStore.closeAllTabs()
+  await authStore.logout()
   router.push('/login')
 }
 </script>
@@ -105,15 +117,20 @@ const handleLogout = () => {
       <div class="relative group">
         <button class="flex items-center gap-2 p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
           <div class="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center">
-            <span class="text-sm font-medium">A</span>
+            <span class="text-sm font-medium">{{ userInitial }}</span>
           </div>
         </button>
 
         <!-- User Dropdown -->
-        <div class="hidden group-hover:block absolute top-full right-0 mt-1 w-48 bg-white dark:bg-dark-card shadow-xl border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+        <div class="hidden group-hover:block absolute top-full right-0 mt-1 w-56 bg-white dark:bg-dark-card shadow-xl border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
           <div class="p-3 border-b border-gray-100 dark:border-dark-border">
-            <p class="font-medium text-gray-900 dark:text-white text-sm">Admin User</p>
-            <p class="text-xs text-gray-500 dark:text-gray-400">admin@webmanager.com</p>
+            <p class="font-medium text-gray-900 dark:text-white text-sm">{{ userName }}</p>
+            <p v-if="userEmail" class="text-xs text-gray-500 dark:text-gray-400">{{ userEmail }}</p>
+            <div class="mt-1 flex items-center gap-1">
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-400">
+                {{ authStore.roleName }}
+              </span>
+            </div>
           </div>
           <button
             @click="handleLogout"

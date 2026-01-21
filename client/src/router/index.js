@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '../shared/stores/auth'
 
 /**
  * 라우트 설정
@@ -13,6 +14,8 @@ import { createRouter, createWebHistory } from 'vue-router'
  * - subMenuIcon: SubMenu 아이콘 (AppIcon name)
  * - subMenuOrder: SubMenu 정렬 순서
  * - hidden: true면 메뉴에 표시하지 않음 (예: ClientDetail)
+ * - permission: 필요한 권한 키 (예: 'users', 'settings')
+ * - allowedRoles: 접근 허용 역할 배열 (예: [1] = Admin만, [1, 2] = Admin + Conductor)
  */
 const routes = [
   {
@@ -28,6 +31,7 @@ const routes = [
     meta: {
       layout: 'default',
       requiresAuth: true,
+      permission: 'dashboard',
       menu: {
         mainMenu: 'dashboard',
         mainMenuLabel: 'Dashboard',
@@ -36,7 +40,8 @@ const routes = [
         subMenu: 'overview',
         subMenuLabel: 'Overview',
         subMenuIcon: 'grid_view',
-        subMenuOrder: 1
+        subMenuOrder: 1,
+        permission: 'dashboard'
       }
     }
   },
@@ -47,6 +52,7 @@ const routes = [
     meta: {
       layout: 'default',
       requiresAuth: true,
+      permission: 'clients',
       menu: {
         mainMenu: 'clients',
         mainMenuLabel: 'Clients',
@@ -55,7 +61,8 @@ const routes = [
         subMenu: 'client-list',
         subMenuLabel: 'Client List',
         subMenuIcon: 'list',
-        subMenuOrder: 1
+        subMenuOrder: 1,
+        permission: 'clients'
       }
     }
   },
@@ -66,11 +73,13 @@ const routes = [
     meta: {
       layout: 'default',
       requiresAuth: true,
+      permission: 'clients',
       menu: {
         mainMenu: 'clients',
         subMenu: 'client-detail',
         subMenuLabel: 'Client Detail',
-        hidden: true  // 메뉴에 표시하지 않음
+        hidden: true,  // 메뉴에 표시하지 않음
+        permission: 'clients'
       }
     }
   },
@@ -81,6 +90,7 @@ const routes = [
     meta: {
       layout: 'default',
       requiresAuth: true,
+      permission: 'master',
       menu: {
         mainMenu: 'system',
         mainMenuLabel: 'System',
@@ -89,7 +99,8 @@ const routes = [
         subMenu: 'master',
         subMenuLabel: 'Master Data',
         subMenuIcon: 'storage',
-        subMenuOrder: 1
+        subMenuOrder: 1,
+        permission: 'master'
       }
     }
   },
@@ -100,12 +111,14 @@ const routes = [
     meta: {
       layout: 'default',
       requiresAuth: true,
+      permission: 'emailTemplate',
       menu: {
         mainMenu: 'system',
         subMenu: 'email-template',
         subMenuLabel: 'Email Template',
         subMenuIcon: 'mail',
-        subMenuOrder: 2
+        subMenuOrder: 2,
+        permission: 'emailTemplate'
       }
     }
   },
@@ -116,12 +129,14 @@ const routes = [
     meta: {
       layout: 'default',
       requiresAuth: true,
+      permission: 'alerts',
       menu: {
         mainMenu: 'system',
         subMenu: 'alerts',
         subMenuLabel: 'Alerts History',
         subMenuIcon: 'notifications',
-        subMenuOrder: 3
+        subMenuOrder: 3,
+        permission: 'alerts'
       }
     }
   },
@@ -132,12 +147,14 @@ const routes = [
     meta: {
       layout: 'default',
       requiresAuth: true,
+      permission: 'settings',
       menu: {
         mainMenu: 'system',
         subMenu: 'settings',
         subMenuLabel: 'Settings',
         subMenuIcon: 'tune',
-        subMenuOrder: 4
+        subMenuOrder: 4,
+        permission: 'settings'
       }
     }
   },
@@ -149,17 +166,23 @@ const routes = [
     meta: {
       layout: 'default',
       requiresAuth: true,
+      permission: 'users',
       menu: {
-        mainMenu: 'users',
-        mainMenuLabel: 'Users',
-        mainMenuIcon: 'users',
-        mainMenuOrder: 4,
-        subMenu: 'user-list',
-        subMenuLabel: 'User List',
-        subMenuIcon: 'list',
-        subMenuOrder: 1
+        mainMenu: 'system',
+        subMenu: 'user-management',
+        subMenuLabel: 'User Management',
+        subMenuIcon: 'users',
+        subMenuOrder: 5,
+        permission: 'users'
       }
     }
+  },
+  // Unauthorized
+  {
+    path: '/unauthorized',
+    name: 'Unauthorized',
+    component: () => import('../features/errors/UnauthorizedView.vue'),
+    meta: { layout: 'blank', requiresAuth: false }
   },
 ]
 
@@ -169,16 +192,43 @@ const router = createRouter({
 })
 
 // Navigation Guard
-router.beforeEach((to, from, next) => {
-  const isAuthenticated = localStorage.getItem('token')
+router.beforeEach(async (to, from, next) => {
+  const authStore = useAuthStore()
 
-  if (to.meta.requiresAuth && !isAuthenticated) {
-    next('/login')
-  } else if (to.path === '/login' && isAuthenticated) {
-    next('/')
-  } else {
-    next()
+  // Initialize auth state on first navigation
+  if (!authStore.initialized) {
+    await authStore.initialize()
   }
+
+  const isAuthenticated = authStore.isAuthenticated
+
+  // Redirect to login if auth required but not authenticated
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    return next('/login')
+  }
+
+  // Redirect to dashboard if already authenticated and going to login
+  if (to.path === '/login' && isAuthenticated) {
+    return next('/')
+  }
+
+  // Check permission for the route
+  if (to.meta.permission && isAuthenticated) {
+    const hasPermission = authStore.hasPermission(to.meta.permission)
+    if (!hasPermission) {
+      return next('/unauthorized')
+    }
+  }
+
+  // Check allowed roles for the route
+  if (to.meta.allowedRoles && isAuthenticated) {
+    const hasRole = authStore.hasRole(to.meta.allowedRoles)
+    if (!hasRole) {
+      return next('/unauthorized')
+    }
+  }
+
+  next()
 })
 
 export default router

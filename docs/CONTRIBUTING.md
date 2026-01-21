@@ -20,6 +20,7 @@
   meta: {
     layout: 'default',
     requiresAuth: true,
+    permission: 'reports',           // ⬅️ 라우트 레벨 권한 (URL 직접 접근 차단)
     menu: {
       // MainMenu 설정 (새 MainMenu일 경우 필수)
       mainMenu: 'reports',           // MainMenu ID
@@ -32,6 +33,9 @@
       subMenuLabel: 'Daily Report',  // SubMenu 표시 라벨
       subMenuIcon: 'document',       // AppIcon 아이콘명
       subMenuOrder: 1,               // SubMenu 정렬 순서
+
+      // 권한 설정
+      permission: 'reports',         // ⬅️ 메뉴 필터링용 권한 (권한 없으면 메뉴 숨김)
 
       // 옵션
       hidden: false                  // true면 메뉴에 표시 안함
@@ -69,6 +73,38 @@ server/features/reports/
 ```javascript
 app.use('/api/reports', require('./features/reports/routes'))
 ```
+
+---
+
+## 4. 권한 설정 (필수)
+
+새 페이지 추가 시 **반드시** 권한을 설정해야 합니다. 두 곳 모두 설정해야 완전한 권한 제어가 가능합니다.
+
+### 권한 설정 위치
+
+| 위치 | 용도 | 미설정 시 문제 |
+|------|------|----------------|
+| `meta.permission` | Navigation Guard에서 URL 직접 접근 차단 | URL 직접 입력으로 무단 접근 가능 |
+| `meta.menu.permission` | 메뉴 필터링 (권한 없으면 메뉴 숨김) | 권한 없는 사용자에게 메뉴 노출 |
+
+### 예시
+
+```javascript
+meta: {
+  permission: 'reports',           // 라우트 레벨: URL 접근 제어
+  menu: {
+    // ...
+    permission: 'reports'          // 메뉴 레벨: 메뉴 표시 제어
+  }
+}
+```
+
+### 권한 값 규칙
+- 권한 값은 해당 기능의 식별자와 일치 (예: `reports`, `master`, `users`)
+- `permissions` 테이블의 `name` 필드 값 사용
+- 대소문자 구분됨 (소문자 사용 권장)
+
+> ⚠️ **주의**: 두 위치 중 하나라도 누락되면 보안 취약점이 발생할 수 있습니다.
 
 ---
 

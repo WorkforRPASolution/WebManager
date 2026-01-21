@@ -23,11 +23,15 @@ export const useTabsStore = defineStore('tabs', () => {
       return existingTab
     }
 
+    // Get label from menu config or route name
+    const menuConfig = route.meta?.menu
+    const label = menuConfig?.subMenuLabel || route.meta?.label || route.name || 'New Tab'
+
     const newTab = {
       id: tabId,
       path: route.path,
-      label: route.meta?.label || route.name || 'New Tab',
-      mainMenu: route.meta?.mainMenu || 'dashboard',
+      label,
+      mainMenu: menuConfig?.mainMenu || route.meta?.mainMenu || 'dashboard',
       closable: true
     }
 

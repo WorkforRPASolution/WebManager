@@ -1,12 +1,46 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/shared/stores/auth'
+import { useTabsStore } from '@/shared/stores/tabs'
 
 const router = useRouter()
+const authStore = useAuthStore()
+const tabsStore = useTabsStore()
+
 const username = ref('')
 const password = ref('')
 const error = ref('')
-const loading = ref(false)
+
+/**
+ * Find the first route the user has permission for
+ */
+const findFirstAccessibleRoute = () => {
+  const routes = router.getRoutes()
+
+  // Priority order for default landing pages
+  const priorityPaths = ['/', '/clients', '/master']
+
+  for (const path of priorityPaths) {
+    const route = routes.find(r => r.path === path)
+    if (route && route.meta?.permission) {
+      if (authStore.hasPermission(route.meta.permission)) {
+        return path
+      }
+    }
+  }
+
+  // Fallback: find any accessible route with default layout
+  for (const route of routes) {
+    if (route.meta?.layout === 'default' && route.meta?.permission) {
+      if (authStore.hasPermission(route.meta.permission)) {
+        return route.path
+      }
+    }
+  }
+
+  return '/unauthorized'
+}
 
 const handleLogin = async () => {
   if (!username.value || !password.value) {
@@ -14,20 +48,20 @@ const handleLogin = async () => {
     return
   }
 
-  loading.value = true
   error.value = ''
 
-  // Mock login - accept any credentials
-  setTimeout(() => {
-    localStorage.setItem('token', 'mock-token-' + Date.now())
-    localStorage.setItem('user', JSON.stringify({
-      username: username.value,
-      name: 'Admin User',
-      email: 'admin@webmanager.com'
-    }))
-    router.push('/')
-    loading.value = false
-  }, 500)
+  const result = await authStore.login(username.value, password.value)
+
+  if (result.success) {
+    // Clear any existing tabs from previous session
+    tabsStore.closeAllTabs()
+
+    // Navigate to first accessible route
+    const targetPath = findFirstAccessibleRoute()
+    router.push(targetPath)
+  } else {
+    error.value = result.error
+  }
 }
 </script>
 
@@ -82,13 +116,20 @@ const handleLogin = async () => {
 
         <button
           type="submit"
-          :disabled="loading"
+          :disabled="authStore.loading"
           class="w-full py-3 px-4 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <span v-if="loading">Signing in...</span>
+          <span v-if="authStore.loading">Signing in...</span>
           <span v-else>Sign In</span>
         </button>
       </form>
+
+      <!-- Test Credentials Hint -->
+      <div class="mt-6 text-center">
+        <p class="text-xs text-gray-400 dark:text-gray-500">
+          Test credentials: admin/admin, manager/manager, user/user, guest/guest
+        </p>
+      </div>
     </div>
   </div>
 </template>

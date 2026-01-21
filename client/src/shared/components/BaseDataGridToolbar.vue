@@ -2,8 +2,8 @@
   <div class="flex items-center justify-between p-4 bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border">
     <!-- Left side - Action buttons -->
     <div class="flex items-center gap-3">
-      <!-- Add Row with popover -->
-      <div ref="addPopoverRef" class="relative">
+      <!-- Add Row with popover (only if canWrite) -->
+      <div v-if="canWrite" ref="addPopoverRef" class="relative">
         <button
           @click="showAddPopover = !showAddPopover"
           class="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition text-sm"
@@ -41,7 +41,9 @@
         </div>
       </div>
 
+      <!-- Delete button (only if canDelete) -->
       <button
+        v-if="canDelete"
         @click="$emit('delete')"
         :disabled="selectedCount === 0"
         class="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -52,9 +54,12 @@
         Delete ({{ selectedCount }})
       </button>
 
-      <div class="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
+      <!-- Divider (only show if there are any action buttons) -->
+      <div v-if="canWrite || canDelete" class="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
 
+      <!-- Save button (only if canWrite) -->
       <button
+        v-if="canWrite"
         @click="$emit('save')"
         :disabled="!hasChanges || saving"
         class="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -69,7 +74,9 @@
         {{ saving ? 'Saving...' : 'Save Changes' }}
       </button>
 
+      <!-- Discard button (only if canWrite) -->
       <button
+        v-if="canWrite"
         @click="$emit('discard')"
         :disabled="!hasChanges"
         class="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -79,6 +86,15 @@
         </svg>
         Discard
       </button>
+
+      <!-- Read-only indicator -->
+      <div v-if="!canWrite && !canDelete" class="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+        </svg>
+        Read-only
+      </div>
     </div>
 
     <!-- Right side - Status info and Pagination -->
@@ -196,6 +212,14 @@ const props = defineProps({
   pageSizeOptions: {
     type: Array,
     default: () => [10, 25, 50, 75, 100]
+  },
+  canWrite: {
+    type: Boolean,
+    default: true
+  },
+  canDelete: {
+    type: Boolean,
+    default: true
   }
 })
 

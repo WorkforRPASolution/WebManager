@@ -15,17 +15,17 @@ const handleTabClick = (tab) => {
 
 const handleCloseTab = (e, tab) => {
   e.stopPropagation()
+
+  // 닫으려는 탭이 현재 활성 탭인지 확인
+  const isActiveTab = tab.id === tabsStore.activeTabId
   const nextTab = tabsStore.closeTab(tab.id)
-  if (nextTab) {
+
+  // 활성 탭을 닫은 경우에만 네비게이션
+  if (isActiveTab && nextTab) {
     menuStore.setActiveMainMenu(nextTab.mainMenu)
     router.push(nextTab.path)
-  } else if (tabsStore.tabs.length === 0) {
-    router.push('/')
   }
-}
-
-const handleAddTab = () => {
-  router.push('/')
+  // 모든 탭이 닫힌 경우 빈 상태 유지 (네비게이션 없음)
 }
 </script>
 
@@ -54,15 +54,6 @@ const handleAddTab = () => {
         </span>
       </button>
 
-      <!-- Add Tab Button -->
-      <button
-        @click="handleAddTab"
-        class="px-2 h-8 text-gray-400 hover:text-primary-500 transition-colors shrink-0"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-        </svg>
-      </button>
     </div>
   </footer>
 </template>

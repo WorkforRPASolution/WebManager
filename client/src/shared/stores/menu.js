@@ -1,13 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import router from '../../router'
+import { useAuthStore } from './auth'
 
 export const useMenuStore = defineStore('menu', () => {
   /**
    * 라우트에서 메뉴 구조 자동 생성
    * router/index.js의 meta.menu 정보를 기반으로 메뉴를 빌드합니다.
+   * 사용자 권한에 따라 메뉴를 필터링합니다.
    */
   const menuItems = computed(() => {
+    const authStore = useAuthStore()
     const routes = router.getRoutes()
     const mainMenuMap = new Map()
 
@@ -17,6 +20,12 @@ export const useMenuStore = defineStore('menu', () => {
 
       const mainMenuId = menu.mainMenu
       if (!mainMenuId) return
+
+      // Check permission for this menu item
+      if (menu.permission) {
+        const hasPermission = authStore.hasPermission(menu.permission)
+        if (!hasPermission) return
+      }
 
       // MainMenu가 없으면 생성
       if (!mainMenuMap.has(mainMenuId)) {
@@ -50,14 +59,17 @@ export const useMenuStore = defineStore('menu', () => {
             label: menu.subMenuLabel || menu.subMenu,
             path: route.path,
             icon: menu.subMenuIcon || 'settings',
-            order: menu.subMenuOrder || 99
+            order: menu.subMenuOrder || 99,
+            permission: menu.permission
           })
         }
       }
     })
 
     // Map을 배열로 변환하고 정렬
+    // 서브메뉴가 없는 메인메뉴는 제외
     const result = Array.from(mainMenuMap.values())
+      .filter(mainMenu => mainMenu.subMenus.length > 0)
       .sort((a, b) => a.order - b.order)
       .map(mainMenu => ({
         ...mainMenu,

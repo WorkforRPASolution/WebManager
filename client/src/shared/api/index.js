@@ -58,3 +58,12 @@ export const authApi = {
   logout: () => api.post('/auth/logout'),
   me: () => api.get('/auth/me'),
 }
+
+// Permissions API
+export const permissionsApi = {
+  getAll: () => api.get('/permissions'),
+  getByFeature: (feature) => api.get(`/permissions/${feature}`),
+  update: (feature, permissions) => api.put(`/permissions/${feature}`, { permissions }),
+  getByRole: (level) => api.get(`/permissions/role/${level}`),
+  check: (feature, action) => api.get('/permissions/check', { params: { feature, action } }),
+}
