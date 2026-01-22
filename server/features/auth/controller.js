@@ -4,6 +4,17 @@
 
 const authService = require('./service')
 const { ApiError } = require('../../shared/middleware/errorHandler')
+const { createAuthLog } = require('../../shared/models/webmanagerLogModel')
+
+/**
+ * Helper: Extract client info from request
+ */
+function getClientInfo(req) {
+  return {
+    ipAddress: req.ip || req.connection?.remoteAddress || 'unknown',
+    userAgent: req.get('User-Agent') || 'unknown'
+  }
+}
 
 /**
  * POST /api/auth/login
@@ -11,6 +22,7 @@ const { ApiError } = require('../../shared/middleware/errorHandler')
  */
 async function login(req, res) {
   const { username, password } = req.body
+  const clientInfo = getClientInfo(req)
 
   if (!username || !password) {
     throw ApiError.badRequest('Username and password are required')
@@ -19,12 +31,33 @@ async function login(req, res) {
   const result = await authService.login(username, password)
 
   if (!result) {
+    // Log failed login
+    createAuthLog({
+      authAction: 'login_failed',
+      userId: username,
+      ...clientInfo
+    }).catch(err => console.error('Failed to save auth log:', err.message))
+
     throw ApiError.unauthorized('Invalid credentials')
   }
 
   if (result.error) {
+    // Log failed login (account status issue)
+    createAuthLog({
+      authAction: 'login_failed',
+      userId: username,
+      ...clientInfo
+    }).catch(err => console.error('Failed to save auth log:', err.message))
+
     throw ApiError.unauthorized(result.error)
   }
+
+  // Log successful login
+  createAuthLog({
+    authAction: 'login',
+    userId: username,
+    ...clientInfo
+  }).catch(err => console.error('Failed to save auth log:', err.message))
 
   res.json(result)
 }
@@ -54,8 +87,15 @@ async function refresh(req, res) {
  * Logout (client-side token removal)
  */
 async function logout(req, res) {
-  // Server-side logout is mainly for logging/audit purposes
-  // Token invalidation would require a token blacklist (not implemented in this phase)
+  const clientInfo = getClientInfo(req)
+
+  // Log logout
+  createAuthLog({
+    authAction: 'logout',
+    userId: req.user?.singleid || req.user?.id || 'unknown',
+    ...clientInfo
+  }).catch(err => console.error('Failed to save auth log:', err.message))
+
   res.json({
     success: true,
     message: 'Logged out successfully'
@@ -137,6 +177,14 @@ async function signup(req, res) {
     throw ApiError.badRequest('Validation failed', [{ field: result.error, message: result.message }])
   }
 
+  // Log successful signup
+  const clientInfo = getClientInfo(req)
+  createAuthLog({
+    authAction: 'signup',
+    userId: singleid.trim(),
+    ...clientInfo
+  }).catch(err => console.error('Failed to save auth log:', err.message))
+
   res.status(201).json(result)
 }
 
@@ -152,6 +200,14 @@ async function requestPasswordReset(req, res) {
   }
 
   const result = await authService.requestPasswordReset(singleid)
+
+  // Log password reset request
+  const clientInfo = getClientInfo(req)
+  createAuthLog({
+    authAction: 'password_reset_request',
+    userId: singleid,
+    ...clientInfo
+  }).catch(err => console.error('Failed to save auth log:', err.message))
 
   res.json(result)
 }
@@ -181,6 +237,14 @@ async function changePassword(req, res) {
     throw ApiError.badRequest(result.error)
   }
 
+  // Log password changed
+  const clientInfo = getClientInfo(req)
+  createAuthLog({
+    authAction: 'password_changed',
+    userId: req.user?.singleid || req.user?.id,
+    ...clientInfo
+  }).catch(err => console.error('Failed to save auth log:', err.message))
+
   res.json(result)
 }
 
@@ -208,6 +272,14 @@ async function setNewPassword(req, res) {
   if (result.error) {
     throw ApiError.badRequest(result.error)
   }
+
+  // Log password changed (after reset)
+  const clientInfo = getClientInfo(req)
+  createAuthLog({
+    authAction: 'password_changed',
+    userId: req.user?.singleid || req.user?.id,
+    ...clientInfo
+  }).catch(err => console.error('Failed to save auth log:', err.message))
 
   res.json(result)
 }
