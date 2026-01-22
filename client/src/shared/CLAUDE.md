@@ -101,12 +101,26 @@ const columnDefs = ref([
 </div>
 ```
 
-### TODO: 리팩토링 계획
+### 완료된 리팩토링 (2026-01-22)
 
-1. **공용 CSS 파일 생성**: `shared/styles/ag-grid-scroll.css`
-2. **모든 DataGrid props 통일**: `suppressSizeToFit: true` 추가
-3. **위험한 overflow 오버라이드 제거**
-4. **scoped style 대신 global style 사용** (AG Grid가 Shadow DOM처럼 동작)
+1. **공용 CSS 파일 생성**: `shared/styles/ag-grid-scroll.css` ✅
+2. **모든 DataGrid props 통일**: `suppressSizeToFit: true` 추가 ✅
+3. **위험한 overflow 오버라이드 제거** ✅
+4. **scoped style 대신 global style 사용** ✅
+
+### 적용된 파일
+
+모든 DataGrid에서 공용 CSS를 import합니다:
+```vue
+<style>
+@import '../../../shared/styles/ag-grid-scroll.css';
+</style>
+```
+
+- `features/clients/components/ClientDataGrid.vue`
+- `features/master/components/MasterDataGrid.vue`
+- `features/users/components/UserDataGrid.vue`
+- `features/email-template/components/EmailTemplateGrid.vue`
 
 ---
 

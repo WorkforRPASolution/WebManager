@@ -888,55 +888,5 @@ defineExpose({
 </script>
 
 <style>
-/* 수평 스크롤바 강제 표시 */
-.ag-body-horizontal-scroll-viewport {
-  overflow-x: scroll !important;
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(100, 100, 100, 0.5) rgba(0, 0, 0, 0.1) !important;
-}
-
-.ag-body-horizontal-scroll-viewport::-webkit-scrollbar {
-  -webkit-appearance: none !important;
-  height: 12px !important;
-  display: block !important;
-}
-
-.ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb {
-  border-radius: 6px !important;
-  background-color: rgba(100, 100, 100, 0.5) !important;
-  border: 2px solid transparent !important;
-  background-clip: content-box !important;
-}
-
-.ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(100, 100, 100, 0.7) !important;
-}
-
-.ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track {
-  background-color: rgba(0, 0, 0, 0.1) !important;
-  border-radius: 6px !important;
-}
-
-/* 스크롤 영역 강제 표시 */
-.ag-body-horizontal-scroll {
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  min-height: 14px !important;
-  height: 14px !important;
-}
-
-/* AG Grid 내부 overflow 설정 오버라이드 */
-.ag-root,
-.ag-root-wrapper {
-  overflow: visible !important;
-}
-
-.ag-cell.cell-value-changed,
-.ag-cell.cell-value-changed .ag-cell-value,
-.ag-cell.cell-value-changed .ag-cell-wrapper,
-.ag-cell.cell-value-changed * {
-  color: #dc2626 !important;
-  font-weight: 600 !important;
-}
+@import '../../../shared/styles/ag-grid-scroll.css';
 </style>

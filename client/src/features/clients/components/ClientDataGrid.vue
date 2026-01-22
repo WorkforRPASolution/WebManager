@@ -206,46 +206,5 @@ defineExpose({
 </script>
 
 <style>
-/* macOS에서 스크롤바 항상 표시 - AG Grid 35 */
-.ag-root-wrapper *::-webkit-scrollbar {
-  -webkit-appearance: none !important;
-  width: 10px !important;
-  height: 10px !important;
-  display: block !important;
-}
-
-.ag-root-wrapper *::-webkit-scrollbar-thumb {
-  border-radius: 5px !important;
-  background-color: rgba(100, 100, 100, 0.5) !important;
-  min-height: 30px !important;
-}
-
-.ag-root-wrapper *::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(100, 100, 100, 0.7) !important;
-}
-
-.ag-root-wrapper *::-webkit-scrollbar-track {
-  background-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-/* 스크롤 영역 강제 표시 */
-.ag-body-horizontal-scroll,
-.ag-horizontal-scroll {
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  height: auto !important;
-  min-height: 10px !important;
-}
-
-.ag-body-horizontal-scroll-viewport,
-.ag-body-horizontal-scroll-container {
-  overflow-x: scroll !important;
-}
-
-/* AG Grid 내부 overflow 설정 오버라이드 */
-.ag-root,
-.ag-root-wrapper {
-  overflow: visible !important;
-}
+@import '../../../shared/styles/ag-grid-scroll.css';
 </style>

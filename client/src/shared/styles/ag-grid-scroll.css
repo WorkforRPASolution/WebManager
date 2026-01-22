@@ -1,0 +1,90 @@
+/**
+ * AG Grid Horizontal Scroll Styles
+ *
+ * 이 파일은 모든 DataGrid 컴포넌트에서 공통으로 사용하는 스크롤바 스타일입니다.
+ * 각 DataGrid 컴포넌트에서 import하여 사용하세요.
+ *
+ * 필수 AG Grid Props:
+ * - :alwaysShowHorizontalScroll="true"
+ * - :suppressSizeToFit="true"
+ */
+
+/* ================================================
+   수평 스크롤바 강제 표시
+   ================================================ */
+.ag-body-horizontal-scroll {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  min-height: 12px !important;
+  height: 12px !important;
+}
+
+.ag-body-horizontal-scroll-viewport {
+  overflow-x: scroll !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(100, 100, 100, 0.5) rgba(0, 0, 0, 0.1) !important;
+}
+
+.ag-body-horizontal-scroll-container {
+  overflow-x: scroll !important;
+}
+
+/* ================================================
+   Webkit 스크롤바 스타일 (Chrome, Safari, Edge)
+   ================================================ */
+.ag-body-horizontal-scroll-viewport::-webkit-scrollbar {
+  -webkit-appearance: none !important;
+  height: 12px !important;
+  display: block !important;
+}
+
+.ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb {
+  border-radius: 6px !important;
+  background-color: rgba(100, 100, 100, 0.5) !important;
+  border: 2px solid transparent !important;
+  background-clip: content-box !important;
+}
+
+.ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 100, 100, 0.7) !important;
+}
+
+.ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track {
+  background-color: rgba(0, 0, 0, 0.1) !important;
+  border-radius: 6px !important;
+}
+
+/* ================================================
+   수직 스크롤바 스타일 (macOS에서 항상 표시)
+   ================================================ */
+.ag-body-viewport::-webkit-scrollbar {
+  -webkit-appearance: none !important;
+  width: 10px !important;
+  display: block !important;
+}
+
+.ag-body-viewport::-webkit-scrollbar-thumb {
+  border-radius: 5px !important;
+  background-color: rgba(100, 100, 100, 0.5) !important;
+  min-height: 30px !important;
+}
+
+.ag-body-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(100, 100, 100, 0.7) !important;
+}
+
+.ag-body-viewport::-webkit-scrollbar-track {
+  background-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* ================================================
+   수정된 셀 스타일 (빨간색 글자)
+   ================================================ */
+.ag-cell.cell-value-changed,
+.ag-cell.cell-value-changed .ag-cell-value,
+.ag-cell.cell-value-changed .ag-cell-wrapper,
+.ag-cell.cell-value-changed * {
+  color: #dc2626 !important;
+  font-weight: 600 !important;
+}
