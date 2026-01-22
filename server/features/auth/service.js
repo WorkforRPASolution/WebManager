@@ -5,6 +5,9 @@
 const bcrypt = require('bcrypt')
 const { generateToken, generateRefreshToken, verifyToken } = require('../../shared/utils/jwt')
 const { getUserBySingleId, updateLastLogin, getRolePermissionByLevel } = require('../users/service')
+const { User } = require('../users/model')
+
+const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
 
 /**
  * Authenticate user with credentials
@@ -20,9 +23,12 @@ async function login(singleid, password) {
     return null
   }
 
-  // Check if user is active
-  if (!user.isActive) {
-    return { error: 'Account is deactivated' }
+  // Check account status
+  if (user.accountStatus === 'pending') {
+    return { error: '계정이 승인 대기 중입니다. 관리자 승인 후 로그인 가능합니다.' }
+  }
+  if (user.accountStatus === 'suspended') {
+    return { error: '계정이 비활성화되었습니다. 관리자에게 문의하세요.' }
   }
 
   // Verify password
@@ -58,6 +64,7 @@ async function login(singleid, password) {
     success: true,
     token,
     refreshToken,
+    mustChangePassword: user.passwordStatus === 'must_change',
     user: {
       ...userWithoutPassword,
       roleName: rolePermission?.roleName || 'Unknown',
@@ -81,7 +88,7 @@ async function refreshAccessToken(refreshToken) {
   // Get fresh user data
   const user = await getUserBySingleId(decoded.singleid)
 
-  if (!user || !user.isActive) {
+  if (!user || user.accountStatus !== 'active') {
     return null
   }
 
@@ -135,8 +142,208 @@ async function getCurrentUser(tokenPayload) {
   }
 }
 
+/**
+ * Sign up a new user
+ * @param {Object} userData - User registration data
+ * @returns {Object} - Result with success status
+ */
+async function signup(userData) {
+  const { name, singleid, password, email, line, process, department, note } = userData
+
+  // Check if singleid already exists
+  const existingUser = await User.findOne({ singleid }).lean()
+  if (existingUser) {
+    return { error: 'singleid', message: '이미 사용 중인 ID입니다' }
+  }
+
+  // Check if email already exists (if provided)
+  if (email) {
+    const existingEmail = await User.findOne({ email: email.toLowerCase() }).lean()
+    if (existingEmail) {
+      return { error: 'email', message: '이미 사용 중인 이메일입니다' }
+    }
+  }
+
+  // Hash password
+  const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS)
+
+  // Create user with pending status
+  const newUser = new User({
+    name,
+    singleid,
+    password: hashedPassword,
+    email: email?.toLowerCase() || '',
+    line,
+    process,
+    department: department || '',
+    note: note || '',
+    accountStatus: 'pending',
+    passwordStatus: 'normal',
+    authorityManager: 0,
+    authority: '',
+    accessnum: 0,
+    accessnum_desktop: 0
+  })
+
+  await newUser.save()
+
+  return {
+    success: true,
+    message: '회원가입이 완료되었습니다. 관리자 승인 후 로그인 가능합니다.',
+    user: {
+      singleid: newUser.singleid,
+      name: newUser.name,
+      email: newUser.email,
+      accountStatus: newUser.accountStatus
+    }
+  }
+}
+
+/**
+ * Request password reset
+ * @param {string} singleid - User ID
+ * @returns {Object} - Result
+ */
+async function requestPasswordReset(singleid) {
+  const user = await User.findOne({ singleid })
+
+  if (!user) {
+    // Return success even if user not found (security)
+    return {
+      success: true,
+      message: '비밀번호 초기화 요청이 접수되었습니다. 관리자 승인 후 로그인 시 새 비밀번호를 설정할 수 있습니다.'
+    }
+  }
+
+  // Set password status to reset_requested
+  user.passwordStatus = 'reset_requested'
+  user.passwordResetRequestedAt = new Date()
+  await user.save()
+
+  return {
+    success: true,
+    message: '비밀번호 초기화 요청이 접수되었습니다. 관리자 승인 후 로그인 시 새 비밀번호를 설정할 수 있습니다.'
+  }
+}
+
+/**
+ * Change password (for logged-in users)
+ * @param {string} userId - User ID
+ * @param {string} currentPassword - Current password
+ * @param {string} newPassword - New password
+ * @returns {Object} - Result
+ */
+async function changePassword(userId, currentPassword, newPassword) {
+  const user = await User.findById(userId)
+
+  if (!user) {
+    return { error: 'User not found' }
+  }
+
+  // Verify current password
+  const isValid = await bcrypt.compare(currentPassword, user.password)
+  if (!isValid) {
+    return { error: '현재 비밀번호가 일치하지 않습니다' }
+  }
+
+  // Hash new password
+  const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS)
+
+  // Update password
+  user.password = hashedPassword
+  await user.save()
+
+  return {
+    success: true,
+    message: '비밀번호가 변경되었습니다.'
+  }
+}
+
+/**
+ * Set new password (after reset approval)
+ * @param {string} userId - User ID
+ * @param {string} newPassword - New password
+ * @returns {Object} - Result
+ */
+async function setNewPassword(userId, newPassword) {
+  const user = await User.findById(userId)
+
+  if (!user) {
+    return { error: 'User not found' }
+  }
+
+  if (user.passwordStatus !== 'must_change') {
+    return { error: '비밀번호 변경이 필요하지 않습니다' }
+  }
+
+  // Hash new password
+  const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS)
+
+  // Update password and reset status
+  user.password = hashedPassword
+  user.passwordStatus = 'normal'
+  user.passwordResetRequestedAt = null
+  await user.save()
+
+  return {
+    success: true,
+    message: '비밀번호가 설정되었습니다.'
+  }
+}
+
+/**
+ * Approve password reset (admin function)
+ * @param {string} userId - User ID to approve
+ * @returns {Object} - Result
+ */
+async function approvePasswordReset(userId) {
+  const user = await User.findById(userId)
+
+  if (!user) {
+    return { error: 'User not found' }
+  }
+
+  // Set password status to must_change
+  user.passwordStatus = 'must_change'
+  user.passwordResetRequestedAt = null
+  await user.save()
+
+  return {
+    success: true,
+    message: '비밀번호 초기화가 승인되었습니다.'
+  }
+}
+
+/**
+ * Approve user account (admin function)
+ * @param {string} userId - User ID to approve
+ * @returns {Object} - Result
+ */
+async function approveUserAccount(userId) {
+  const user = await User.findById(userId)
+
+  if (!user) {
+    return { error: 'User not found' }
+  }
+
+  // Activate user
+  user.accountStatus = 'active'
+  await user.save()
+
+  return {
+    success: true,
+    message: '계정이 활성화되었습니다.'
+  }
+}
+
 module.exports = {
   login,
   refreshAccessToken,
-  getCurrentUser
+  getCurrentUser,
+  signup,
+  requestPasswordReset,
+  changePassword,
+  setNewPassword,
+  approvePasswordReset,
+  approveUserAccount
 }

@@ -69,9 +69,21 @@ const userSchema = new Schema({
     trim: true,
     default: ''
   },
-  isActive: {
-    type: Boolean,
-    default: true
+  // Account lifecycle status
+  accountStatus: {
+    type: String,
+    enum: ['pending', 'active', 'suspended'],
+    default: 'active'
+  },
+  // Password lifecycle status
+  passwordStatus: {
+    type: String,
+    enum: ['normal', 'reset_requested', 'must_change'],
+    default: 'normal'
+  },
+  passwordResetRequestedAt: {
+    type: Date,
+    default: null
   },
   lastLoginAt: {
     type: Date,
@@ -98,7 +110,8 @@ const userSchema = new Schema({
 userSchema.index({ process: 1 })
 userSchema.index({ line: 1 })
 userSchema.index({ authorityManager: 1 })
-userSchema.index({ isActive: 1 })
+userSchema.index({ accountStatus: 1 })
+userSchema.index({ passwordStatus: 1 })
 
 // ===========================================
 // WEBMANAGER_ROLE_PERMISSIONS Schema

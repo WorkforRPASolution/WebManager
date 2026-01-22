@@ -56,6 +56,12 @@ const handleLogin = async () => {
     // Clear any existing tabs from previous session
     tabsStore.closeAllTabs()
 
+    // Check if password change is required
+    if (result.mustChangePassword) {
+      router.push('/set-new-password')
+      return
+    }
+
     // Navigate to first accessible route
     const targetPath = findFirstAccessibleRoute()
     router.push(targetPath)
@@ -114,6 +120,16 @@ const handleLogin = async () => {
           />
         </div>
 
+        <!-- Forgot Password Link -->
+        <div class="text-right">
+          <router-link
+            to="/request-password-reset"
+            class="text-sm text-primary-500 hover:text-primary-600"
+          >
+            Forgot password?
+          </router-link>
+        </div>
+
         <button
           type="submit"
           :disabled="authStore.loading"
@@ -122,6 +138,16 @@ const handleLogin = async () => {
           <span v-if="authStore.loading">Signing in...</span>
           <span v-else>Sign In</span>
         </button>
+
+        <!-- Sign Up Link -->
+        <div class="text-center">
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            Don't have an account?
+            <router-link to="/signup" class="text-primary-500 hover:text-primary-600 font-medium">
+              Sign Up
+            </router-link>
+          </p>
+        </div>
       </form>
 
       <!-- Test Credentials Hint -->

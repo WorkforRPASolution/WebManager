@@ -139,7 +139,8 @@ export function useUserData() {
       note: '',
       email: '',
       department: '',
-      isActive: true
+      accountStatus: 'active',
+      passwordStatus: 'normal'
     }
     currentData.value.unshift(newRow)
     unsavedNewRows.value.unshift(newRow)
@@ -163,7 +164,8 @@ export function useUserData() {
         note: rowData.note || '',
         email: rowData.email || '',
         department: rowData.department || '',
-        isActive: rowData.isActive ?? true
+        accountStatus: rowData.accountStatus || 'active',
+        passwordStatus: rowData.passwordStatus || 'normal'
       }
       currentData.value.unshift(newRow)
       unsavedNewRows.value.unshift(newRow)

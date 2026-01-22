@@ -119,6 +119,8 @@
         @selection-change="handleSelectionChange"
         @paste-rows="handlePasteRows"
         @paste-cells="handlePasteCells"
+        @approve-user="handleApproveUser"
+        @approve-reset="handleApprovePasswordReset"
       />
     </div>
 
@@ -181,6 +183,7 @@ import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDial
 import { useUserData } from './composables/useUserData'
 import { useToast } from '@/shared/composables/useToast'
 import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
+import { usersApi } from './api'
 
 const gridRef = ref(null)
 const filterBarRef = ref(null)
@@ -396,5 +399,25 @@ const handlePermissionsSaved = async () => {
 
 const handlePermissionsError = (message) => {
   showToast('error', message)
+}
+
+const handleApproveUser = async (userId) => {
+  try {
+    await usersApi.approveUser(userId)
+    showToast('success', 'User account approved')
+    await refreshCurrentPage()
+  } catch (err) {
+    showToast('error', err.response?.data?.error || 'Failed to approve user')
+  }
+}
+
+const handleApprovePasswordReset = async (userId) => {
+  try {
+    await usersApi.approvePasswordReset(userId)
+    showToast('success', 'Password reset approved')
+    await refreshCurrentPage()
+  } catch (err) {
+    showToast('error', err.response?.data?.error || 'Failed to approve password reset')
+  }
 }
 </script>

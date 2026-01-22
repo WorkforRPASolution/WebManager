@@ -3,6 +3,7 @@
  */
 
 const service = require('./service')
+const authService = require('../auth/service')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 
 // ===========================================
@@ -14,10 +15,10 @@ const { ApiError } = require('../../shared/middleware/errorHandler')
  * Get users with filtering and pagination
  */
 async function getUsers(req, res) {
-  const { process, line, authorityManager, isActive, search, page, pageSize } = req.query
+  const { process, line, authorityManager, accountStatus, passwordStatus, search, page, pageSize } = req.query
 
   const result = await service.getUsers(
-    { process, line, authorityManager, isActive, search },
+    { process, line, authorityManager, accountStatus, passwordStatus, search },
     { page, pageSize }
   )
 
@@ -161,6 +162,38 @@ async function deleteUsers(req, res) {
   })
 }
 
+/**
+ * PUT /api/users/:id/approve
+ * Approve user account (Admin only)
+ */
+async function approveUser(req, res) {
+  const { id } = req.params
+
+  const result = await authService.approveUserAccount(id)
+
+  if (result.error) {
+    throw ApiError.notFound(result.error)
+  }
+
+  res.json(result)
+}
+
+/**
+ * PUT /api/users/:id/approve-reset
+ * Approve password reset (Admin only)
+ */
+async function approvePasswordReset(req, res) {
+  const { id } = req.params
+
+  const result = await authService.approvePasswordReset(id)
+
+  if (result.error) {
+    throw ApiError.notFound(result.error)
+  }
+
+  res.json(result)
+}
+
 module.exports = {
   getUsers,
   getProcesses,
@@ -170,5 +203,7 @@ module.exports = {
   getUser,
   createUsers,
   updateUsers,
-  deleteUsers
+  deleteUsers,
+  approveUser,
+  approvePasswordReset
 }

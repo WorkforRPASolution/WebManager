@@ -44,4 +44,10 @@ router.delete('/', authenticate, requireFeaturePermission('users', 'delete'), as
 // GET /api/users/:id - Get user detail
 router.get('/:id', authenticate, requireFeaturePermission('users', 'read'), asyncHandler(controller.getUser))
 
+// PUT /api/users/:id/approve - Approve user account (Admin only)
+router.put('/:id/approve', authenticate, requireRole(1), asyncHandler(controller.approveUser))
+
+// PUT /api/users/:id/approve-reset - Approve password reset (Admin only)
+router.put('/:id/approve-reset', authenticate, requireRole(1), asyncHandler(controller.approvePasswordReset))
+
 module.exports = router

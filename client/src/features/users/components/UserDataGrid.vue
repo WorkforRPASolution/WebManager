@@ -1,5 +1,5 @@
 <template>
-  <div ref="gridContainer" class="w-full h-full overflow-hidden" @paste="handlePaste" @copy="handleCopy" @keydown.capture="handleKeyDown" tabindex="0">
+  <div ref="gridContainer" class="w-full h-full" @paste="handlePaste" @copy="handleCopy" @keydown.capture="handleKeyDown" tabindex="0">
     <AgGridVue
       :theme="gridTheme"
       :rowData="rowData"
@@ -98,7 +98,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['cell-edit', 'selection-change', 'paste-rows', 'paste-cells'])
+const emit = defineEmits(['cell-edit', 'selection-change', 'paste-rows', 'paste-cells', 'approve-user', 'approve-reset'])
 
 const gridContainer = ref(null)
 const gridApi = ref(null)
@@ -122,7 +122,7 @@ let savedSortState = null
 
 const editableColumns = [
   'name', 'singleid', 'password', 'line', 'process',
-  'authority', 'authorityManager', 'note', 'email', 'department', 'isActive'
+  'authority', 'authorityManager', 'note', 'email', 'department', 'accountStatus'
 ]
 
 onMounted(() => {
@@ -207,13 +207,74 @@ const columnDefs = ref([
   { field: 'email', headerName: 'Email', width: 180, editable: true },
   { field: 'department', headerName: 'Department', width: 120, editable: true },
   {
-    field: 'isActive',
-    headerName: 'Active',
-    width: 80,
+    field: 'accountStatus',
+    headerName: 'Account',
+    width: 100,
     editable: true,
     cellEditor: 'agSelectCellEditor',
-    cellEditorParams: { values: [true, false] },
-    valueFormatter: (params) => params.value ? 'Yes' : 'No',
+    cellEditorParams: { values: ['pending', 'active', 'suspended'] },
+    cellRenderer: (params) => {
+      const status = params.value
+      const styles = {
+        pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+        active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+        suspended: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+      }
+      const labels = { pending: 'Pending', active: 'Active', suspended: 'Suspended' }
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${styles[status] || ''}">${labels[status] || status}</span>`
+    },
+  },
+  {
+    field: 'passwordStatus',
+    headerName: 'Password',
+    width: 120,
+    editable: false,
+    cellRenderer: (params) => {
+      const status = params.value
+      if (status === 'normal') return '-'
+      const styles = {
+        reset_requested: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+        must_change: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+      }
+      const labels = { reset_requested: 'Reset Requested', must_change: 'Must Change' }
+      return `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${styles[status] || ''}">${labels[status] || status}</span>`
+    },
+  },
+  {
+    field: 'actions',
+    headerName: 'Actions',
+    width: 150,
+    editable: false,
+    sortable: false,
+    filter: false,
+    cellRenderer: (params) => {
+      const data = params.data
+      if (!data) return ''
+
+      const buttons = []
+
+      // Show approve button for pending users
+      if (data.accountStatus === 'pending') {
+        buttons.push(`<button class="approve-user-btn px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded mr-1" data-id="${data._id}">Approve</button>`)
+      }
+
+      // Show approve reset button for users with password reset requested
+      if (data.passwordStatus === 'reset_requested') {
+        buttons.push(`<button class="approve-reset-btn px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded" data-id="${data._id}">Reset PW</button>`)
+      }
+
+      return buttons.join('')
+    },
+    onCellClicked: (params) => {
+      const target = params.event.target
+      if (target.classList.contains('approve-user-btn')) {
+        const id = target.getAttribute('data-id')
+        emit('approve-user', id)
+      } else if (target.classList.contains('approve-reset-btn')) {
+        const id = target.getAttribute('data-id')
+        emit('approve-reset', id)
+      }
+    }
   },
   {
     field: 'lastLoginAt',
@@ -357,11 +418,6 @@ const onCellValueChanged = (params) => {
   const rowId = params.data._id || params.data._tempId
   const field = params.colDef.field
   let newValue = params.newValue
-
-  // Convert string to boolean for isActive
-  if (field === 'isActive' && typeof newValue === 'string') {
-    newValue = newValue === 'true'
-  }
 
   // Convert to number for authorityManager
   if (field === 'authorityManager') {
@@ -574,9 +630,6 @@ const onCellEditingStopped = (params) => {
   let newValue = params.newValue
 
   // Type conversion for specific fields
-  if (params.column.colId === 'isActive' && typeof newValue === 'string') {
-    newValue = newValue === 'true'
-  }
   if (params.column.colId === 'authorityManager') {
     newValue = Number(newValue)
   }
@@ -727,8 +780,13 @@ const handlePaste = (event) => {
 
         if (field === 'authorityManager') {
           value = parseInt(value) || 2
-        } else if (field === 'isActive') {
-          value = value.toLowerCase() === 'true' || value === '1' || value.toLowerCase() === 'yes'
+        } else if (field === 'accountStatus') {
+          const lower = value.toLowerCase()
+          if (['pending', 'active', 'suspended'].includes(lower)) {
+            value = lower
+          } else {
+            value = 'active' // default
+          }
         }
 
         cellUpdates.push({ rowId, field, value })
@@ -758,8 +816,13 @@ const handlePaste = (event) => {
         let value = cells[i]?.trim() || ''
         if (field === 'authorityManager') {
           value = parseInt(value) || 2
-        } else if (field === 'isActive') {
-          value = value.toLowerCase() !== 'false' && value !== '0' && value.toLowerCase() !== 'no'
+        } else if (field === 'accountStatus') {
+          const lower = value.toLowerCase()
+          if (['pending', 'active', 'suspended'].includes(lower)) {
+            value = lower
+          } else {
+            value = 'active' // default
+          }
         }
         rowData[field] = value
       }
@@ -825,40 +888,48 @@ defineExpose({
 </script>
 
 <style>
-.ag-root-wrapper *::-webkit-scrollbar {
+/* 수평 스크롤바 강제 표시 */
+.ag-body-horizontal-scroll-viewport {
+  overflow-x: scroll !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(100, 100, 100, 0.5) rgba(0, 0, 0, 0.1) !important;
+}
+
+.ag-body-horizontal-scroll-viewport::-webkit-scrollbar {
   -webkit-appearance: none !important;
-  width: 10px !important;
-  height: 10px !important;
+  height: 12px !important;
   display: block !important;
 }
 
-.ag-root-wrapper *::-webkit-scrollbar-thumb {
-  border-radius: 5px !important;
+.ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb {
+  border-radius: 6px !important;
   background-color: rgba(100, 100, 100, 0.5) !important;
-  min-height: 30px !important;
+  border: 2px solid transparent !important;
+  background-clip: content-box !important;
 }
 
-.ag-root-wrapper *::-webkit-scrollbar-thumb:hover {
+.ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover {
   background-color: rgba(100, 100, 100, 0.7) !important;
 }
 
-.ag-root-wrapper *::-webkit-scrollbar-track {
+.ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track {
   background-color: rgba(0, 0, 0, 0.1) !important;
+  border-radius: 6px !important;
 }
 
 /* 스크롤 영역 강제 표시 */
-.ag-body-horizontal-scroll,
-.ag-horizontal-scroll {
+.ag-body-horizontal-scroll {
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
-  height: auto !important;
-  min-height: 10px !important;
+  min-height: 14px !important;
+  height: 14px !important;
 }
 
-.ag-body-horizontal-scroll-viewport,
-.ag-body-horizontal-scroll-container {
-  overflow-x: scroll !important;
+/* AG Grid 내부 overflow 설정 오버라이드 */
+.ag-root,
+.ag-root-wrapper {
+  overflow: visible !important;
 }
 
 .ag-cell.cell-value-changed,

@@ -40,7 +40,7 @@ watch(
     <Header />
 
     <!-- Main Content Area -->
-    <div class="flex flex-1 overflow-hidden">
+    <div class="flex flex-1 min-h-0">
       <!-- Sidebar -->
       <Sidebar />
 

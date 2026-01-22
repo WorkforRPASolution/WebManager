@@ -1,5 +1,5 @@
 <template>
-  <div ref="gridContainer" class="w-full h-full overflow-hidden" @paste="handlePaste" @copy="handleCopy" @keydown.capture="handleKeyDown" tabindex="0">
+  <div ref="gridContainer" class="w-full h-full" @paste="handlePaste" @copy="handleCopy" @keydown.capture="handleKeyDown" tabindex="0">
     <AgGridVue
       :theme="gridTheme"
       :rowData="rowData"
@@ -920,6 +920,12 @@ defineExpose({
 .ag-body-horizontal-scroll-viewport,
 .ag-body-horizontal-scroll-container {
   overflow-x: scroll !important;
+}
+
+/* AG Grid 내부 overflow 설정 오버라이드 */
+.ag-root,
+.ag-root-wrapper {
+  overflow: visible !important;
 }
 
 /* 수정된 셀 글자색 - 빨간색으로 눈에 띄게 */

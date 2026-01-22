@@ -212,7 +212,7 @@ const handleConfig = async () => {
         :loading="loading"
         @selection-change="handleSelectionChange"
         @row-click="handleRowClick"
-        class="h-full bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden"
+        class="h-full bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border"
       />
     </div>
 

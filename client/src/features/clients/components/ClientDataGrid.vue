@@ -1,5 +1,5 @@
 <template>
-  <div ref="gridContainer" class="w-full h-full overflow-hidden" tabindex="0">
+  <div ref="gridContainer" class="w-full h-full" tabindex="0">
     <AgGridVue
       :theme="gridTheme"
       :rowData="rowData"
@@ -10,6 +10,7 @@
       :enableCellTextSelection="true"
       :getRowId="getRowId"
       :alwaysShowHorizontalScroll="true"
+      :suppressSizeToFit="true"
       @grid-ready="onGridReady"
       @selection-changed="onSelectionChanged"
       @cell-clicked="onCellClicked"
@@ -110,7 +111,8 @@ const columnDefs = ref([
   {
     field: 'status',
     headerName: 'Status',
-    width: 100,
+    width: 120,
+    minWidth: 120,
     cellRenderer: statusCellRenderer,
     sortable: true,
     filter: true,
@@ -119,23 +121,25 @@ const columnDefs = ref([
     field: 'eqpId',
     headerName: 'Eqp ID',
     width: 150,
+    minWidth: 150,
     cellRenderer: eqpIdCellRenderer,
     sortable: true,
     filter: true,
   },
-  { field: 'eqpModel', headerName: 'Model', width: 130, sortable: true, filter: true },
-  { field: 'process', headerName: 'Process', width: 120, sortable: true, filter: true },
+  { field: 'eqpModel', headerName: 'Model', width: 180, minWidth: 180, sortable: true, filter: true },
+  { field: 'process', headerName: 'Process', width: 120, minWidth: 120, sortable: true, filter: true },
   {
     field: 'ipAddress',
     headerName: 'IP Address',
-    width: 140,
+    width: 160,
+    minWidth: 160,
     sortable: true,
     filter: true,
     cellStyle: { fontFamily: 'monospace' }
   },
-  { field: 'line', headerName: 'Line', width: 100, sortable: true, filter: true },
-  { field: 'category', headerName: 'Category', width: 110, sortable: true, filter: true },
-  { field: 'osVersion', headerName: 'OS Version', width: 120, sortable: true, filter: true },
+  { field: 'line', headerName: 'Line', width: 100, minWidth: 100, sortable: true, filter: true },
+  { field: 'category', headerName: 'Category', width: 130, minWidth: 130, sortable: true, filter: true },
+  { field: 'osVersion', headerName: 'OS Version', width: 180, minWidth: 180, sortable: true, filter: true },
 ])
 
 const defaultColDef = ref({
@@ -237,5 +241,11 @@ defineExpose({
 .ag-body-horizontal-scroll-viewport,
 .ag-body-horizontal-scroll-container {
   overflow-x: scroll !important;
+}
+
+/* AG Grid 내부 overflow 설정 오버라이드 */
+.ag-root,
+.ag-root-wrapper {
+  overflow: visible !important;
 }
 </style>
