@@ -224,8 +224,11 @@ const {
   isRowModified,
   isRowNew,
   isRowDeleted,
+  getModifiedRowData,
+  removeFromModifiedRows,
   modifiedCells,
-  newRows
+  newRows,
+  deletedRows
 } = useUserData()
 
 const modifiedRowsSet = computed(() => {
@@ -249,13 +252,8 @@ const newRowsSet = computed(() => {
 })
 
 const deletedRowsSet = computed(() => {
-  const set = new Set()
-  for (const row of currentData.value) {
-    if (row._id && isRowDeleted(row._id)) {
-      set.add(row._id)
-    }
-  }
-  return set
+  // Directly return deletedRows to ensure Vue tracks the dependency
+  return deletedRows.value
 })
 
 const loadAllUsers = async () => {
@@ -403,8 +401,18 @@ const handlePermissionsError = (message) => {
 
 const handleApproveUser = async (userId) => {
   try {
-    await usersApi.approveUser(userId)
-    showToast('success', 'User account approved')
+    // Get modified data for this row (if any)
+    const modifiedData = getModifiedRowData(userId)
+
+    // Call API with modified data (will be saved before approval)
+    await usersApi.approveUser(userId, modifiedData || {})
+
+    // Remove from modified tracking if there were changes
+    if (modifiedData) {
+      removeFromModifiedRows(userId)
+    }
+
+    showToast('success', modifiedData ? 'User changes saved and account approved' : 'User account approved')
     await refreshCurrentPage()
   } catch (err) {
     showToast('error', err.response?.data?.error || 'Failed to approve user')

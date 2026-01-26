@@ -165,10 +165,21 @@ async function deleteUsers(req, res) {
 /**
  * PUT /api/users/:id/approve
  * Approve user account (Admin only)
+ * Optionally updates user data before approval if provided in request body
  */
 async function approveUser(req, res) {
   const { id } = req.params
+  const updateData = req.body
 
+  // If update data is provided, update the user first
+  if (updateData && Object.keys(updateData).length > 0) {
+    const { updated, errors } = await service.updateUsers([{ _id: id, ...updateData }])
+    if (errors.length > 0) {
+      throw ApiError.badRequest(errors[0])
+    }
+  }
+
+  // Then approve the account
   const result = await authService.approveUserAccount(id)
 
   if (result.error) {

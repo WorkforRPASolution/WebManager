@@ -191,9 +191,17 @@ export function useUserData() {
   }
 
   const validate = () => {
-    const rowsToValidate = currentData.value.filter(
-      r => !deletedRows.value.has(r._id)
-    )
+    // Only validate new rows and modified rows (not all rows)
+    const rowsToValidate = currentData.value.filter(r => {
+      // Skip deleted rows
+      if (r._id && deletedRows.value.has(r._id)) return false
+      // Include new rows
+      if (r._tempId && newRows.value.has(r._tempId)) return true
+      // Include modified rows
+      if (r._id && modifiedRows.value.has(r._id)) return true
+      // Skip unchanged rows
+      return false
+    })
     validationErrors.value = validateAllRows(rowsToValidate, newRows.value)
     return Object.keys(validationErrors.value).length === 0
   }
@@ -289,6 +297,38 @@ export function useUserData() {
   const isRowDeleted = (rowId) => deletedRows.value.has(rowId)
   const isCellModified = (rowId, field) => modifiedCells.value.has(rowId) && modifiedCells.value.get(rowId).has(field)
 
+  /**
+   * Get modified data for a specific row
+   * Returns only the modified fields (not the entire row)
+   */
+  const getModifiedRowData = (rowId) => {
+    if (!modifiedRows.value.has(rowId)) return null
+
+    const row = currentData.value.find(r => r._id === rowId)
+    const original = originalData.value.find(r => r._id === rowId)
+    if (!row || !original) return null
+
+    // Extract only modified fields
+    const modifiedData = {}
+    const modifiedFields = modifiedCells.value.get(rowId)
+    if (modifiedFields) {
+      for (const field of modifiedFields) {
+        modifiedData[field] = row[field]
+      }
+    }
+
+    return Object.keys(modifiedData).length > 0 ? modifiedData : null
+  }
+
+  /**
+   * Remove a row from modified tracking (after successful approval with changes)
+   */
+  const removeFromModifiedRows = (rowId) => {
+    modifiedRows.value.delete(rowId)
+    modifiedCells.value.delete(rowId)
+    modifiedRowData.value.delete(rowId)
+  }
+
   return {
     currentData,
     loading,
@@ -316,7 +356,10 @@ export function useUserData() {
     isRowNew,
     isRowDeleted,
     isCellModified,
+    getModifiedRowData,
+    removeFromModifiedRows,
     modifiedCells,
-    newRows
+    newRows,
+    deletedRows
   }
 }
