@@ -256,16 +256,95 @@ async function updateRolePermissions(level, permissions) {
 }
 
 /**
- * Initialize default role permissions if not exist
+ * Sync role permissions with code definitions
+ * - Add missing permission fields
+ * - Remove obsolete permission fields
+ * @returns {Promise<{created: number, synced: number, addedFields: string[], removedFields: string[]}>}
  */
-async function initializeRolePermissions() {
+async function syncRolePermissions() {
+  const result = { created: 0, synced: 0, addedFields: [], removedFields: [] }
+
+  // Get all permission keys defined in code
+  const codePermissionKeys = Object.keys(DEFAULT_ROLE_PERMISSIONS[0].permissions)
+
+  // Check if collection is empty
   const count = await RolePermission.countDocuments()
   if (count === 0) {
     await RolePermission.insertMany(DEFAULT_ROLE_PERMISSIONS)
-    console.log('Default role permissions initialized')
-    return true
+    result.created = DEFAULT_ROLE_PERMISSIONS.length
+    return result
   }
-  return false
+
+  // Sync each role's permissions
+  const dbRoles = await RolePermission.find().lean()
+
+  for (const dbRole of dbRoles) {
+    const defaultRole = DEFAULT_ROLE_PERMISSIONS.find(r => r.roleLevel === dbRole.roleLevel)
+    if (!defaultRole) continue
+
+    const dbPermissionKeys = Object.keys(dbRole.permissions || {})
+    const updates = {}
+    const unsets = {}
+    let needsUpdate = false
+
+    // Add missing permission fields
+    for (const key of codePermissionKeys) {
+      if (!dbPermissionKeys.includes(key)) {
+        updates[`permissions.${key}`] = defaultRole.permissions[key]
+        if (!result.addedFields.includes(key)) {
+          result.addedFields.push(key)
+        }
+        needsUpdate = true
+      }
+    }
+
+    // Remove obsolete permission fields
+    for (const key of dbPermissionKeys) {
+      if (!codePermissionKeys.includes(key)) {
+        unsets[`permissions.${key}`] = ''
+        if (!result.removedFields.includes(key)) {
+          result.removedFields.push(key)
+        }
+        needsUpdate = true
+      }
+    }
+
+    if (needsUpdate) {
+      const updateQuery = {}
+      if (Object.keys(updates).length > 0) {
+        updateQuery.$set = updates
+      }
+      if (Object.keys(unsets).length > 0) {
+        updateQuery.$unset = unsets
+      }
+      await RolePermission.updateOne({ _id: dbRole._id }, updateQuery)
+      result.synced++
+    }
+  }
+
+  return result
+}
+
+/**
+ * Initialize default role permissions if not exist (legacy - calls syncRolePermissions)
+ */
+async function initializeRolePermissions() {
+  const result = await syncRolePermissions()
+
+  if (result.created > 0) {
+    console.log(`  + Created ${result.created} role permissions`)
+  }
+  if (result.addedFields.length > 0) {
+    console.log(`  + Added permission fields: ${result.addedFields.join(', ')}`)
+  }
+  if (result.removedFields.length > 0) {
+    console.log(`  - Removed permission fields: ${result.removedFields.join(', ')}`)
+  }
+  if (result.synced > 0) {
+    console.log(`  ✓ Synced ${result.synced} role(s)`)
+  }
+
+  return result.created > 0 || result.synced > 0
 }
 
 // ===========================================

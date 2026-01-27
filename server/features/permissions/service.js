@@ -53,8 +53,9 @@ async function getPermissionByFeature(feature) {
  * @returns {Promise<Object>} - Updated feature permission
  */
 async function updateFeaturePermission(feature, permissions, updatedBy) {
-  // Validate feature
-  if (!['equipmentInfo', 'emailTemplate', 'users'].includes(feature)) {
+  // Validate feature against code-defined features
+  const validFeatures = DEFAULT_FEATURE_PERMISSIONS.map(p => p.feature)
+  if (!validFeatures.includes(feature)) {
     throw new Error('Invalid feature')
   }
 
@@ -137,19 +138,54 @@ async function getPermissionsByRole(roleLevel) {
 }
 
 /**
- * Initialize default permissions if not exist
- * @returns {Promise<void>}
+ * Sync permissions with code definitions
+ * - Add missing features (defined in code but not in DB)
+ * - Remove obsolete features (in DB but not defined in code)
+ * @returns {Promise<{added: string[], removed: string[]}>}
  */
-async function initializeDefaultPermissions() {
+async function syncFeaturePermissions() {
+  const codeFeatures = DEFAULT_FEATURE_PERMISSIONS.map(p => p.feature)
+  const dbPermissions = await FeaturePermission.find().lean()
+  const dbFeatures = dbPermissions.map(p => p.feature)
+
+  const added = []
+  const removed = []
+
+  // Add missing features
   for (const defaultPerm of DEFAULT_FEATURE_PERMISSIONS) {
-    const exists = await FeaturePermission.findOne({ feature: defaultPerm.feature })
-    if (!exists) {
+    if (!dbFeatures.includes(defaultPerm.feature)) {
       await FeaturePermission.create({
         feature: defaultPerm.feature,
         permissions: defaultPerm.permissions,
         updatedBy: 'system'
       })
+      added.push(defaultPerm.feature)
     }
+  }
+
+  // Remove obsolete features
+  for (const dbFeature of dbFeatures) {
+    if (!codeFeatures.includes(dbFeature)) {
+      await FeaturePermission.deleteOne({ feature: dbFeature })
+      removed.push(dbFeature)
+    }
+  }
+
+  return { added, removed }
+}
+
+/**
+ * Initialize default permissions if not exist (legacy - calls syncFeaturePermissions)
+ * @returns {Promise<void>}
+ */
+async function initializeDefaultPermissions() {
+  const result = await syncFeaturePermissions()
+
+  if (result.added.length > 0) {
+    console.log(`  + Added features: ${result.added.join(', ')}`)
+  }
+  if (result.removed.length > 0) {
+    console.log(`  - Removed features: ${result.removed.join(', ')}`)
   }
 }
 

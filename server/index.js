@@ -2,6 +2,7 @@ require('dotenv').config();
 const app = require('./app');
 const connectDB = require('./shared/db/connection');
 const { initializeDefaultPermissions } = require('./features/permissions/service');
+const { initializeRolePermissions } = require('./features/users/service');
 
 const PORT = process.env.PORT || 3000;
 
@@ -10,9 +11,11 @@ const startServer = async () => {
   try {
     await connectDB();
 
-    // Initialize default feature permissions if not exist
+    // Sync permissions with code definitions
+    console.log('Syncing permissions...');
     await initializeDefaultPermissions();
-    console.log('Feature permissions initialized');
+    await initializeRolePermissions();
+    console.log('Permissions synced');
 
     app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);

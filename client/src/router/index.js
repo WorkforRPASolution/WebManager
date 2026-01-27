@@ -185,6 +185,28 @@ const routes = [
       }
     }
   },
+  // Email Info Management
+  {
+    path: '/email-info',
+    name: 'EmailInfo',
+    component: () => import('../features/email-info/EmailInfoView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'emailInfo',
+      menu: {
+        mainMenu: 'masterdata',
+        mainMenuLabel: '기준정보 관리',
+        mainMenuIcon: 'database',
+        mainMenuOrder: 3,
+        subMenu: 'email-info',
+        subMenuLabel: 'Email Info',
+        subMenuIcon: 'contact_mail',
+        subMenuOrder: 4,
+        permission: 'emailInfo'
+      }
+    }
+  },
   // Users Management
   {
     path: '/users',
@@ -202,7 +224,7 @@ const routes = [
         subMenu: 'user-management',
         subMenuLabel: 'User Management',
         subMenuIcon: 'users',
-        subMenuOrder: 3,
+        subMenuOrder: 5,
         permission: 'users'
       }
     }

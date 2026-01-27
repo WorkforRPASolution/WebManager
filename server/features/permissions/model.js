@@ -20,7 +20,7 @@ const featurePermissionSchema = new Schema({
     required: true,
     unique: true,
     trim: true,
-    enum: ['equipmentInfo', 'emailTemplate', 'users']
+    enum: ['equipmentInfo', 'emailTemplate', 'users', 'emailInfo']
   },
   permissions: {
     type: Map,
@@ -65,6 +65,15 @@ const DEFAULT_FEATURE_PERMISSIONS = [
       2: { read: true, write: false, delete: false },
       3: { read: true, write: false, delete: false }
     }
+  },
+  {
+    feature: 'emailInfo',
+    permissions: {
+      0: { read: false, write: false, delete: false },
+      1: { read: true, write: true, delete: true },
+      2: { read: false, write: false, delete: false },
+      3: { read: false, write: false, delete: false }
+    }
   }
 ]
 
@@ -72,7 +81,8 @@ const DEFAULT_FEATURE_PERMISSIONS = [
 const FEATURE_NAMES = {
   equipmentInfo: 'Equipment Info',
   emailTemplate: 'Email Template',
-  users: 'User Management'
+  users: 'User Management',
+  emailInfo: 'Email Info'
 }
 
 const FeaturePermission = mongoose.model('FeaturePermission', featurePermissionSchema)

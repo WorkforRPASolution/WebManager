@@ -39,6 +39,7 @@ app.use('/api/dashboard', require('./features/dashboard/routes'));
 app.use('/api/clients', require('./features/clients/routes'));
 app.use('/api/users', require('./features/users/routes'));
 app.use('/api/email-template', require('./features/email-template/routes'));
+app.use('/api/email-info', require('./features/email-info/routes'));
 app.use('/api/permissions', require('./features/permissions/routes'));
 
 // Error handling
