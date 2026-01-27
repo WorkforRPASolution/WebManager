@@ -115,6 +115,7 @@
         :modified-cells="modifiedCells"
         :new-rows="newRowsSet"
         :deleted-rows="deletedRowsSet"
+        :available-processes="availableProcesses"
         @cell-edit="handleCellEdit"
         @selection-change="handleSelectionChange"
         @paste-rows="handlePasteRows"
@@ -184,6 +185,7 @@ import { useUserData } from './composables/useUserData'
 import { useToast } from '@/shared/composables/useToast'
 import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
 import { usersApi } from './api'
+import { clientListApi } from '../clients/api'
 
 const gridRef = ref(null)
 const filterBarRef = ref(null)
@@ -193,7 +195,19 @@ const showRoleDialog = ref(false)
 const showPermissionDialog = ref(false)
 const hasSearched = ref(false)
 const filterCollapsed = ref(false)
+const availableProcesses = ref([])
 const { toast, showToast } = useToast()
+
+// Fetch available processes from EQP_INFO for the multi-select editor
+const fetchAvailableProcesses = async () => {
+  try {
+    const response = await clientListApi.getProcesses()
+    availableProcesses.value = response.data || []
+  } catch (err) {
+    console.error('Failed to fetch processes:', err)
+  }
+}
+fetchAvailableProcesses()
 
 // Permission hooks
 const { canRead, canWrite, canDelete, isAdmin, refresh: refreshPermissions } = useFeaturePermission('users')
@@ -346,6 +360,7 @@ const handleSave = async () => {
 
     showToast('success', message)
     await filterBarRef.value?.refreshFilters()
+    await fetchAvailableProcesses()  // Refresh available processes for multi-select editor
     await refreshCurrentPage()
     selectedIds.value = []
   } else if (result.errors?.length > 0) {
