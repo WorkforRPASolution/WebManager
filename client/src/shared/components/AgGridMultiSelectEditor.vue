@@ -14,6 +14,7 @@ const selectedValues = ref([])
 const searchQuery = ref('')
 const containerRef = ref(null)
 const searchInputRef = ref(null)
+const isFirstAction = ref(true)  // 첫 번째 동작 시 기존 값 무시하고 교체
 
 // Get options from column params or cellEditorParams
 const options = computed(() => {
@@ -61,8 +62,14 @@ const canAddNewValue = computed(() => {
 // Add new custom value
 const addNewValue = () => {
   const normalized = normalizeInput(searchQuery.value)
-  if (normalized && !selectedValues.value.includes(normalized)) {
-    selectedValues.value.push(normalized)
+  if (normalized) {
+    if (isFirstAction.value) {
+      // 첫 번째 동작: 기존 값 무시하고 새 값만
+      selectedValues.value = [normalized]
+      isFirstAction.value = false
+    } else if (!selectedValues.value.includes(normalized)) {
+      selectedValues.value.push(normalized)
+    }
   }
   searchQuery.value = ''
 }
@@ -81,21 +88,33 @@ const someSelected = computed(() => {
 })
 
 function toggleOption(option) {
-  const index = selectedValues.value.indexOf(option)
-  if (index === -1) {
-    selectedValues.value.push(option)
+  if (isFirstAction.value) {
+    // 첫 번째 동작: 기존 값 무시하고 해당 옵션만 선택
+    selectedValues.value = [option]
+    isFirstAction.value = false
   } else {
-    selectedValues.value.splice(index, 1)
+    // 이후 동작: 일반 토글
+    const index = selectedValues.value.indexOf(option)
+    if (index === -1) {
+      selectedValues.value.push(option)
+    } else {
+      selectedValues.value.splice(index, 1)
+    }
   }
 }
 
 function toggleAll() {
-  if (allSelected.value) {
-    // Deselect all filtered options
-    selectedValues.value = selectedValues.value.filter(v => !filteredOptions.value.includes(v))
+  if (isFirstAction.value) {
+    // 첫 번째 동작: 기존 값 무시하고 필터된 옵션으로 교체
+    selectedValues.value = [...filteredOptions.value]
+    isFirstAction.value = false
   } else {
-    // Select all filtered options
-    selectedValues.value = [...new Set([...selectedValues.value, ...filteredOptions.value])]
+    // 이후 동작: 일반 토글
+    if (allSelected.value) {
+      selectedValues.value = []
+    } else {
+      selectedValues.value = [...filteredOptions.value]
+    }
   }
 }
 
