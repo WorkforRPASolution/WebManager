@@ -110,9 +110,9 @@ const routes = [
       requiresAuth: true,
       permission: 'master',
       menu: {
-        mainMenu: 'system',
-        mainMenuLabel: 'System',
-        mainMenuIcon: 'settings',
+        mainMenu: 'masterdata',
+        mainMenuLabel: '기준정보 관리',
+        mainMenuIcon: 'database',
         mainMenuOrder: 3,
         subMenu: 'master',
         subMenuLabel: 'Master Data',
@@ -131,7 +131,10 @@ const routes = [
       requiresAuth: true,
       permission: 'emailTemplate',
       menu: {
-        mainMenu: 'system',
+        mainMenu: 'masterdata',
+        mainMenuLabel: '기준정보 관리',
+        mainMenuIcon: 'database',
+        mainMenuOrder: 3,
         subMenu: 'email-template',
         subMenuLabel: 'Email Template',
         subMenuIcon: 'mail',
@@ -150,10 +153,13 @@ const routes = [
       permission: 'alerts',
       menu: {
         mainMenu: 'system',
+        mainMenuLabel: 'System',
+        mainMenuIcon: 'settings',
+        mainMenuOrder: 4,
         subMenu: 'alerts',
         subMenuLabel: 'Alerts History',
         subMenuIcon: 'notifications',
-        subMenuOrder: 3,
+        subMenuOrder: 2,
         permission: 'alerts'
       }
     }
@@ -168,10 +174,13 @@ const routes = [
       permission: 'settings',
       menu: {
         mainMenu: 'system',
+        mainMenuLabel: 'System',
+        mainMenuIcon: 'settings',
+        mainMenuOrder: 4,
         subMenu: 'settings',
         subMenuLabel: 'Settings',
         subMenuIcon: 'tune',
-        subMenuOrder: 4,
+        subMenuOrder: 1,
         permission: 'settings'
       }
     }
@@ -186,11 +195,14 @@ const routes = [
       requiresAuth: true,
       permission: 'users',
       menu: {
-        mainMenu: 'system',
+        mainMenu: 'masterdata',
+        mainMenuLabel: '기준정보 관리',
+        mainMenuIcon: 'database',
+        mainMenuOrder: 3,
         subMenu: 'user-management',
         subMenuLabel: 'User Management',
         subMenuIcon: 'users',
-        subMenuOrder: 5,
+        subMenuOrder: 3,
         permission: 'users'
       }
     }

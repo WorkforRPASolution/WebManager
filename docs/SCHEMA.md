@@ -65,13 +65,30 @@
 | name | String | 필수 | 이름 |
 | singleid | String | 필수 (PK) | ID |
 | line | String | 필수 | line info |
-| process | String | 필수 | Process Name |
+| process | String | 필수 | Process Name (레거시 호환용, `;` 구분자) |
+| processes | Array[String] | 선택 | Process 배열 (WebManager용, Multi-process 지원) |
 | authority | String | 필수 | 권한. (WRITE or 빈값) |
 | authorityManager | NumberLong | 필수 | 사용자 등급 (아래 권한 체계 표 참조) |
 | note | String | 필수 | 사용자 관련 note(설명) |
 | accessnum | NumberLong | 선택 | 시스템접속 횟수(자동 update) |
 | accessnum_desktop | NumberLong | 선택 | Desktop시스템 접속횟수(자동 Update) |
 | lastExecution | String | 선택 | 마지막 접속 일자. format : yyyy-MM-ddTHH:mm:ss.SSS+09:00" (자동 update) |
+
+### Multi-Process 지원 (2026-01-26 추가)
+
+- **process 필드**: 레거시 시스템과 호환되는 문자열 필드 (예: `"CVD;ETCH;PHOTO"`)
+- **processes 필드**: WebManager에서 사용하는 배열 필드 (예: `["CVD", "ETCH", "PHOTO"]`)
+- **동기화**: WebManager에서 저장 시 두 필드가 자동으로 동기화됨
+  - processes 변경 → process 필드에 `;` 구분자로 저장
+  - 기존 데이터 마이그레이션: `server/scripts/migrateProcesses.js` 실행
+
+```javascript
+// 동기화 예시
+{
+  process: "CVD;ETCH",         // 레거시 호환용
+  processes: ["CVD", "ETCH"]   // WebManager용
+}
+```
 
 ### 권한 체계 (authorityManager)
 

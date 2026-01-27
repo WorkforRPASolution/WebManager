@@ -83,11 +83,24 @@ export function useUserData() {
     await fetchData(currentFilters.value, currentPage.value, pageSize.value)
   }
 
+  // Helper function to compare values (handles arrays)
+  const valuesEqual = (val1, val2) => {
+    if (Array.isArray(val1) && Array.isArray(val2)) {
+      return JSON.stringify([...val1].sort()) === JSON.stringify([...val2].sort())
+    }
+    return val1 === val2
+  }
+
   const trackChange = (rowId, field, newValue) => {
     const row = currentData.value.find(r => (r._id || r._tempId) === rowId)
     if (!row) return
 
     row[field] = newValue
+
+    // Sync processes ↔ process fields
+    if (field === 'processes') {
+      row.process = Array.isArray(newValue) ? newValue.join(';') : ''
+    }
 
     if (row._tempId) {
       newRows.value.add(row._tempId)
@@ -97,7 +110,7 @@ export function useUserData() {
       modifiedCells.value.get(row._tempId).add(field)
     } else {
       const original = originalData.value.find(r => r._id === rowId)
-      if (original && original[field] !== newValue) {
+      if (original && !valuesEqual(original[field], newValue)) {
         modifiedRows.value.add(rowId)
         if (!modifiedCells.value.has(rowId)) {
           modifiedCells.value.set(rowId, new Set())
@@ -113,7 +126,7 @@ export function useUserData() {
         }
         const isModified = Object.keys(row).some(key => {
           if (key === '_id' || key === '__v') return false
-          return row[key] !== original[key]
+          return !valuesEqual(row[key], original[key])
         })
         if (!isModified) {
           modifiedRows.value.delete(rowId)
@@ -134,6 +147,7 @@ export function useUserData() {
       password: '',
       line: '',
       process: '',
+      processes: [],  // Multi-process array field
       authority: '',
       authorityManager: 2,
       note: '',
@@ -152,13 +166,19 @@ export function useUserData() {
     const addedRows = []
     for (const rowData of rows) {
       const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      // Handle processes field - ensure it's an array
+      let processes = rowData.processes || []
+      if (!Array.isArray(processes)) {
+        processes = typeof processes === 'string' ? processes.split(';').map(p => p.trim()).filter(Boolean) : []
+      }
       const newRow = {
         _tempId: tempId,
         name: rowData.name || '',
         singleid: rowData.singleid || '',
         password: rowData.password || '',
         line: rowData.line || '',
-        process: rowData.process || '',
+        process: rowData.process || processes.join(';'),  // Keep legacy field synced
+        processes: processes,  // Multi-process array field
         authority: rowData.authority || '',
         authorityManager: rowData.authorityManager ?? 2,
         note: rowData.note || '',

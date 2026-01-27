@@ -5,6 +5,10 @@
 const Client = require('./model')
 const { parsePaginationParams } = require('../../shared/utils/pagination')
 const { validateBatchCreate, validateUpdate } = require('./validation')
+const { createRulesContext } = require('../../shared/utils/businessRules')
+
+// EQP_INFO 컬렉션용 비즈니스 규칙 컨텍스트
+const rules = createRulesContext('EQP_INFO', { documentIdField: 'eqpId' })
 
 /**
  * Parse comma-separated filter values
@@ -120,6 +124,19 @@ async function getModels(processFilter) {
 }
 
 /**
+ * Get distinct line list (optionally filtered by process)
+ */
+async function getLines(processFilter) {
+  const query = {}
+  if (processFilter) {
+    const filter = parseCommaSeparated(processFilter)
+    if (filter) query.process = filter
+  }
+  const lines = await Client.distinct('line', query)
+  return lines.filter(l => l).sort()
+}
+
+/**
  * Get clients list (simple, no pagination)
  */
 async function getClients(filters) {
@@ -229,21 +246,61 @@ async function getMasterData(filters, paginationQuery) {
 
 /**
  * Create multiple clients
+ * @param {Array} clientsData - Array of client data
+ * @param {Object} context - Execution context (user, etc.)
  */
-async function createClients(clientsData) {
-  // Get existing IDs and IPs for validation
-  const existingClients = await Client.find({}, 'eqpId ipAddr').lean()
-  const existingIds = existingClients.map(c => c.eqpId)
-  const existingIps = existingClients.map(c => c.ipAddr)
+async function createClients(clientsData, context = {}) {
+  const errors = []
 
-  // Validate
-  const { valid, errors } = validateBatchCreate(clientsData, existingIds, existingIps)
+  // 1. Apply auto-setters
+  const processedData = rules.applyAutoSettersBatch(clientsData, { ...context, isUpdate: false })
 
-  // Insert valid clients
+  // 2. Validate relations (cross-field validation)
+  const relationErrors = rules.validateRelationsBatch(processedData, context)
+  for (const { index, errors: relErrors } of relationErrors) {
+    for (const error of relErrors) {
+      errors.push({ rowIndex: index, field: error.field, message: error.message })
+    }
+  }
+
+  // Remove items with relation errors from processing
+  const errorIndices = new Set(relationErrors.map(r => r.index))
+  const dataToValidate = processedData.filter((_, i) => !errorIndices.has(i))
+
+  // 3. Execute beforeCreate hooks
+  await rules.executeHooks('beforeCreate', dataToValidate, context)
+
+  // 4. Get existing IDs and IP combinations for format/uniqueness validation
+  const existingClients = await Client.find({}, 'eqpId ipAddr ipAddrL').lean()
+  const existingIds = existingClients.map(c => c.eqpId?.toLowerCase?.() || '')
+  const existingIpCombos = existingClients.map(c => `${c.ipAddr || ''}|${c.ipAddrL || ''}`)
+
+  // 5. Validate format and uniqueness
+  const { valid, errors: validationErrors } = validateBatchCreate(dataToValidate, existingIds, existingIpCombos)
+
+  // Adjust rowIndex for validation errors (account for removed items)
+  const originalIndices = processedData
+    .map((_, i) => i)
+    .filter(i => !errorIndices.has(i))
+  for (const err of validationErrors) {
+    errors.push({
+      rowIndex: originalIndices[err.rowIndex] ?? err.rowIndex,
+      field: err.field,
+      message: err.message
+    })
+  }
+
+  // 6. Insert valid clients
   let created = 0
+  let insertedDocs = []
   if (valid.length > 0) {
-    const inserted = await Client.insertMany(valid)
-    created = inserted.length
+    insertedDocs = await Client.insertMany(valid)
+    created = insertedDocs.length
+  }
+
+  // 7. Execute afterCreate hooks (with created data for audit logging)
+  if (insertedDocs.length > 0) {
+    await rules.executeHooks('afterCreate', insertedDocs.map(d => d.toObject()), context)
   }
 
   return { created, errors }
@@ -251,13 +308,18 @@ async function createClients(clientsData) {
 
 /**
  * Update multiple clients
+ * @param {Array} clientsData - Array of client data (with _id)
+ * @param {Object} context - Execution context (user, etc.)
  */
-async function updateClients(clientsData) {
+async function updateClients(clientsData, context = {}) {
   const errors = []
   let updated = 0
+  const updatedDocs = []
+  const previousDocs = []
 
-  // Get all other clients' IDs and IPs once (avoid N+1)
-  const allClients = await Client.find({}, '_id eqpId ipAddr').lean()
+  // Get all clients' data (for change tracking and validation)
+  const allClients = await Client.find({}).lean()
+  const clientsById = new Map(allClients.map(c => [c._id.toString(), c]))
 
   for (let i = 0; i < clientsData.length; i++) {
     const clientData = clientsData[i]
@@ -268,13 +330,38 @@ async function updateClients(clientsData) {
       continue
     }
 
-    // Get other clients (excluding current one)
-    const otherClients = allClients.filter(c => c._id.toString() !== _id)
-    const existingIds = otherClients.map(c => c.eqpId)
-    const existingIps = otherClients.map(c => c.ipAddr)
+    // Get existing document
+    const existingDoc = clientsById.get(_id)
+    if (!existingDoc) {
+      errors.push({ rowIndex: i, field: '_id', message: 'Document not found' })
+      continue
+    }
 
-    // Validate
-    const validation = validateUpdate(updateData, existingIds, existingIps)
+    // 1. Apply auto-setters
+    const processedData = rules.applyAutoSetters(updateData, { ...context, isUpdate: true })
+
+    // 2. Validate relations
+    const relationErrors = rules.validateRelations({ ...existingDoc, ...processedData }, context)
+    if (relationErrors.length > 0) {
+      for (const error of relationErrors) {
+        errors.push({ rowIndex: i, field: error.field, message: error.message })
+      }
+      continue
+    }
+
+    // 3. Execute beforeUpdate hook
+    await rules.executeHooks('beforeUpdate', processedData, {
+      ...context,
+      previousData: existingDoc
+    })
+
+    // 4. Get other clients (excluding current one) for uniqueness validation
+    const otherClients = allClients.filter(c => c._id.toString() !== _id)
+    const existingIds = otherClients.map(c => c.eqpId?.toLowerCase?.() || '')
+    const existingIpCombos = otherClients.map(c => `${c.ipAddr || ''}|${c.ipAddrL || ''}`)
+
+    // 5. Validate format and uniqueness
+    const validation = validateUpdate(processedData, existingIds, existingIpCombos)
 
     if (!validation.valid) {
       for (const [field, message] of Object.entries(validation.errors)) {
@@ -283,10 +370,27 @@ async function updateClients(clientsData) {
       continue
     }
 
-    const result = await Client.updateOne({ _id }, { $set: updateData })
+    // 6. Perform update
+    const result = await Client.updateOne({ _id }, { $set: processedData })
     if (result.modifiedCount > 0) {
       updated++
+
+      // Get updated document for audit logging
+      const updatedDoc = await Client.findById(_id).lean()
+      if (updatedDoc) {
+        previousDocs.push(existingDoc)
+        updatedDocs.push(updatedDoc)
+      }
     }
+  }
+
+  // 7. Execute afterUpdate hooks (with change tracking for audit logging)
+  if (updatedDocs.length > 0) {
+    await rules.executeHooks('afterUpdate', updatedDocs, {
+      ...context,
+      previousData: previousDocs,
+      newData: updatedDocs
+    })
   }
 
   return { updated, errors }
@@ -294,9 +398,30 @@ async function updateClients(clientsData) {
 
 /**
  * Delete multiple clients
+ * @param {Array} ids - Array of _id values to delete
+ * @param {Object} context - Execution context (user, etc.)
  */
-async function deleteClients(ids) {
+async function deleteClients(ids, context = {}) {
+  // 1. Get documents before deletion (for audit logging)
+  const documentsToDelete = await Client.find({ _id: { $in: ids } }).lean()
+
+  // 2. Execute beforeDelete hooks
+  await rules.executeHooks('beforeDelete', documentsToDelete, {
+    ...context,
+    deletedData: documentsToDelete
+  })
+
+  // 3. Perform deletion
   const result = await Client.deleteMany({ _id: { $in: ids } })
+
+  // 4. Execute afterDelete hooks (with deleted data for audit logging)
+  if (result.deletedCount > 0) {
+    await rules.executeHooks('afterDelete', null, {
+      ...context,
+      deletedData: documentsToDelete
+    })
+  }
+
   return { deleted: result.deletedCount }
 }
 
@@ -311,6 +436,7 @@ async function clientExists(eqpId) {
 module.exports = {
   getProcesses,
   getModels,
+  getLines,
   getClients,
   getClientsPaginated,
   getClientById,

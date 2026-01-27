@@ -17,7 +17,13 @@ export function validateRow(row, rules) {
 
     // Required check
     if (fieldRules.required) {
-      if (value === null || value === undefined || value === '') {
+      // Special handling for array type
+      if (fieldRules.type === 'array') {
+        if (!Array.isArray(value) || value.length === 0) {
+          errors[field] = fieldRules.message
+          continue
+        }
+      } else if (value === null || value === undefined || value === '') {
         errors[field] = fieldRules.message
         continue
       }
@@ -28,14 +34,24 @@ export function validateRow(row, rules) {
       continue
     }
 
+    // Skip further validation for empty arrays
+    if (Array.isArray(value) && value.length === 0) {
+      continue
+    }
+
     // Pattern check (regex)
     if (fieldRules.pattern && !fieldRules.pattern.test(String(value))) {
       errors[field] = fieldRules.message
     }
 
     // Enum check
-    if (fieldRules.enum && !fieldRules.enum.includes(Number(value))) {
-      errors[field] = fieldRules.message
+    if (fieldRules.enum) {
+      // Check if enum contains only numbers
+      const isNumericEnum = fieldRules.enum.every(v => typeof v === 'number')
+      const valueToCheck = isNumericEnum ? Number(value) : value
+      if (!fieldRules.enum.includes(valueToCheck)) {
+        errors[field] = fieldRules.message
+      }
     }
 
     // Max length check
@@ -51,6 +67,15 @@ export function validateRow(row, rules) {
     // Type check
     if (fieldRules.type === 'number' && isNaN(Number(value))) {
       errors[field] = fieldRules.message
+    }
+
+    // Array type check with minLength
+    if (fieldRules.type === 'array') {
+      if (!Array.isArray(value)) {
+        errors[field] = fieldRules.message
+      } else if (fieldRules.minLength && value.length < fieldRules.minLength) {
+        errors[field] = fieldRules.message
+      }
     }
 
     // Custom validator
@@ -116,8 +141,26 @@ export function createValidationRules(schema) {
 export const patterns = {
   email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   ipv4: /^(\d{1,3}\.){3}\d{1,3}$/,
+  // Strict IPv4 with octet range check (0-255)
+  ipv4Strict: /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/,
   alphanumeric: /^[A-Za-z0-9]+$/,
   alphanumericWithSymbols: /^[A-Za-z0-9_-]+$/,
+  // Korean character detection (Hangul syllables, Jamo, compatibility Jamo)
+  korean: /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/,
+  // Allowed characters: alphanumeric, dot, underscore only
+  noKoreanBasic: /^[A-Za-z0-9._]*$/,
+  // Allowed characters: alphanumeric, dot, underscore, dash (for line, emailcategory)
+  noKoreanWithDash: /^[A-Za-z0-9._-]*$/,
   date: /^\d{4}-\d{2}-\d{2}$/,
   datetime: /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/
+}
+
+/**
+ * Check if a value contains Korean characters
+ * @param {any} value - Value to check
+ * @returns {boolean} - true if contains Korean
+ */
+export function containsKorean(value) {
+  if (value === null || value === undefined) return false
+  return patterns.korean.test(String(value))
 }

@@ -13,12 +13,19 @@ const { ApiError } = require('../../shared/middleware/errorHandler')
 /**
  * GET /api/users
  * Get users with filtering and pagination
+ * Supports multi-process filtering via `processes` parameter (comma-separated)
  */
 async function getUsers(req, res) {
-  const { process, line, authorityManager, accountStatus, passwordStatus, search, page, pageSize } = req.query
+  const { process, processes, line, authorityManager, accountStatus, passwordStatus, search, page, pageSize } = req.query
+
+  // Parse processes parameter (comma-separated string → array)
+  let processesArray = null
+  if (processes) {
+    processesArray = processes.split(',').map(p => p.trim()).filter(Boolean)
+  }
 
   const result = await service.getUsers(
-    { process, line, authorityManager, accountStatus, passwordStatus, search },
+    { process, processes: processesArray, line, authorityManager, accountStatus, passwordStatus, search },
     { page, pageSize }
   )
 

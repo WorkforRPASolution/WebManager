@@ -189,9 +189,17 @@ export function useEmailTemplateData() {
   }
 
   const validate = () => {
-    const rowsToValidate = currentData.value.filter(
-      r => !deletedRows.value.has(r._id)
-    )
+    // Only validate new rows and modified rows (not all rows)
+    const rowsToValidate = currentData.value.filter(r => {
+      // Skip deleted rows
+      if (r._id && deletedRows.value.has(r._id)) return false
+      // Include new rows
+      if (r._tempId && newRows.value.has(r._tempId)) return true
+      // Include modified rows
+      if (r._id && modifiedRows.value.has(r._id)) return true
+      // Skip unchanged rows
+      return false
+    })
     validationErrors.value = validateAllRows(rowsToValidate)
     return Object.keys(validationErrors.value).length === 0
   }
@@ -328,5 +336,8 @@ export function useEmailTemplateData() {
 
     // Cell state
     modifiedCells,
+
+    // Row state refs for reactivity
+    deletedRows,
   }
 }

@@ -49,12 +49,34 @@ function validateUser(userData, isUpdate = false) {
     }
   }
 
-  // Process validation
-  if (!isUpdate || userData.process !== undefined) {
-    if (!userData.process || userData.process.trim().length === 0) {
+  // Process validation (either process or processes should be provided)
+  const hasProcess = userData.process && userData.process.trim().length > 0
+  const hasProcesses = userData.processes && Array.isArray(userData.processes) && userData.processes.length > 0
+
+  if (!isUpdate || userData.process !== undefined || userData.processes !== undefined) {
+    if (!hasProcess && !hasProcesses) {
       errors.push({ field: 'process', message: 'Process is required' })
-    } else if (userData.process.length > 50) {
-      errors.push({ field: 'process', message: 'Process must be at most 50 characters' })
+    } else if (userData.process && userData.process.length > 200) {
+      errors.push({ field: 'process', message: 'Process must be at most 200 characters' })
+    }
+  }
+
+  // Processes array validation
+  if (userData.processes !== undefined) {
+    if (!Array.isArray(userData.processes)) {
+      errors.push({ field: 'processes', message: 'Processes must be an array' })
+    } else {
+      for (let i = 0; i < userData.processes.length; i++) {
+        const proc = userData.processes[i]
+        if (typeof proc !== 'string' || proc.trim().length === 0) {
+          errors.push({ field: 'processes', message: `Invalid process value at index ${i}` })
+          break
+        }
+        if (proc.length > 50) {
+          errors.push({ field: 'processes', message: `Process "${proc}" must be at most 50 characters` })
+          break
+        }
+      }
     }
   }
 

@@ -6,10 +6,15 @@ import api from '../../shared/api'
 
 export const usersApi = {
   // Get users with pagination and filtering
-  getAll: (filters = {}, page = 1, pageSize = 25) =>
-    api.get('/users', {
-      params: { ...filters, page, pageSize }
-    }),
+  // Supports multi-process filtering via `processes` array (sent as comma-separated string)
+  getAll: (filters = {}, page = 1, pageSize = 25) => {
+    const params = { ...filters, page, pageSize }
+    // Convert processes array to comma-separated string for API
+    if (params.processes && Array.isArray(params.processes)) {
+      params.processes = params.processes.join(',')
+    }
+    return api.get('/users', { params })
+  },
 
   // Get distinct processes for filter
   getProcesses: () => api.get('/users/processes'),

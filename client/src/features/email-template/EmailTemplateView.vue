@@ -215,6 +215,7 @@ const {
   isRowNew,
   isRowDeleted,
   modifiedCells,
+  deletedRows,
 } = useEmailTemplateData()
 
 // Convert to reactive Sets for the grid component
@@ -239,13 +240,8 @@ const newRowsSet = computed(() => {
 })
 
 const deletedRowsSet = computed(() => {
-  const set = new Set()
-  for (const row of currentData.value) {
-    if (row._id && isRowDeleted(row._id)) {
-      set.add(row._id)
-    }
-  }
-  return set
+  // Directly return deletedRows to ensure Vue tracks the dependency
+  return deletedRows.value
 })
 
 const handleFilterChange = async (filters) => {

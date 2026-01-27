@@ -125,7 +125,7 @@ async function me(req, res) {
  * Register a new user
  */
 async function signup(req, res) {
-  const { name, singleid, password, email, line, process, department, note } = req.body
+  const { name, singleid, password, email, line, process, department, note, authorityManager, authority } = req.body
 
   // Validation
   const errors = []
@@ -150,12 +150,31 @@ async function signup(req, res) {
     errors.push({ field: 'email', message: '유효한 이메일을 입력해주세요' })
   }
 
-  if (!line || line.trim().length === 0) {
-    errors.push({ field: 'line', message: 'Line을 선택해주세요' })
+  // Process validation: 영문 대문자, 언더바만 허용
+  if (!process || process.trim().length === 0) {
+    errors.push({ field: 'process', message: 'Process를 입력해주세요' })
+  } else if (!/^[A-Z_]+$/.test(process.trim())) {
+    errors.push({ field: 'process', message: 'Process는 영문 대문자와 언더바(_)만 사용 가능합니다' })
   }
 
-  if (!process || process.trim().length === 0) {
-    errors.push({ field: 'process', message: 'Process를 선택해주세요' })
+  // Line validation: 한글 제외
+  if (!line || line.trim().length === 0) {
+    errors.push({ field: 'line', message: 'Line을 입력해주세요' })
+  } else if (/[\uAC00-\uD7A3]/.test(line.trim())) {
+    errors.push({ field: 'line', message: 'Line에는 한글을 사용할 수 없습니다' })
+  }
+
+  // AuthorityManager validation: 0-3
+  if (authorityManager !== undefined && authorityManager !== '') {
+    const authMgrNum = Number(authorityManager)
+    if (isNaN(authMgrNum) || authMgrNum < 0 || authMgrNum > 3) {
+      errors.push({ field: 'authorityManager', message: '유효한 사용자 권한을 선택해주세요' })
+    }
+  }
+
+  // Authority validation: '' or 'WRITE'
+  if (authority !== undefined && authority !== '' && authority !== 'WRITE') {
+    errors.push({ field: 'authority', message: '유효한 RPA 권한을 선택해주세요' })
   }
 
   if (errors.length > 0) {
@@ -170,7 +189,9 @@ async function signup(req, res) {
     line: line.trim(),
     process: process.trim(),
     department: department?.trim() || '',
-    note: note?.trim() || ''
+    note: note?.trim() || '',
+    authorityManager: authorityManager !== undefined && authorityManager !== '' ? Number(authorityManager) : 0,
+    authority: authority || ''
   })
 
   if (result.error) {
@@ -286,17 +307,32 @@ async function setNewPassword(req, res) {
 
 /**
  * GET /api/auth/signup-options
- * Get processes and lines for signup form (public)
+ * Get processes, lines, roles, and authorities for signup form (public)
+ * Uses EQP_INFO collection for process/line data
  */
 async function getSignupOptions(req, res) {
-  const { getProcesses, getLines } = require('../users/service')
+  const { getProcesses, getLines } = require('../clients/service')
+  const { DEFAULT_ROLE_PERMISSIONS } = require('../users/model')
 
   const [processes, lines] = await Promise.all([
     getProcesses(),
     getLines()
   ])
 
-  res.json({ processes, lines })
+  // Map roles from DEFAULT_ROLE_PERMISSIONS
+  const roles = DEFAULT_ROLE_PERMISSIONS.map(r => ({
+    level: r.roleLevel,
+    name: r.roleName,
+    description: r.description
+  }))
+
+  // Authority options (RPA 권한)
+  const authorities = [
+    { value: '', label: '없음 (읽기만 가능)' },
+    { value: 'WRITE', label: '쓰기 권한' }
+  ]
+
+  res.json({ processes, lines, roles, authorities })
 }
 
 module.exports = {

@@ -7,23 +7,41 @@
  * 필수 AG Grid Props:
  * - :alwaysShowHorizontalScroll="true"
  * - :suppressSizeToFit="true"
+ *
+ * 커스텀 스크롤바 사용 시:
+ * - 그리드 컨테이너에 .ag-grid-custom-scrollbar 클래스 추가
+ * - CustomHorizontalScrollbar.vue 컴포넌트 사용
  */
 
 /* ================================================
    수평 스크롤바 강제 표시
+   macOS의 ag-apple-scrollbar 클래스 오버라이드
    ================================================ */
-.ag-body-horizontal-scroll {
+.ag-body-horizontal-scroll,
+.ag-body-horizontal-scroll.ag-apple-scrollbar {
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
-  min-height: 12px !important;
-  height: 12px !important;
+  min-height: 14px !important;
+  height: 14px !important;
+  background-color: #e2e8f0 !important;
 }
 
-.ag-body-horizontal-scroll-viewport {
+/* 다크 모드 지원 */
+.ag-theme-quartz-dark .ag-body-horizontal-scroll,
+[data-ag-theme-mode="dark"] .ag-body-horizontal-scroll {
+  background-color: #334155 !important;
+}
+
+.ag-body-horizontal-scroll-viewport,
+.ag-apple-scrollbar .ag-body-horizontal-scroll-viewport {
   overflow-x: scroll !important;
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(100, 100, 100, 0.5) rgba(0, 0, 0, 0.1) !important;
+  overflow-y: hidden !important;
+  height: 14px !important;
+  max-height: 14px !important;
+  min-height: 14px !important;
+  scrollbar-width: auto !important;
+  scrollbar-color: #94a3b8 #e2e8f0 !important;
 }
 
 .ag-body-horizontal-scroll-container {
@@ -32,27 +50,41 @@
 
 /* ================================================
    Webkit 스크롤바 스타일 (Chrome, Safari, Edge)
+   macOS에서 항상 표시되도록 강제
    ================================================ */
-.ag-body-horizontal-scroll-viewport::-webkit-scrollbar {
+.ag-body-horizontal-scroll-viewport::-webkit-scrollbar,
+.ag-body-horizontal-scroll-container::-webkit-scrollbar,
+.ag-center-cols-viewport::-webkit-scrollbar {
   -webkit-appearance: none !important;
   height: 12px !important;
+  background-color: #e2e8f0 !important;
   display: block !important;
 }
 
-.ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb {
+.ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb,
+.ag-body-horizontal-scroll-container::-webkit-scrollbar-thumb,
+.ag-center-cols-viewport::-webkit-scrollbar-thumb {
+  background-color: #94a3b8 !important;
   border-radius: 6px !important;
-  background-color: rgba(100, 100, 100, 0.5) !important;
-  border: 2px solid transparent !important;
-  background-clip: content-box !important;
+  border: 2px solid #e2e8f0 !important;
+  min-width: 40px !important;
 }
 
-.ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(100, 100, 100, 0.7) !important;
+.ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover,
+.ag-body-horizontal-scroll-container::-webkit-scrollbar-thumb:hover,
+.ag-center-cols-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: #64748b !important;
 }
 
-.ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track {
-  background-color: rgba(0, 0, 0, 0.1) !important;
-  border-radius: 6px !important;
+.ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track,
+.ag-body-horizontal-scroll-container::-webkit-scrollbar-track,
+.ag-center-cols-viewport::-webkit-scrollbar-track {
+  background-color: #e2e8f0 !important;
+}
+
+/* AG Grid center viewport - 실제 스크롤 영역 */
+.ag-center-cols-viewport {
+  overflow-x: scroll !important;
 }
 
 /* ================================================
@@ -87,4 +119,29 @@
 .ag-cell.cell-value-changed * {
   color: #dc2626 !important;
   font-weight: 600 !important;
+}
+
+/* ================================================
+   커스텀 스크롤바 사용 시 네이티브 스크롤바 숨김
+   .ag-grid-custom-scrollbar 클래스를 그리드 컨테이너에 추가하면 적용됨
+   ================================================ */
+.ag-grid-custom-scrollbar .ag-body-horizontal-scroll {
+  display: none !important;
+}
+
+.ag-grid-custom-scrollbar .ag-body-horizontal-scroll-viewport {
+  display: none !important;
+}
+
+/* center-cols-viewport의 스크롤바만 숨김 (스크롤 기능은 유지) */
+.ag-grid-custom-scrollbar .ag-center-cols-viewport {
+  overflow-x: scroll !important;
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE/Edge */
+}
+
+.ag-grid-custom-scrollbar .ag-center-cols-viewport::-webkit-scrollbar {
+  display: none !important; /* Chrome/Safari/Opera */
+  height: 0 !important;
+  width: 0 !important;
 }

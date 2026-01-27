@@ -2,6 +2,16 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api, { permissionsApi } from '../api'
 
+// Lazy import to avoid circular dependency
+let processFilterStore = null
+const getProcessFilterStore = () => {
+  if (!processFilterStore) {
+    const { useProcessFilterStore } = require('./processFilter')
+    processFilterStore = useProcessFilterStore()
+  }
+  return processFilterStore
+}
+
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
   const token = ref(localStorage.getItem('token') || null)
@@ -137,6 +147,13 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken.value = null
     user.value = null
     clearFeaturePermissions()
+
+    // Clear process filter cache
+    try {
+      getProcessFilterStore().clearCache()
+    } catch (e) {
+      // Ignore if store not initialized
+    }
 
     localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')

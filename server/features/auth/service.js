@@ -148,7 +148,7 @@ async function getCurrentUser(tokenPayload) {
  * @returns {Object} - Result with success status
  */
 async function signup(userData) {
-  const { name, singleid, password, email, line, process, department, note } = userData
+  const { name, singleid, password, email, line, process, department, note, authorityManager, authority } = userData
 
   // Check if singleid already exists
   const existingUser = await User.findOne({ singleid }).lean()
@@ -168,6 +168,7 @@ async function signup(userData) {
   const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS)
 
   // Create user with pending status
+  // Note: authorityManager and authority are requested values that admin can modify on approval
   const newUser = new User({
     name,
     singleid,
@@ -179,8 +180,8 @@ async function signup(userData) {
     note: note || '',
     accountStatus: 'pending',
     passwordStatus: 'normal',
-    authorityManager: 0,
-    authority: '',
+    authorityManager: authorityManager ?? 0,
+    authority: authority || '',
     accessnum: 0,
     accessnum_desktop: 0
   })
@@ -194,7 +195,9 @@ async function signup(userData) {
       singleid: newUser.singleid,
       name: newUser.name,
       email: newUser.email,
-      accountStatus: newUser.accountStatus
+      accountStatus: newUser.accountStatus,
+      authorityManager: newUser.authorityManager,
+      authority: newUser.authority
     }
   }
 }

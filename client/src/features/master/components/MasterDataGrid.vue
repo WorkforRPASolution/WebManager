@@ -1,6 +1,7 @@
 <template>
-  <div ref="gridContainer" class="w-full h-full" @paste="handlePaste" @copy="handleCopy" @keydown.capture="handleKeyDown" tabindex="0">
-    <AgGridVue
+  <div class="flex flex-col w-full h-full">
+    <div ref="gridContainer" class="flex-1 min-h-0 ag-grid-custom-scrollbar" @paste="handlePaste" @copy="handleCopy" @keydown.capture="handleKeyDown" tabindex="0">
+      <AgGridVue
       :theme="gridTheme"
       :rowData="rowData"
       :columnDefs="columnDefs"
@@ -22,7 +23,14 @@
       @paste-end="onPasteEnd"
       @cell-clicked="onCellClicked"
       @sort-changed="onSortChanged"
-      style="width: 100%; height: 100%;"
+      @displayed-columns-changed="handleColumnChange"
+      @column-resized="handleColumnChange"
+        style="width: 100%; height: 100%;"
+      />
+    </div>
+    <CustomHorizontalScrollbar
+      :scrollState="scrollState"
+      @scroll="handleCustomScroll"
     />
   </div>
 </template>
@@ -32,6 +40,9 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { AgGridVue } from 'ag-grid-vue3'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import { useTheme } from '../../../shared/composables/useTheme'
+import { useCustomScrollbar } from '../../../shared/composables/useCustomScrollbar'
+import { useDataGridCellSelection } from '../../../shared/composables/useDataGridCellSelection'
+import CustomHorizontalScrollbar from '../../../shared/components/CustomHorizontalScrollbar.vue'
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule])
@@ -102,81 +113,15 @@ const emit = defineEmits(['cell-edit', 'selection-change', 'paste', 'paste-rows'
 const gridContainer = ref(null)
 const gridApi = ref(null)
 
+// Custom Scrollbar
+const { scrollState, scrollTo, handleColumnChange } = useCustomScrollbar(gridContainer)
+
+const handleCustomScroll = (scrollLeft) => {
+  scrollTo(scrollLeft)
+}
+
 // Shift+클릭 행 범위 선택을 위한 마지막 선택 행
 const lastSelectedRowIndex = ref(null)
-
-// Shift+클릭 셀 범위 선택
-const cellSelectionStart = ref(null)  // { rowIndex, colId }
-const cellSelectionEnd = ref(null)    // { rowIndex, colId }
-
-// 일괄 편집을 위한 선택 범위 저장
-const pendingBulkEditRange = ref(null)
-
-// 일괄 편집 모드 플래그 (Excel 스타일: 첫 번째 셀 편집 후 Enter로 전체 적용)
-const bulkEditMode = ref(false)
-
-// Shift+헤더 클릭 시 정렬 복원을 위한 상태
-let shiftHeaderClickPending = false
-let savedSortState = null
-
-onMounted(() => {
-  // Shift+헤더 클릭 감지 및 열 선택 처리
-  gridContainer.value?.addEventListener('mousedown', (e) => {
-    if (!e.shiftKey) return
-
-    // 헤더 셀인지 확인
-    const headerCell = e.target.closest('.ag-header-cell')
-    if (!headerCell) return
-
-    // colId 추출
-    const colId = headerCell.getAttribute('col-id')
-    if (!colId || !editableColumns.includes(colId)) return
-
-    // 현재 정렬 상태 저장 (AG Grid가 정렬 후 복원하기 위해)
-    savedSortState = gridApi.value?.getColumnState()
-    shiftHeaderClickPending = true
-
-    // 열 전체 선택 수동 실행
-    const rowCount = gridApi.value?.getDisplayedRowCount() || 0
-    if (rowCount > 0) {
-      cellSelectionStart.value = { rowIndex: 0, colId }
-      cellSelectionEnd.value = { rowIndex: rowCount - 1, colId }
-    }
-
-    // 그리드 컨테이너로 포커스 이동
-    gridContainer.value?.focus()
-  }, true)  // capture phase
-})
-
-// 정렬 변경 시 Shift+클릭이었으면 정렬 복원
-const onSortChanged = () => {
-  if (shiftHeaderClickPending && savedSortState) {
-    shiftHeaderClickPending = false
-    // 저장된 정렬 상태로 복원
-    gridApi.value?.applyColumnState({ state: savedSortState, applyOrder: true })
-    savedSortState = null
-  }
-}
-
-// 셀이 선택 범위 안에 있는지 확인
-const isCellInSelectionRange = (rowIndex, colId) => {
-  if (!cellSelectionStart.value || !cellSelectionEnd.value) return false
-
-  const startRowIndex = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-  const endRowIndex = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-
-  const startColIndex = editableColumns.indexOf(cellSelectionStart.value.colId)
-  const endColIndex = editableColumns.indexOf(cellSelectionEnd.value.colId)
-  const colIndex = editableColumns.indexOf(colId)
-
-  if (startColIndex === -1 || endColIndex === -1 || colIndex === -1) return false
-
-  const minColIndex = Math.min(startColIndex, endColIndex)
-  const maxColIndex = Math.max(startColIndex, endColIndex)
-
-  return rowIndex >= startRowIndex && rowIndex <= endRowIndex &&
-         colIndex >= minColIndex && colIndex <= maxColIndex
-}
 
 // 편집 가능한 컬럼 목록 (순서대로)
 const editableColumns = [
@@ -185,6 +130,39 @@ const editableColumns = [
   'onoff', 'webmanagerUse', 'installdate', 'scFirstExcute',
   'snapshotTimeDiff', 'usereleasemsg', 'usetkincancel'
 ]
+
+// 셀 범위 선택 및 일괄 편집 Composable
+const {
+  cellSelectionStart,
+  cellSelectionEnd,
+  bulkEditMode,
+  handleCellClicked: baseCellClicked,
+  handleCellEditingStarted: onCellEditingStarted,
+  handleCellEditingStopped: onCellEditingStopped,
+  handleKeyDown,
+  handleSortChanged: onSortChanged,
+  getCellSelectionStyle,
+  clearSelection,
+  setupHeaderClickHandler,
+  setupRowDataWatcher,
+  setupSelectionWatcher,
+} = useDataGridCellSelection({
+  gridApi,
+  gridContainer,
+  editableColumns,
+  onBulkEdit: (updates) => emit('paste-cells', updates),
+  onCellEdit: (rowId, field, value) => emit('cell-edit', rowId, field, value),
+})
+
+onMounted(() => {
+  setupHeaderClickHandler()
+})
+
+// rowData 변경 시 선택 해제
+setupRowDataWatcher(() => props.rowData)
+
+// 선택 범위 변경 시 그리드 갱신
+setupSelectionWatcher()
 
 // AG Grid 35 rowSelection API - 체크박스와 클릭 선택 비활성화
 const rowSelection = ref({
@@ -263,30 +241,8 @@ const getCellStyle = (params) => {
   if (!rowId) return null
 
   // Check for cell range selection (highest priority for visual feedback)
-  // 직접 ref 값 접근
-  const start = cellSelectionStart.value
-  const end = cellSelectionEnd.value
-
-  if (start && end) {
-    const startRowIndex = Math.min(start.rowIndex, end.rowIndex)
-    const endRowIndex = Math.max(start.rowIndex, end.rowIndex)
-    const startColIndex = editableColumns.indexOf(start.colId)
-    const endColIndex = editableColumns.indexOf(end.colId)
-    const colIndex = editableColumns.indexOf(params.colDef.field)
-
-    if (startColIndex !== -1 && endColIndex !== -1 && colIndex !== -1) {
-      const minColIndex = Math.min(startColIndex, endColIndex)
-      const maxColIndex = Math.max(startColIndex, endColIndex)
-
-      if (params.rowIndex >= startRowIndex && params.rowIndex <= endRowIndex &&
-          colIndex >= minColIndex && colIndex <= maxColIndex) {
-        return {
-          backgroundColor: 'rgba(59, 130, 246, 0.3)',
-          borderColor: '#3b82f6',
-        }
-      }
-    }
-  }
+  const selectionStyle = getCellSelectionStyle(params.rowIndex, params.colDef.field)
+  if (selectionStyle) return selectionStyle
 
   // Check for validation errors
   const rowErrors = props.validationErrors[rowId]
@@ -383,26 +339,8 @@ const processCellFromClipboard = (params) => {
 
 const onGridReady = (params) => {
   gridApi.value = params.api
-}
-
-// 편집 시작 시 선택 범위 저장 (마우스 더블클릭 시에만)
-const onCellEditingStarted = (params) => {
-  // 키보드 입력으로 시작된 일괄 편집은 pendingBulkEditRange를 설정하지 않음
-  // (onCellEditingStopped에서 처리)
-  if (bulkEditMode.value) {
-    pendingBulkEditRange.value = null
-    return
-  }
-
-  // 마우스 더블클릭으로 시작된 편집: 기존 방식 유지
-  if (cellSelectionStart.value && cellSelectionEnd.value) {
-    pendingBulkEditRange.value = {
-      start: { ...cellSelectionStart.value },
-      end: { ...cellSelectionEnd.value }
-    }
-  } else {
-    pendingBulkEditRange.value = null
-  }
+  // Initialize custom scrollbar after grid is ready
+  handleColumnChange()
 }
 
 const onCellValueChanged = (params) => {
@@ -410,54 +348,6 @@ const onCellValueChanged = (params) => {
   const field = params.colDef.field
   const newValue = params.newValue
 
-  // 키보드 입력으로 시작된 일괄 편집 중에는 단일 셀만 업데이트
-  // (Enter 시 onCellEditingStopped에서 전체 셀에 적용)
-  if (bulkEditMode.value) {
-    emit('cell-edit', rowId, field, newValue)
-    return
-  }
-
-  // 마우스 더블클릭으로 시작된 편집: 기존 방식 유지
-  if (pendingBulkEditRange.value) {
-    const range = pendingBulkEditRange.value
-    const startRowIndex = Math.min(range.start.rowIndex, range.end.rowIndex)
-    const endRowIndex = Math.max(range.start.rowIndex, range.end.rowIndex)
-
-    const startColIndex = editableColumns.indexOf(range.start.colId)
-    const endColIndex = editableColumns.indexOf(range.end.colId)
-    const minColIndex = Math.min(startColIndex, endColIndex)
-    const maxColIndex = Math.max(startColIndex, endColIndex)
-
-    const cellUpdates = []
-    for (let rowIdx = startRowIndex; rowIdx <= endRowIndex; rowIdx++) {
-      const rowNode = gridApi.value.getDisplayedRowAtIndex(rowIdx)
-      if (!rowNode) continue
-      const targetRowId = rowNode.data._id || rowNode.data._tempId
-
-      for (let colIdx = minColIndex; colIdx <= maxColIndex; colIdx++) {
-        const targetField = editableColumns[colIdx]
-        // 편집한 셀은 이미 업데이트되므로 나머지만 추가
-        if (targetRowId === rowId && targetField === field) continue
-        cellUpdates.push({ rowId: targetRowId, field: targetField, value: newValue })
-      }
-    }
-
-    if (cellUpdates.length > 0) {
-      emit('paste-cells', cellUpdates)
-    }
-
-    // 범위 초기화
-    pendingBulkEditRange.value = null
-    cellSelectionStart.value = null
-    cellSelectionEnd.value = null
-
-    // 일괄 편집 후 화면 새로고침 (하이라이트 표시)
-    setTimeout(() => {
-      gridApi.value?.refreshCells({ force: true })
-    }, 0)
-  }
-
-  // 기존 동작: 편집한 셀 업데이트
   emit('cell-edit', rowId, field, newValue)
 }
 
@@ -473,7 +363,7 @@ const onPasteEnd = (params) => {
   emit('paste', params)
 }
 
-// Shift+클릭으로 체크박스 범위 선택 및 셀 범위 선택 (페이지 내에서만 동작)
+// Shift+클릭으로 체크박스 범위 선택 및 셀 범위 선택
 const onCellClicked = (params) => {
   const colId = params.colDef.field
   const rowIndex = params.rowIndex
@@ -481,7 +371,6 @@ const onCellClicked = (params) => {
   // 체크박스 컬럼 클릭 처리
   if (colId === '_selection') {
     if (params.event.shiftKey && lastSelectedRowIndex.value !== null) {
-      // Shift+클릭: 행 범위 선택 (현재 페이지 내에서만)
       const start = Math.min(lastSelectedRowIndex.value, rowIndex)
       const end = Math.max(lastSelectedRowIndex.value, rowIndex)
 
@@ -490,168 +379,17 @@ const onCellClicked = (params) => {
         node?.setSelected(true)
       }
     } else if (params.event.ctrlKey || params.event.metaKey) {
-      // Ctrl+클릭: 개별 토글 (기본 체크박스 동작이 처리함)
       lastSelectedRowIndex.value = rowIndex
     } else {
-      // 일반 클릭: 마지막 선택 행 업데이트
       lastSelectedRowIndex.value = rowIndex
     }
-    // 체크박스 클릭 시 셀 범위 선택 초기화
     cellSelectionStart.value = null
     cellSelectionEnd.value = null
     return
   }
 
-  // 일반 셀 클릭 - 셀 범위 선택 처리
-  if (params.event.shiftKey && cellSelectionStart.value) {
-    // Shift+클릭: 셀 범위 선택 (현재 페이지 내에서만)
-    cellSelectionEnd.value = { rowIndex, colId }
-  } else {
-    // 일반 클릭: 새로운 셀 범위 시작점 (기존 선택 해제)
-    cellSelectionStart.value = { rowIndex, colId }
-    cellSelectionEnd.value = null
-  }
-  // watcher가 refreshCells 처리함
-}
-
-// 선택된 셀들 비우기 (Delete/Backspace)
-const clearSelectedCells = () => {
-  if (!cellSelectionStart.value || !cellSelectionEnd.value) return
-
-  const startRow = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-  const endRow = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-  const startColIdx = editableColumns.indexOf(cellSelectionStart.value.colId)
-  const endColIdx = editableColumns.indexOf(cellSelectionEnd.value.colId)
-  const minCol = Math.min(startColIdx, endColIdx)
-  const maxCol = Math.max(startColIdx, endColIdx)
-
-  for (let rowIdx = startRow; rowIdx <= endRow; rowIdx++) {
-    const rowNode = gridApi.value?.getDisplayedRowAtIndex(rowIdx)
-    if (!rowNode) continue
-    const rowId = rowNode.data._id || rowNode.data._tempId
-
-    for (let colIdx = minCol; colIdx <= maxCol; colIdx++) {
-      const colId = editableColumns[colIdx]
-      emit('cell-edit', rowId, colId, '')
-    }
-  }
-
-  gridApi.value?.refreshCells({ force: true })
-}
-
-// ESC 키로 셀 선택 해제 및 키보드 입력으로 첫 번째 셀 편집 모드 진입 (Excel 스타일)
-const handleKeyDown = (event) => {
-  // 이미 편집 모드 중이면 키 입력을 에디터로 전달 (가로채지 않음)
-  // ESC는 AG Grid가 처리하고 onCellEditingStopped에서 선택 해제됨
-  if (bulkEditMode.value) {
-    return
-  }
-
-  // ESC: 선택 해제
-  if (event.key === 'Escape') {
-    cellSelectionStart.value = null
-    cellSelectionEnd.value = null
-    return
-  }
-
-  // 셀 범위가 선택되어 있고, printable 문자 입력인 경우
-  if (cellSelectionStart.value && cellSelectionEnd.value) {
-    // Ctrl/Cmd 조합키는 무시 (복사/붙여넣기 등)
-    if (event.ctrlKey || event.metaKey) return
-
-    // Delete/Backspace: 선택된 셀들 비우기
-    if (event.key === 'Delete' || event.key === 'Backspace') {
-      event.preventDefault()
-      clearSelectedCells()
-      return
-    }
-
-    // printable 문자 입력: 첫 번째 셀 편집 모드 시작 (Excel 스타일)
-    if (event.key.length === 1) {
-      event.preventDefault()
-
-      // 선택 범위의 첫 번째 셀 (왼쪽 상단)
-      const startRow = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-      const startColIdx = Math.min(
-        editableColumns.indexOf(cellSelectionStart.value.colId),
-        editableColumns.indexOf(cellSelectionEnd.value.colId)
-      )
-      const startColId = editableColumns[startColIdx]
-
-      // 일괄 편집 모드 플래그 설정
-      bulkEditMode.value = true
-
-      // 입력한 문자 저장
-      const charPressed = event.key
-
-      // 첫 번째 셀 편집 시작
-      gridApi.value?.startEditingCell({
-        rowIndex: startRow,
-        colKey: startColId
-      })
-
-      // 편집 모드 진입 후 에디터에 문자 입력 및 포커스 설정
-      setTimeout(() => {
-        const editorInput = gridContainer.value?.querySelector('.ag-cell-editor input, .ag-cell-editor textarea')
-        if (editorInput) {
-          editorInput.value = charPressed
-          editorInput.dispatchEvent(new Event('input', { bubbles: true }))
-          // 에디터에 포커스를 설정하여 추가 입력이 가능하도록 함
-          editorInput.focus()
-          // 커서를 텍스트 끝으로 이동
-          editorInput.setSelectionRange(editorInput.value.length, editorInput.value.length)
-        }
-      }, 0)
-    }
-  }
-}
-
-// 셀 편집 완료 시 처리 (Excel 스타일: Enter로 전체 적용)
-const onCellEditingStopped = (params) => {
-  // 일괄 편집 모드가 아니면 무시
-  if (!bulkEditMode.value) return
-  bulkEditMode.value = false
-
-  // ESC로 취소된 경우 (valueChanged가 false)
-  if (!params.valueChanged) {
-    cellSelectionStart.value = null
-    cellSelectionEnd.value = null
-    gridApi.value?.refreshCells({ force: true })
-    return
-  }
-
-  const newValue = params.newValue
-
-  // 선택된 범위의 모든 셀에 값 적용 (편집한 셀 제외)
-  const startRow = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-  const endRow = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-  const startColIdx = editableColumns.indexOf(cellSelectionStart.value.colId)
-  const endColIdx = editableColumns.indexOf(cellSelectionEnd.value.colId)
-  const minCol = Math.min(startColIdx, endColIdx)
-  const maxCol = Math.max(startColIdx, endColIdx)
-
-  const cellUpdates = []
-  for (let rowIdx = startRow; rowIdx <= endRow; rowIdx++) {
-    const rowNode = gridApi.value?.getDisplayedRowAtIndex(rowIdx)
-    if (!rowNode) continue
-    const rowId = rowNode.data._id || rowNode.data._tempId
-
-    for (let colIdx = minCol; colIdx <= maxCol; colIdx++) {
-      const colId = editableColumns[colIdx]
-      // 편집한 셀은 이미 업데이트됨
-      if (rowIdx === params.rowIndex && colId === params.column.colId) continue
-      cellUpdates.push({ rowId, field: colId, value: newValue })
-    }
-  }
-
-  if (cellUpdates.length > 0) {
-    emit('paste-cells', cellUpdates)
-  }
-
-  // 선택 해제
-  cellSelectionStart.value = null
-  cellSelectionEnd.value = null
-  gridApi.value?.refreshCells({ force: true })
+  // 나머지 셀 클릭은 composable에 위임
+  baseCellClicked(params)
 }
 
 // 컬럼 순서 정의 (스프레드시트에서 복사할 때 사용)
@@ -844,48 +582,24 @@ watch(() => props.validationErrors, () => {
 // Refresh cells when row states change
 watch([() => props.modifiedRows, () => props.newRows, () => props.deletedRows], () => {
   if (gridApi.value) {
-    gridApi.value.refreshCells({ force: true })
+    // Use redrawRows for row style updates (deletedRows styling)
+    gridApi.value.redrawRows()
   }
 }, { deep: true })
-
-// Clear cell selection when rowData changes (page change, etc.)
-watch(() => props.rowData, () => {
-  cellSelectionStart.value = null
-  cellSelectionEnd.value = null
-}, { deep: false })
-
-// Watch cell selection changes and force redraw
-watch([cellSelectionStart, cellSelectionEnd], () => {
-  if (gridApi.value) {
-    // 편집 중인 셀이 있으면 redraw 하지 않음 (편집 모드 취소 방지)
-    const editingCells = gridApi.value.getEditingCells()
-    if (editingCells && editingCells.length > 0) {
-      return
-    }
-    setTimeout(() => {
-      gridApi.value?.redrawRows()
-    }, 0)
-  }
-})
 
 // Expose methods for parent component
 defineExpose({
   getSelectedRows: () => gridApi.value?.getSelectedRows() || [],
   clearSelection: () => {
     gridApi.value?.deselectAll()
-    cellSelectionStart.value = null
-    cellSelectionEnd.value = null
+    clearSelection()
   },
   refreshCells: () => gridApi.value?.refreshCells({ force: true }),
   clearCellSelection: () => {
-    cellSelectionStart.value = null
-    cellSelectionEnd.value = null
+    clearSelection()
     gridApi.value?.refreshCells({ force: true })
   },
 })
 </script>
 
-<style>
-@import '../../../shared/styles/ag-grid-scroll.css';
-</style>
 

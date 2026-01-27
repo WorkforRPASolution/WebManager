@@ -103,6 +103,7 @@ import { clientListApi } from '../api'
 import MultiSelect from '../../../shared/components/MultiSelect.vue'
 import FilterBookmarks from '../../../shared/components/FilterBookmarks.vue'
 import { useFilterBookmarks } from '../../../shared/composables/useFilterBookmarks'
+import { useProcessFilterStore } from '../../../shared/stores/processFilter'
 
 defineProps({
   collapsed: { type: Boolean, default: false }
@@ -111,6 +112,8 @@ defineProps({
 const emit = defineEmits(['filter-change', 'toggle'])
 
 const { bookmarks, add: addBookmark, remove: removeBookmark } = useFilterBookmarks('clients')
+
+const processFilterStore = useProcessFilterStore()
 
 const processes = ref([])
 const allModels = ref([])
@@ -143,7 +146,9 @@ const filterSummary = computed(() => {
 const fetchProcesses = async () => {
   try {
     const response = await clientListApi.getProcesses()
-    processes.value = response.data
+    // 전체 목록을 Store에 캐시하고, 필터링된 목록을 사용
+    processFilterStore.setProcesses('clients', response.data)
+    processes.value = processFilterStore.getFilteredProcesses('clients')
   } catch (error) {
     console.error('Failed to fetch processes:', error)
   }

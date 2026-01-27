@@ -16,12 +16,20 @@ const form = ref({
   line: '',
   process: '',
   department: '',
-  note: ''
+  note: '',
+  authorityManager: 0,
+  authority: ''
 })
 
 // Options
 const processes = ref([])
 const lines = ref([])
+const roles = ref([])
+const authorities = ref([])
+
+// Custom input mode for Process and Line
+const processInputMode = ref('select') // 'select' or 'custom'
+const lineInputMode = ref('select') // 'select' or 'custom'
 
 // State
 const loading = ref(false)
@@ -34,6 +42,8 @@ const resetState = () => {
   success.value = false
   error.value = ''
   fieldErrors.value = {}
+  processInputMode.value = 'select'
+  lineInputMode.value = 'select'
   form.value = {
     name: '',
     singleid: '',
@@ -43,7 +53,9 @@ const resetState = () => {
     line: '',
     process: '',
     department: '',
-    note: ''
+    note: '',
+    authorityManager: 0,
+    authority: ''
   }
 }
 
@@ -74,18 +86,30 @@ onMounted(async () => {
     const response = await api.get('/auth/signup-options')
     processes.value = response.data.processes || []
     allLines.value = response.data.lines || []
+    lines.value = allLines.value
+    roles.value = response.data.roles || []
+    authorities.value = response.data.authorities || []
   } catch (err) {
     console.error('Failed to load signup options:', err)
     processes.value = []
     allLines.value = []
+    roles.value = []
+    authorities.value = []
   }
 })
 
-// Filter lines when process changes
-watch(() => form.value.process, (newProcess) => {
-  // For now, show all lines - in the future, we could filter by process
-  lines.value = allLines.value
-  form.value.line = ''
+// Watch process input mode change
+watch(processInputMode, (newMode) => {
+  if (newMode === 'custom') {
+    form.value.process = ''
+  }
+})
+
+// Watch line input mode change
+watch(lineInputMode, (newMode) => {
+  if (newMode === 'custom') {
+    form.value.line = ''
+  }
 })
 
 const validateField = (field) => {
@@ -127,13 +151,17 @@ const validateField = (field) => {
 
   if (field === 'process' || !field) {
     if (!form.value.process) {
-      errors.process = 'Process를 선택해주세요'
+      errors.process = 'Process를 입력해주세요'
+    } else if (!/^[A-Z_]+$/.test(form.value.process)) {
+      errors.process = 'Process는 영문 대문자와 언더바(_)만 사용 가능합니다'
     }
   }
 
   if (field === 'line' || !field) {
     if (!form.value.line) {
-      errors.line = 'Line을 선택해주세요'
+      errors.line = 'Line을 입력해주세요'
+    } else if (/[\uAC00-\uD7A3]/.test(form.value.line)) {
+      errors.line = 'Line에는 한글을 사용할 수 없습니다'
     }
   }
 
@@ -163,10 +191,12 @@ const handleSubmit = async () => {
       singleid: form.value.singleid.trim(),
       password: form.value.password,
       email: form.value.email.trim(),
-      line: form.value.line,
-      process: form.value.process,
+      line: form.value.line.trim(),
+      process: form.value.process.trim(),
       department: form.value.department.trim(),
-      note: form.value.note.trim()
+      note: form.value.note.trim(),
+      authorityManager: form.value.authorityManager,
+      authority: form.value.authority
     })
 
     if (response.data.success) {
@@ -188,6 +218,16 @@ const handleSubmit = async () => {
 
 const goToLogin = () => {
   router.push('/login')
+}
+
+// Format process value on input (convert to uppercase)
+const onProcessInput = (event) => {
+  form.value.process = event.target.value.toUpperCase().replace(/[^A-Z_]/g, '')
+}
+
+// Get role label for display
+const getRoleLabel = (role) => {
+  return `${role.name} - ${role.description}`
 }
 </script>
 
@@ -315,38 +355,144 @@ const goToLogin = () => {
           <p v-if="fieldErrors.email" class="mt-1 text-xs text-red-500">{{ fieldErrors.email }}</p>
         </div>
 
-        <!-- Process & Line -->
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Process <span class="text-red-500">*</span>
-            </label>
+        <!-- Process with Combobox -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Process <span class="text-red-500">*</span>
+            <span class="text-xs text-gray-500 ml-1">(영문 대문자, 언더바만)</span>
+          </label>
+          <div class="flex gap-2">
+            <!-- Mode toggle buttons -->
+            <div class="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden shrink-0">
+              <button
+                type="button"
+                @click="processInputMode = 'select'"
+                class="px-3 py-2 text-xs transition"
+                :class="processInputMode === 'select'
+                  ? 'bg-primary-500 text-white'
+                  : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-hover'"
+              >
+                선택
+              </button>
+              <button
+                type="button"
+                @click="processInputMode = 'custom'"
+                class="px-3 py-2 text-xs transition"
+                :class="processInputMode === 'custom'
+                  ? 'bg-primary-500 text-white'
+                  : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-hover'"
+              >
+                직접 입력
+              </button>
+            </div>
+            <!-- Select or Input based on mode -->
             <select
+              v-if="processInputMode === 'select'"
               v-model="form.process"
               @blur="validateField('process')"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+              class="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
               :class="{ 'border-red-500 dark:border-red-500': fieldErrors.process }"
             >
               <option value="">Select Process</option>
               <option v-for="p in processes" :key="p" :value="p">{{ p }}</option>
             </select>
-            <p v-if="fieldErrors.process" class="mt-1 text-xs text-red-500">{{ fieldErrors.process }}</p>
+            <input
+              v-else
+              :value="form.process"
+              @input="onProcessInput"
+              @blur="validateField('process')"
+              type="text"
+              class="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition uppercase"
+              :class="{ 'border-red-500 dark:border-red-500': fieldErrors.process }"
+              placeholder="Enter Process (e.g., ETCH, CVD)"
+            />
           </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Line <span class="text-red-500">*</span>
-            </label>
+          <p v-if="fieldErrors.process" class="mt-1 text-xs text-red-500">{{ fieldErrors.process }}</p>
+        </div>
+
+        <!-- Line with Combobox -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Line <span class="text-red-500">*</span>
+            <span class="text-xs text-gray-500 ml-1">(한글 제외)</span>
+          </label>
+          <div class="flex gap-2">
+            <!-- Mode toggle buttons -->
+            <div class="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden shrink-0">
+              <button
+                type="button"
+                @click="lineInputMode = 'select'"
+                class="px-3 py-2 text-xs transition"
+                :class="lineInputMode === 'select'
+                  ? 'bg-primary-500 text-white'
+                  : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-hover'"
+              >
+                선택
+              </button>
+              <button
+                type="button"
+                @click="lineInputMode = 'custom'"
+                class="px-3 py-2 text-xs transition"
+                :class="lineInputMode === 'custom'
+                  ? 'bg-primary-500 text-white'
+                  : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-hover'"
+              >
+                직접 입력
+              </button>
+            </div>
+            <!-- Select or Input based on mode -->
             <select
+              v-if="lineInputMode === 'select'"
               v-model="form.line"
               @blur="validateField('line')"
-              :disabled="!form.process"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition disabled:opacity-50"
+              class="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
               :class="{ 'border-red-500 dark:border-red-500': fieldErrors.line }"
             >
               <option value="">Select Line</option>
               <option v-for="l in lines" :key="l" :value="l">{{ l }}</option>
             </select>
-            <p v-if="fieldErrors.line" class="mt-1 text-xs text-red-500">{{ fieldErrors.line }}</p>
+            <input
+              v-else
+              v-model="form.line"
+              @blur="validateField('line')"
+              type="text"
+              class="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+              :class="{ 'border-red-500 dark:border-red-500': fieldErrors.line }"
+              placeholder="Enter Line (e.g., P1, M1)"
+            />
+          </div>
+          <p v-if="fieldErrors.line" class="mt-1 text-xs text-red-500">{{ fieldErrors.line }}</p>
+        </div>
+
+        <!-- AuthorityManager (Role) & Authority (RPA) -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              사용자 권한 <span class="text-red-500">*</span>
+            </label>
+            <select
+              v-model="form.authorityManager"
+              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition text-sm"
+            >
+              <option v-for="role in roles" :key="role.level" :value="role.level">
+                {{ getRoleLabel(role) }}
+              </option>
+            </select>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">관리자 승인 시 변경될 수 있음</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              RPA 권한
+            </label>
+            <select
+              v-model="form.authority"
+              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition text-sm"
+            >
+              <option v-for="auth in authorities" :key="auth.value" :value="auth.value">
+                {{ auth.label }}
+              </option>
+            </select>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">관리자 승인 시 변경될 수 있음</p>
           </div>
         </div>
 

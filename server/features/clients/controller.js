@@ -212,7 +212,10 @@ async function createMasterData(req, res) {
     throw ApiError.badRequest('clients array is required')
   }
 
-  const { created, errors } = await service.createClients(clients)
+  // Build context from request
+  const context = { user: req.user }
+
+  const { created, errors } = await service.createClients(clients, context)
 
   const statusCode = errors.length > 0 && created === 0 ? 400 : 201
   res.status(statusCode).json({
@@ -232,7 +235,10 @@ async function updateMasterData(req, res) {
     throw ApiError.badRequest('clients array is required')
   }
 
-  const { updated, errors } = await service.updateClients(clients)
+  // Build context from request
+  const context = { user: req.user }
+
+  const { updated, errors } = await service.updateClients(clients, context)
 
   res.json({
     success: updated > 0 || errors.length === 0,
@@ -251,7 +257,10 @@ async function deleteMasterData(req, res) {
     throw ApiError.badRequest('ids array is required')
   }
 
-  const { deleted } = await service.deleteClients(ids)
+  // Build context from request
+  const context = { user: req.user }
+
+  const { deleted } = await service.deleteClients(ids, context)
 
   res.json({
     success: true,

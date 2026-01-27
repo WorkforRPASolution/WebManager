@@ -27,10 +27,11 @@ export const validationRules = {
     maxLength: 50,
     message: 'Line is required'
   },
-  process: {
+  processes: {
     required: true,
-    maxLength: 50,
-    message: 'Process is required'
+    type: 'array',
+    minLength: 1,  // At least one process required
+    message: 'At least one process is required'
   },
   authority: {
     required: false,

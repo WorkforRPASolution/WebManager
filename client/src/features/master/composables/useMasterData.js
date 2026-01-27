@@ -225,12 +225,122 @@ export function useMasterData() {
     deletedRows.value.delete(id)
   }
 
+  // Check for duplicate eqpId - only flag new/modified rows
+  const checkDuplicateEqpId = () => {
+    const eqpIdMap = new Map()  // eqpId (lowercase) -> [{ rowId, isNewOrModified, originalEqpId }]
+
+    for (const row of currentData.value) {
+      // Skip deleted rows
+      if (row._id && deletedRows.value.has(row._id)) continue
+
+      const rowId = row._id || row._tempId
+      const originalEqpId = row.eqpId
+      const eqpIdLower = originalEqpId?.toLowerCase?.()
+
+      if (!eqpIdLower) continue
+
+      // Check if this row is new or modified
+      const isNew = row._tempId && newRows.value.has(row._tempId)
+      const isModified = row._id && modifiedRows.value.has(row._id)
+      const isNewOrModified = isNew || isModified
+
+      if (!eqpIdMap.has(eqpIdLower)) {
+        eqpIdMap.set(eqpIdLower, [])
+      }
+      eqpIdMap.get(eqpIdLower).push({ rowId, isNewOrModified, originalEqpId })
+    }
+
+    // Add errors only for new/modified rows that have duplicates
+    for (const [, rows] of eqpIdMap) {
+      if (rows.length > 1) {
+        // Only flag new/modified rows that have duplicates
+        for (const { rowId, isNewOrModified, originalEqpId } of rows) {
+          if (isNewOrModified) {
+            if (!validationErrors.value[rowId]) {
+              validationErrors.value[rowId] = {}
+            }
+            validationErrors.value[rowId].eqpId = `중복된 Equipment ID: ${originalEqpId}`
+          }
+        }
+      }
+    }
+  }
+
+  // Check for duplicate ipAddr + ipAddrL combination - only flag new/modified rows
+  const checkDuplicateIpCombination = () => {
+    const ipMap = new Map()  // "ipAddr|ipAddrL" -> [{ rowId, isNewOrModified, eqpId }]
+
+    for (const row of currentData.value) {
+      // Skip deleted rows
+      if (row._id && deletedRows.value.has(row._id)) continue
+
+      const rowId = row._id || row._tempId
+      const ipAddr = row.ipAddr || ''
+      const ipAddrL = row.ipAddrL || ''
+      const eqpId = row.eqpId || rowId
+
+      // Skip rows without primary IP
+      if (!ipAddr) continue
+
+      // Check if this row is new or modified
+      const isNew = row._tempId && newRows.value.has(row._tempId)
+      const isModified = row._id && modifiedRows.value.has(row._id)
+      const isNewOrModified = isNew || isModified
+
+      const key = `${ipAddr}|${ipAddrL}`
+
+      if (!ipMap.has(key)) {
+        ipMap.set(key, [])
+      }
+      ipMap.get(key).push({ rowId, isNewOrModified, eqpId })
+    }
+
+    // Add errors only for new/modified rows that have duplicate IP combinations
+    for (const [key, rows] of ipMap) {
+      if (rows.length > 1) {
+        const hasSecondaryIp = key.includes('|') && key.split('|')[1]
+
+        for (const { rowId, isNewOrModified, eqpId } of rows) {
+          if (isNewOrModified) {
+            // Find other eqpIds with the same IP combination
+            const otherEqpIds = rows
+              .filter(r => r.rowId !== rowId)
+              .map(r => r.eqpId)
+              .join(', ')
+
+            if (!validationErrors.value[rowId]) {
+              validationErrors.value[rowId] = {}
+            }
+            validationErrors.value[rowId].ipAddr = `중복된 IP 조합 (${otherEqpIds})`
+            if (hasSecondaryIp) {
+              validationErrors.value[rowId].ipAddrL = `중복된 IP 조합 (${otherEqpIds})`
+            }
+          }
+        }
+      }
+    }
+  }
+
   const validate = () => {
-    // Only validate non-deleted rows
-    const rowsToValidate = currentData.value.filter(
-      r => !deletedRows.value.has(r._id)
-    )
+    // Only validate new rows and modified rows (not all rows)
+    const rowsToValidate = currentData.value.filter(r => {
+      // Skip deleted rows
+      if (r._id && deletedRows.value.has(r._id)) return false
+      // Include new rows
+      if (r._tempId && newRows.value.has(r._tempId)) return true
+      // Include modified rows
+      if (r._id && modifiedRows.value.has(r._id)) return true
+      // Skip unchanged rows
+      return false
+    })
     validationErrors.value = validateAllRows(rowsToValidate)
+
+    // Check for duplicate eqpId across all rows (including unchanged)
+    checkDuplicateEqpId()
+
+    // Check for duplicate IP combination across all rows (including unchanged)
+    checkDuplicateIpCombination()
+
     return Object.keys(validationErrors.value).length === 0
   }
 
@@ -367,5 +477,9 @@ export function useMasterData() {
 
     // Cell state
     modifiedCells,
+
+    // Row state refs for reactivity
+    deletedRows,
+    newRows,
   }
 }

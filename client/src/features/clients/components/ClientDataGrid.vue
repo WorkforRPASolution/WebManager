@@ -1,20 +1,28 @@
 <template>
-  <div ref="gridContainer" class="w-full h-full" tabindex="0">
-    <AgGridVue
-      :theme="gridTheme"
-      :rowData="rowData"
-      :columnDefs="columnDefs"
-      :defaultColDef="defaultColDef"
-      :rowSelection="rowSelection"
-      :suppressRowClickSelection="true"
-      :enableCellTextSelection="true"
-      :getRowId="getRowId"
-      :alwaysShowHorizontalScroll="true"
-      :suppressSizeToFit="true"
-      @grid-ready="onGridReady"
-      @selection-changed="onSelectionChanged"
-      @cell-clicked="onCellClicked"
-      style="width: 100%; height: 100%;"
+  <div class="flex flex-col w-full h-full">
+    <div ref="gridContainer" class="flex-1 min-h-0 ag-grid-custom-scrollbar" tabindex="0">
+      <AgGridVue
+        :theme="gridTheme"
+        :rowData="rowData"
+        :columnDefs="columnDefs"
+        :defaultColDef="defaultColDef"
+        :rowSelection="rowSelection"
+        :suppressRowClickSelection="true"
+        :enableCellTextSelection="true"
+        :getRowId="getRowId"
+        :alwaysShowHorizontalScroll="true"
+        :suppressSizeToFit="true"
+        @grid-ready="onGridReady"
+        @selection-changed="onSelectionChanged"
+        @cell-clicked="onCellClicked"
+        @displayed-columns-changed="handleColumnChange"
+        @column-resized="handleColumnChange"
+        style="width: 100%; height: 100%;"
+      />
+    </div>
+    <CustomHorizontalScrollbar
+      :scrollState="scrollState"
+      @scroll="handleCustomScroll"
     />
   </div>
 </template>
@@ -24,6 +32,8 @@ import { ref, computed, watch } from 'vue'
 import { AgGridVue } from 'ag-grid-vue3'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import { useTheme } from '../../../shared/composables/useTheme'
+import { useCustomScrollbar } from '../../../shared/composables/useCustomScrollbar'
+import CustomHorizontalScrollbar from '../../../shared/components/CustomHorizontalScrollbar.vue'
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule])
@@ -77,6 +87,13 @@ const emit = defineEmits(['selection-change', 'row-click'])
 
 const gridContainer = ref(null)
 const gridApi = ref(null)
+
+// Custom Scrollbar
+const { scrollState, scrollTo, handleColumnChange } = useCustomScrollbar(gridContainer)
+
+const handleCustomScroll = (scrollLeft) => {
+  scrollTo(scrollLeft)
+}
 
 // Shift+클릭 행 범위 선택을 위한 마지막 선택 행
 const lastSelectedRowIndex = ref(null)
@@ -152,6 +169,8 @@ const getRowId = (params) => {
 
 const onGridReady = (params) => {
   gridApi.value = params.api
+  // Initialize custom scrollbar after grid is ready
+  handleColumnChange()
 }
 
 const onSelectionChanged = () => {
@@ -205,6 +224,3 @@ defineExpose({
 })
 </script>
 
-<style>
-@import '../../../shared/styles/ag-grid-scroll.css';
-</style>

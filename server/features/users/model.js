@@ -38,7 +38,13 @@ const userSchema = new Schema({
     type: String,
     required: true,
     trim: true,
-    maxlength: 50
+    maxlength: 200  // Increased for `;` separated values (e.g., "CVD;ETCH;PHOTO")
+  },
+  // WebManager용 배열 필드 (Multi Process 지원)
+  // process 필드와 자동 동기화됨
+  processes: {
+    type: [String],
+    default: []
   },
   authority: {
     type: String,
@@ -108,6 +114,7 @@ const userSchema = new Schema({
 
 // Indexes (singleid unique index already created by unique: true in schema)
 userSchema.index({ process: 1 })
+userSchema.index({ processes: 1 })  // Multikey Index for array field
 userSchema.index({ line: 1 })
 userSchema.index({ authorityManager: 1 })
 userSchema.index({ accountStatus: 1 })

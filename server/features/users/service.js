@@ -10,6 +10,26 @@ const { validateBatchCreate, validateUpdate } = require('./validation')
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
 
 // ===========================================
+// Process Field Synchronization
+// ===========================================
+
+/**
+ * Sync processes (array) ↔ process (string with `;` separator)
+ * @param {Object} userData - User data to sync
+ * @returns {Object} - Synced user data
+ */
+function syncProcessFields(userData) {
+  if (userData.processes && Array.isArray(userData.processes) && userData.processes.length > 0) {
+    // processes → process: Join array with `;`
+    userData.process = userData.processes.join(';')
+  } else if (userData.process && (!userData.processes || userData.processes.length === 0)) {
+    // process → processes: Split string by `;`
+    userData.processes = userData.process.split(';').map(p => p.trim()).filter(Boolean)
+  }
+  return userData
+}
+
+// ===========================================
 // User CRUD Operations
 // ===========================================
 
@@ -19,8 +39,13 @@ const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
 async function getUsers(filters = {}, paginationQuery = {}) {
   const query = {}
 
-  if (filters.process) {
-    query.process = filters.process
+  // Multi-process filtering with OR logic (any match)
+  if (filters.processes && filters.processes.length > 0) {
+    // Array of processes: use $in operator on processes array field
+    query.processes = { $in: filters.processes }
+  } else if (filters.process) {
+    // Single process: use $in on processes array field for backward compatibility
+    query.processes = { $in: [filters.process] }
   }
 
   if (filters.line) {
@@ -101,11 +126,15 @@ async function createUsers(usersData) {
   let created = 0
   if (valid.length > 0) {
     const usersToCreate = await Promise.all(
-      valid.map(async (user) => ({
-        ...user,
-        password: await bcrypt.hash(user.password, SALT_ROUNDS),
-        authorityManager: Number(user.authorityManager) ?? 3
-      }))
+      valid.map(async (user) => {
+        // Sync process ↔ processes fields
+        const syncedUser = syncProcessFields({ ...user })
+        return {
+          ...syncedUser,
+          password: await bcrypt.hash(user.password, SALT_ROUNDS),
+          authorityManager: Number(user.authorityManager) ?? 3
+        }
+      })
     )
 
     const inserted = await User.insertMany(usersToCreate)
@@ -156,6 +185,11 @@ async function updateUsers(usersData) {
     // Ensure authorityManager is a number
     if (updateData.authorityManager !== undefined) {
       updateData.authorityManager = Number(updateData.authorityManager)
+    }
+
+    // Sync process ↔ processes fields if either is being updated
+    if (updateData.processes !== undefined || updateData.process !== undefined) {
+      syncProcessFields(updateData)
     }
 
     const result = await User.updateOne({ _id }, { $set: updateData })
@@ -239,18 +273,20 @@ async function initializeRolePermissions() {
 // ===========================================
 
 /**
- * Get distinct process values
+ * Get distinct process values from processes array field
  */
 async function getProcesses() {
-  const processes = await User.distinct('process')
-  return processes.filter(p => p).sort()
+  // Get distinct values from processes array field
+  const processesFromArray = await User.distinct('processes')
+  return processesFromArray.filter(p => p).sort()
 }
 
 /**
  * Get distinct line values
  */
 async function getLines(process) {
-  const query = process ? { process } : {}
+  // Use processes array field for filtering
+  const query = process ? { processes: { $in: [process] } } : {}
   const lines = await User.distinct('line', query)
   return lines.filter(l => l).sort()
 }
