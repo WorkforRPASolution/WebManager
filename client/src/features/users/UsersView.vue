@@ -115,10 +115,13 @@
         :modified-cells="modifiedCells"
         :new-rows="newRowsSet"
         :deleted-rows="deletedRowsSet"
+        :available-processes="availableProcesses"
         @cell-edit="handleCellEdit"
         @selection-change="handleSelectionChange"
         @paste-rows="handlePasteRows"
         @paste-cells="handlePasteCells"
+        @approve-user="handleApproveUser"
+        @approve-reset="handleApprovePasswordReset"
       />
     </div>
 
@@ -181,6 +184,8 @@ import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDial
 import { useUserData } from './composables/useUserData'
 import { useToast } from '@/shared/composables/useToast'
 import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
+import { usersApi } from './api'
+import { clientListApi } from '../clients/api'
 
 const gridRef = ref(null)
 const filterBarRef = ref(null)
@@ -190,7 +195,19 @@ const showRoleDialog = ref(false)
 const showPermissionDialog = ref(false)
 const hasSearched = ref(false)
 const filterCollapsed = ref(false)
+const availableProcesses = ref([])
 const { toast, showToast } = useToast()
+
+// Fetch available processes from EQP_INFO for the multi-select editor
+const fetchAvailableProcesses = async () => {
+  try {
+    const response = await clientListApi.getProcesses()
+    availableProcesses.value = response.data || []
+  } catch (err) {
+    console.error('Failed to fetch processes:', err)
+  }
+}
+fetchAvailableProcesses()
 
 // Permission hooks
 const { canRead, canWrite, canDelete, isAdmin, refresh: refreshPermissions } = useFeaturePermission('users')
@@ -221,8 +238,11 @@ const {
   isRowModified,
   isRowNew,
   isRowDeleted,
+  getModifiedRowData,
+  removeFromModifiedRows,
   modifiedCells,
-  newRows
+  newRows,
+  deletedRows
 } = useUserData()
 
 const modifiedRowsSet = computed(() => {
@@ -246,13 +266,8 @@ const newRowsSet = computed(() => {
 })
 
 const deletedRowsSet = computed(() => {
-  const set = new Set()
-  for (const row of currentData.value) {
-    if (row._id && isRowDeleted(row._id)) {
-      set.add(row._id)
-    }
-  }
-  return set
+  // Directly return deletedRows to ensure Vue tracks the dependency
+  return deletedRows.value
 })
 
 const loadAllUsers = async () => {
@@ -345,6 +360,7 @@ const handleSave = async () => {
 
     showToast('success', message)
     await filterBarRef.value?.refreshFilters()
+    await fetchAvailableProcesses()  // Refresh available processes for multi-select editor
     await refreshCurrentPage()
     selectedIds.value = []
   } else if (result.errors?.length > 0) {
@@ -396,5 +412,35 @@ const handlePermissionsSaved = async () => {
 
 const handlePermissionsError = (message) => {
   showToast('error', message)
+}
+
+const handleApproveUser = async (userId) => {
+  try {
+    // Get modified data for this row (if any)
+    const modifiedData = getModifiedRowData(userId)
+
+    // Call API with modified data (will be saved before approval)
+    await usersApi.approveUser(userId, modifiedData || {})
+
+    // Remove from modified tracking if there were changes
+    if (modifiedData) {
+      removeFromModifiedRows(userId)
+    }
+
+    showToast('success', modifiedData ? 'User changes saved and account approved' : 'User account approved')
+    await refreshCurrentPage()
+  } catch (err) {
+    showToast('error', err.response?.data?.error || 'Failed to approve user')
+  }
+}
+
+const handleApprovePasswordReset = async (userId) => {
+  try {
+    await usersApi.approvePasswordReset(userId)
+    showToast('success', 'Password reset approved')
+    await refreshCurrentPage()
+  } catch (err) {
+    showToast('error', err.response?.data?.error || 'Failed to approve password reset')
+  }
 }
 </script>

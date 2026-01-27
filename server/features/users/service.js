@@ -31,8 +31,14 @@ async function getUsers(filters = {}, paginationQuery = {}) {
     query.authorityManager = Number(filters.authorityManager)
   }
 
-  if (filters.isActive !== undefined && filters.isActive !== '') {
-    query.isActive = filters.isActive === 'true' || filters.isActive === true
+  // Filter by account status
+  if (filters.accountStatus) {
+    query.accountStatus = filters.accountStatus
+  }
+
+  // Filter by password status
+  if (filters.passwordStatus) {
+    query.passwordStatus = filters.passwordStatus
   }
 
   if (filters.search) {

@@ -25,6 +25,24 @@ const routes = [
     meta: { layout: 'auth', requiresAuth: false }
   },
   {
+    path: '/signup',
+    name: 'Signup',
+    component: () => import('../features/auth/SignupView.vue'),
+    meta: { layout: 'auth', requiresAuth: false }
+  },
+  {
+    path: '/request-password-reset',
+    name: 'RequestPasswordReset',
+    component: () => import('../features/auth/RequestPasswordResetView.vue'),
+    meta: { layout: 'auth', requiresAuth: false }
+  },
+  {
+    path: '/set-new-password',
+    name: 'SetNewPassword',
+    component: () => import('../features/auth/SetNewPasswordView.vue'),
+    meta: { layout: 'auth', requiresAuth: true }
+  },
+  {
     path: '/',
     name: 'Dashboard',
     component: () => import('../features/dashboard/DashboardView.vue'),
@@ -207,8 +225,9 @@ router.beforeEach(async (to, from, next) => {
     return next('/login')
   }
 
-  // Redirect to dashboard if already authenticated and going to login
-  if (to.path === '/login' && isAuthenticated) {
+  // Redirect to dashboard if already authenticated and going to auth pages
+  const authPages = ['/login', '/signup', '/request-password-reset']
+  if (authPages.includes(to.path) && isAuthenticated) {
     return next('/')
   }
 

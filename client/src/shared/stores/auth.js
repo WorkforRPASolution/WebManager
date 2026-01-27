@@ -111,7 +111,10 @@ export const useAuthStore = defineStore('auth', () => {
         localStorage.setItem('refreshToken', data.refreshToken)
       }
 
-      return { success: true }
+      return {
+        success: true,
+        mustChangePassword: data.mustChangePassword || false
+      }
     } catch (error) {
       const message = error.response?.data?.error || 'Login failed'
       return { success: false, error: message }

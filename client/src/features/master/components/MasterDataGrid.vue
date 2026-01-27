@@ -1,5 +1,5 @@
 <template>
-  <div ref="gridContainer" class="w-full h-full overflow-hidden" @paste="handlePaste" @copy="handleCopy" @keydown.capture="handleKeyDown" tabindex="0">
+  <div ref="gridContainer" class="w-full h-full" @paste="handlePaste" @copy="handleCopy" @keydown.capture="handleKeyDown" tabindex="0">
     <AgGridVue
       :theme="gridTheme"
       :rowData="rowData"
@@ -13,6 +13,7 @@
       :getRowId="getRowId"
       :getRowStyle="getRowStyle"
       :alwaysShowHorizontalScroll="true"
+      :suppressSizeToFit="true"
       @grid-ready="onGridReady"
       @cell-editing-started="onCellEditingStarted"
       @cell-editing-stopped="onCellEditingStopped"
@@ -885,50 +886,6 @@ defineExpose({
 </script>
 
 <style>
-/* macOS에서 스크롤바 항상 표시 - AG Grid 35 */
-.ag-root-wrapper *::-webkit-scrollbar {
-  -webkit-appearance: none !important;
-  width: 10px !important;
-  height: 10px !important;
-  display: block !important;
-}
-
-.ag-root-wrapper *::-webkit-scrollbar-thumb {
-  border-radius: 5px !important;
-  background-color: rgba(100, 100, 100, 0.5) !important;
-  min-height: 30px !important;
-}
-
-.ag-root-wrapper *::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(100, 100, 100, 0.7) !important;
-}
-
-.ag-root-wrapper *::-webkit-scrollbar-track {
-  background-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-/* 스크롤 영역 강제 표시 */
-.ag-body-horizontal-scroll,
-.ag-horizontal-scroll {
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  height: auto !important;
-  min-height: 10px !important;
-}
-
-.ag-body-horizontal-scroll-viewport,
-.ag-body-horizontal-scroll-container {
-  overflow-x: scroll !important;
-}
-
-/* 수정된 셀 글자색 - 빨간색으로 눈에 띄게 */
-.ag-cell.cell-value-changed,
-.ag-cell.cell-value-changed .ag-cell-value,
-.ag-cell.cell-value-changed .ag-cell-wrapper,
-.ag-cell.cell-value-changed * {
-  color: #dc2626 !important;
-  font-weight: 600 !important;
-}
+@import '../../../shared/styles/ag-grid-scroll.css';
 </style>
 

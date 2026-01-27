@@ -33,5 +33,12 @@ export const usersApi = {
   update: (users) => api.put('/users', { users }),
 
   // Delete users (batch)
-  delete: (ids) => api.delete('/users', { data: { ids } })
+  delete: (ids) => api.delete('/users', { data: { ids } }),
+
+  // Approve user account (Admin only)
+  // Optionally accepts update data to save changes before approval
+  approveUser: (id, data = {}) => api.put(`/users/${id}/approve`, data),
+
+  // Approve password reset (Admin only)
+  approvePasswordReset: (id) => api.put(`/users/${id}/approve-reset`)
 }

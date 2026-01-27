@@ -75,15 +75,32 @@
           </select>
         </div>
 
-        <!-- Active Only -->
-        <div class="flex items-center gap-2 h-[38px]">
-          <input
-            v-model="activeOnly"
-            type="checkbox"
-            id="activeOnly"
-            class="w-4 h-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
-          />
-          <label for="activeOnly" class="text-sm text-gray-700 dark:text-gray-300">Active Only</label>
+        <!-- Account Status Filter -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account</label>
+          <select
+            v-model="selectedAccountStatus"
+            class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 text-sm w-[150px]"
+          >
+            <option value="">All</option>
+            <option value="active">Active</option>
+            <option value="pending">Pending</option>
+            <option value="suspended">Suspended</option>
+          </select>
+        </div>
+
+        <!-- Password Status Filter -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+          <select
+            v-model="selectedPasswordStatus"
+            class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 text-sm w-[160px]"
+          >
+            <option value="">All</option>
+            <option value="normal">Normal</option>
+            <option value="reset_requested">Reset Requested</option>
+            <option value="must_change">Must Change</option>
+          </select>
         </div>
 
         <!-- Search Button -->
@@ -122,7 +139,20 @@ const search = ref('')
 const selectedProcess = ref('')
 const selectedLine = ref('')
 const selectedRole = ref('')
-const activeOnly = ref(false)
+const selectedAccountStatus = ref('')
+const selectedPasswordStatus = ref('')
+
+const accountStatusLabels = {
+  active: 'Active',
+  pending: 'Pending',
+  suspended: 'Suspended'
+}
+
+const passwordStatusLabels = {
+  normal: 'Normal',
+  reset_requested: 'Reset Requested',
+  must_change: 'Must Change'
+}
 
 const filterSummary = computed(() => {
   const parts = []
@@ -130,7 +160,8 @@ const filterSummary = computed(() => {
   if (selectedProcess.value) parts.push(`Process: ${selectedProcess.value}`)
   if (selectedLine.value) parts.push(`Line: ${selectedLine.value}`)
   if (selectedRole.value) parts.push(`Role: ${selectedRole.value}`)
-  if (activeOnly.value) parts.push('Active Only')
+  if (selectedAccountStatus.value) parts.push(`Account: ${accountStatusLabels[selectedAccountStatus.value]}`)
+  if (selectedPasswordStatus.value) parts.push(`Password: ${passwordStatusLabels[selectedPasswordStatus.value]}`)
   return parts.length ? parts.join(', ') : 'No filters'
 })
 
@@ -153,13 +184,16 @@ const fetchLines = async () => {
 }
 
 const handleSearch = () => {
-  emit('filter-change', {
+  const filters = {
     search: search.value,
     process: selectedProcess.value,
     line: selectedLine.value,
     authorityManager: selectedRole.value,
-    isActive: activeOnly.value ? 'true' : undefined
-  })
+    accountStatus: selectedAccountStatus.value,
+    passwordStatus: selectedPasswordStatus.value
+  }
+
+  emit('filter-change', filters)
 }
 
 const handleClear = () => {
@@ -167,7 +201,8 @@ const handleClear = () => {
   selectedProcess.value = ''
   selectedLine.value = ''
   selectedRole.value = ''
-  activeOnly.value = false
+  selectedAccountStatus.value = ''
+  selectedPasswordStatus.value = ''
   emit('filter-change', null)
 }
 

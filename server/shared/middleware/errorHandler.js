@@ -2,6 +2,8 @@
  * Centralized error handling middleware
  */
 
+const { createErrorLog } = require('../models/webmanagerLogModel')
+
 /**
  * Custom API error class
  */
@@ -63,15 +65,50 @@ function notFoundHandler(req, res, next) {
 }
 
 /**
+ * Helper function to save error log to database
+ */
+async function saveErrorLog(err, req) {
+  // Determine error type
+  let errorType = 'ServerError'
+  if (err.name === 'ValidationError') errorType = 'ValidationError'
+  else if (err.code === 11000) errorType = 'DuplicateKeyError'
+  else if (err.name === 'CastError') errorType = 'CastError'
+  else if (err instanceof ApiError) errorType = 'ApiError'
+
+  // Sanitize request body (remove sensitive fields)
+  const sanitizedBody = { ...req.body }
+  delete sanitizedBody.password
+  delete sanitizedBody.currentPassword
+  delete sanitizedBody.newPassword
+
+  await createErrorLog({
+    errorType,
+    errorMessage: err.message,
+    errorStack: process.env.NODE_ENV === 'development' ? err.stack : null,
+    requestInfo: {
+      method: req.method,
+      url: req.originalUrl,
+      body: sanitizedBody
+    },
+    userId: req.user?.singleid || req.user?.id || 'anonymous'
+  })
+}
+
+/**
  * Global error handler middleware
  */
-function errorHandler(err, req, res, next) {
+async function errorHandler(err, req, res, next) {
   // Log error (in production, use proper logging)
   console.error('Error:', {
     message: err.message,
     stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
     path: req.path,
     method: req.method
+  })
+
+  // Save error log to database (non-blocking)
+  saveErrorLog(err, req).catch(logErr => {
+    console.error('Failed to save error log:', logErr.message)
   })
 
   // Handle Mongoose validation errors

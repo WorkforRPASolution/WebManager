@@ -27,8 +27,13 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      window.location.href = '/login'
+      // Don't redirect if on public auth pages
+      const publicAuthPaths = ['/login', '/signup', '/request-password-reset']
+      const currentPath = window.location.pathname
+      if (!publicAuthPaths.includes(currentPath)) {
+        localStorage.removeItem('token')
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }
@@ -57,6 +62,23 @@ export const authApi = {
   login: (username, password) => api.post('/auth/login', { username, password }),
   logout: () => api.post('/auth/logout'),
   me: () => api.get('/auth/me'),
+  signup: (data) => api.post('/auth/signup', data),
+  requestPasswordReset: (singleid) => api.post('/auth/request-password-reset', { singleid }),
+  changePassword: (currentPassword, newPassword) => api.post('/auth/change-password', { currentPassword, newPassword }),
+  setNewPassword: (newPassword) => api.post('/auth/set-new-password', { newPassword }),
+}
+
+// Users API
+export const usersApi = {
+  getProcesses: () => api.get('/users/processes'),
+  getLines: (process) => api.get('/users/lines', { params: { process } }),
+  getUsers: (params) => api.get('/users', { params }),
+  getUser: (id) => api.get(`/users/${id}`),
+  createUsers: (users) => api.post('/users', { users }),
+  updateUsers: (users) => api.put('/users', { users }),
+  deleteUsers: (ids) => api.delete('/users', { data: { ids } }),
+  approveUser: (id) => api.put(`/users/${id}/approve`),
+  approvePasswordReset: (id) => api.put(`/users/${id}/approve-reset`),
 }
 
 // Permissions API
