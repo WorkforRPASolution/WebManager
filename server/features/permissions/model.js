@@ -20,7 +20,7 @@ const featurePermissionSchema = new Schema({
     required: true,
     unique: true,
     trim: true,
-    enum: ['master', 'emailTemplate', 'users']
+    enum: ['equipmentInfo', 'emailTemplate', 'users']
   },
   permissions: {
     type: Map,
@@ -40,7 +40,7 @@ const featurePermissionSchema = new Schema({
 // Default feature permissions configuration
 const DEFAULT_FEATURE_PERMISSIONS = [
   {
-    feature: 'master',
+    feature: 'equipmentInfo',
     permissions: {
       0: { read: false, write: false, delete: false },  // User
       1: { read: true, write: true, delete: true },     // Admin
@@ -70,7 +70,7 @@ const DEFAULT_FEATURE_PERMISSIONS = [
 
 // Feature display names
 const FEATURE_NAMES = {
-  master: 'Master Data',
+  equipmentInfo: 'Equipment Info',
   emailTemplate: 'Email Template',
   users: 'User Management'
 }

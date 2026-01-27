@@ -145,7 +145,7 @@ const rolePermissionSchema = new Schema({
   permissions: {
     dashboard: { type: Boolean, default: true },
     clients: { type: Boolean, default: true },
-    master: { type: Boolean, default: false },
+    equipmentInfo: { type: Boolean, default: false },
     emailTemplate: { type: Boolean, default: false },
     alerts: { type: Boolean, default: true },
     settings: { type: Boolean, default: false },
@@ -167,7 +167,7 @@ const DEFAULT_ROLE_PERMISSIONS = [
     permissions: {
       dashboard: true,
       clients: false,
-      master: false,
+      equipmentInfo: false,
       emailTemplate: false,
       alerts: false,
       settings: false,
@@ -181,7 +181,7 @@ const DEFAULT_ROLE_PERMISSIONS = [
     permissions: {
       dashboard: true,
       clients: true,
-      master: true,
+      equipmentInfo: true,
       emailTemplate: true,
       alerts: true,
       settings: true,
@@ -195,7 +195,7 @@ const DEFAULT_ROLE_PERMISSIONS = [
     permissions: {
       dashboard: true,
       clients: false,
-      master: false,
+      equipmentInfo: false,
       emailTemplate: false,
       alerts: false,
       settings: false,
@@ -209,7 +209,7 @@ const DEFAULT_ROLE_PERMISSIONS = [
     permissions: {
       dashboard: true,
       clients: false,
-      master: false,
+      equipmentInfo: false,
       emailTemplate: false,
       alerts: false,
       settings: false,

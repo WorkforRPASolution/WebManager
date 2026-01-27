@@ -39,20 +39,20 @@ router.post('/update', authenticate, requireMenuPermission('clients'), asyncHand
 router.post('/config', authenticate, requireMenuPermission('clients'), asyncHandler(controller.configureClients))
 
 // ============================================
-// Master Data Management Routes (requires 'master' feature permission)
+// Equipment Info Management Routes (requires 'equipmentInfo' feature permission)
 // ============================================
 
-// GET /api/clients/master - Get master data with pagination
-router.get('/master', authenticate, requireFeaturePermission('master', 'read'), asyncHandler(controller.getMasterData))
+// GET /api/clients/equipment-info - Get equipment info with pagination
+router.get('/equipment-info', authenticate, requireFeaturePermission('equipmentInfo', 'read'), asyncHandler(controller.getMasterData))
 
-// POST /api/clients/master - Batch create clients
-router.post('/master', authenticate, requireFeaturePermission('master', 'write'), asyncHandler(controller.createMasterData))
+// POST /api/clients/equipment-info - Batch create clients
+router.post('/equipment-info', authenticate, requireFeaturePermission('equipmentInfo', 'write'), asyncHandler(controller.createMasterData))
 
-// PUT /api/clients/master - Batch update clients
-router.put('/master', authenticate, requireFeaturePermission('master', 'write'), asyncHandler(controller.updateMasterData))
+// PUT /api/clients/equipment-info - Batch update clients
+router.put('/equipment-info', authenticate, requireFeaturePermission('equipmentInfo', 'write'), asyncHandler(controller.updateMasterData))
 
-// DELETE /api/clients/master - Batch delete clients
-router.delete('/master', authenticate, requireFeaturePermission('master', 'delete'), asyncHandler(controller.deleteMasterData))
+// DELETE /api/clients/equipment-info - Batch delete clients
+router.delete('/equipment-info', authenticate, requireFeaturePermission('equipmentInfo', 'delete'), asyncHandler(controller.deleteMasterData))
 
 // ============================================
 // Client Detail Routes (requires 'clients' permission)

@@ -102,23 +102,23 @@ const routes = [
     }
   },
   {
-    path: '/master',
-    name: 'Master',
-    component: () => import('../features/master/MasterView.vue'),
+    path: '/equipment-info',
+    name: 'EquipmentInfo',
+    component: () => import('../features/equipment-info/EquipmentInfoView.vue'),
     meta: {
       layout: 'default',
       requiresAuth: true,
-      permission: 'master',
+      permission: 'equipmentInfo',
       menu: {
         mainMenu: 'masterdata',
         mainMenuLabel: '기준정보 관리',
         mainMenuIcon: 'database',
         mainMenuOrder: 3,
-        subMenu: 'master',
-        subMenuLabel: 'Master Data',
+        subMenu: 'equipment-info',
+        subMenuLabel: 'Equipment Info',
         subMenuIcon: 'storage',
         subMenuOrder: 1,
-        permission: 'master'
+        permission: 'equipmentInfo'
       }
     }
   },

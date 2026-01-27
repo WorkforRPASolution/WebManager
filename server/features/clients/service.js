@@ -224,7 +224,7 @@ async function getClientLogs(eqpId, limit = 50) {
 // ============================================
 
 /**
- * Get master data with pagination
+ * Get equipment info with pagination
  */
 async function getMasterData(filters, paginationQuery) {
   const query = buildClientQuery(filters)

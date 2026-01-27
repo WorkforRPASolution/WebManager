@@ -103,7 +103,7 @@ const formatPermissionName = (key) => {
   const names = {
     dashboard: 'Dashboard',
     clients: 'Clients',
-    master: 'Master Data',
+    equipmentInfo: 'Equipment Info',
     emailTemplate: 'Email Template',
     alerts: 'Alerts',
     settings: 'Settings',

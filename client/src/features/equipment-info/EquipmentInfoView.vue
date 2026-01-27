@@ -2,7 +2,7 @@
   <div class="flex flex-col gap-4" style="height: calc(100vh - 144px);">
     <!-- Header -->
     <div class="flex items-center justify-between">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Master Data Management</h1>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Equipment Info Management</h1>
       <!-- Permission Settings Button (Admin only) -->
       <button
         v-if="isAdmin"
@@ -19,7 +19,7 @@
     </div>
 
     <!-- Filter Bar -->
-    <MasterFilterBar
+    <EquipmentInfoFilterBar
       ref="filterBarRef"
       :collapsed="filterCollapsed"
       @toggle="handleFilterToggle"
@@ -91,7 +91,7 @@
 
     <!-- Data Grid -->
     <div v-else class="flex-1 min-h-0">
-      <MasterDataGrid
+      <EquipmentInfoDataGrid
         ref="gridRef"
         :row-data="currentData"
         :validation-errors="validationErrors"
@@ -183,7 +183,7 @@
     <!-- Permission Settings Dialog (Admin only) -->
     <PermissionSettingsDialog
       v-model="showPermissionDialog"
-      feature="master"
+      feature="equipmentInfo"
       @saved="handlePermissionsSaved"
       @error="handlePermissionsError"
     />
@@ -216,12 +216,12 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import MasterFilterBar from './components/MasterFilterBar.vue'
+import EquipmentInfoFilterBar from './components/EquipmentInfoFilterBar.vue'
 import BaseDataGridToolbar from '@/shared/components/BaseDataGridToolbar.vue'
-import MasterDataGrid from './components/MasterDataGrid.vue'
+import EquipmentInfoDataGrid from './components/EquipmentInfoDataGrid.vue'
 import DeleteConfirmModal from './components/DeleteConfirmModal.vue'
 import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDialog.vue'
-import { useMasterData } from './composables/useMasterData'
+import { useEquipmentInfoData } from './composables/useEquipmentInfoData'
 import { useToast } from '@/shared/composables/useToast'
 import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
 
@@ -237,7 +237,7 @@ const hasSearched = ref(false)
 const filterCollapsed = ref(false)
 
 // Permission hooks
-const { canRead, canWrite, canDelete, isAdmin, refresh: refreshPermissions } = useFeaturePermission('master')
+const { canRead, canWrite, canDelete, isAdmin, refresh: refreshPermissions } = useFeaturePermission('equipmentInfo')
 
 // Toggle filter bar collapse
 const handleFilterToggle = () => {
@@ -285,7 +285,7 @@ const {
   // Row state refs for reactivity
   deletedRows,
   newRows,
-} = useMasterData()
+} = useEquipmentInfoData()
 
 // Convert to reactive Sets for the grid component
 const modifiedRowsSet = computed(() => {

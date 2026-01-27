@@ -1,8 +1,8 @@
 import { ref, computed } from 'vue'
-import { masterApi } from '../api'
+import { equipmentInfoApi } from '../api'
 import { validateAllRows } from '../validation'
 
-export function useMasterData() {
+export function useEquipmentInfoData() {
   const originalData = ref([])
   const currentData = ref([])
   const modifiedRows = ref(new Set())
@@ -37,7 +37,7 @@ export function useMasterData() {
     loading.value = true
     error.value = null
     try {
-      const response = await masterApi.getAll(filters, page, size)
+      const response = await equipmentInfoApi.getAll(filters, page, size)
 
       // Server returns { data, total, page, pageSize, totalPages }
       const serverData = response.data.data || []
@@ -358,7 +358,7 @@ export function useMasterData() {
       // Delete rows
       if (deletedRows.value.size > 0) {
         const deleteIds = [...deletedRows.value]
-        const deleteRes = await masterApi.delete(deleteIds)
+        const deleteRes = await equipmentInfoApi.delete(deleteIds)
         results.deleted = deleteRes.data.deleted
       }
 
@@ -366,7 +366,7 @@ export function useMasterData() {
       const rowsToCreate = currentData.value.filter(r => r._tempId && newRows.value.has(r._tempId))
       if (rowsToCreate.length > 0) {
         const createData = rowsToCreate.map(({ _tempId, ...data }) => data)
-        const createRes = await masterApi.create(createData)
+        const createRes = await equipmentInfoApi.create(createData)
         results.created = createRes.data.created
         if (createRes.data.errors?.length > 0) {
           results.errors.push(...createRes.data.errors)
@@ -378,7 +378,7 @@ export function useMasterData() {
         r => r._id && modifiedRows.value.has(r._id) && !deletedRows.value.has(r._id)
       )
       if (rowsToUpdate.length > 0) {
-        const updateRes = await masterApi.update(rowsToUpdate)
+        const updateRes = await equipmentInfoApi.update(rowsToUpdate)
         results.updated = updateRes.data.updated
         if (updateRes.data.errors?.length > 0) {
           results.errors.push(...updateRes.data.errors)

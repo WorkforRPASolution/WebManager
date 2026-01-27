@@ -143,7 +143,7 @@ const loading = ref(false)
 const saving = ref(false)
 
 const featureNames = {
-  master: 'Master Data',
+  equipmentInfo: 'Equipment Info',
   emailTemplate: 'Email Template',
   users: 'User Management'
 }

@@ -56,7 +56,7 @@ async function refreshPermissions() {
 
 /**
  * Hook to use feature permissions
- * @param {string} feature - Feature identifier (master, emailTemplate, users)
+ * @param {string} feature - Feature identifier (equipmentInfo, emailTemplate, users)
  * @returns {Object} - Permission state and helpers
  */
 export function useFeaturePermission(feature) {

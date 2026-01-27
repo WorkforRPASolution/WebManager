@@ -72,7 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   /**
    * Get feature permission for a specific action
-   * @param {string} feature - Feature identifier (master, emailTemplate, users)
+   * @param {string} feature - Feature identifier (equipmentInfo, emailTemplate, users)
    * @param {string} action - Permission action (read, write, delete)
    * @returns {boolean} - Whether user has the permission
    */

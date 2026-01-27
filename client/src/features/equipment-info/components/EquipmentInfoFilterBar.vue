@@ -91,7 +91,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { masterApi } from '../api'
+import { equipmentInfoApi } from '../api'
 import MultiSelect from '../../../shared/components/MultiSelect.vue'
 import FilterBookmarks from '../../../shared/components/FilterBookmarks.vue'
 import { useFilterBookmarks } from '../../../shared/composables/useFilterBookmarks'
@@ -103,7 +103,7 @@ defineProps({
 
 const emit = defineEmits(['filter-change', 'toggle'])
 
-const { bookmarks, add: addBookmark, remove: removeBookmark } = useFilterBookmarks('master')
+const { bookmarks, add: addBookmark, remove: removeBookmark } = useFilterBookmarks('equipmentInfo')
 
 const processFilterStore = useProcessFilterStore()
 
@@ -133,7 +133,7 @@ const filterSummary = computed(() => {
 
 const fetchProcesses = async () => {
   try {
-    const response = await masterApi.getProcesses()
+    const response = await equipmentInfoApi.getProcesses()
     // Master uses same EQP_INFO data source as Clients
     processFilterStore.setProcesses('clients', response.data)
     processes.value = processFilterStore.getFilteredProcesses('clients')
@@ -144,7 +144,7 @@ const fetchProcesses = async () => {
 
 const fetchAllModels = async () => {
   try {
-    const response = await masterApi.getModels()
+    const response = await equipmentInfoApi.getModels()
     allModels.value = response.data
   } catch (error) {
     console.error('Failed to fetch all models:', error)
@@ -157,7 +157,7 @@ const fetchModelsForProcesses = async (processArray) => {
     return
   }
   try {
-    const response = await masterApi.getModels(processArray.join(','))
+    const response = await equipmentInfoApi.getModels(processArray.join(','))
     filteredModels.value = response.data
   } catch (error) {
     console.error('Failed to fetch models:', error)

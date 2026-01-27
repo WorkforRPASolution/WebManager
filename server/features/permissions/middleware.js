@@ -8,7 +8,7 @@ const { ApiError } = require('../../shared/middleware/errorHandler')
 
 /**
  * Middleware factory to check feature permission
- * @param {string} feature - Feature identifier (master, emailTemplate, users)
+ * @param {string} feature - Feature identifier (equipmentInfo, emailTemplate, users)
  * @param {string} action - Required action (read, write, delete)
  * @returns {Function} - Express middleware function
  */

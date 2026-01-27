@@ -33,7 +33,7 @@ Akka 기반 서버-클라이언트 시스템에서 **클라이언트들을 모�
 | Dashboard | 전체 시스템 개요 (KPI 카드) |
 | Clients | 클라이언트 목록 (계층적 필터링) |
 | ClientDetail | 클라이언트 상세 (상태, 리소스, 로그, 제어) |
-| Master | 클라이언트 기준정보 관리 (조회/추가/수정/삭제) |
+| EquipmentInfo | 클라이언트 기준정보 관리 (조회/추가/수정/삭제) |
 
 ## Menu Structure
 ```
@@ -44,8 +44,12 @@ MainMenu: Clients
 └── SubMenu: Client List (/clients)
     └── Client Detail (/clients/:id) - 동적 생성
 
+MainMenu: 기준정보 관리
+├── SubMenu: Equipment Info (/equipment-info)
+├── SubMenu: Email Template (/email-template)
+└── SubMenu: User Management (/users)
+
 MainMenu: System
-├── SubMenu: Master Data (/master)
 ├── SubMenu: Alerts History (/alerts)
 └── SubMenu: Settings (/settings)
 ```
@@ -60,17 +64,17 @@ GET    /api/clients/models         # EqpModel 목록 (?process=xxx)
 GET    /api/clients                # 클라이언트 목록
 GET    /api/clients/:id            # 클라이언트 상세
 
-GET    /api/clients/master         # 기준정보 조회
-POST   /api/clients/master         # 다중 생성
-PUT    /api/clients/master         # 다중 수정
-DELETE /api/clients/master         # 다중 삭제
+GET    /api/clients/equipment-info         # 기준정보 조회
+POST   /api/clients/equipment-info         # 다중 생성
+PUT    /api/clients/equipment-info         # 다중 수정
+DELETE /api/clients/equipment-info         # 다중 삭제
 ```
 
 ## Project Structure
 ```
 WebManager/
 ├── client/src/
-│   ├── features/           # 기능별 모듈 (auth, dashboard, clients, master, ...)
+│   ├── features/           # 기능별 모듈 (auth, dashboard, clients, equipment-info, ...)
 │   ├── shared/
 │   │   ├── components/     # 공용 컴포넌트 (BaseDataGridToolbar 등)
 │   │   ├── composables/    # 공용 composables (useToast, useTheme 등)
@@ -120,7 +124,7 @@ npm run dev
 - 메가 메뉴 + 사이드바 + 탭 바 레이아웃 완료
 - 다크/라이트 모드 지원
 - MongoDB API 연동 완료
-- Master Data Management 페이지 완료 (AG Grid)
+- Equipment Info Management 페이지 완료 (AG Grid)
 - Email Template Management 페이지 완료 (Monaco Editor)
 - 라우트 기반 메뉴 시스템 (`router/index.js`만 수정하면 메뉴 자동 생성)
 - 공용 컴포넌트 리팩토링 완료 (BaseDataGridToolbar, useToast, dataGridValidation)

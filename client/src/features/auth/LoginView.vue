@@ -19,7 +19,7 @@ const findFirstAccessibleRoute = () => {
   const routes = router.getRoutes()
 
   // Priority order for default landing pages
-  const priorityPaths = ['/', '/clients', '/master']
+  const priorityPaths = ['/', '/clients', '/equipment-info']
 
   for (const path of priorityPaths) {
     const route = routes.find(r => r.path === path)

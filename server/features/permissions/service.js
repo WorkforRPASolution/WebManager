@@ -54,7 +54,7 @@ async function getPermissionByFeature(feature) {
  */
 async function updateFeaturePermission(feature, permissions, updatedBy) {
   // Validate feature
-  if (!['master', 'emailTemplate', 'users'].includes(feature)) {
+  if (!['equipmentInfo', 'emailTemplate', 'users'].includes(feature)) {
     throw new Error('Invalid feature')
   }
 

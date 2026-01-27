@@ -187,11 +187,11 @@ async function stopClient(req, res) {
 }
 
 // ============================================
-// Master Data Management Controllers
+// Equipment Info Management Controllers
 // ============================================
 
 /**
- * GET /api/clients/master
+ * GET /api/clients/equipment-info
  */
 async function getMasterData(req, res) {
   const { process, model, ipSearch, page, pageSize } = req.query
@@ -203,7 +203,7 @@ async function getMasterData(req, res) {
 }
 
 /**
- * POST /api/clients/master
+ * POST /api/clients/equipment-info
  */
 async function createMasterData(req, res) {
   const { clients } = req.body
@@ -226,7 +226,7 @@ async function createMasterData(req, res) {
 }
 
 /**
- * PUT /api/clients/master
+ * PUT /api/clients/equipment-info
  */
 async function updateMasterData(req, res) {
   const { clients } = req.body
@@ -248,7 +248,7 @@ async function updateMasterData(req, res) {
 }
 
 /**
- * DELETE /api/clients/master
+ * DELETE /api/clients/equipment-info
  */
 async function deleteMasterData(req, res) {
   const { ids } = req.body
@@ -283,7 +283,7 @@ module.exports = {
   configureClients,
   restartClient,
   stopClient,
-  // Master Data
+  // Equipment Info
   getMasterData,
   createMasterData,
   updateMasterData,
