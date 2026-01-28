@@ -370,7 +370,7 @@ const getRoleLabel = (role) => {
                 class="px-3 py-2 text-xs transition"
                 :class="processInputMode === 'select'
                   ? 'bg-primary-500 text-white'
-                  : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-hover'"
+                  : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
               >
                 선택
               </button>
@@ -380,7 +380,7 @@ const getRoleLabel = (role) => {
                 class="px-3 py-2 text-xs transition"
                 :class="processInputMode === 'custom'
                   ? 'bg-primary-500 text-white'
-                  : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-hover'"
+                  : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
               >
                 직접 입력
               </button>
@@ -425,7 +425,7 @@ const getRoleLabel = (role) => {
                 class="px-3 py-2 text-xs transition"
                 :class="lineInputMode === 'select'
                   ? 'bg-primary-500 text-white'
-                  : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-hover'"
+                  : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
               >
                 선택
               </button>
@@ -435,7 +435,7 @@ const getRoleLabel = (role) => {
                 class="px-3 py-2 text-xs transition"
                 :class="lineInputMode === 'custom'
                   ? 'bg-primary-500 text-white'
-                  : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-dark-hover'"
+                  : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
               >
                 직접 입력
               </button>

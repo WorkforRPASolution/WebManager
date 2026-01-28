@@ -2,7 +2,7 @@
   <div class="bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border">
     <!-- Header -->
     <div
-      class="flex items-center justify-between px-4 py-3 cursor-pointer select-none hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors rounded-t-lg"
+      class="flex items-center justify-between px-4 py-3 cursor-pointer select-none hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors rounded-t-lg"
       @click="$emit('toggle')"
     >
       <div class="flex items-center gap-2">
@@ -57,7 +57,7 @@
             class="absolute z-50 mt-1 w-[200px] max-h-60 overflow-auto bg-white dark:bg-dark-card border border-gray-300 dark:border-dark-border rounded-lg shadow-lg"
           >
             <div class="p-2 border-b border-gray-200 dark:border-dark-border">
-              <label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-hover p-1 rounded">
+              <label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded">
                 <input
                   type="checkbox"
                   :checked="selectedProcesses.length === 0"
@@ -71,7 +71,7 @@
               <label
                 v-for="p in processes"
                 :key="p"
-                class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-hover p-1 rounded"
+                class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded"
               >
                 <input
                   type="checkbox"

@@ -2,7 +2,7 @@
   <div class="bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border">
     <!-- Header (always visible) -->
     <div
-      class="flex items-center justify-between px-4 py-3 cursor-pointer select-none hover:bg-gray-50 dark:hover:bg-dark-hover transition-colors rounded-t-lg"
+      class="flex items-center justify-between px-4 py-3 cursor-pointer select-none hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors rounded-t-lg"
       @click="$emit('toggle')"
     >
       <div class="flex items-center gap-2">

@@ -63,7 +63,7 @@ onUnmounted(() => {
     <!-- Star Icon Button -->
     <button
       @click="toggleDropdown"
-      class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors"
+      class="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
       :class="bookmarks.length > 0 ? 'text-yellow-500' : 'text-gray-400 dark:text-gray-500'"
       title="Filter Bookmarks"
     >
@@ -92,7 +92,7 @@ onUnmounted(() => {
           v-for="bookmark in bookmarks"
           :key="bookmark.id"
           @click="handleApply(bookmark)"
-          class="flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-dark-hover cursor-pointer group"
+          class="flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer group"
         >
           <span class="text-sm text-gray-700 dark:text-gray-300 truncate pr-2">{{ bookmark.name }}</span>
           <button
