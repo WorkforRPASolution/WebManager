@@ -7,6 +7,7 @@ export const equipmentInfoApi = {
     if (filters.process) params.process = filters.process
     if (filters.model) params.model = filters.model
     if (filters.ipSearch) params.ipSearch = filters.ipSearch
+    if (filters.eqpIdSearch) params.eqpIdSearch = filters.eqpIdSearch
     return api.get('/clients/equipment-info', { params })
   },
 

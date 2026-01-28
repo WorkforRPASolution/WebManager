@@ -406,7 +406,8 @@ const handleFilterChange = async (filters) => {
     const apiFilters = {
       process: filters.processes?.join(',') || '',
       model: filters.models?.join(',') || '',
-      ipSearch: filters.ipSearch || ''
+      ipSearch: filters.ipSearch || '',
+      eqpIdSearch: filters.eqpIdSearch || ''
     }
     // Fetch with page=1 and current pageSize
     await fetchData(apiFilters, 1, pageSize.value)

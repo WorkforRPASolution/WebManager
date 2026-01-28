@@ -67,10 +67,22 @@
             />
           </div>
 
+          <!-- EQPID Search -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">EQPID</label>
+            <input
+              v-model="eqpIdSearch"
+              type="text"
+              placeholder="Search EQPID..."
+              class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm w-[150px]"
+              @keyup.enter="handleSearch"
+            />
+          </div>
+
           <!-- Search Button -->
           <button
             @click="handleSearch"
-            :disabled="selectedProcesses.length === 0 && selectedModels.length === 0 && !ipSearch"
+            :disabled="selectedProcesses.length === 0 && selectedModels.length === 0 && !ipSearch && !eqpIdSearch"
             class="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition text-sm h-[38px]"
           >
             Search
@@ -113,6 +125,7 @@ const filteredModels = ref([])
 const selectedProcesses = ref([])
 const selectedModels = ref([])
 const ipSearch = ref('')
+const eqpIdSearch = ref('')
 
 // Show filtered models if processes are selected, otherwise show all models
 const availableModels = computed(() => {
@@ -128,6 +141,7 @@ const filterSummary = computed(() => {
   if (selectedProcesses.value.length) parts.push(`Process: ${selectedProcesses.value.length}`)
   if (selectedModels.value.length) parts.push(`Model: ${selectedModels.value.length}`)
   if (ipSearch.value) parts.push(`IP: "${ipSearch.value}"`)
+  if (eqpIdSearch.value) parts.push(`EQPID: "${eqpIdSearch.value}"`)
   return parts.length ? parts.join(', ') : 'No filters'
 })
 
@@ -181,7 +195,8 @@ const handleSearch = () => {
   // Allow search if any filter is set
   if (selectedProcesses.value.length === 0 &&
       selectedModels.value.length === 0 &&
-      !ipSearch.value) {
+      !ipSearch.value &&
+      !eqpIdSearch.value) {
     return
   }
 
@@ -189,6 +204,7 @@ const handleSearch = () => {
     processes: selectedProcesses.value,
     models: selectedModels.value,
     ipSearch: ipSearch.value,
+    eqpIdSearch: eqpIdSearch.value,
   })
 }
 
@@ -196,6 +212,7 @@ const handleClear = () => {
   selectedProcesses.value = []
   selectedModels.value = []
   ipSearch.value = ''
+  eqpIdSearch.value = ''
   filteredModels.value = []
   emit('filter-change', null)
 }
@@ -204,14 +221,16 @@ const handleClear = () => {
 const hasActiveFilters = computed(() =>
   selectedProcesses.value.length > 0 ||
   selectedModels.value.length > 0 ||
-  ipSearch.value
+  ipSearch.value ||
+  eqpIdSearch.value
 )
 
 const handleSaveBookmark = (name) => {
   addBookmark(name, {
     processes: selectedProcesses.value,
     models: selectedModels.value,
-    ipSearch: ipSearch.value
+    ipSearch: ipSearch.value,
+    eqpIdSearch: eqpIdSearch.value
   })
 }
 
@@ -219,6 +238,7 @@ const handleApplyBookmark = async (bookmark) => {
   selectedProcesses.value = bookmark.filters.processes || []
   selectedModels.value = bookmark.filters.models || []
   ipSearch.value = bookmark.filters.ipSearch || ''
+  eqpIdSearch.value = bookmark.filters.eqpIdSearch || ''
 
   if (selectedProcesses.value.length > 0) {
     await fetchModelsForProcesses(selectedProcesses.value)

@@ -73,6 +73,10 @@ function buildClientQuery(filters) {
     query.ipAddr = { $regex: filters.ipSearch, $options: 'i' }
   }
 
+  if (filters.eqpIdSearch) {
+    query.eqpId = { $regex: filters.eqpIdSearch, $options: 'i' }
+  }
+
   return query
 }
 

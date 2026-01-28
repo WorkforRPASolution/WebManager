@@ -194,9 +194,9 @@ async function stopClient(req, res) {
  * GET /api/clients/equipment-info
  */
 async function getMasterData(req, res) {
-  const { process, model, ipSearch, page, pageSize } = req.query
+  const { process, model, ipSearch, eqpIdSearch, page, pageSize } = req.query
   const result = await service.getMasterData(
-    { process, model, ipSearch },
+    { process, model, ipSearch, eqpIdSearch },
     { page, pageSize }
   )
   res.json(result)
