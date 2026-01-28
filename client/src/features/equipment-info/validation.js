@@ -67,7 +67,7 @@ export const validationRules = {
     message: 'IPv4 주소 형식 필요 (0-255.0-255.0-255.0-255)'
   },
   localpc: {
-    required: true,
+    required: false,  // 서버에서 기본값 자동 입력 (ipAddrL 유무에 따라 1 또는 0)
     enum: [0, 1],
     message: 'Must be 0 or 1'
   },
@@ -82,12 +82,12 @@ export const validationRules = {
     message: 'OS Ver: 필수 (영문, 숫자, ., _ 만 허용)'
   },
   onoff: {
-    required: true,
+    required: false,  // 서버에서 기본값 1 자동 입력
     enum: [0, 1],
     message: 'Must be 0 or 1'
   },
   webmanagerUse: {
-    required: true,
+    required: false,  // 서버에서 기본값 1 자동 입력
     enum: [0, 1],
     message: 'Must be 0 or 1'
   },
@@ -107,12 +107,12 @@ export const validationRules = {
     message: 'Must be a number'
   },
   usereleasemsg: {
-    required: true,
+    required: false,  // 서버에서 기본값 1 자동 입력
     enum: [0, 1],
     message: 'Must be 0 or 1'
   },
   usetkincancel: {
-    required: true,
+    required: false,  // 서버에서 기본값 1 자동 입력
     enum: [0, 1],
     message: 'Must be 0 or 1'
   },

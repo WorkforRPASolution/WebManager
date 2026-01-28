@@ -1,6 +1,14 @@
-const mongoose = require('mongoose');
+/**
+ * Email Template Model
+ * EMAIL_TEMPLATE_REPOSITORY - Email templates
+ *
+ * Database: EARS (shared with Akka server)
+ */
 
-const emailTemplateSchema = new mongoose.Schema({
+const { Schema } = require('mongoose');
+const { earsConnection } = require('../../shared/db/connection');
+
+const emailTemplateSchema = new Schema({
   app: {
     type: String,
     required: true,
@@ -41,4 +49,4 @@ emailTemplateSchema.index(
   { unique: true }
 );
 
-module.exports = mongoose.model('EmailTemplate', emailTemplateSchema);
+module.exports = earsConnection.model('EmailTemplate', emailTemplateSchema);

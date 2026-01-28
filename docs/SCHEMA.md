@@ -1,8 +1,24 @@
 # MongoDB Schema Documentation
 
-## Database: EARS
+## Database Overview
+
+WebManager는 두 개의 MongoDB 데이터베이스를 사용합니다:
+
+| Database | 용도 | 컬렉션 |
+|----------|------|--------|
+| **EARS** | Akka 서버와 공유 | EQP_INFO, EMAIL_TEMPLATE_REPOSITORY, EMAILINFO, ARS_USER_INFO |
+| **WEB_MANAGER** | WebManager 전용 | FEATURE_PERMISSIONS, OS_VERSION_LIST, WEBMANAGER_ROLE_PERMISSIONS |
+
+### 환경변수
+
+```env
+MONGODB_URI=mongodb://localhost:27017/EARS
+WEBMANAGER_DB_URI=mongodb://localhost:27017/WEB_MANAGER
+```
 
 ---
+
+# EARS Database (Shared with Akka)
 
 ## EQP_INFO (클라이언트 정보)
 
@@ -51,6 +67,21 @@
 | subcode | String | 필수(PK) | Action sub code |
 | title | String | 필수 | email title |
 | html | String | 필수 | email html contents |
+
+---
+
+## EMAILINFO (시스템 이메일 수신인 정보 저장소)
+
+시스템이 발송하는 이메일 정보(emailcategory) 별 수신인 들의 에메일 주소를 저장하는 컬렉션
+
+### Fields
+
+| Field Name | Type | 필수/선택 | Description |
+|------------|------|-----------|-------------|
+| project | String | 필수(PK) | email project (default: ARS) |
+| category | String | 필수(PK) | email category. format: EMAIL-[process]-[model]-[email group] |
+| account | String Array | 선택 | email 수신자 list |
+| departments | String Array | 선택 | email 수신자 부서 Info List |
 
 ---
 
@@ -112,6 +143,38 @@
 
 ---
 
+# WEB_MANAGER Database (WebManager-specific)
+
+## ⚠️ 자동 초기화 로직 (중요)
+
+WEB_MANAGER DB의 컬렉션들은 서버 시작 시 **자동 초기화**됩니다. 운영 환경에서 빈 DB로 배포해도 정상 동작합니다.
+
+### 초기화 함수 위치
+
+| 컬렉션 | 초기화 함수 | 파일 |
+|--------|-------------|------|
+| FEATURE_PERMISSIONS | `initializeDefaultPermissions()` | `server/features/permissions/service.js` |
+| WEBMANAGER_ROLE_PERMISSIONS | `initializeRolePermissions()` | `server/features/users/service.js` |
+| OS_VERSION_LIST | `initializeOSVersions()` | `server/features/os-version/service.js` |
+
+### 호출 순서 (`server/index.js`)
+
+```javascript
+await initializeDefaultPermissions();
+await initializeRolePermissions();
+await initializeOSVersions();
+```
+
+### 신규 컬렉션 추가 시 체크리스트
+
+1. ✅ `service.js`에 `DEFAULT_XXX` 상수와 `initializeXXX()` 함수 추가
+2. ✅ `module.exports`에 초기화 함수 추가
+3. ✅ `server/index.js`에 import 및 호출 추가
+4. ✅ 이 문서(SCHEMA.md)에 컬렉션 스키마 문서화
+5. ✅ 위 초기화 함수 테이블에 항목 추가
+
+---
+
 ## FEATURE_PERMISSIONS (기능별 세부 권한)
 
 기능별 역할 기반 세부 권한(Read/Write/Delete)을 저장하는 컬렉션
@@ -150,6 +213,79 @@
   },
   updatedAt: ISODate("2026-01-20T00:00:00.000Z"),
   updatedBy: "admin"
+}
+```
+
+---
+
+## OS_VERSION_LIST (OS 버전 목록)
+
+EQP_INFO의 osVer 필드에서 선택 가능한 OS 버전 목록을 관리하는 컬렉션
+
+### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| version | String | Required (Unique) | OS 버전명 (예: "Windows 10", "Windows 11") |
+| description | String | Optional | 버전 설명 |
+| active | Boolean | Required | 활성 여부 (true: 드롭다운에 표시) |
+| createdAt | Date | Auto | 생성일 |
+| updatedAt | Date | Auto | 수정일 |
+
+### Sample Data
+
+```javascript
+{
+  version: "Windows 10",
+  description: "Windows 10 Enterprise LTSC",
+  active: true,
+  createdAt: ISODate("2026-01-28T00:00:00.000Z"),
+  updatedAt: ISODate("2026-01-28T00:00:00.000Z")
+}
+```
+
+---
+
+## WEBMANAGER_ROLE_PERMISSIONS (역할별 메뉴 권한)
+
+역할별 메뉴 접근 권한을 저장하는 컬렉션
+
+### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| roleLevel | Number | Required (Unique) | 역할 레벨 (0-3) |
+| roleName | String | Required | 역할 이름 (User, Admin, Conductor, Manager) |
+| description | String | Optional | 역할 설명 |
+| permissions | Object | Required | 메뉴별 접근 권한 |
+| permissions.dashboard | Boolean | Required | Dashboard 접근 권한 |
+| permissions.clients | Boolean | Required | Clients 접근 권한 |
+| permissions.equipmentInfo | Boolean | Required | Equipment Info 접근 권한 |
+| permissions.emailTemplate | Boolean | Required | Email Template 접근 권한 |
+| permissions.emailInfo | Boolean | Required | Email Info 접근 권한 |
+| permissions.alerts | Boolean | Required | Alerts 접근 권한 |
+| permissions.settings | Boolean | Required | Settings 접근 권한 |
+| permissions.users | Boolean | Required | Users 접근 권한 |
+| createdAt | Date | Auto | 생성일 |
+| updatedAt | Date | Auto | 수정일 |
+
+### Sample Data
+
+```javascript
+{
+  roleLevel: 1,
+  roleName: "Admin",
+  description: "시스템 관리자",
+  permissions: {
+    dashboard: true,
+    clients: true,
+    equipmentInfo: true,
+    emailTemplate: true,
+    emailInfo: true,
+    alerts: true,
+    settings: true,
+    users: true
+  }
 }
 ```
 

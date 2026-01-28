@@ -1,6 +1,14 @@
-const mongoose = require('mongoose');
+/**
+ * Client Model
+ * EQP_INFO - Equipment/Client information
+ *
+ * Database: EARS (shared with Akka server)
+ */
 
-const clientSchema = new mongoose.Schema({
+const { Schema } = require('mongoose');
+const { earsConnection } = require('../../shared/db/connection');
+
+const clientSchema = new Schema({
   line: { type: String, required: true },
   lineDesc: { type: String, required: true },
   process: { type: String, required: true },
@@ -29,6 +37,6 @@ clientSchema.index({ process: 1 });
 clientSchema.index({ process: 1, eqpModel: 1 });
 clientSchema.index({ eqpId: 1 }, { unique: true });
 
-const Client = mongoose.model('Client', clientSchema);
+const Client = earsConnection.model('Client', clientSchema);
 
 module.exports = Client;

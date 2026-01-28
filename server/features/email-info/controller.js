@@ -108,11 +108,27 @@ async function deleteEmailInfo(req, res) {
   })
 }
 
+/**
+ * POST /api/email-info/check-categories
+ * Check which categories exist in EMAILINFO collection
+ */
+async function checkCategories(req, res) {
+  const { categories } = req.body
+
+  if (!categories || !Array.isArray(categories)) {
+    throw ApiError.badRequest('categories array is required')
+  }
+
+  const result = await service.checkCategories(categories)
+  res.json(result)
+}
+
 module.exports = {
   getProjects,
   getCategories,
   getEmailInfo,
   createEmailInfo,
   updateEmailInfo,
-  deleteEmailInfo
+  deleteEmailInfo,
+  checkCategories
 }

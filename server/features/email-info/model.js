@@ -1,11 +1,14 @@
 /**
  * EmailInfo Model
  * EMAILINFO - Email category and recipient information
+ *
+ * Database: EARS (shared with Akka server)
  */
 
-const mongoose = require('mongoose')
+const { Schema } = require('mongoose')
+const { earsConnection } = require('../../shared/db/connection')
 
-const emailInfoSchema = new mongoose.Schema({
+const emailInfoSchema = new Schema({
   project: {
     type: String,
     required: true,
@@ -37,6 +40,6 @@ emailInfoSchema.index({ project: 1, category: 1 }, { unique: true })
 emailInfoSchema.index({ project: 1 })
 emailInfoSchema.index({ category: 1 })
 
-const EmailInfo = mongoose.model('EmailInfo', emailInfoSchema)
+const EmailInfo = earsConnection.model('EmailInfo', emailInfoSchema)
 
 module.exports = EmailInfo

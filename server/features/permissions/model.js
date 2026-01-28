@@ -1,10 +1,12 @@
 /**
  * Feature Permission Model
  * FEATURE_PERMISSIONS - Feature-level R/W/D permissions per role
+ *
+ * Database: WEBMANAGER (WebManager-specific)
  */
 
-const mongoose = require('mongoose')
-const { Schema } = mongoose
+const { Schema } = require('mongoose')
+const { webManagerConnection } = require('../../shared/db/connection')
 
 // Permission object schema for each role
 const rolePermissionSchema = new Schema({
@@ -20,7 +22,7 @@ const featurePermissionSchema = new Schema({
     required: true,
     unique: true,
     trim: true,
-    enum: ['equipmentInfo', 'emailTemplate', 'users', 'emailInfo']
+    enum: ['equipmentInfo', 'emailTemplate', 'users', 'emailInfo', 'osVersion']
   },
   permissions: {
     type: Map,
@@ -74,6 +76,15 @@ const DEFAULT_FEATURE_PERMISSIONS = [
       2: { read: false, write: false, delete: false },
       3: { read: false, write: false, delete: false }
     }
+  },
+  {
+    feature: 'osVersion',
+    permissions: {
+      0: { read: false, write: false, delete: false },
+      1: { read: true, write: true, delete: true },
+      2: { read: false, write: false, delete: false },
+      3: { read: false, write: false, delete: false }
+    }
   }
 ]
 
@@ -82,10 +93,11 @@ const FEATURE_NAMES = {
   equipmentInfo: 'Equipment Info',
   emailTemplate: 'Email Template',
   users: 'User Management',
-  emailInfo: 'Email Info'
+  emailInfo: 'Email Info',
+  osVersion: 'OS Version List'
 }
 
-const FeaturePermission = mongoose.model('FeaturePermission', featurePermissionSchema)
+const FeaturePermission = webManagerConnection.model('FeaturePermission', featurePermissionSchema)
 
 module.exports = {
   FeaturePermission,

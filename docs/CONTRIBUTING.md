@@ -66,6 +66,9 @@ client/src/features/reports/
 ```
 server/features/reports/
 ├── routes.js                # Express 라우트
+├── controller.js            # 요청/응답 처리
+├── service.js               # 비즈니스 로직
+├── validation.js            # 유효성 검사
 └── model.js                 # Mongoose 스키마
 ```
 
@@ -73,6 +76,39 @@ server/features/reports/
 ```javascript
 app.use('/api/reports', require('./features/reports/routes'))
 ```
+
+### WEB_MANAGER DB에 신규 컬렉션 추가 시 (중요!)
+
+WEB_MANAGER DB에 새 컬렉션을 추가할 경우, **서버 시작 시 자동 초기화 로직**을 반드시 추가해야 합니다.
+
+```javascript
+// service.js에 추가
+const DEFAULT_ITEMS = [
+  { name: 'Item 1', active: true },
+  { name: 'Item 2', active: true }
+]
+
+async function initializeItems() {
+  const count = await Model.countDocuments()
+  if (count === 0) {
+    await Model.insertMany(DEFAULT_ITEMS)
+    console.log(`  + Created ${DEFAULT_ITEMS.length} default items`)
+    return true
+  }
+  return false
+}
+
+module.exports = { initializeItems, /* ... */ }
+```
+
+```javascript
+// server/index.js에 추가
+const { initializeItems } = require('./features/items/service');
+// ...
+await initializeItems();
+```
+
+> 📌 상세 내용: `docs/SCHEMA.md`의 "자동 초기화 로직" 섹션 참조
 
 ---
 

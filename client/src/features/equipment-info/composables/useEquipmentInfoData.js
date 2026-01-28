@@ -155,7 +155,7 @@ export function useEquipmentInfoData() {
       category: '',
       ipAddr: '',
       ipAddrL: '',
-      localpc: 1,
+      localpc: '',
       emailcategory: '',
       osVer: '',
       onoff: 1,
@@ -438,6 +438,72 @@ export function useEquipmentInfoData() {
   const isCellModified = (rowId, field) => modifiedCells.value.has(rowId) && modifiedCells.value.get(rowId).has(field)
   const getRowErrors = (rowId) => validationErrors.value[rowId] || null
 
+  /**
+   * Generate emailcategory from process, eqpModel, lineDesc
+   * Format: EMAIL-{process}-{eqpModel}-{lineDesc}
+   */
+  const generateEmailCategory = (row) => {
+    const process = row.process || ''
+    const eqpModel = row.eqpModel || ''
+    const lineDesc = row.lineDesc || ''
+
+    if (!process || !eqpModel || !lineDesc) {
+      return '' // Required fields missing
+    }
+
+    return `EMAIL-${process}-${eqpModel}-${lineDesc}`
+  }
+
+  /**
+   * Auto-fill emailcategory for rows with empty value
+   * Returns list of auto-generated categories
+   */
+  const autoFillEmailCategories = () => {
+    const generated = []
+
+    for (const row of currentData.value) {
+      // Skip deleted rows
+      if (row._id && deletedRows.value.has(row._id)) continue
+
+      // Only process new or modified rows
+      const isNew = row._tempId && newRows.value.has(row._tempId)
+      const isModified = row._id && modifiedRows.value.has(row._id)
+      if (!isNew && !isModified) continue
+
+      // Auto-fill if emailcategory is empty
+      if (!row.emailcategory || row.emailcategory.trim() === '') {
+        const category = generateEmailCategory(row)
+        if (category) {
+          row.emailcategory = category
+          generated.push(category)
+        }
+      }
+    }
+
+    return [...new Set(generated)] // Return unique categories
+  }
+
+  /**
+   * Get all emailcategories from rows being saved
+   */
+  const getEmailCategoriesToSave = () => {
+    const categories = new Set()
+
+    for (const row of currentData.value) {
+      if (row._id && deletedRows.value.has(row._id)) continue
+
+      const isNew = row._tempId && newRows.value.has(row._tempId)
+      const isModified = row._id && modifiedRows.value.has(row._id)
+      if (!isNew && !isModified) continue
+
+      if (row.emailcategory && row.emailcategory.trim()) {
+        categories.add(row.emailcategory)
+      }
+    }
+
+    return [...categories]
+  }
+
   return {
     // Data
     currentData,
@@ -481,5 +547,9 @@ export function useEquipmentInfoData() {
     // Row state refs for reactivity
     deletedRows,
     newRows,
+
+    // Email category helpers
+    autoFillEmailCategories,
+    getEmailCategoriesToSave,
   }
 }

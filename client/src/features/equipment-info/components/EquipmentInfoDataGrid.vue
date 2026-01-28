@@ -43,6 +43,7 @@ import { useTheme } from '../../../shared/composables/useTheme'
 import { useCustomScrollbar } from '../../../shared/composables/useCustomScrollbar'
 import { useDataGridCellSelection } from '../../../shared/composables/useDataGridCellSelection'
 import CustomHorizontalScrollbar from '../../../shared/components/CustomHorizontalScrollbar.vue'
+import { osVersionApi } from '../api'
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule])
@@ -113,6 +114,9 @@ const emit = defineEmits(['cell-edit', 'selection-change', 'paste', 'paste-rows'
 const gridContainer = ref(null)
 const gridApi = ref(null)
 
+// OS Version options for dropdown
+const osVersionOptions = ref([])
+
 // Custom Scrollbar
 const { scrollState, scrollTo, handleColumnChange } = useCustomScrollbar(gridContainer)
 
@@ -126,9 +130,8 @@ const lastSelectedRowIndex = ref(null)
 // 편집 가능한 컬럼 목록 (순서대로)
 const editableColumns = [
   'line', 'lineDesc', 'process', 'eqpModel', 'eqpId', 'category',
-  'ipAddr', 'ipAddrL', 'localpc', 'emailcategory', 'osVer',
-  'onoff', 'webmanagerUse', 'installdate', 'scFirstExcute',
-  'snapshotTimeDiff', 'usereleasemsg', 'usetkincancel'
+  'ipAddr', 'ipAddrL', 'emailcategory', 'osVer',
+  'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel'
 ]
 
 // 셀 범위 선택 및 일괄 편집 Composable
@@ -154,8 +157,19 @@ const {
   onCellEdit: (rowId, field, value) => emit('cell-edit', rowId, field, value),
 })
 
+// Load OS version options
+async function loadOSVersionOptions() {
+  try {
+    const response = await osVersionApi.getDistinct()
+    osVersionOptions.value = response.data.data || []
+  } catch (error) {
+    console.error('Failed to load OS versions:', error)
+  }
+}
+
 onMounted(() => {
   setupHeaderClickHandler()
+  loadOSVersionOptions()
 })
 
 // rowData 변경 시 선택 해제
@@ -186,12 +200,17 @@ const columnDefs = ref([
     field: 'localpc',
     headerName: 'Local PC',
     width: 90,
-    editable: true,
-    cellEditor: 'agSelectCellEditor',
-    cellEditorParams: { values: [0, 1] },
+    editable: false,  // 서버에서 자동 결정
   },
   { field: 'emailcategory', headerName: 'Email Cat.', width: 100, editable: true },
-  { field: 'osVer', headerName: 'OS Version', width: 120, editable: true },
+  {
+    field: 'osVer',
+    headerName: 'OS Version',
+    width: 120,
+    editable: true,
+    cellEditor: 'agSelectCellEditor',
+    cellEditorParams: () => ({ values: osVersionOptions.value })
+  },
   {
     field: 'onoff',
     headerName: 'On/Off',
@@ -208,14 +227,13 @@ const columnDefs = ref([
     cellEditor: 'agSelectCellEditor',
     cellEditorParams: { values: [0, 1] },
   },
-  { field: 'installdate', headerName: 'Install Date', width: 110, editable: true },
-  { field: 'scFirstExcute', headerName: 'First Exec', width: 110, editable: true },
+  { field: 'installdate', headerName: 'Install Date', width: 110, editable: false },
+  { field: 'scFirstExcute', headerName: 'First Exec', width: 110, editable: false },
   {
     field: 'snapshotTimeDiff',
     headerName: 'Time Diff',
     width: 90,
-    editable: true,
-    valueParser: params => params.newValue === '' ? null : Number(params.newValue),
+    editable: false,
   },
   {
     field: 'usereleasemsg',
@@ -323,15 +341,10 @@ const processCellFromClipboard = (params) => {
   const value = params.value?.toString().trim() || ''
 
   // Convert to number for numeric fields
-  const numericFields = ['localpc', 'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel']
+  const numericFields = ['onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel']
   if (numericFields.includes(params.column.colId)) {
     const num = parseInt(value)
     return isNaN(num) ? 0 : num
-  }
-
-  if (params.column.colId === 'snapshotTimeDiff') {
-    const num = parseFloat(value)
-    return isNaN(num) ? null : num
   }
 
   return value
@@ -395,13 +408,12 @@ const onCellClicked = (params) => {
 // 컬럼 순서 정의 (스프레드시트에서 복사할 때 사용)
 const pasteColumnOrder = [
   'line', 'lineDesc', 'process', 'eqpModel', 'eqpId', 'category',
-  'ipAddr', 'ipAddrL', 'localpc', 'emailcategory', 'osVer',
-  'onoff', 'webmanagerUse', 'installdate', 'scFirstExcute',
-  'snapshotTimeDiff', 'usereleasemsg', 'usetkincancel'
+  'ipAddr', 'ipAddrL', 'emailcategory', 'osVer',
+  'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel'
 ]
 
 // 숫자 필드 목록
-const numericFields = ['localpc', 'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel', 'snapshotTimeDiff']
+const numericFields = ['onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel']
 
 // 직접 copy 이벤트 처리 (AG Grid Community는 clipboard 미지원)
 const handleCopy = (event) => {
@@ -599,6 +611,7 @@ defineExpose({
     clearSelection()
     gridApi.value?.refreshCells({ force: true })
   },
+  refreshOSVersionOptions: loadOSVersionOptions,
 })
 </script>
 

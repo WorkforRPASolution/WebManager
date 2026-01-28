@@ -11,6 +11,30 @@ const { createRulesContext } = require('../../shared/utils/businessRules')
 const rules = createRulesContext('EQP_INFO', { documentIdField: 'eqpId' })
 
 /**
+ * Apply default values for equipment info fields
+ * - onoff, webmanagerUse, usetkincancel, usereleasemsg: 비어있으면 1
+ * - localpc: ipAddrL 유무에 따라 결정 (있으면 1, 없으면 0) - 항상 서버에서 자동 설정
+ * @param {Object} data - Equipment info data
+ * @returns {Object} - Data with defaults applied
+ */
+function applyEquipmentDefaults(data) {
+  const result = { ...data }
+
+  // onoff, webmanagerUse, usetkincancel, usereleasemsg: 비어있으면 1
+  const defaultToOne = ['onoff', 'webmanagerUse', 'usetkincancel', 'usereleasemsg']
+  for (const field of defaultToOne) {
+    if (result[field] === undefined || result[field] === null || result[field] === '') {
+      result[field] = 1
+    }
+  }
+
+  // localpc: ipAddrL 유무에 따라 결정 (항상 서버에서 자동 설정)
+  result.localpc = (result.ipAddrL && result.ipAddrL.trim() !== '') ? 1 : 0
+
+  return result
+}
+
+/**
  * Parse comma-separated filter values
  */
 function parseCommaSeparated(value) {
@@ -252,8 +276,11 @@ async function getMasterData(filters, paginationQuery) {
 async function createClients(clientsData, context = {}) {
   const errors = []
 
+  // 0. Apply equipment defaults (onoff, webmanagerUse, usetkincancel, usereleasemsg, localpc)
+  const dataWithDefaults = clientsData.map(item => applyEquipmentDefaults(item))
+
   // 1. Apply auto-setters
-  const processedData = rules.applyAutoSettersBatch(clientsData, { ...context, isUpdate: false })
+  const processedData = rules.applyAutoSettersBatch(dataWithDefaults, { ...context, isUpdate: false })
 
   // 2. Validate relations (cross-field validation)
   const relationErrors = rules.validateRelationsBatch(processedData, context)
@@ -337,8 +364,11 @@ async function updateClients(clientsData, context = {}) {
       continue
     }
 
+    // 0. Apply equipment defaults
+    const dataWithDefaults = applyEquipmentDefaults(updateData)
+
     // 1. Apply auto-setters
-    const processedData = rules.applyAutoSetters(updateData, { ...context, isUpdate: true })
+    const processedData = rules.applyAutoSetters(dataWithDefaults, { ...context, isUpdate: true })
 
     // 2. Validate relations
     const relationErrors = rules.validateRelations({ ...existingDoc, ...processedData }, context)

@@ -178,11 +178,40 @@ async function deleteEmailInfo(ids, context = {}) {
   return { deleted: result.deletedCount }
 }
 
+/**
+ * Check which categories exist in EMAILINFO collection
+ * @param {Array<string>} categories - Categories to check
+ * @returns {Object} - { existing: string[], missing: string[] }
+ */
+async function checkCategories(categories) {
+  if (!categories || categories.length === 0) {
+    return { existing: [], missing: [] }
+  }
+
+  // Get all existing categories
+  const existingDocs = await EmailInfo.find({}, 'category').lean()
+  const existingSet = new Set(existingDocs.map(d => d.category?.toUpperCase?.() || ''))
+
+  const existing = []
+  const missing = []
+
+  for (const cat of categories) {
+    if (existingSet.has(cat.toUpperCase())) {
+      existing.push(cat)
+    } else {
+      missing.push(cat)
+    }
+  }
+
+  return { existing, missing }
+}
+
 module.exports = {
   getProjects,
   getCategories,
   getEmailInfoPaginated,
   createEmailInfo,
   updateEmailInfo,
-  deleteEmailInfo
+  deleteEmailInfo,
+  checkCategories
 }

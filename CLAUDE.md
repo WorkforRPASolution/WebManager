@@ -19,6 +19,10 @@ Akka 기반 서버-클라이언트 시스템에서 **클라이언트들을 모�
   - `server/scripts/seedRolePermissions.js` 또는 관련 권한 설정 업데이트
   - Dashboard에 표시되는 항목도 사용자 권한에 따라 필터링되므로 권한 체크 로직 확인 필요
 - **권한 기반 UI 표시**: 사용자 역할(Role)에 따라 메뉴 및 Dashboard 위젯이 다르게 표시됨
+- **WEB_MANAGER DB 컬렉션 추가 시**: 서버 시작 시 자동 초기화 로직 필수 추가
+  - `service.js`에 `initializeXXX()` 함수 구현
+  - `server/index.js`에서 호출 추가
+  - 상세: `docs/SCHEMA.md`의 "자동 초기화 로직" 섹션 참조
 
 ## UI Requirements
 - 라이트/다크 모드 전환 지원
@@ -99,9 +103,25 @@ WebManager/
 ```
 
 ## MongoDB Configuration
-- **URL**: mongodb://localhost:27017/EARS
-- **Database**: EARS
-- **Main Collection**: EQP_INFO (스키마: `docs/SCHEMA.md`)
+
+### Dual Database Architecture
+| Database | 용도 | 환경변수 |
+|----------|------|----------|
+| **EARS** | Akka 서버와 공유 데이터 | `MONGODB_URI` |
+| **WEB_MANAGER** | WebManager 전용 데이터 | `WEBMANAGER_DB_URI` |
+
+### 컬렉션 분배
+| 컬렉션 | Database | 설명 |
+|--------|----------|------|
+| EQP_INFO | EARS | 장비 정보 (공유) |
+| EMAIL_TEMPLATE_REPOSITORY | EARS | 이메일 템플릿 (공유) |
+| EMAILINFO | EARS | 이메일 수신자 (공유) |
+| ARS_USER_INFO | EARS | 사용자 정보 (공유) |
+| FEATURE_PERMISSIONS | WEB_MANAGER | 기능별 권한 (전용) |
+| OS_VERSION_LIST | WEB_MANAGER | OS 버전 목록 (전용) |
+| WEBMANAGER_ROLE_PERMISSIONS | WEB_MANAGER | 역할별 메뉴 권한 (전용) |
+
+- 스키마 상세: `docs/SCHEMA.md`
 
 ## Development Phase
 1. Phase 1: Mock 데이터로 UI 개발 ✅
@@ -120,7 +140,7 @@ cd server && npm run dev
 npm run dev
 ```
 
-## Current Status (2026-01-19)
+## Current Status (2026-01-28)
 - 메가 메뉴 + 사이드바 + 탭 바 레이아웃 완료
 - 다크/라이트 모드 지원
 - MongoDB API 연동 완료
@@ -130,6 +150,7 @@ npm run dev
 - 공용 컴포넌트 리팩토링 완료 (BaseDataGridToolbar, useToast, dataGridValidation)
 - Backend 서비스 레이어 분리 완료 (clients: routes → controller → service)
 - 보안 개선 완료 (helmet, CORS, bcrypt)
+- DB 분리 완료 (EARS: 공유, WEB_MANAGER: 전용)
 
 ## Security Configuration
 - **helmet**: 보안 헤더 자동 설정

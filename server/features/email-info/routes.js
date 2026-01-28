@@ -22,6 +22,9 @@ router.get('/categories', authenticate, requireFeaturePermission('emailInfo', 'r
 // GET /api/email-info - Get email info list with pagination
 router.get('/', authenticate, requireFeaturePermission('emailInfo', 'read'), asyncHandler(controller.getEmailInfo))
 
+// POST /api/email-info/check-categories - Check which categories exist
+router.post('/check-categories', authenticate, requireFeaturePermission('emailInfo', 'read'), asyncHandler(controller.checkCategories))
+
 // ============================================
 // CRUD Routes (requires respective feature permissions)
 // ============================================

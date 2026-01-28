@@ -41,6 +41,7 @@ app.use('/api/users', require('./features/users/routes'));
 app.use('/api/email-template', require('./features/email-template/routes'));
 app.use('/api/email-info', require('./features/email-info/routes'));
 app.use('/api/permissions', require('./features/permissions/routes'));
+app.use('/api/os-version', require('./features/os-version/routes'));
 
 // Error handling
 app.use(notFoundHandler);

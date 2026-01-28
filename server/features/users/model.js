@@ -1,11 +1,11 @@
 /**
  * User and Role Permission Models
- * ARS_USER_INFO - User collection (extended from RPA system)
- * WEBMANAGER_ROLE_PERMISSIONS - Role permissions collection
+ * ARS_USER_INFO - User collection (EARS DB - shared with Akka)
+ * WEBMANAGER_ROLE_PERMISSIONS - Role permissions collection (WEBMANAGER DB)
  */
 
-const mongoose = require('mongoose')
-const { Schema } = mongoose
+const { Schema } = require('mongoose')
+const { earsConnection, webManagerConnection } = require('../../shared/db/connection')
 
 // ===========================================
 // ARS_USER_INFO Schema (Extended)
@@ -223,8 +223,11 @@ const DEFAULT_ROLE_PERMISSIONS = [
   }
 ]
 
-const User = mongoose.model('User', userSchema)
-const RolePermission = mongoose.model('RolePermission', rolePermissionSchema)
+// User model uses EARS database (shared with Akka)
+const User = earsConnection.model('User', userSchema)
+
+// RolePermission model uses WEBMANAGER database (WebManager-specific)
+const RolePermission = webManagerConnection.model('RolePermission', rolePermissionSchema)
 
 module.exports = {
   User,

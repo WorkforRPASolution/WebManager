@@ -23,3 +23,12 @@ export const equipmentInfoApi = {
 
   delete: (ids) => api.delete('/clients/equipment-info', { data: { ids } }),
 }
+
+// OS Version API
+export const osVersionApi = {
+  getDistinct: () => api.get('/os-version/distinct'),
+  getAll: () => api.get('/os-version'),
+  create: (items) => api.post('/os-version', { items }),
+  update: (items) => api.put('/os-version', { items }),
+  delete: (ids) => api.delete('/os-version', { data: { ids } })
+}

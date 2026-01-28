@@ -16,6 +16,9 @@ export const emailInfoApi = {
     return api.get('/email-info/categories', { params })
   },
 
+  // Check which categories exist in EMAILINFO collection
+  checkCategories: (categories) => api.post('/email-info/check-categories', { categories }),
+
   create: (items) => api.post('/email-info', { items }),
 
   update: (items) => api.put('/email-info', { items }),

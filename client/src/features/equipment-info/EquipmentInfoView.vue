@@ -3,19 +3,33 @@
     <!-- Header -->
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Equipment Info Management</h1>
-      <!-- Permission Settings Button (Admin only) -->
-      <button
-        v-if="isAdmin"
-        @click="showPermissionDialog = true"
-        class="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
-        title="Feature Permissions"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-        Feature Permissions
-      </button>
+      <div class="flex items-center gap-2">
+        <!-- OS List Button (Admin only) -->
+        <button
+          v-if="isAdmin"
+          @click="showOSVersionModal = true"
+          class="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+          title="OS Version List"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+          OS List
+        </button>
+        <!-- Permission Settings Button (Admin only) -->
+        <button
+          v-if="isAdmin"
+          @click="showPermissionDialog = true"
+          class="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
+          title="Feature Permissions"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Feature Permissions
+        </button>
+      </div>
     </div>
 
     <!-- Filter Bar -->
@@ -114,6 +128,14 @@
       @confirm="handleDeleteConfirm"
     />
 
+    <!-- Email Category Confirmation Modal -->
+    <EmailCategoryConfirmModal
+      v-model="showEmailCategoryModal"
+      :categories="missingEmailCategories"
+      @confirm="handleEmailCategoryConfirm"
+      @cancel="handleEmailCategoryCancel"
+    />
+
     <!-- Validation Errors Modal -->
     <Teleport to="body">
       <div
@@ -188,6 +210,12 @@
       @error="handlePermissionsError"
     />
 
+    <!-- OS Version List Modal (Admin only) -->
+    <OSVersionListModal
+      v-model="showOSVersionModal"
+      @saved="handleOSVersionSaved"
+    />
+
     <!-- Toast Notification -->
     <Teleport to="body">
       <div
@@ -220,10 +248,13 @@ import EquipmentInfoFilterBar from './components/EquipmentInfoFilterBar.vue'
 import BaseDataGridToolbar from '@/shared/components/BaseDataGridToolbar.vue'
 import EquipmentInfoDataGrid from './components/EquipmentInfoDataGrid.vue'
 import DeleteConfirmModal from './components/DeleteConfirmModal.vue'
+import EmailCategoryConfirmModal from './components/EmailCategoryConfirmModal.vue'
 import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDialog.vue'
+import OSVersionListModal from './components/OSVersionListModal.vue'
 import { useEquipmentInfoData } from './composables/useEquipmentInfoData'
 import { useToast } from '@/shared/composables/useToast'
 import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
+import { emailInfoApi } from '@/features/email-info/api'
 
 const gridRef = ref(null)
 const filterBarRef = ref(null)
@@ -231,6 +262,9 @@ const selectedIds = ref([])
 const showDeleteModal = ref(false)
 const showPermissionDialog = ref(false)
 const showValidationErrorsModal = ref(false)
+const showEmailCategoryModal = ref(false)
+const showOSVersionModal = ref(false)
+const missingEmailCategories = ref([])
 const currentFiltersLocal = ref(null)  // Local copy for retry button
 const { toast, showToast } = useToast()
 const hasSearched = ref(false)
@@ -285,6 +319,10 @@ const {
   // Row state refs for reactivity
   deletedRows,
   newRows,
+
+  // Email category helpers
+  autoFillEmailCategories,
+  getEmailCategoriesToSave,
 } = useEquipmentInfoData()
 
 // Convert to reactive Sets for the grid component
@@ -430,13 +468,42 @@ const handleSave = async () => {
   // Clear previous server errors
   serverErrors.value = {}
 
-  // Validate first
+  // Auto-fill emailcategory for empty rows (BEFORE validation)
+  autoFillEmailCategories()
+
+  // Validate
   if (!validate()) {
     showValidationErrorsModal.value = true
     showToast('error', `Validation failed: ${validationErrorCount.value} rows with errors`)
     return
   }
 
+  // Get all emailcategories to save
+  const categories = getEmailCategoriesToSave()
+
+  if (categories.length > 0) {
+    // Check which categories exist in EMAILINFO
+    try {
+      const checkResult = await emailInfoApi.checkCategories(categories)
+
+      if (checkResult.data.missing.length > 0) {
+        // Show confirmation dialog
+        missingEmailCategories.value = checkResult.data.missing
+        showEmailCategoryModal.value = true
+        return // Wait for user decision
+      }
+    } catch (err) {
+      showToast('error', 'Email Category 확인 실패')
+      return
+    }
+  }
+
+  // No missing categories, proceed with save
+  await performSave()
+}
+
+// Actual save operation
+const performSave = async () => {
   const result = await save()
 
   if (result.success) {
@@ -473,6 +540,32 @@ const handleSave = async () => {
   } else {
     showToast('error', result.message || 'Save failed')
   }
+}
+
+// Handle user confirms email info creation
+const handleEmailCategoryConfirm = async () => {
+  try {
+    // Create missing email info entries
+    const items = missingEmailCategories.value.map(category => ({
+      project: 'ARS',
+      category: category,
+      account: [],
+      departments: []
+    }))
+
+    await emailInfoApi.create(items)
+    showToast('success', `${items.length}개 Email Info 등록 완료`)
+
+    // Proceed with equipment info save
+    await performSave()
+  } catch (err) {
+    showToast('error', 'Email Info 등록 실패')
+  }
+}
+
+// Handle user cancels email info creation
+const handleEmailCategoryCancel = () => {
+  showToast('warning', '데이터 저장이 취소되었습니다')
 }
 
 const handleDiscard = () => {
@@ -514,6 +607,12 @@ const handlePermissionsSaved = async () => {
 
 const handlePermissionsError = (message) => {
   showToast('error', message)
+}
+
+const handleOSVersionSaved = () => {
+  showToast('success', 'OS Version List updated')
+  // Refresh DataGrid's osVer dropdown options
+  gridRef.value?.refreshOSVersionOptions?.()
 }
 
 // Initial state: no data loaded until user selects filters and clicks Search
