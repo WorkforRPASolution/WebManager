@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const path = require('path');
 const { errorHandler, notFoundHandler } = require('./shared/middleware/errorHandler');
 
 const app = express();
@@ -42,6 +43,21 @@ app.use('/api/email-template', require('./features/email-template/routes'));
 app.use('/api/email-info', require('./features/email-info/routes'));
 app.use('/api/permissions', require('./features/permissions/routes'));
 app.use('/api/os-version', require('./features/os-version/routes'));
+
+// Production: Serve static files from client/dist
+if (process.env.NODE_ENV === 'production') {
+  const clientDistPath = path.join(__dirname, '../client/dist');
+  app.use(express.static(clientDistPath));
+
+  // SPA fallback: serve index.html for all non-API routes
+  app.get('*', (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+}
 
 // Error handling
 app.use(notFoundHandler);
