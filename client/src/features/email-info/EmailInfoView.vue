@@ -43,7 +43,22 @@
       @discard="handleDiscard"
       @page-size-change="handlePageSizeChange"
       @page-change="handlePageChange"
-    />
+    >
+      <template #extra-buttons>
+        <button
+          v-if="canWrite"
+          @click="showBulkAccountModal = true"
+          :disabled="selectedIds.length === 0"
+          class="flex items-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Bulk Account
+        </button>
+      </template>
+    </BaseDataGridToolbar>
 
     <!-- Loading State -->
     <div v-if="loading" class="flex-1 flex items-center justify-center">
@@ -112,6 +127,13 @@
       v-model="showDeleteModal"
       :count="selectedIds.length"
       @confirm="handleDeleteConfirm"
+    />
+
+    <!-- Bulk Account Modal -->
+    <BulkAccountModal
+      v-model="showBulkAccountModal"
+      :selected-count="selectedIds.length"
+      @apply="handleBulkAccount"
     />
 
     <!-- Validation Errors Modal -->
@@ -220,6 +242,7 @@ import EmailInfoFilterBar from './components/EmailInfoFilterBar.vue'
 import BaseDataGridToolbar from '@/shared/components/BaseDataGridToolbar.vue'
 import EmailInfoDataGrid from './components/EmailInfoDataGrid.vue'
 import DeleteConfirmModal from './components/DeleteConfirmModal.vue'
+import BulkAccountModal from './components/BulkAccountModal.vue'
 import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDialog.vue'
 import { useEmailInfoData } from './composables/useEmailInfoData'
 import { useToast } from '@/shared/composables/useToast'
@@ -229,6 +252,7 @@ const gridRef = ref(null)
 const filterBarRef = ref(null)
 const selectedIds = ref([])
 const showDeleteModal = ref(false)
+const showBulkAccountModal = ref(false)
 const showPermissionDialog = ref(false)
 const showValidationErrorsModal = ref(false)
 const currentFiltersLocal = ref(null)
@@ -349,7 +373,10 @@ const handleFilterChange = async (filters) => {
   try {
     const apiFilters = {
       project: filters.projects?.join(',') || '',
-      category: filters.category || ''
+      process: filters.processes?.join(',') || '',
+      model: filters.models?.join(',') || '',
+      category: filters.category || '',
+      account: filters.account || ''
     }
     await fetchData(apiFilters, 1, pageSize.value)
   } catch (err) {
@@ -454,6 +481,53 @@ const handleDiscard = () => {
     gridRef.value.clearSelection()
   }
   showToast('warning', 'Changes discarded')
+}
+
+const handleBulkAccount = ({ account, operation }) => {
+  let addedCount = 0
+  let removedCount = 0
+
+  for (const rowId of selectedIds.value) {
+    const row = currentData.value.find(r => (r._id || r._tempId) === rowId)
+    if (!row) continue
+
+    const currentAccounts = Array.isArray(row.account) ? [...row.account] : []
+
+    if (operation === 'add') {
+      // Check for duplicate (case-insensitive)
+      const lowerAccount = account.toLowerCase()
+      const exists = currentAccounts.some(a => a.toLowerCase() === lowerAccount)
+      if (!exists) {
+        currentAccounts.push(account)
+        addedCount++
+      }
+    } else {
+      // Remove (case-insensitive)
+      const lowerAccount = account.toLowerCase()
+      const index = currentAccounts.findIndex(a => a.toLowerCase() === lowerAccount)
+      if (index !== -1) {
+        currentAccounts.splice(index, 1)
+        removedCount++
+      }
+    }
+
+    // Track change to mark row as modified
+    trackChange(rowId, 'account', currentAccounts)
+  }
+
+  showBulkAccountModal.value = false
+  if (gridRef.value) {
+    gridRef.value.refreshCells()
+  }
+
+  // Show result message
+  if (operation === 'add') {
+    const skipped = selectedIds.value.length - addedCount
+    showToast('success', `Account added to ${addedCount} rows${skipped > 0 ? ` (${skipped} already had it)` : ''}`)
+  } else {
+    const skipped = selectedIds.value.length - removedCount
+    showToast('success', `Account removed from ${removedCount} rows${skipped > 0 ? ` (${skipped} didn't have it)` : ''}`)
+  }
 }
 
 const handlePaste = (params) => {

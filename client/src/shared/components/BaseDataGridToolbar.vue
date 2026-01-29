@@ -87,6 +87,9 @@
         Discard
       </button>
 
+      <!-- Extra buttons slot (for page-specific buttons) -->
+      <slot name="extra-buttons"></slot>
+
       <!-- Read-only indicator -->
       <div v-if="!canWrite && !canDelete" class="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
