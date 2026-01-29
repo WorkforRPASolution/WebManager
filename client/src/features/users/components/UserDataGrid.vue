@@ -572,58 +572,131 @@ const handlePaste = (event) => {
 
   const focusedCell = gridApi.value?.getFocusedCell()
 
-  if (focusedCell) {
-    const startRowIndex = focusedCell.rowIndex
-    const startColId = focusedCell.column.colId
-    const startColIndex = editableColumns.indexOf(startColId)
+  // Check if there's a cell selection range (shift+click selection)
+  const hasSelectionRange = cellSelectionStart.value && cellSelectionEnd.value
+
+  if (hasSelectionRange || focusedCell) {
+    // Determine start position and selection range
+    let startRowIndex, startColIndex
+    let selectionStartRow, selectionEndRow, selectionStartCol, selectionEndCol
+
+    if (hasSelectionRange) {
+      // Use selection range
+      selectionStartRow = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
+      selectionEndRow = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
+      const startColIdx = editableColumns.indexOf(cellSelectionStart.value.colId)
+      const endColIdx = editableColumns.indexOf(cellSelectionEnd.value.colId)
+      selectionStartCol = Math.min(startColIdx, endColIdx)
+      selectionEndCol = Math.max(startColIdx, endColIdx)
+
+      startRowIndex = selectionStartRow
+      startColIndex = selectionStartCol
+    } else {
+      // Use focused cell
+      startRowIndex = focusedCell.rowIndex
+      startColIndex = editableColumns.indexOf(focusedCell.column.colId)
+      selectionStartRow = selectionEndRow = startRowIndex
+      selectionStartCol = selectionEndCol = startColIndex
+    }
 
     if (startColIndex === -1) return
 
     const hasTab = pastedText.includes('\t')
-    let dataRows = hasTab
-      ? pastedText.split('\n').filter(row => row.trim()).map(row => row.split('\t'))
-      : pastedText.split('\n').filter(row => row.trim()).map(row => [row])
+    const hasNewline = pastedText.includes('\n')
+    let dataRows
+
+    if (hasTab) {
+      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => row.split('\t'))
+    } else if (hasNewline) {
+      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => [row])
+    } else {
+      dataRows = [[pastedText.trim()]]
+    }
 
     const cellUpdates = []
 
-    for (let rowOffset = 0; rowOffset < dataRows.length; rowOffset++) {
-      const cells = dataRows[rowOffset]
-      const targetRowIndex = startRowIndex + rowOffset
-      const rowNode = gridApi.value.getDisplayedRowAtIndex(targetRowIndex)
+    // If single value is pasted and there's a selection range, fill all selected cells
+    const isSingleValue = dataRows.length === 1 && dataRows[0].length === 1
 
-      if (!rowNode) continue
+    if (isSingleValue && hasSelectionRange) {
+      // Fill all selected cells with the single value
+      const pastedValue = dataRows[0][0]
 
-      const rowId = rowNode.data._id || rowNode.data._tempId
+      for (let rowIdx = selectionStartRow; rowIdx <= selectionEndRow; rowIdx++) {
+        const rowNode = gridApi.value.getDisplayedRowAtIndex(rowIdx)
+        if (!rowNode) continue
 
-      for (let colOffset = 0; colOffset < cells.length; colOffset++) {
-        const targetColIndex = startColIndex + colOffset
-        if (targetColIndex >= editableColumns.length) break
+        const rowId = rowNode.data._id || rowNode.data._tempId
 
-        const field = editableColumns[targetColIndex]
-        if (field === 'password') continue // Skip password paste
+        for (let colIdx = selectionStartCol; colIdx <= selectionEndCol; colIdx++) {
+          const field = editableColumns[colIdx]
+          if (field === 'password') continue // Skip password paste
 
-        let value = cells[colOffset]?.trim() || ''
+          let value = pastedValue
 
-        if (field === 'authorityManager') {
-          value = parseInt(value) || 2
-        } else if (field === 'accountStatus') {
-          const lower = value.toLowerCase()
-          if (['pending', 'active', 'suspended'].includes(lower)) {
-            value = lower
-          } else {
-            value = 'active' // default
+          if (field === 'authorityManager') {
+            value = parseInt(value) || 2
+          } else if (field === 'accountStatus') {
+            const lower = value.toLowerCase()
+            if (['pending', 'active', 'suspended'].includes(lower)) {
+              value = lower
+            } else {
+              value = 'active' // default
+            }
+          } else if (field === 'processes') {
+            // Parse semicolon-separated string to array
+            value = value.split(';').map(p => p.trim()).filter(Boolean)
           }
-        } else if (field === 'processes') {
-          // Parse semicolon-separated string to array
-          value = value.split(';').map(p => p.trim()).filter(Boolean)
-        }
 
-        cellUpdates.push({ rowId, field, value })
+          cellUpdates.push({ rowId, field, value })
+        }
+      }
+    } else {
+      // Paste data starting from start position (original behavior)
+      for (let rowOffset = 0; rowOffset < dataRows.length; rowOffset++) {
+        const cells = dataRows[rowOffset]
+        const targetRowIndex = startRowIndex + rowOffset
+        const rowNode = gridApi.value.getDisplayedRowAtIndex(targetRowIndex)
+
+        if (!rowNode) continue
+
+        const rowId = rowNode.data._id || rowNode.data._tempId
+
+        for (let colOffset = 0; colOffset < cells.length; colOffset++) {
+          const targetColIndex = startColIndex + colOffset
+          if (targetColIndex >= editableColumns.length) break
+
+          const field = editableColumns[targetColIndex]
+          if (field === 'password') continue // Skip password paste
+
+          let value = cells[colOffset]?.trim() || ''
+
+          if (field === 'authorityManager') {
+            value = parseInt(value) || 2
+          } else if (field === 'accountStatus') {
+            const lower = value.toLowerCase()
+            if (['pending', 'active', 'suspended'].includes(lower)) {
+              value = lower
+            } else {
+              value = 'active' // default
+            }
+          } else if (field === 'processes') {
+            // Parse semicolon-separated string to array
+            value = value.split(';').map(p => p.trim()).filter(Boolean)
+          }
+
+          cellUpdates.push({ rowId, field, value })
+        }
       }
     }
 
     if (cellUpdates.length > 0) {
       emit('paste-cells', cellUpdates)
+      // Clear selection after paste
+      if (hasSelectionRange) {
+        clearSelection()
+        gridApi.value?.refreshCells({ force: true })
+      }
     }
   } else {
     // Paste as new rows
