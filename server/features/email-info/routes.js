@@ -19,6 +19,12 @@ router.get('/projects', authenticate, requireFeaturePermission('emailInfo', 'rea
 // GET /api/email-info/categories - Get distinct category list
 router.get('/categories', authenticate, requireFeaturePermission('emailInfo', 'read'), asyncHandler(controller.getCategories))
 
+// GET /api/email-info/processes-from-category - Get processes extracted from category
+router.get('/processes-from-category', authenticate, requireFeaturePermission('emailInfo', 'read'), asyncHandler(controller.getProcessesFromCategory))
+
+// GET /api/email-info/models-from-category - Get models extracted from category
+router.get('/models-from-category', authenticate, requireFeaturePermission('emailInfo', 'read'), asyncHandler(controller.getModelsFromCategory))
+
 // GET /api/email-info - Get email info list with pagination
 router.get('/', authenticate, requireFeaturePermission('emailInfo', 'read'), asyncHandler(controller.getEmailInfo))
 

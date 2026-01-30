@@ -114,6 +114,7 @@
         :modified-cells="modifiedCells"
         :new-rows="newRowsSet"
         :deleted-rows="deletedRowsSet"
+        :available-processes="availableProcesses"
         @cell-edit="handleCellEdit"
         @selection-change="handleSelectionChange"
         @paste="handlePaste"
@@ -237,7 +238,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import EmailInfoFilterBar from './components/EmailInfoFilterBar.vue'
 import BaseDataGridToolbar from '@/shared/components/BaseDataGridToolbar.vue'
 import EmailInfoDataGrid from './components/EmailInfoDataGrid.vue'
@@ -247,6 +248,8 @@ import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDial
 import { useEmailInfoData } from './composables/useEmailInfoData'
 import { useToast } from '@/shared/composables/useToast'
 import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
+import { useProcessFilterStore } from '@/shared/stores/processFilter'
+import { clientListApi } from '@/features/clients/api'
 
 const gridRef = ref(null)
 const filterBarRef = ref(null)
@@ -262,6 +265,26 @@ const filterCollapsed = ref(false)
 
 // Permission hooks
 const { canRead, canWrite, canDelete, isAdmin, refresh: refreshPermissions } = useFeaturePermission('emailInfo')
+
+// Process filter store for category editor
+const processFilterStore = useProcessFilterStore()
+const availableProcesses = ref([])
+
+// Fetch processes for category editor
+const fetchAvailableProcesses = async () => {
+  try {
+    const response = await clientListApi.getProcesses()
+    processFilterStore.setProcesses('clients', response.data)
+    // Filter by user permissions
+    availableProcesses.value = processFilterStore.getFilteredProcesses('clients')
+  } catch (error) {
+    console.error('Failed to fetch processes:', error)
+  }
+}
+
+onMounted(async () => {
+  await fetchAvailableProcesses()
+})
 
 const handleFilterToggle = () => {
   filterCollapsed.value = !filterCollapsed.value

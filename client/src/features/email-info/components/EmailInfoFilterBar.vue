@@ -46,9 +46,26 @@
             @update:model-value="handleProjectChange"
           />
 
+          <!-- Process Filter -->
+          <MultiSelect
+            v-model="selectedProcesses"
+            :options="filteredProcesses"
+            label="Process"
+            placeholder="Select Process..."
+            @update:model-value="handleProcessChange"
+          />
+
+          <!-- Model Filter -->
+          <MultiSelect
+            v-model="selectedModels"
+            :options="filteredModels"
+            label="Model"
+            placeholder="Select Model..."
+          />
+
           <!-- Category Search -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category Keyword</label>
             <input
               v-model="categorySearch"
               type="text"
@@ -58,10 +75,22 @@
             />
           </div>
 
+          <!-- Account Search -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Keyword</label>
+            <input
+              v-model="accountSearch"
+              type="text"
+              placeholder="Search Account..."
+              class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm w-[200px]"
+              @keyup.enter="handleSearch"
+            />
+          </div>
+
           <!-- Search Button -->
           <button
             @click="handleSearch"
-            :disabled="selectedProjects.length === 0 && !categorySearch"
+            :disabled="selectedProjects.length === 0 && selectedProcesses.length === 0 && selectedModels.length === 0 && !categorySearch && !accountSearch"
             class="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition text-sm h-[38px]"
           >
             Search
@@ -97,13 +126,23 @@ const { bookmarks, add: addBookmark, remove: removeBookmark } = useFilterBookmar
 
 const projects = ref([])
 const selectedProjects = ref([])
+const allProcesses = ref([])
+const filteredProcesses = ref([])
+const selectedProcesses = ref([])
+const allModels = ref([])
+const filteredModels = ref([])
+const selectedModels = ref([])
 const categorySearch = ref('')
+const accountSearch = ref('')
 
 // Summary text when filter bar is collapsed
 const filterSummary = computed(() => {
   const parts = []
   if (selectedProjects.value.length) parts.push(`Project: ${selectedProjects.value.length}`)
+  if (selectedProcesses.value.length) parts.push(`Process: ${selectedProcesses.value.length}`)
+  if (selectedModels.value.length) parts.push(`Model: ${selectedModels.value.length}`)
   if (categorySearch.value) parts.push(`Category: "${categorySearch.value}"`)
+  if (accountSearch.value) parts.push(`Account: "${accountSearch.value}"`)
   return parts.length ? parts.join(', ') : 'No filters'
 })
 
@@ -116,42 +155,101 @@ const fetchProjects = async () => {
   }
 }
 
-const handleProjectChange = (newProjects) => {
-  // Project selection changed
+const fetchProcesses = async (projectFilter) => {
+  try {
+    const response = await emailInfoApi.getProcessesFromCategory(projectFilter)
+    allProcesses.value = response.data
+    filteredProcesses.value = response.data
+  } catch (error) {
+    console.error('Failed to fetch processes:', error)
+  }
+}
+
+const fetchModels = async (projectFilter, processFilter) => {
+  try {
+    const response = await emailInfoApi.getModelsFromCategory(projectFilter, processFilter)
+    allModels.value = response.data
+    filteredModels.value = response.data
+  } catch (error) {
+    console.error('Failed to fetch models:', error)
+  }
+}
+
+const handleProjectChange = async (newProjects) => {
+  // Reset dependent filters
+  selectedProcesses.value = []
+  selectedModels.value = []
+
+  // Fetch processes based on selected projects
+  const projectFilter = newProjects.length > 0 ? newProjects.join(',') : null
+  await fetchProcesses(projectFilter)
+  await fetchModels(projectFilter, null)
+}
+
+const handleProcessChange = async (newProcesses) => {
+  // Reset model filter
+  selectedModels.value = []
+
+  // Fetch models based on selected projects and processes
+  const projectFilter = selectedProjects.value.length > 0 ? selectedProjects.value.join(',') : null
+  const processFilter = newProcesses.length > 0 ? newProcesses.join(',') : null
+  await fetchModels(projectFilter, processFilter)
 }
 
 const handleSearch = () => {
-  if (selectedProjects.value.length === 0 && !categorySearch.value) {
+  if (selectedProjects.value.length === 0 && selectedProcesses.value.length === 0 && selectedModels.value.length === 0 && !categorySearch.value && !accountSearch.value) {
     return
   }
 
   emit('filter-change', {
     projects: selectedProjects.value,
-    category: categorySearch.value
+    processes: selectedProcesses.value,
+    models: selectedModels.value,
+    category: categorySearch.value,
+    account: accountSearch.value
   })
 }
 
 const handleClear = () => {
   selectedProjects.value = []
+  selectedProcesses.value = []
+  selectedModels.value = []
   categorySearch.value = ''
+  accountSearch.value = ''
+  // Reset to full lists
+  filteredProcesses.value = allProcesses.value
+  filteredModels.value = allModels.value
   emit('filter-change', null)
 }
 
 // Bookmark handlers
 const hasActiveFilters = computed(() =>
-  selectedProjects.value.length > 0 || categorySearch.value
+  selectedProjects.value.length > 0 || selectedProcesses.value.length > 0 || selectedModels.value.length > 0 || categorySearch.value || accountSearch.value
 )
 
 const handleSaveBookmark = (name) => {
   addBookmark(name, {
     projects: selectedProjects.value,
-    category: categorySearch.value
+    processes: selectedProcesses.value,
+    models: selectedModels.value,
+    category: categorySearch.value,
+    account: accountSearch.value
   })
 }
 
 const handleApplyBookmark = async (bookmark) => {
   selectedProjects.value = bookmark.filters.projects || []
+  selectedProcesses.value = bookmark.filters.processes || []
+  selectedModels.value = bookmark.filters.models || []
   categorySearch.value = bookmark.filters.category || ''
+  accountSearch.value = bookmark.filters.account || ''
+
+  // Refresh dependent filter options
+  const projectFilter = selectedProjects.value.length > 0 ? selectedProjects.value.join(',') : null
+  const processFilter = selectedProcesses.value.length > 0 ? selectedProcesses.value.join(',') : null
+  await fetchProcesses(projectFilter)
+  await fetchModels(projectFilter, processFilter)
+
   handleSearch()
 }
 
@@ -161,6 +259,8 @@ const handleDeleteBookmark = (id) => {
 
 const refreshFilters = async () => {
   await fetchProjects()
+  await fetchProcesses(null)
+  await fetchModels(null, null)
 }
 
 onMounted(async () => {

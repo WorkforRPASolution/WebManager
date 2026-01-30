@@ -27,12 +27,32 @@ async function getCategories(req, res) {
 }
 
 /**
+ * GET /api/email-info/processes-from-category
+ * Get distinct process values extracted from category (2nd part)
+ */
+async function getProcessesFromCategory(req, res) {
+  const { project } = req.query
+  const processes = await service.getProcessesFromCategory(project)
+  res.json(processes)
+}
+
+/**
+ * GET /api/email-info/models-from-category
+ * Get distinct model values extracted from category (3rd part)
+ */
+async function getModelsFromCategory(req, res) {
+  const { project, process } = req.query
+  const models = await service.getModelsFromCategory(project, process)
+  res.json(models)
+}
+
+/**
  * GET /api/email-info
  */
 async function getEmailInfo(req, res) {
-  const { project, category, page, pageSize } = req.query
+  const { project, category, account, process, model, page, pageSize } = req.query
   const result = await service.getEmailInfoPaginated(
-    { project, category },
+    { project, category, account, process, model },
     { page, pageSize }
   )
   res.json(result)
@@ -126,6 +146,8 @@ async function checkCategories(req, res) {
 module.exports = {
   getProjects,
   getCategories,
+  getProcessesFromCategory,
+  getModelsFromCategory,
   getEmailInfo,
   createEmailInfo,
   updateEmailInfo,

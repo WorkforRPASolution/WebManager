@@ -43,7 +43,10 @@ import { useTheme } from '../../../shared/composables/useTheme'
 import { useCustomScrollbar } from '../../../shared/composables/useCustomScrollbar'
 import { useDataGridCellSelection } from '../../../shared/composables/useDataGridCellSelection'
 import CustomHorizontalScrollbar from '../../../shared/components/CustomHorizontalScrollbar.vue'
+import AgGridTagEditor from '../../../shared/components/AgGridTagEditor.vue'
+import AgGridCategoryEditor from '../../../shared/components/AgGridCategoryEditor.vue'
 import { arrayToString, stringToArray } from '../validation'
+import { clientListApi } from '../../clients/api'
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule])
@@ -106,6 +109,10 @@ const props = defineProps({
   deletedRows: {
     type: Set,
     default: () => new Set()
+  },
+  availableProcesses: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -199,9 +206,32 @@ const arrayValueSetter = (params) => {
   return true
 }
 
-const columnDefs = ref([
+// Fetch models for category editor
+const fetchModelsForCategory = async (process) => {
+  try {
+    const response = await clientListApi.getModels(process)
+    return response.data || []
+  } catch (error) {
+    console.error('Failed to fetch models:', error)
+    return []
+  }
+}
+
+const columnDefs = computed(() => [
   { field: 'project', headerName: 'Project', width: 100, editable: true },
-  { field: 'category', headerName: 'Category', width: 250, editable: true },
+  {
+    field: 'category',
+    headerName: 'Category',
+    width: 250,
+    editable: true,
+    cellEditor: AgGridCategoryEditor,
+    cellEditorParams: {
+      processes: props.availableProcesses,
+      fetchModels: fetchModelsForCategory,
+      prefix: 'EMAIL-'
+    },
+    cellEditorPopup: true
+  },
   {
     field: 'account',
     headerName: 'Account (Emails)',
@@ -210,12 +240,11 @@ const columnDefs = ref([
     valueFormatter: arrayValueFormatter,
     valueGetter: arrayValueGetter,
     valueSetter: arrayValueSetter,
-    cellEditor: 'agLargeTextCellEditor',
+    cellEditor: AgGridTagEditor,
     cellEditorParams: {
-      maxLength: 1000,
-      rows: 3,
-      cols: 50
-    }
+      placeholder: 'Enter email and press Enter...'
+    },
+    cellEditorPopup: true
   },
   {
     field: 'departments',
@@ -225,12 +254,11 @@ const columnDefs = ref([
     valueFormatter: arrayValueFormatter,
     valueGetter: arrayValueGetter,
     valueSetter: arrayValueSetter,
-    cellEditor: 'agLargeTextCellEditor',
+    cellEditor: AgGridTagEditor,
     cellEditorParams: {
-      maxLength: 500,
-      rows: 2,
-      cols: 40
-    }
+      placeholder: 'Enter department and press Enter...'
+    },
+    cellEditorPopup: true
   }
 ])
 
@@ -459,51 +487,109 @@ const handlePaste = (event) => {
 
   const focusedCell = gridApi.value?.getFocusedCell()
 
-  if (focusedCell) {
-    const startRowIndex = focusedCell.rowIndex
-    const startColId = focusedCell.column.colId
-    const startColIndex = editableColumns.indexOf(startColId)
+  // Check if there's a cell selection range (shift+click selection)
+  const hasSelectionRange = cellSelectionStart.value && cellSelectionEnd.value
+
+  if (hasSelectionRange || focusedCell) {
+    // Determine start position and selection range
+    let startRowIndex, startColIndex
+    let selectionStartRow, selectionEndRow, selectionStartCol, selectionEndCol
+
+    if (hasSelectionRange) {
+      // Use selection range
+      selectionStartRow = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
+      selectionEndRow = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
+      const startColIdx = editableColumns.indexOf(cellSelectionStart.value.colId)
+      const endColIdx = editableColumns.indexOf(cellSelectionEnd.value.colId)
+      selectionStartCol = Math.min(startColIdx, endColIdx)
+      selectionEndCol = Math.max(startColIdx, endColIdx)
+
+      startRowIndex = selectionStartRow
+      startColIndex = selectionStartCol
+    } else {
+      // Use focused cell
+      startRowIndex = focusedCell.rowIndex
+      startColIndex = editableColumns.indexOf(focusedCell.column.colId)
+      selectionStartRow = selectionEndRow = startRowIndex
+      selectionStartCol = selectionEndCol = startColIndex
+    }
 
     if (startColIndex === -1) return
 
     const hasTab = pastedText.includes('\t')
+    const hasNewline = pastedText.includes('\n')
     let dataRows
 
     if (hasTab) {
       dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => row.split('\t'))
-    } else {
+    } else if (hasNewline) {
       dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => [row])
+    } else {
+      dataRows = [[pastedText.trim()]]
     }
 
     const cellUpdates = []
 
-    for (let rowOffset = 0; rowOffset < dataRows.length; rowOffset++) {
-      const cells = dataRows[rowOffset]
-      const targetRowIndex = startRowIndex + rowOffset
-      const rowNode = gridApi.value.getDisplayedRowAtIndex(targetRowIndex)
+    // If single value is pasted and there's a selection range, fill all selected cells
+    const isSingleValue = dataRows.length === 1 && dataRows[0].length === 1
 
-      if (!rowNode) continue
+    if (isSingleValue && hasSelectionRange) {
+      // Fill all selected cells with the single value
+      const pastedValue = dataRows[0][0]
 
-      const rowId = rowNode.data._id || rowNode.data._tempId
+      for (let rowIdx = selectionStartRow; rowIdx <= selectionEndRow; rowIdx++) {
+        const rowNode = gridApi.value.getDisplayedRowAtIndex(rowIdx)
+        if (!rowNode) continue
 
-      for (let colOffset = 0; colOffset < cells.length; colOffset++) {
-        const targetColIndex = startColIndex + colOffset
-        if (targetColIndex >= editableColumns.length) break
+        const rowId = rowNode.data._id || rowNode.data._tempId
 
-        const field = editableColumns[targetColIndex]
-        let value = cells[colOffset]?.trim() || ''
+        for (let colIdx = selectionStartCol; colIdx <= selectionEndCol; colIdx++) {
+          const field = editableColumns[colIdx]
+          let value = pastedValue
 
-        // Convert to array for array fields
-        if (['account', 'departments'].includes(field)) {
-          value = stringToArray(value)
+          // Convert to array for array fields
+          if (['account', 'departments'].includes(field)) {
+            value = stringToArray(value)
+          }
+
+          cellUpdates.push({ rowId, field, value })
         }
+      }
+    } else {
+      // Paste data starting from start position (original behavior)
+      for (let rowOffset = 0; rowOffset < dataRows.length; rowOffset++) {
+        const cells = dataRows[rowOffset]
+        const targetRowIndex = startRowIndex + rowOffset
+        const rowNode = gridApi.value.getDisplayedRowAtIndex(targetRowIndex)
 
-        cellUpdates.push({ rowId, field, value })
+        if (!rowNode) continue
+
+        const rowId = rowNode.data._id || rowNode.data._tempId
+
+        for (let colOffset = 0; colOffset < cells.length; colOffset++) {
+          const targetColIndex = startColIndex + colOffset
+          if (targetColIndex >= editableColumns.length) break
+
+          const field = editableColumns[targetColIndex]
+          let value = cells[colOffset]?.trim() || ''
+
+          // Convert to array for array fields
+          if (['account', 'departments'].includes(field)) {
+            value = stringToArray(value)
+          }
+
+          cellUpdates.push({ rowId, field, value })
+        }
       }
     }
 
     if (cellUpdates.length > 0) {
       emit('paste-cells', cellUpdates)
+      // Clear selection after paste
+      if (hasSelectionRange) {
+        clearSelection()
+        gridApi.value?.refreshCells({ force: true })
+      }
     }
   } else {
     // New rows
