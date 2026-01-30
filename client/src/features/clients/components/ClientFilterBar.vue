@@ -104,6 +104,7 @@ import MultiSelect from '../../../shared/components/MultiSelect.vue'
 import FilterBookmarks from '../../../shared/components/FilterBookmarks.vue'
 import { useFilterBookmarks } from '../../../shared/composables/useFilterBookmarks'
 import { useProcessFilterStore } from '../../../shared/stores/processFilter'
+import { useAuthStore } from '../../../shared/stores/auth'
 
 defineProps({
   collapsed: { type: Boolean, default: false }
@@ -114,6 +115,7 @@ const emit = defineEmits(['filter-change', 'toggle'])
 const { bookmarks, add: addBookmark, remove: removeBookmark } = useFilterBookmarks('clients')
 
 const processFilterStore = useProcessFilterStore()
+const authStore = useAuthStore()
 
 const processes = ref([])
 const allModels = ref([])
@@ -198,11 +200,17 @@ const handleSearch = () => {
     return
   }
 
+  // 관리자/MASTER가 아닌 경우 userProcesses 전달 (키워드 검색 시 process 권한 필터링용)
+  const userProcesses = processFilterStore.canViewAllProcesses
+    ? null
+    : processFilterStore.getUserProcessList()
+
   emit('filter-change', {
     processes: selectedProcesses.value,
     models: selectedModels.value,
     status: selectedStatus.value,
     ipSearch: ipSearch.value,
+    userProcesses
   })
 }
 

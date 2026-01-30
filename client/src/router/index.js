@@ -143,6 +143,28 @@ const routes = [
       }
     }
   },
+  // Email Recipients Management
+  {
+    path: '/email-recipients',
+    name: 'EmailRecipients',
+    component: () => import('../features/email-recipients/EmailRecipientsView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'emailRecipients',
+      menu: {
+        mainMenu: 'masterdata',
+        mainMenuLabel: '기준정보 관리',
+        mainMenuIcon: 'database',
+        mainMenuOrder: 3,
+        subMenu: 'email-recipients',
+        subMenuLabel: 'Email Recipients',
+        subMenuIcon: 'forward_to_inbox',
+        subMenuOrder: 3,
+        permission: 'emailRecipients'
+      }
+    }
+  },
   {
     path: '/alerts',
     name: 'Alerts',

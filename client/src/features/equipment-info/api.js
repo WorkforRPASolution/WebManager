@@ -8,13 +8,22 @@ export const equipmentInfoApi = {
     if (filters.model) params.model = filters.model
     if (filters.ipSearch) params.ipSearch = filters.ipSearch
     if (filters.eqpIdSearch) params.eqpIdSearch = filters.eqpIdSearch
+    // 키워드 검색 시 process 권한 필터링
+    if (filters.userProcesses && Array.isArray(filters.userProcesses) && filters.userProcesses.length > 0) {
+      params.userProcesses = filters.userProcesses.join(',')
+    }
     return api.get('/clients/equipment-info', { params })
   },
 
   getProcesses: () => api.get('/clients/processes'),
 
-  getModels: (process) => {
-    const params = process ? { process } : {}
+  getModels: (process, userProcesses) => {
+    const params = {}
+    if (process) params.process = process
+    // Process 선택 없이 조회 시 사용자 권한으로 필터링
+    if (userProcesses && Array.isArray(userProcesses) && userProcesses.length > 0) {
+      params.userProcesses = userProcesses.join(',')
+    }
     return api.get('/clients/models', { params })
   },
 

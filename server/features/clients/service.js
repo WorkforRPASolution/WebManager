@@ -77,6 +77,12 @@ function buildClientQuery(filters) {
     query.eqpId = { $regex: filters.eqpIdSearch, $options: 'i' }
   }
 
+  // 키워드 검색 시 process 권한 필터링 (userProcesses가 전달된 경우)
+  // process 필터가 이미 설정된 경우에는 적용하지 않음
+  if (filters.userProcesses && Array.isArray(filters.userProcesses) && filters.userProcesses.length > 0 && !filters.process) {
+    query.process = { $in: filters.userProcesses }
+  }
+
   return query
 }
 
@@ -139,13 +145,18 @@ async function getProcesses() {
 }
 
 /**
- * Get distinct model list (optionally filtered by process)
+ * Get distinct model list (optionally filtered by process or userProcesses)
+ * @param {string} processFilter - Comma-separated process filter (explicit selection)
+ * @param {string[]} userProcesses - User's process permissions (for filtering when no explicit selection)
  */
-async function getModels(processFilter) {
+async function getModels(processFilter, userProcesses) {
   const query = {}
   if (processFilter) {
     const filter = parseCommaSeparated(processFilter)
     if (filter) query.process = filter
+  } else if (userProcesses && userProcesses.length > 0) {
+    // Process 선택 없이 조회 시 사용자 권한으로 필터링
+    query.process = { $in: userProcesses }
   }
   const models = await Client.distinct('eqpModel', query)
   return models.sort()

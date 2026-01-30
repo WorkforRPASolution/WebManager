@@ -8,6 +8,10 @@ export const clientListApi = {
     if (filters.models?.length) params.model = filters.models.join(',')
     if (filters.ipSearch) params.ipSearch = filters.ipSearch
     if (filters.status?.length) params.status = filters.status.join(',')
+    // 키워드 검색 시 process 권한 필터링
+    if (filters.userProcesses && Array.isArray(filters.userProcesses) && filters.userProcesses.length > 0) {
+      params.userProcesses = filters.userProcesses.join(',')
+    }
     return api.get('/clients/list', { params })
   },
 

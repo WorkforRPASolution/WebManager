@@ -85,6 +85,23 @@ WEBMANAGER_DB_URI=mongodb://localhost:27017/WEB_MANAGER
 
 ---
 
+## EMAIL_RECIPIENTS (시나리오 실행 결과 이메일 수신인 Category 저장소)
+
+시스템이 발송하는 시나리오 실행 결과 이메일을 다른 Category 로 별도 지정하기 위한 컬렉션
+
+### Fields
+
+| Field Name | Type | 필수/선택 | Description |
+|------------|------|---------|-------------|
+| app | String | 필수 (PK) | app name. default: ARS |
+| line | String | 필수 (PK) | line Info |
+| process | String | 필수 (PK) | Process Name |
+| model | String | 필수 (PK) | Equipment Model |
+| code | String | 필수 (PK) | Action code |
+| emailCategory | String | 필수 | email category |
+
+---
+
 ## ARS_USER_INFO (시스템 사용자 정보 저장소)
 
 시스템 사용자의 정보를 저장하는 컬렉션

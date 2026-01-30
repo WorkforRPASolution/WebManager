@@ -21,8 +21,12 @@ async function getProcesses(req, res) {
  * GET /api/clients/models
  */
 async function getModels(req, res) {
-  const { process } = req.query
-  const models = await service.getModels(process)
+  const { process, userProcesses } = req.query
+  // Parse userProcesses parameter (comma-separated string → array)
+  const userProcessesArray = userProcesses
+    ? userProcesses.split(',').map(p => p.trim()).filter(p => p)
+    : null
+  const models = await service.getModels(process, userProcessesArray)
   res.json(models)
 }
 
@@ -39,9 +43,13 @@ async function getClients(req, res) {
  * GET /api/clients/list
  */
 async function getClientsList(req, res) {
-  const { process, model, status, ipSearch, page, pageSize } = req.query
+  const { process, model, status, ipSearch, page, pageSize, userProcesses } = req.query
+  // Parse userProcesses parameter (comma-separated string → array)
+  const userProcessesArray = userProcesses
+    ? userProcesses.split(',').map(p => p.trim()).filter(p => p)
+    : null
   const result = await service.getClientsPaginated(
-    { process, model, status, ipSearch },
+    { process, model, status, ipSearch, userProcesses: userProcessesArray },
     { page, pageSize }
   )
   res.json(result)
@@ -194,9 +202,13 @@ async function stopClient(req, res) {
  * GET /api/clients/equipment-info
  */
 async function getMasterData(req, res) {
-  const { process, model, ipSearch, eqpIdSearch, page, pageSize } = req.query
+  const { process, model, ipSearch, eqpIdSearch, page, pageSize, userProcesses } = req.query
+  // Parse userProcesses parameter (comma-separated string → array)
+  const userProcessesArray = userProcesses
+    ? userProcesses.split(',').map(p => p.trim()).filter(p => p)
+    : null
   const result = await service.getMasterData(
-    { process, model, ipSearch, eqpIdSearch },
+    { process, model, ipSearch, eqpIdSearch, userProcesses: userProcessesArray },
     { page, pageSize }
   )
   res.json(result)

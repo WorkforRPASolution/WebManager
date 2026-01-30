@@ -81,7 +81,7 @@ function requirePermission(permission) {
 /**
  * Menu permission middleware - DB에서 실시간 권한 확인
  * JWT 토큰에 저장된 권한 대신 DB에서 최신 권한을 조회하여 검증
- * @param {string} menu - 필요한 메뉴 권한 (dashboard, clients, master 등)
+ * @param {string|string[]} menu - 필요한 메뉴 권한 (단일 또는 배열, 배열인 경우 하나라도 있으면 통과)
  * @returns {Function} - Middleware function
  */
 function requireMenuPermission(menu) {
@@ -103,8 +103,12 @@ function requireMenuPermission(menu) {
       throw ApiError.forbidden('Role not found')
     }
 
-    if (!rolePermission.permissions || !rolePermission.permissions[menu]) {
-      throw ApiError.forbidden(`No access to ${menu}`)
+    // 배열인 경우: 하나라도 권한이 있으면 통과
+    const menus = Array.isArray(menu) ? menu : [menu]
+    const hasPermission = menus.some(m => rolePermission.permissions && rolePermission.permissions[m])
+
+    if (!hasPermission) {
+      throw ApiError.forbidden(`No access to ${menus.join(' or ')}`)
     }
 
     next()

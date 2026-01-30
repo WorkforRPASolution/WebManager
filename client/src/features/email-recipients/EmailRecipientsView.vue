@@ -2,7 +2,7 @@
   <div class="flex flex-col gap-4" style="height: calc(100vh - 144px);">
     <!-- Header -->
     <div class="flex items-center justify-between">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Email Info Management</h1>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Email Recipients Management</h1>
       <!-- Permission Settings Button (Admin only) -->
       <button
         v-if="isAdmin"
@@ -19,7 +19,7 @@
     </div>
 
     <!-- Filter Bar -->
-    <EmailInfoFilterBar
+    <EmailRecipientsFilterBar
       ref="filterBarRef"
       :collapsed="filterCollapsed"
       @toggle="handleFilterToggle"
@@ -43,22 +43,7 @@
       @discard="handleDiscard"
       @page-size-change="handlePageSizeChange"
       @page-change="handlePageChange"
-    >
-      <template #extra-buttons>
-        <button
-          v-if="canWrite"
-          @click="showBulkAccountModal = true"
-          :disabled="selectedIds.length === 0"
-          class="flex items-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          Bulk Account
-        </button>
-      </template>
-    </BaseDataGridToolbar>
+    />
 
     <!-- Loading State -->
     <div v-if="loading" class="flex-1 flex items-center justify-center">
@@ -99,14 +84,14 @@
         </div>
         <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Select Filters to View Data</h3>
         <p class="text-gray-500 dark:text-gray-400 max-w-sm">
-          Use the filter bar above to select projects or search categories, then click Search to load the data.
+          Use the filter bar above to select filters, then click Search to load the data.
         </p>
       </div>
     </div>
 
     <!-- Data Grid -->
     <div v-else class="flex-1 min-h-0">
-      <EmailInfoDataGrid
+      <EmailRecipientsGrid
         ref="gridRef"
         :row-data="currentData"
         :validation-errors="validationErrors"
@@ -114,7 +99,6 @@
         :modified-cells="modifiedCells"
         :new-rows="newRowsSet"
         :deleted-rows="deletedRowsSet"
-        :available-processes="availableProcesses"
         @cell-edit="handleCellEdit"
         @selection-change="handleSelectionChange"
         @paste="handlePaste"
@@ -128,13 +112,6 @@
       v-model="showDeleteModal"
       :count="selectedIds.length"
       @confirm="handleDeleteConfirm"
-    />
-
-    <!-- Bulk Account Modal -->
-    <BulkAccountModal
-      v-model="showBulkAccountModal"
-      :selected-count="selectedIds.length"
-      @apply="handleBulkAccount"
     />
 
     <!-- Validation Errors Modal -->
@@ -206,10 +183,79 @@
     <!-- Permission Settings Dialog (Admin only) -->
     <PermissionSettingsDialog
       v-model="showPermissionDialog"
-      feature="emailInfo"
+      feature="emailRecipients"
       @saved="handlePermissionsSaved"
       @error="handlePermissionsError"
     />
+
+    <!-- Missing Categories Confirmation Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showMissingCategoriesModal"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+        @click.self="handleMissingCategoriesCancel"
+      >
+        <div class="bg-white dark:bg-dark-card rounded-lg shadow-xl w-full max-w-lg">
+          <!-- Header -->
+          <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <svg class="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              Category Not Found in EMAILINFO
+            </h3>
+            <button
+              @click="handleMissingCategoriesCancel"
+              class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Content -->
+          <div class="px-6 py-4">
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              The following email categories do not exist in the EMAILINFO collection:
+            </p>
+            <div class="max-h-48 overflow-y-auto bg-gray-50 dark:bg-dark-border rounded-lg p-3">
+              <ul class="space-y-1">
+                <li
+                  v-for="cat in missingCategories"
+                  :key="cat"
+                  class="flex items-center gap-2 text-sm"
+                >
+                  <svg class="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span class="font-mono text-gray-700 dark:text-gray-300 break-all">{{ cat }}</span>
+                </li>
+              </ul>
+            </div>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mt-4">
+              Do you want to save anyway? The email recipients will be created but may not function correctly until the corresponding EMAILINFO entries are added.
+            </p>
+          </div>
+
+          <!-- Footer -->
+          <div class="px-6 py-4 border-t border-gray-200 dark:border-dark-border flex justify-end gap-3">
+            <button
+              @click="handleMissingCategoriesCancel"
+              class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              @click="handleMissingCategoriesConfirm"
+              class="px-4 py-2 text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors"
+            >
+              Yes, Save Anyway
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Toast Notification -->
     <Teleport to="body">
@@ -238,53 +284,32 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import EmailInfoFilterBar from './components/EmailInfoFilterBar.vue'
+import { ref, computed } from 'vue'
+import EmailRecipientsFilterBar from './components/EmailRecipientsFilterBar.vue'
 import BaseDataGridToolbar from '@/shared/components/BaseDataGridToolbar.vue'
-import EmailInfoDataGrid from './components/EmailInfoDataGrid.vue'
-import DeleteConfirmModal from './components/DeleteConfirmModal.vue'
-import BulkAccountModal from './components/BulkAccountModal.vue'
+import EmailRecipientsGrid from './components/EmailRecipientsGrid.vue'
+import DeleteConfirmModal from '@/features/email-info/components/DeleteConfirmModal.vue'
 import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDialog.vue'
-import { useEmailInfoData } from './composables/useEmailInfoData'
+import { useEmailRecipientsData } from './composables/useEmailRecipientsData'
 import { useToast } from '@/shared/composables/useToast'
 import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
-import { useProcessFilterStore } from '@/shared/stores/processFilter'
-import { clientListApi } from '@/features/clients/api'
 
 const gridRef = ref(null)
 const filterBarRef = ref(null)
 const selectedIds = ref([])
 const showDeleteModal = ref(false)
-const showBulkAccountModal = ref(false)
 const showPermissionDialog = ref(false)
 const showValidationErrorsModal = ref(false)
+const showMissingCategoriesModal = ref(false)
+const missingCategories = ref([])
+const pendingSaveResolve = ref(null)
 const currentFiltersLocal = ref(null)
 const { toast, showToast } = useToast()
 const hasSearched = ref(false)
 const filterCollapsed = ref(false)
 
 // Permission hooks
-const { canRead, canWrite, canDelete, isAdmin, refresh: refreshPermissions } = useFeaturePermission('emailInfo')
-
-// Process filter store for category editor
-const processFilterStore = useProcessFilterStore()
-const availableProcesses = ref([])
-
-// Fetch processes for category editor
-const fetchAvailableProcesses = async () => {
-  try {
-    const response = await clientListApi.getProcesses()
-    processFilterStore.setProcesses('clients', response.data)
-    // Filter by user permissions
-    availableProcesses.value = processFilterStore.getFilteredProcesses('clients')
-  } catch (error) {
-    console.error('Failed to fetch processes:', error)
-  }
-}
-
-onMounted(async () => {
-  await fetchAvailableProcesses()
-})
+const { canRead, canWrite, canDelete, isAdmin, refresh: refreshPermissions } = useFeaturePermission('emailRecipients')
 
 const handleFilterToggle = () => {
   filterCollapsed.value = !filterCollapsed.value
@@ -312,7 +337,9 @@ const {
   addMultipleRows,
   markForDeletion,
   validate,
+  validateCategories,
   save,
+  saveWithCategoryValidation,
   discardChanges,
   resetAllData,
 
@@ -325,7 +352,7 @@ const {
 
   deletedRows,
   newRows,
-} = useEmailInfoData()
+} = useEmailRecipientsData()
 
 const modifiedRowsSet = computed(() => {
   const set = new Set()
@@ -366,7 +393,7 @@ const getRowIdentifier = (rowId) => {
     const newRowsList = currentData.value.filter(r => r._tempId && newRows.value.has(r._tempId))
     if (newRowsList[index]) {
       const row = newRowsList[index]
-      return row.category ? `NEW: ${row.category}` : `Row ${index + 1}`
+      return row.code ? `NEW: ${row.process}/${row.model}/${row.code}` : `Row ${index + 1}`
     }
     return `Row ${index + 1}`
   }
@@ -375,10 +402,10 @@ const getRowIdentifier = (rowId) => {
   if (!row) return rowId
 
   if (row._tempId) {
-    return row.category ? `NEW: ${row.category}` : `NEW Row`
+    return row.code ? `NEW: ${row.process}/${row.model}/${row.code}` : `NEW Row`
   }
 
-  return row.category || rowId
+  return `${row.process}/${row.model}/${row.code}` || rowId
 }
 
 const handleFilterChange = async (filters) => {
@@ -395,12 +422,13 @@ const handleFilterChange = async (filters) => {
   hasSearched.value = true
   try {
     const apiFilters = {
-      project: filters.projects?.join(',') || '',
+      app: filters.apps?.join(',') || '',
+      line: filters.lines?.join(',') || '',
       process: filters.processes?.join(',') || '',
       model: filters.models?.join(',') || '',
-      category: filters.category || '',
-      account: filters.account || '',
-      userProcesses: filters.userProcesses || null
+      code: filters.codes?.join(',') || '',
+      emailCategory: filters.emailCategory || '',
+      userProcesses: filters.userProcesses || null  // 키워드 검색 시 process 권한 필터링
     }
     await fetchData(apiFilters, 1, pageSize.value)
   } catch (err) {
@@ -456,16 +484,47 @@ const handleDeleteConfirm = () => {
 
 const serverErrors = ref({})
 
+// Handle missing categories modal actions
+const handleMissingCategoriesConfirm = () => {
+  showMissingCategoriesModal.value = false
+  if (pendingSaveResolve.value) {
+    pendingSaveResolve.value(true)
+    pendingSaveResolve.value = null
+  }
+}
+
+const handleMissingCategoriesCancel = () => {
+  showMissingCategoriesModal.value = false
+  if (pendingSaveResolve.value) {
+    pendingSaveResolve.value(false)
+    pendingSaveResolve.value = null
+  }
+}
+
 const handleSave = async () => {
   serverErrors.value = {}
 
-  if (!validate()) {
+  // Callback for missing categories
+  const onMissingCategories = (missing) => {
+    return new Promise((resolve) => {
+      missingCategories.value = missing
+      pendingSaveResolve.value = resolve
+      showMissingCategoriesModal.value = true
+    })
+  }
+
+  const result = await saveWithCategoryValidation(onMissingCategories)
+
+  if (result.message === 'Validation failed') {
     showValidationErrorsModal.value = true
     showToast('error', `Validation failed: ${validationErrorCount.value} rows with errors`)
     return
   }
 
-  const result = await save()
+  if (result.message === 'Cancelled by user') {
+    showToast('warning', 'Save cancelled')
+    return
+  }
 
   if (result.success) {
     let message = 'Changes saved successfully'
@@ -505,53 +564,6 @@ const handleDiscard = () => {
     gridRef.value.clearSelection()
   }
   showToast('warning', 'Changes discarded')
-}
-
-const handleBulkAccount = ({ account, operation }) => {
-  let addedCount = 0
-  let removedCount = 0
-
-  for (const rowId of selectedIds.value) {
-    const row = currentData.value.find(r => (r._id || r._tempId) === rowId)
-    if (!row) continue
-
-    const currentAccounts = Array.isArray(row.account) ? [...row.account] : []
-
-    if (operation === 'add') {
-      // Check for duplicate (case-insensitive)
-      const lowerAccount = account.toLowerCase()
-      const exists = currentAccounts.some(a => a.toLowerCase() === lowerAccount)
-      if (!exists) {
-        currentAccounts.push(account)
-        addedCount++
-      }
-    } else {
-      // Remove (case-insensitive)
-      const lowerAccount = account.toLowerCase()
-      const index = currentAccounts.findIndex(a => a.toLowerCase() === lowerAccount)
-      if (index !== -1) {
-        currentAccounts.splice(index, 1)
-        removedCount++
-      }
-    }
-
-    // Track change to mark row as modified
-    trackChange(rowId, 'account', currentAccounts)
-  }
-
-  showBulkAccountModal.value = false
-  if (gridRef.value) {
-    gridRef.value.refreshCells()
-  }
-
-  // Show result message
-  if (operation === 'add') {
-    const skipped = selectedIds.value.length - addedCount
-    showToast('success', `Account added to ${addedCount} rows${skipped > 0 ? ` (${skipped} already had it)` : ''}`)
-  } else {
-    const skipped = selectedIds.value.length - removedCount
-    showToast('success', `Account removed from ${removedCount} rows${skipped > 0 ? ` (${skipped} didn't have it)` : ''}`)
-  }
 }
 
 const handlePaste = (params) => {

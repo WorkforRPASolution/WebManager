@@ -10,14 +10,16 @@ const { authenticate, requireMenuPermission } = require('../../shared/middleware
 const { requireFeaturePermission } = require('../permissions/middleware')
 
 // ============================================
-// Filter & List Routes (requires 'clients' permission)
+// Filter & List Routes (requires 'clients' OR 'equipmentInfo' permission)
 // ============================================
 
 // GET /api/clients/processes - Get distinct process list
-router.get('/processes', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getProcesses))
+// Used by Clients page and Equipment Info page
+router.get('/processes', authenticate, requireMenuPermission(['clients', 'equipmentInfo']), asyncHandler(controller.getProcesses))
 
 // GET /api/clients/models - Get distinct eqpModel list
-router.get('/models', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getModels))
+// Used by Clients page and Equipment Info page
+router.get('/models', authenticate, requireMenuPermission(['clients', 'equipmentInfo']), asyncHandler(controller.getModels))
 
 // GET /api/clients/list - Get clients with server-side pagination
 router.get('/list', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getClientsList))

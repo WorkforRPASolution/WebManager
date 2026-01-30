@@ -407,7 +407,8 @@ const handleFilterChange = async (filters) => {
       process: filters.processes?.join(',') || '',
       model: filters.models?.join(',') || '',
       ipSearch: filters.ipSearch || '',
-      eqpIdSearch: filters.eqpIdSearch || ''
+      eqpIdSearch: filters.eqpIdSearch || '',
+      userProcesses: filters.userProcesses || null  // 키워드 검색 시 process 권한 필터링
     }
     // Fetch with page=1 and current pageSize
     await fetchData(apiFilters, 1, pageSize.value)

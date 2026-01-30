@@ -158,7 +158,12 @@ const fetchProcesses = async () => {
 
 const fetchAllModels = async () => {
   try {
-    const response = await equipmentInfoApi.getModels()
+    // 관리자/MASTER가 아닌 경우 userProcesses 전달하여 필터링
+    const userProcesses = processFilterStore.canViewAllProcesses
+      ? null
+      : processFilterStore.getUserProcessList()
+
+    const response = await equipmentInfoApi.getModels(null, userProcesses)
     allModels.value = response.data
   } catch (error) {
     console.error('Failed to fetch all models:', error)
@@ -200,11 +205,17 @@ const handleSearch = () => {
     return
   }
 
+  // 관리자/MASTER가 아닌 경우 userProcesses 전달 (키워드 검색 시 process 권한 필터링용)
+  const userProcesses = processFilterStore.canViewAllProcesses
+    ? null
+    : processFilterStore.getUserProcessList()
+
   emit('filter-change', {
     processes: selectedProcesses.value,
     models: selectedModels.value,
     ipSearch: ipSearch.value,
     eqpIdSearch: eqpIdSearch.value,
+    userProcesses
   })
 }
 
