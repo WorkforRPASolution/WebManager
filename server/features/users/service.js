@@ -48,6 +48,12 @@ async function getUsers(filters = {}, paginationQuery = {}) {
     query.processes = { $in: [filters.process] }
   }
 
+  // 키워드 검색 시 process 권한 필터링 (userProcesses가 전달된 경우)
+  // process 필터가 이미 설정된 경우에는 적용하지 않음
+  if (filters.userProcesses && Array.isArray(filters.userProcesses) && filters.userProcesses.length > 0 && !filters.processes && !filters.process) {
+    query.processes = { $in: filters.userProcesses }
+  }
+
   if (filters.line) {
     query.line = filters.line
   }
@@ -353,19 +359,40 @@ async function initializeRolePermissions() {
 
 /**
  * Get distinct process values from processes array field
+ * @param {string[]} userProcesses - User's process permissions (for filtering)
  */
-async function getProcesses() {
+async function getProcesses(userProcesses) {
   // Get distinct values from processes array field
   const processesFromArray = await User.distinct('processes')
-  return processesFromArray.filter(p => p).sort()
+  let result = processesFromArray.filter(p => p)
+
+  // If userProcesses is provided, filter to only include processes the user has access to
+  if (userProcesses && userProcesses.length > 0) {
+    const userProcessUpper = userProcesses.map(p => p.toUpperCase())
+    result = result.filter(p => userProcessUpper.includes(p.toUpperCase()))
+  }
+
+  return result.sort()
 }
 
 /**
  * Get distinct line values
+ * @param {string} processFilter - Comma-separated process values (supports multiple, explicit selection)
+ * @param {string[]} userProcesses - User's process permissions (for filtering when no explicit selection)
  */
-async function getLines(process) {
-  // Use processes array field for filtering
-  const query = process ? { processes: { $in: [process] } } : {}
+async function getLines(processFilter, userProcesses) {
+  const query = {}
+  // 복수 process 지원: 콤마로 구분된 문자열 파싱
+  if (processFilter) {
+    const processes = processFilter.split(',').map(p => p.trim()).filter(p => p)
+    if (processes.length > 0) {
+      // Use processes array field for filtering
+      query.processes = { $in: processes }
+    }
+  } else if (userProcesses && userProcesses.length > 0) {
+    // Process 선택 없이 조회 시 사용자 권한으로 필터링
+    query.processes = { $in: userProcesses }
+  }
   const lines = await User.distinct('line', query)
   return lines.filter(l => l).sort()
 }

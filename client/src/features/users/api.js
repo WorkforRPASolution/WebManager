@@ -13,14 +13,33 @@ export const usersApi = {
     if (params.processes && Array.isArray(params.processes)) {
       params.processes = params.processes.join(',')
     }
+    // 키워드 검색 시 process 권한 필터링
+    if (params.userProcesses && Array.isArray(params.userProcesses)) {
+      params.userProcesses = params.userProcesses.join(',')
+    }
     return api.get('/users', { params })
   },
 
   // Get distinct processes for filter
-  getProcesses: () => api.get('/users/processes'),
+  getProcesses: (userProcesses) => {
+    const params = {}
+    // Process 권한 필터링
+    if (userProcesses && Array.isArray(userProcesses) && userProcesses.length > 0) {
+      params.userProcesses = userProcesses.join(',')
+    }
+    return api.get('/users/processes', { params })
+  },
 
   // Get distinct lines for filter
-  getLines: (process) => api.get('/users/lines', { params: { process } }),
+  getLines: (process, userProcesses) => {
+    const params = {}
+    if (process) params.process = process
+    // Process 선택 없이 조회 시 사용자 권한으로 필터링
+    if (userProcesses && Array.isArray(userProcesses) && userProcesses.length > 0) {
+      params.userProcesses = userProcesses.join(',')
+    }
+    return api.get('/users/lines', { params })
+  },
 
   // Get role definitions
   getRoles: () => api.get('/users/roles'),

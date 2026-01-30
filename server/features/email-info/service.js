@@ -61,6 +61,16 @@ function buildQuery(filters) {
     }
   }
 
+  // 키워드 검색 시 process 권한 필터링 (userProcesses가 전달된 경우)
+  // process 필터가 이미 설정된 경우에는 적용하지 않음
+  if (filters.userProcesses && Array.isArray(filters.userProcesses) && filters.userProcesses.length > 0 && !filters.process) {
+    const processPatterns = filters.userProcesses.map(p => `^[^-]+-${p}-`)
+    query.$and = query.$and || []
+    query.$and.push({
+      $or: processPatterns.map(pattern => ({ category: { $regex: pattern, $options: 'i' } }))
+    })
+  }
+
   // Model filter: match category where 3rd part matches
   if (filters.model) {
     const models = filters.model.split(',').map(m => m.trim()).filter(m => m)
@@ -122,9 +132,10 @@ async function getCategories(projectFilter) {
 /**
  * Get distinct process values extracted from category (2nd part after "-")
  * @param {string} projectFilter - Optional comma-separated project filter
+ * @param {string[]} userProcesses - User's process permissions (for filtering)
  * @returns {Array} - Sorted array of unique process values
  */
-async function getProcessesFromCategory(projectFilter) {
+async function getProcessesFromCategory(projectFilter, userProcesses) {
   const query = {}
   if (projectFilter) {
     const filter = parseCommaSeparated(projectFilter)
@@ -134,10 +145,22 @@ async function getProcessesFromCategory(projectFilter) {
   const categories = await EmailInfo.distinct('category', query)
   const processSet = new Set()
 
+  // Parse userProcesses for filtering (uppercase for comparison)
+  const userProcessValues = (userProcesses && userProcesses.length > 0)
+    ? userProcesses.map(p => p.toUpperCase())
+    : null
+
   for (const category of categories) {
     const { process } = parseCategoryParts(category)
     if (process) {
-      processSet.add(process)
+      // If userProcesses is provided, only include processes the user has access to
+      if (userProcessValues) {
+        if (userProcessValues.includes(process.toUpperCase())) {
+          processSet.add(process)
+        }
+      } else {
+        processSet.add(process)
+      }
     }
   }
 
@@ -147,10 +170,11 @@ async function getProcessesFromCategory(projectFilter) {
 /**
  * Get distinct model values extracted from category (3rd part after "-")
  * @param {string} projectFilter - Optional comma-separated project filter
- * @param {string} processFilter - Optional comma-separated process filter
+ * @param {string} processFilter - Optional comma-separated process filter (explicit selection)
+ * @param {string[]} userProcesses - User's process permissions (for filtering when no explicit selection)
  * @returns {Array} - Sorted array of unique model values
  */
-async function getModelsFromCategory(projectFilter, processFilter) {
+async function getModelsFromCategory(projectFilter, processFilter, userProcesses) {
   const query = {}
   if (projectFilter) {
     const filter = parseCommaSeparated(projectFilter)
@@ -165,12 +189,22 @@ async function getModelsFromCategory(projectFilter, processFilter) {
     ? processFilter.split(',').map(p => p.trim().toUpperCase()).filter(p => p)
     : null
 
+  // Parse userProcesses for filtering (when no explicit process selection)
+  const userProcessValues = (!processFilter && userProcesses && userProcesses.length > 0)
+    ? userProcesses.map(p => p.toUpperCase())
+    : null
+
   for (const category of categories) {
     const { process, model } = parseCategoryParts(category)
     if (model) {
       // If process filter is provided, only include models from matching processes
       if (processValues && processValues.length > 0) {
         if (process && processValues.includes(process.toUpperCase())) {
+          modelSet.add(model)
+        }
+      } else if (userProcessValues && userProcessValues.length > 0) {
+        // Process 선택 없이 조회 시 사용자 권한으로 필터링
+        if (process && userProcessValues.includes(process.toUpperCase())) {
           modelSet.add(model)
         }
       } else {

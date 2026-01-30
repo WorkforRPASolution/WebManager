@@ -115,6 +115,8 @@ import { emailInfoApi } from '../api'
 import MultiSelect from '../../../shared/components/MultiSelect.vue'
 import FilterBookmarks from '../../../shared/components/FilterBookmarks.vue'
 import { useFilterBookmarks } from '../../../shared/composables/useFilterBookmarks'
+import { useProcessFilterStore } from '../../../shared/stores/processFilter'
+import { useAuthStore } from '../../../shared/stores/auth'
 
 defineProps({
   collapsed: { type: Boolean, default: false }
@@ -123,6 +125,9 @@ defineProps({
 const emit = defineEmits(['filter-change', 'toggle'])
 
 const { bookmarks, add: addBookmark, remove: removeBookmark } = useFilterBookmarks('emailInfo')
+
+const processFilterStore = useProcessFilterStore()
+const authStore = useAuthStore()
 
 const projects = ref([])
 const selectedProjects = ref([])
@@ -157,7 +162,14 @@ const fetchProjects = async () => {
 
 const fetchProcesses = async (projectFilter) => {
   try {
-    const response = await emailInfoApi.getProcessesFromCategory(projectFilter)
+    // 관리자/MASTER가 아닌 경우 userProcesses 전달하여 서버에서 필터링
+    const userProcesses = processFilterStore.canViewAllProcesses
+      ? null
+      : processFilterStore.getUserProcessList()
+
+    const response = await emailInfoApi.getProcessesFromCategory(projectFilter, userProcesses)
+    // Store에 캐시 (이미 서버에서 필터링됨)
+    processFilterStore.setProcesses('emailInfo', response.data)
     allProcesses.value = response.data
     filteredProcesses.value = response.data
   } catch (error) {
@@ -167,7 +179,12 @@ const fetchProcesses = async (projectFilter) => {
 
 const fetchModels = async (projectFilter, processFilter) => {
   try {
-    const response = await emailInfoApi.getModelsFromCategory(projectFilter, processFilter)
+    // 관리자/MASTER가 아닌 경우 userProcesses 전달하여 필터링
+    const userProcesses = processFilterStore.canViewAllProcesses
+      ? null
+      : processFilterStore.getUserProcessList()
+
+    const response = await emailInfoApi.getModelsFromCategory(projectFilter, processFilter, userProcesses)
     allModels.value = response.data
     filteredModels.value = response.data
   } catch (error) {
@@ -201,12 +218,18 @@ const handleSearch = () => {
     return
   }
 
+  // 관리자/MASTER가 아닌 경우 userProcesses 전달 (키워드 검색 시 process 권한 필터링용)
+  const userProcesses = processFilterStore.canViewAllProcesses
+    ? null
+    : processFilterStore.getUserProcessList()
+
   emit('filter-change', {
     projects: selectedProjects.value,
     processes: selectedProcesses.value,
     models: selectedModels.value,
     category: categorySearch.value,
-    account: accountSearch.value
+    account: accountSearch.value,
+    userProcesses
   })
 }
 

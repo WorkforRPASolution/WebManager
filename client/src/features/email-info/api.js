@@ -9,6 +9,10 @@ export const emailInfoApi = {
     if (filters.process) params.process = filters.process
     if (filters.model) params.model = filters.model
     if (filters.account) params.account = filters.account
+    // 키워드 검색 시 process 권한 필터링
+    if (filters.userProcesses && Array.isArray(filters.userProcesses) && filters.userProcesses.length > 0) {
+      params.userProcesses = filters.userProcesses.join(',')
+    }
     return api.get('/email-info', { params })
   },
 
@@ -20,16 +24,25 @@ export const emailInfoApi = {
   },
 
   // Get processes extracted from category (2nd part after "-")
-  getProcessesFromCategory: (project) => {
-    const params = project ? { project } : {}
+  getProcessesFromCategory: (project, userProcesses) => {
+    const params = {}
+    if (project) params.project = project
+    // Process 권한 필터링
+    if (userProcesses && Array.isArray(userProcesses) && userProcesses.length > 0) {
+      params.userProcesses = userProcesses.join(',')
+    }
     return api.get('/email-info/processes-from-category', { params })
   },
 
   // Get models extracted from category (3rd part after "-")
-  getModelsFromCategory: (project, process) => {
+  getModelsFromCategory: (project, process, userProcesses) => {
     const params = {}
     if (project) params.project = project
     if (process) params.process = process
+    // Process 선택 없이 조회 시 사용자 권한으로 필터링
+    if (userProcesses && Array.isArray(userProcesses) && userProcesses.length > 0) {
+      params.userProcesses = userProcesses.join(',')
+    }
     return api.get('/email-info/models-from-category', { params })
   },
 

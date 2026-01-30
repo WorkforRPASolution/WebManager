@@ -36,7 +36,7 @@ router.get('/processes', authenticate, requireFeaturePermission('emailTemplate',
 
 // GET /api/email-template/models - Get distinct model list
 router.get('/models', authenticate, requireFeaturePermission('emailTemplate', 'read'), asyncHandler(async (req, res) => {
-  const { process } = req.query;
+  const { process, userProcesses } = req.query;
 
   let query = {};
   if (process) {
@@ -46,6 +46,12 @@ router.get('/models', authenticate, requireFeaturePermission('emailTemplate', 'r
     } else if (processes.length > 1) {
       query.process = { $in: processes };
     }
+  } else if (userProcesses) {
+    // Process 선택 없이 조회 시 사용자 권한으로 필터링
+    const userProcessesArray = userProcesses.split(',').map(p => p.trim()).filter(p => p);
+    if (userProcessesArray.length > 0) {
+      query.process = { $in: userProcessesArray };
+    }
   }
 
   const models = await EmailTemplate.distinct('model', query);
@@ -54,7 +60,7 @@ router.get('/models', authenticate, requireFeaturePermission('emailTemplate', 'r
 
 // GET /api/email-template/codes - Get distinct code list
 router.get('/codes', authenticate, requireFeaturePermission('emailTemplate', 'read'), asyncHandler(async (req, res) => {
-  const { process, model } = req.query;
+  const { process, model, userProcesses } = req.query;
 
   let query = {};
   if (process) {
@@ -63,6 +69,12 @@ router.get('/codes', authenticate, requireFeaturePermission('emailTemplate', 're
       query.process = processes[0];
     } else if (processes.length > 1) {
       query.process = { $in: processes };
+    }
+  } else if (userProcesses) {
+    // Process 선택 없이 조회 시 사용자 권한으로 필터링
+    const userProcessesArray = userProcesses.split(',').map(p => p.trim()).filter(p => p);
+    if (userProcessesArray.length > 0) {
+      query.process = { $in: userProcessesArray };
     }
   }
   if (model) {

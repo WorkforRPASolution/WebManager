@@ -164,6 +164,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { usersApi } from '../api'
 import { useProcessFilterStore } from '../../../shared/stores/processFilter'
+import { useAuthStore } from '../../../shared/stores/auth'
 
 defineProps({
   collapsed: { type: Boolean, default: false }
@@ -172,6 +173,7 @@ defineProps({
 const emit = defineEmits(['filter-change', 'toggle'])
 
 const processFilterStore = useProcessFilterStore()
+const authStore = useAuthStore()
 
 const processes = ref([])
 const lines = ref([])
@@ -212,8 +214,9 @@ onUnmounted(() => {
 // Watch for process selection changes to refresh lines
 watch(selectedProcesses, async () => {
   // Refresh lines when processes change
-  if (selectedProcesses.value.length === 1) {
-    await fetchLines(selectedProcesses.value[0])
+  // 여러 process 선택 시 해당 processes의 Line 합집합 표시
+  if (selectedProcesses.value.length > 0) {
+    await fetchLines(selectedProcesses.value.join(','))
   } else {
     await fetchLines()
   }
@@ -249,10 +252,15 @@ const filterSummary = computed(() => {
 
 const fetchProcesses = async () => {
   try {
-    const response = await usersApi.getProcesses()
-    // Users uses ARS_USER_INFO data source
+    // 관리자/MASTER가 아닌 경우 userProcesses 전달하여 서버에서 필터링
+    const userProcesses = processFilterStore.canViewAllProcesses
+      ? null
+      : processFilterStore.getUserProcessList()
+
+    const response = await usersApi.getProcesses(userProcesses)
+    // Store에 캐시 (이미 서버에서 필터링됨)
     processFilterStore.setProcesses('users', response.data)
-    processes.value = processFilterStore.getFilteredProcesses('users')
+    processes.value = response.data
   } catch (error) {
     console.error('Failed to fetch processes:', error)
   }
@@ -260,7 +268,12 @@ const fetchProcesses = async () => {
 
 const fetchLines = async (process = null) => {
   try {
-    const response = await usersApi.getLines(process)
+    // 관리자/MASTER가 아닌 경우 userProcesses 전달하여 필터링
+    const userProcesses = processFilterStore.canViewAllProcesses
+      ? null
+      : processFilterStore.getUserProcessList()
+
+    const response = await usersApi.getLines(process, userProcesses)
     lines.value = response.data
   } catch (error) {
     console.error('Failed to fetch lines:', error)
@@ -268,13 +281,19 @@ const fetchLines = async (process = null) => {
 }
 
 const handleSearch = () => {
+  // 관리자/MASTER가 아닌 경우 userProcesses 전달 (키워드 검색 시 process 권한 필터링용)
+  const userProcesses = processFilterStore.canViewAllProcesses
+    ? null
+    : processFilterStore.getUserProcessList()
+
   const filters = {
     search: search.value,
     processes: selectedProcesses.value.length > 0 ? selectedProcesses.value : null,  // Use array for multi-process
     line: selectedLine.value,
     authorityManager: selectedRole.value,
     accountStatus: selectedAccountStatus.value,
-    passwordStatus: selectedPasswordStatus.value
+    passwordStatus: selectedPasswordStatus.value,
+    userProcesses
   }
 
   emit('filter-change', filters)

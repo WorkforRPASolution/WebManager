@@ -16,7 +16,7 @@ const { ApiError } = require('../../shared/middleware/errorHandler')
  * Supports multi-process filtering via `processes` parameter (comma-separated)
  */
 async function getUsers(req, res) {
-  const { process, processes, line, authorityManager, accountStatus, passwordStatus, search, page, pageSize } = req.query
+  const { process, processes, line, authorityManager, accountStatus, passwordStatus, search, page, pageSize, userProcesses } = req.query
 
   // Parse processes parameter (comma-separated string → array)
   let processesArray = null
@@ -24,8 +24,13 @@ async function getUsers(req, res) {
     processesArray = processes.split(',').map(p => p.trim()).filter(Boolean)
   }
 
+  // Parse userProcesses parameter (comma-separated string → array)
+  const userProcessesArray = userProcesses
+    ? userProcesses.split(',').map(p => p.trim()).filter(p => p)
+    : null
+
   const result = await service.getUsers(
-    { process, processes: processesArray, line, authorityManager, accountStatus, passwordStatus, search },
+    { process, processes: processesArray, line, authorityManager, accountStatus, passwordStatus, search, userProcesses: userProcessesArray },
     { page, pageSize }
   )
 
@@ -37,7 +42,12 @@ async function getUsers(req, res) {
  * Get distinct process values for filter
  */
 async function getProcesses(req, res) {
-  const processes = await service.getProcesses()
+  const { userProcesses } = req.query
+  // Parse userProcesses parameter (comma-separated string → array)
+  const userProcessesArray = userProcesses
+    ? userProcesses.split(',').map(p => p.trim()).filter(p => p)
+    : null
+  const processes = await service.getProcesses(userProcessesArray)
   res.json(processes)
 }
 
@@ -46,8 +56,12 @@ async function getProcesses(req, res) {
  * Get distinct line values for filter
  */
 async function getLines(req, res) {
-  const { process } = req.query
-  const lines = await service.getLines(process)
+  const { process, userProcesses } = req.query
+  // Parse userProcesses parameter (comma-separated string → array)
+  const userProcessesArray = userProcesses
+    ? userProcesses.split(',').map(p => p.trim()).filter(p => p)
+    : null
+  const lines = await service.getLines(process, userProcessesArray)
   res.json(lines)
 }
 

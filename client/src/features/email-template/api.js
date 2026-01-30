@@ -12,15 +12,24 @@ export const emailTemplateApi = {
 
   getProcesses: () => api.get('/email-template/processes'),
 
-  getModels: (process) => {
-    const params = process ? { process } : {}
+  getModels: (process, userProcesses) => {
+    const params = {}
+    if (process) params.process = process
+    // Process 선택 없이 조회 시 사용자 권한으로 필터링
+    if (userProcesses && Array.isArray(userProcesses) && userProcesses.length > 0) {
+      params.userProcesses = userProcesses.join(',')
+    }
     return api.get('/email-template/models', { params })
   },
 
-  getCodes: (process, model) => {
+  getCodes: (process, model, userProcesses) => {
     const params = {}
     if (process) params.process = process
     if (model) params.model = model
+    // Process 선택 없이 조회 시 사용자 권한으로 필터링
+    if (userProcesses && Array.isArray(userProcesses) && userProcesses.length > 0) {
+      params.userProcesses = userProcesses.join(',')
+    }
     return api.get('/email-template/codes', { params })
   },
 

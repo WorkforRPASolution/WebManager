@@ -31,8 +31,12 @@ async function getCategories(req, res) {
  * Get distinct process values extracted from category (2nd part)
  */
 async function getProcessesFromCategory(req, res) {
-  const { project } = req.query
-  const processes = await service.getProcessesFromCategory(project)
+  const { project, userProcesses } = req.query
+  // Parse userProcesses parameter (comma-separated string → array)
+  const userProcessesArray = userProcesses
+    ? userProcesses.split(',').map(p => p.trim()).filter(p => p)
+    : null
+  const processes = await service.getProcessesFromCategory(project, userProcessesArray)
   res.json(processes)
 }
 
@@ -41,8 +45,12 @@ async function getProcessesFromCategory(req, res) {
  * Get distinct model values extracted from category (3rd part)
  */
 async function getModelsFromCategory(req, res) {
-  const { project, process } = req.query
-  const models = await service.getModelsFromCategory(project, process)
+  const { project, process, userProcesses } = req.query
+  // Parse userProcesses parameter (comma-separated string → array)
+  const userProcessesArray = userProcesses
+    ? userProcesses.split(',').map(p => p.trim()).filter(p => p)
+    : null
+  const models = await service.getModelsFromCategory(project, process, userProcessesArray)
   res.json(models)
 }
 
@@ -50,9 +58,13 @@ async function getModelsFromCategory(req, res) {
  * GET /api/email-info
  */
 async function getEmailInfo(req, res) {
-  const { project, category, account, process, model, page, pageSize } = req.query
+  const { project, category, account, process, model, page, pageSize, userProcesses } = req.query
+  // Parse userProcesses from comma-separated string to array
+  const userProcessesArray = userProcesses
+    ? userProcesses.split(',').map(p => p.trim()).filter(p => p)
+    : null
   const result = await service.getEmailInfoPaginated(
-    { project, category, account, process, model },
+    { project, category, account, process, model, userProcesses: userProcessesArray },
     { page, pageSize }
   )
   res.json(result)
