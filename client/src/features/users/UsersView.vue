@@ -184,6 +184,7 @@ import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDial
 import { useUserData } from './composables/useUserData'
 import { useToast } from '@/shared/composables/useToast'
 import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
+import { useProcessPermission } from '@/shared/composables/useProcessPermission'
 import { usersApi } from './api'
 import { clientListApi } from '../clients/api'
 
@@ -211,6 +212,7 @@ fetchAvailableProcesses()
 
 // Permission hooks
 const { canRead, canWrite, canDelete, isAdmin, refresh: refreshPermissions } = useFeaturePermission('users')
+const { buildUserProcessFilter } = useProcessPermission()
 
 const {
   currentData,
@@ -273,7 +275,10 @@ const deletedRowsSet = computed(() => {
 const loadAllUsers = async () => {
   hasSearched.value = true
   try {
-    await fetchData({}, 1, pageSize.value)
+    // Apply user process permissions filter
+    const userProcesses = buildUserProcessFilter()
+    const filters = userProcesses ? { userProcesses } : {}
+    await fetchData(filters, 1, pageSize.value)
   } catch (err) {
     showToast('error', 'Failed to load users')
   }

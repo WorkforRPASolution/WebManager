@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
+import { getOptimalPopupPosition } from '../utils/agGridPopupPosition'
 
 const props = defineProps({
   params: {
@@ -108,7 +109,7 @@ defineExpose({
     return true
   },
   getPopupPosition() {
-    return 'under'
+    return getOptimalPopupPosition(props.params, 280)
   }
 })
 
