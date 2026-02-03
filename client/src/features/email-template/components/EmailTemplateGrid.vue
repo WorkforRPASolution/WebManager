@@ -321,7 +321,7 @@ const onCellDoubleClicked = (params) => {
   if (field === 'html') {
     const rowId = params.data._id || params.data._tempId
     const currentValue = params.data.html || ''
-    emit('edit-html', { rowId, value: currentValue })
+    emit('edit-html', { rowId, value: currentValue, rowData: params.data })
   }
 }
 

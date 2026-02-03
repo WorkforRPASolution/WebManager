@@ -89,3 +89,25 @@ export const permissionsApi = {
   getByRole: (level) => api.get(`/permissions/role/${level}`),
   check: (feature, action) => api.get('/permissions/check', { params: { feature, action } }),
 }
+
+// Images API
+export const imagesApi = {
+  upload: (file, prefix) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (prefix) {
+      formData.append('prefix', prefix)
+    }
+    return api.post('/images', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  list: (prefix) => api.get('/images', { params: prefix ? { prefix } : {} }),
+  delete: (prefix, name) => {
+    if (prefix && name) {
+      return api.delete(`/images/${encodeURIComponent(prefix)}/${name}`)
+    }
+    // Backward compatibility for local storage (id only)
+    return api.delete(`/images/${prefix}`)
+  },
+}

@@ -102,6 +102,19 @@ WEBMANAGER_DB_URI=mongodb://localhost:27017/WEB_MANAGER
 
 ---
 
+## EMAIL_IMAGE_REPOSITORY (이메일 및 PopUp에 추가되는 Image 저장소)
+
+시스템이 발송하는 이메일 및 Client 가 실행하는 PopUp 시 포함되는 Image 파일을 지정하기 위한 컬렉션
+
+| Field Name | Type | 필수/선택 | Description |
+|------------|------|---------|-------------|
+| prefix | String | 필수 (PK) | format: [app]_[process]_[model]_[code]_[subcode] |
+| name | String | 필수 (PK) | Image file UUID |
+| fileName | String | 필수 | Image file Name |
+| body | BinData | 필수 | Image binary data |
+
+---
+
 ## ARS_USER_INFO (시스템 사용자 정보 저장소)
 
 시스템 사용자의 정보를 저장하는 컬렉션

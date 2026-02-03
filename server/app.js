@@ -44,6 +44,7 @@ app.use('/api/email-info', require('./features/email-info/routes'));
 app.use('/api/permissions', require('./features/permissions/routes'));
 app.use('/api/os-version', require('./features/os-version/routes'));
 app.use('/api/email-recipients', require('./features/email-recipients/routes'));
+app.use('/api/images', require('./features/images/routes'));
 
 // Production: Serve static files from client/dist
 if (process.env.NODE_ENV === 'production') {

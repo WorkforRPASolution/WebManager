@@ -64,7 +64,7 @@
         </div>
 
         <!-- Tabs -->
-        <div class="flex border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg">
+        <div class="flex items-center border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg">
           <button
             @click="activeTab = 'code'"
             :class="[
@@ -97,6 +97,18 @@
               </svg>
               Preview
             </span>
+          </button>
+          <!-- Insert Image Button -->
+          <div class="flex-1"></div>
+          <button
+            @click="showImageModal = true"
+            class="mr-2 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition flex items-center gap-1.5"
+            title="이미지 삽입"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            이미지
           </button>
         </div>
 
@@ -162,14 +174,25 @@
       </div>
     </div>
   </Teleport>
+
+  <!-- Image Insert Modal -->
+  <ImageInsertModal
+    v-model="showImageModal"
+    :template-context="templateContext"
+    @insert="handleImageInsert"
+  />
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import MonacoEditor from '../../../shared/components/MonacoEditor.vue'
+import ImageInsertModal from '../../../shared/components/ImageInsertModal.vue'
 import { useTheme } from '../../../shared/composables/useTheme'
 
 const { isDark } = useTheme()
+
+// Image Modal
+const showImageModal = ref(false)
 
 const props = defineProps({
   modelValue: {
@@ -179,6 +202,10 @@ const props = defineProps({
   initialContent: {
     type: String,
     default: ''
+  },
+  templateContext: {
+    type: Object,
+    default: null
   }
 })
 
@@ -215,7 +242,15 @@ const modalStyle = computed(() => {
 })
 
 // Wrap content for preview with basic styles
+// @HttpWebServerAddress 플레이스홀더를 WebManager API URL로 치환하여 프리뷰 시 이미지 표시
+// iframe srcdoc은 별도 document 컨텍스트이므로 절대 경로 필요
+const API_BASE_URL = 'http://localhost:3000/api'
 const previewHtml = computed(() => {
+  // 프리뷰용: http://@HttpWebServerAddress/ARS/EmailImage/를 WebManager API 절대 URL로 치환
+  const previewContent = htmlContent.value.replace(
+    /http:\/\/@HttpWebServerAddress\/ARS\/EmailImage\//g,
+    `${API_BASE_URL}/images/`
+  )
   return `
     <!DOCTYPE html>
     <html>
@@ -235,7 +270,7 @@ const previewHtml = computed(() => {
         td, th { padding: 8px; }
       </style>
     </head>
-    <body>${htmlContent.value}</body>
+    <body>${previewContent}</body>
     </html>
   `
 })
@@ -292,6 +327,13 @@ const handleCancel = () => {
 const handleSave = () => {
   emit('save', htmlContent.value)
   emit('update:modelValue', false)
+}
+
+// Handle image insertion
+const handleImageInsert = (imageData) => {
+  // Insert at the end of the current content
+  // (Monaco Editor cursor position would require editor instance access)
+  htmlContent.value = htmlContent.value + '\n' + imageData.htmlTag
 }
 
 // Handle Escape key
