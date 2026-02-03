@@ -1,5 +1,8 @@
 const storage = require('./storage');
 
+// 모듈 레벨 상수 (매 함수 호출마다 읽지 않도록 최적화)
+const STORAGE_TYPE = process.env.IMAGE_STORAGE || 'local';
+
 // 스토리지 초기화
 async function initialize() {
   await storage.initialize();
@@ -7,7 +10,7 @@ async function initialize() {
 
 // 이미지 업로드
 async function uploadImage(file, prefix) {
-  const storageType = process.env.IMAGE_STORAGE || 'local';
+  const storageType = STORAGE_TYPE;
 
   if (storageType === 'httpwebserver') {
     // HttpWebServer storage uses prefix
@@ -22,7 +25,7 @@ async function uploadImage(file, prefix) {
 
 // 이미지 조회
 async function getImage(prefix, name) {
-  const storageType = process.env.IMAGE_STORAGE || 'local';
+  const storageType = STORAGE_TYPE;
 
   if (storageType === 'httpwebserver') {
     // HttpWebServer storage uses prefix + name
@@ -37,7 +40,7 @@ async function getImage(prefix, name) {
 
 // 이미지 삭제
 async function deleteImage(prefix, name) {
-  const storageType = process.env.IMAGE_STORAGE || 'local';
+  const storageType = STORAGE_TYPE;
 
   if (storageType === 'httpwebserver') {
     // HttpWebServer storage uses prefix + name
@@ -52,7 +55,7 @@ async function deleteImage(prefix, name) {
 
 // 이미지 목록 조회
 async function listImages(prefix) {
-  const storageType = process.env.IMAGE_STORAGE || 'local';
+  const storageType = STORAGE_TYPE;
 
   if (storageType === 'httpwebserver') {
     // HttpWebServer storage filters by prefix
@@ -67,7 +70,7 @@ async function listImages(prefix) {
 
 // 이미지 URL 생성 (프론트엔드 썸네일용 - WebManager API)
 function getImageUrl(prefix, name, req) {
-  const storageType = process.env.IMAGE_STORAGE || 'local';
+  const storageType = STORAGE_TYPE;
   const protocol = req.protocol;
   const host = req.get('host');
 
@@ -82,7 +85,7 @@ function getImageUrl(prefix, name, req) {
 
 // 이메일용 이미지 URL 생성 (HttpWebServer 직접 접근)
 function getEmailImageUrl(prefix, name) {
-  const storageType = process.env.IMAGE_STORAGE || 'local';
+  const storageType = STORAGE_TYPE;
 
   if (storageType === 'httpwebserver') {
     // HttpWebServer URL (이메일 클라이언트에서 직접 접근)

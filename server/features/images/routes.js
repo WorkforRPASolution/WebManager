@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const controller = require('./controller');
 const { upload } = require('./validation');
+const { authenticate } = require('../../shared/middleware/authMiddleware');
 
 // 이미지 업로드 (POST /api/images)
 // Body: file (multipart), prefix (string)
@@ -19,11 +20,11 @@ router.get('/:prefix/:name', controller.getImageByPrefixAndName);
 router.get('/:id', controller.getImage);
 
 // 이미지 삭제 (DELETE /api/images/:prefix/:name)
-// For httpwebserver storage
-router.delete('/:prefix/:name', controller.deleteImage);
+// For httpwebserver storage - 인증 필요
+router.delete('/:prefix/:name', authenticate, controller.deleteImage);
 
 // 이미지 삭제 (DELETE /api/images/:id)
-// For local storage backward compatibility
-router.delete('/:id', controller.deleteImageById);
+// For local storage backward compatibility - 인증 필요
+router.delete('/:id', authenticate, controller.deleteImageById);
 
 module.exports = router;

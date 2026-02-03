@@ -244,7 +244,7 @@ const modalStyle = computed(() => {
 // Wrap content for preview with basic styles
 // @HttpWebServerAddress 플레이스홀더를 WebManager API URL로 치환하여 프리뷰 시 이미지 표시
 // iframe srcdoc은 별도 document 컨텍스트이므로 절대 경로 필요
-const API_BASE_URL = 'http://localhost:3000/api'
+const API_BASE_URL = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
 const previewHtml = computed(() => {
   // 프리뷰용: http://@HttpWebServerAddress/ARS/EmailImage/를 WebManager API 절대 URL로 치환
   const previewContent = htmlContent.value.replace(

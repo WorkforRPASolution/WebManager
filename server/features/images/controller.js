@@ -11,6 +11,33 @@ function decodeFilename(filename) {
   }
 }
 
+// 이미지 응답 헬퍼 함수 (코드 중복 제거)
+function sendImageResponse(res, image) {
+  if (!image) {
+    return res.status(404).json({
+      success: false,
+      message: '이미지를 찾을 수 없습니다.'
+    });
+  }
+  res.set('Content-Type', image.mimetype);
+  res.set('Cache-Control', 'public, max-age=31536000'); // 1년 캐시
+  res.send(image.buffer);
+}
+
+// 삭제 응답 헬퍼 함수 (코드 중복 제거)
+function sendDeleteResponse(res, result) {
+  if (!result) {
+    return res.status(404).json({
+      success: false,
+      message: '이미지를 찾을 수 없습니다.'
+    });
+  }
+  res.json({
+    success: true,
+    message: '이미지가 삭제되었습니다.'
+  });
+}
+
 // 이미지 업로드
 async function uploadImage(req, res) {
   try {
@@ -52,8 +79,8 @@ async function uploadImage(req, res) {
     console.error('Image upload error:', error);
     res.status(500).json({
       success: false,
-      message: '이미지 업로드에 실패했습니다.',
-      error: error.message
+      message: '이미지 업로드에 실패했습니다.'
+      // 보안: 내부 에러 메시지 노출 방지
     });
   }
 }
@@ -64,17 +91,7 @@ async function getImage(req, res) {
     const { id } = req.params;
     // For local storage, prefix is not needed
     const image = await service.getImage(null, id);
-
-    if (!image) {
-      return res.status(404).json({
-        success: false,
-        message: '이미지를 찾을 수 없습니다.'
-      });
-    }
-
-    res.set('Content-Type', image.mimetype);
-    res.set('Cache-Control', 'public, max-age=31536000'); // 1년 캐시
-    res.send(image.buffer);
+    sendImageResponse(res, image);
   } catch (error) {
     console.error('Image get error:', error);
     res.status(500).json({
@@ -89,17 +106,7 @@ async function getImageByPrefixAndName(req, res) {
   try {
     const { prefix, name } = req.params;
     const image = await service.getImage(prefix, name);
-
-    if (!image) {
-      return res.status(404).json({
-        success: false,
-        message: '이미지를 찾을 수 없습니다.'
-      });
-    }
-
-    res.set('Content-Type', image.mimetype);
-    res.set('Cache-Control', 'public, max-age=31536000'); // 1년 캐시
-    res.send(image.buffer);
+    sendImageResponse(res, image);
   } catch (error) {
     console.error('Image get error:', error);
     res.status(500).json({
@@ -114,18 +121,7 @@ async function deleteImage(req, res) {
   try {
     const { prefix, name } = req.params;
     const result = await service.deleteImage(prefix, name);
-
-    if (!result) {
-      return res.status(404).json({
-        success: false,
-        message: '이미지를 찾을 수 없습니다.'
-      });
-    }
-
-    res.json({
-      success: true,
-      message: '이미지가 삭제되었습니다.'
-    });
+    sendDeleteResponse(res, result);
   } catch (error) {
     console.error('Image delete error:', error);
     res.status(500).json({
@@ -141,18 +137,7 @@ async function deleteImageById(req, res) {
     const { id } = req.params;
     // For local storage, prefix is not needed
     const result = await service.deleteImage(null, id);
-
-    if (!result) {
-      return res.status(404).json({
-        success: false,
-        message: '이미지를 찾을 수 없습니다.'
-      });
-    }
-
-    res.json({
-      success: true,
-      message: '이미지가 삭제되었습니다.'
-    });
+    sendDeleteResponse(res, result);
   } catch (error) {
     console.error('Image delete error:', error);
     res.status(500).json({

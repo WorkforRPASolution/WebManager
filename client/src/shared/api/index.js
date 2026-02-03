@@ -1,7 +1,16 @@
 import axios from 'axios'
 
+// 환경변수 체크 및 경고 로그
+const API_URL = import.meta.env.VITE_API_URL
+if (!API_URL) {
+  console.warn(
+    '[API] VITE_API_URL 환경변수가 설정되지 않았습니다.\n' +
+    '      client/.env 파일에 VITE_API_URL=http://localhost:3000/api 를 추가하세요.'
+  )
+}
+
 const api = axios.create({
-  baseURL: 'http://localhost:3000/api',
+  baseURL: API_URL || '/api',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'

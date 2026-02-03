@@ -323,6 +323,17 @@ const handleDelete = async () => {
   imageToDelete.value = null
 }
 
+// HTML 특수문자 이스케이프 (XSS 방지)
+const escapeHtml = (str) => {
+  if (!str) return ''
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 const generateHtmlTag = () => {
   if (!selectedImage.value) return ''
 
@@ -342,7 +353,8 @@ const generateHtmlTag = () => {
     style += ' float: right; margin-left: 10px;'
   }
 
-  return `<img src="${url}" alt="${alt}" style="${style.trim()}">`
+  // XSS 방지: alt 텍스트 이스케이프
+  return `<img src="${url}" alt="${escapeHtml(alt)}" style="${style.trim()}">`
 }
 
 const insertImage = () => {

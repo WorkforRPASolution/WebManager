@@ -12,7 +12,7 @@
 const { v4: uuidv4 } = require('uuid');
 const EmailImage = require('../model');
 
-const HTTPWEBSERVER_URL = process.env.HTTPWEBSERVER_URL || 'http://127.0.0.1:8080';
+// 이메일용 이미지 URL 경로 (HttpWebServer가 @HttpWebServerAddress를 실제 IP:PORT로 치환)
 const BASE_PATH = '/ARS/EmailImage';
 
 /**
@@ -20,7 +20,7 @@ const BASE_PATH = '/ARS/EmailImage';
  */
 async function initialize() {
   console.log(`  + HttpWebServer image storage initialized (MongoDB direct mode)`);
-  console.log(`  + Image URL base: ${HTTPWEBSERVER_URL}${BASE_PATH}`);
+  console.log(`  + Image URL pattern: http://@HttpWebServerAddress${BASE_PATH}/{prefix}/{name}`);
 }
 
 /**

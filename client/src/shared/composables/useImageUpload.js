@@ -3,6 +3,8 @@ import { imagesApi } from '@/shared/api'
 
 export function useImageUpload() {
   const isUploading = ref(false)
+  // uploadProgress: 현재는 0 또는 100만 설정 (실제 진행률 미구현)
+  // TODO: axios onUploadProgress 콜백으로 실제 진행률 구현 가능
   const uploadProgress = ref(0)
   const uploadError = ref(null)
 
