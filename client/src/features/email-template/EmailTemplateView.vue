@@ -118,6 +118,7 @@
     <HtmlEditorModal
       v-model="showHtmlEditor"
       :initial-content="htmlEditorContent"
+      :template-context="htmlEditorTemplateContext"
       @save="handleHtmlSave"
     />
 
@@ -175,6 +176,7 @@ const showHtmlEditor = ref(false)
 const showPermissionDialog = ref(false)
 const htmlEditorContent = ref('')
 const htmlEditorRowId = ref(null)
+const htmlEditorTemplateContext = ref(null)
 const currentFiltersLocal = ref(null)
 const { toast, showToast } = useToast()
 const hasSearched = ref(false)
@@ -371,9 +373,16 @@ const handlePasteCells = (cellUpdates) => {
   showToast('success', `${cellUpdates.length} cells updated`)
 }
 
-const handleEditHtml = ({ rowId, value }) => {
+const handleEditHtml = ({ rowId, value, rowData }) => {
   htmlEditorRowId.value = rowId
   htmlEditorContent.value = value
+  // Extract template context from row data for image prefix
+  htmlEditorTemplateContext.value = rowData ? {
+    process: rowData.process,
+    model: rowData.model,
+    code: rowData.code,
+    subcode: rowData.subcode
+  } : null
   showHtmlEditor.value = true
 }
 
@@ -387,6 +396,7 @@ const handleHtmlSave = (newHtml) => {
   }
   htmlEditorRowId.value = null
   htmlEditorContent.value = ''
+  htmlEditorTemplateContext.value = null
 }
 
 const handlePermissionsSaved = async () => {
