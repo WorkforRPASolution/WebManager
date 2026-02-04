@@ -27,15 +27,20 @@ async function initialize() {
  * Upload image directly to MongoDB
  * @param {Object} file - Multer file object { buffer, originalname, mimetype, size }
  * @param {string} prefix - Image prefix (e.g., ARS_CVD_MODEL1_CODE1_SUBCODE1)
+ * @param {Object} context - Filter fields { process, model, code, subcode }
  * @returns {Object} Image metadata
  */
-async function uploadImage(file, prefix) {
+async function uploadImage(file, prefix, context = {}) {
   const name = uuidv4();
 
-  // MongoDB에 직접 저장 (fileName, body 포함)
+  // MongoDB에 직접 저장 (fileName, body, 개별 필터 필드 포함)
   const imageDoc = new EmailImage({
     prefix,
     name,
+    process: context.process || '',
+    model: context.model || '',
+    code: context.code || '',
+    subcode: context.subcode || '',
     fileName: file.originalname,  // camelCase (DB 스키마)
     body: file.buffer,            // 바이너리 데이터
     mimetype: file.mimetype,
@@ -49,6 +54,10 @@ async function uploadImage(file, prefix) {
     id: name,
     prefix,
     name,
+    process: context.process || '',
+    model: context.model || '',
+    code: context.code || '',
+    subcode: context.subcode || '',
     filename: file.originalname,  // API 응답은 lowercase (프론트엔드 호환)
     mimetype: file.mimetype,
     size: file.size,
@@ -113,6 +122,10 @@ async function listImages(prefix) {
       id: img.name,
       prefix: img.prefix,
       name: img.name,
+      process: img.process || '',
+      model: img.model || '',
+      code: img.code || '',
+      subcode: img.subcode || '',
       filename: img.fileName,  // DB: fileName → API: filename (프론트엔드 호환)
       mimetype: img.mimetype,
       size: img.size,

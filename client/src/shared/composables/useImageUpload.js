@@ -8,13 +8,19 @@ export function useImageUpload() {
   const uploadProgress = ref(0)
   const uploadError = ref(null)
 
-  const uploadImage = async (file, prefix) => {
+  /**
+   * Upload image with optional context for filtering
+   * @param {File} file - Image file to upload
+   * @param {string} prefix - Image prefix for URL
+   * @param {Object} context - Filter context { process, model, code, subcode }
+   */
+  const uploadImage = async (file, prefix, context = {}) => {
     isUploading.value = true
     uploadProgress.value = 0
     uploadError.value = null
 
     try {
-      const response = await imagesApi.upload(file, prefix)
+      const response = await imagesApi.upload(file, prefix, context)
       uploadProgress.value = 100
       return response.data.image
     } catch (error) {

@@ -143,6 +143,50 @@ const routes = [
       }
     }
   },
+  // Popup Template Management
+  {
+    path: '/popup-template',
+    name: 'PopupTemplate',
+    component: () => import('../features/popup-template/PopupTemplateView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'popupTemplate',
+      menu: {
+        mainMenu: 'masterdata',
+        mainMenuLabel: '기준정보 관리',
+        mainMenuIcon: 'database',
+        mainMenuOrder: 3,
+        subMenu: 'popup-template',
+        subMenuLabel: 'Popup Template',
+        subMenuIcon: 'web_asset',
+        subMenuOrder: 2.5,
+        permission: 'popupTemplate'
+      }
+    }
+  },
+  // Email Image Management
+  {
+    path: '/email-image',
+    name: 'EmailImage',
+    component: () => import('../features/email-image/EmailImageView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'emailImage',
+      menu: {
+        mainMenu: 'masterdata',
+        mainMenuLabel: '기준정보 관리',
+        mainMenuIcon: 'database',
+        mainMenuOrder: 3,
+        subMenu: 'email-image',
+        subMenuLabel: 'Email Image',
+        subMenuIcon: 'image',
+        subMenuOrder: 2.6,
+        permission: 'emailImage'
+      }
+    }
+  },
   // Email Recipients Management
   {
     path: '/email-recipients',

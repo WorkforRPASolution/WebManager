@@ -287,7 +287,9 @@ const handleDrop = async (event) => {
 
 const upload = async (file) => {
   try {
-    const result = await uploadImage(file, prefix.value)
+    // templateContext에서 개별 필드 추출하여 context 객체로 전달
+    const context = props.templateContext || {}
+    const result = await uploadImage(file, prefix.value, context)
     images.value.unshift(result)
     selectedImage.value = result
     imageOptions.alt = file.name.replace(/\.[^/.]+$/, '') // Use filename as default alt

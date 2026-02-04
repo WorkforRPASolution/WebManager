@@ -4,6 +4,28 @@ const controller = require('./controller');
 const { upload } = require('./validation');
 const { authenticate } = require('../../shared/middleware/authMiddleware');
 
+// === Email Image Page API (must be before parameterized routes) ===
+
+// Process 목록 조회 (GET /api/images/processes)
+router.get('/processes', authenticate, controller.getProcesses);
+
+// Model 목록 조회 (GET /api/images/models?process=xxx)
+router.get('/models', authenticate, controller.getModels);
+
+// Code 목록 조회 (GET /api/images/codes?process=xxx&model=xxx)
+router.get('/codes', authenticate, controller.getCodes);
+
+// Subcode 목록 조회 (GET /api/images/subcodes?process=xxx&model=xxx&code=xxx)
+router.get('/subcodes', authenticate, controller.getSubcodes);
+
+// 이미지 목록 조회 with pagination (GET /api/images/paginated?process=&model=&code=&subcode=&page=&pageSize=)
+router.get('/paginated', authenticate, controller.listImagesPaginated);
+
+// 다중 이미지 삭제 (DELETE /api/images/bulk)
+router.delete('/bulk', authenticate, controller.deleteMultipleImages);
+
+// === Original API ===
+
 // 이미지 업로드 (POST /api/images)
 // Body: file (multipart), prefix (string)
 router.post('/', upload.single('file'), controller.uploadImage);

@@ -45,6 +45,7 @@ export const useProcessFilterStore = defineStore('processFilter', () => {
     clients: [],         // EQP_INFO (Clients, Master)
     users: [],           // ARS_USER_INFO
     emailTemplate: [],   // EMAIL_TEMPLATE
+    popupTemplate: [],   // POPUP_TEMPLATE
     emailRecipients: [], // EMAIL_RECIPIENTS
     emailInfo: []        // EMAILINFO (category에서 추출)
   })
@@ -109,6 +110,7 @@ export const useProcessFilterStore = defineStore('processFilter', () => {
       clients: [],
       users: [],
       emailTemplate: [],
+      popupTemplate: [],
       emailRecipients: [],
       emailInfo: []
     }
