@@ -498,14 +498,18 @@ const handlePaste = (event) => {
 
     // 데이터 파싱: 탭이 있으면 탭으로, 없으면 줄바꿈으로 구분
     const hasTab = pastedText.includes('\t')
+    const hasNewline = pastedText.includes('\n')
     let dataRows
 
     if (hasTab) {
       // 스프레드시트 형식: 탭으로 열 구분, 줄바꿈으로 행 구분
       dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => row.split('\t'))
-    } else {
+    } else if (hasNewline) {
       // 세로 복사 형식: 줄바꿈으로 행 구분, 각 행은 단일 셀
       dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => [row])
+    } else {
+      // 탭이 없으면 단일 셀 값으로 처리 (줄바꿈 포함 텍스트)
+      dataRows = [[pastedText.trim()]]
     }
 
     const cellUpdates = []

@@ -66,7 +66,23 @@
         <!-- Tabs -->
         <div class="flex items-center border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg">
           <button
-            @click="activeTab = 'code'"
+            @click="switchTab('visual')"
+            :class="[
+              'px-4 py-2 text-sm font-medium transition border-b-2 -mb-px',
+              activeTab === 'visual'
+                ? 'text-primary-600 dark:text-primary-400 border-primary-500'
+                : 'text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-300'
+            ]"
+          >
+            <span class="flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Visual
+            </span>
+          </button>
+          <button
+            @click="switchTab('code')"
             :class="[
               'px-4 py-2 text-sm font-medium transition border-b-2 -mb-px',
               activeTab === 'code'
@@ -78,24 +94,7 @@
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
               </svg>
-              HTML Code
-            </span>
-          </button>
-          <button
-            @click="activeTab = 'preview'"
-            :class="[
-              'px-4 py-2 text-sm font-medium transition border-b-2 -mb-px',
-              activeTab === 'preview'
-                ? 'text-primary-600 dark:text-primary-400 border-primary-500'
-                : 'text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-300'
-            ]"
-          >
-            <span class="flex items-center gap-2">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-              Preview
+              HTML
             </span>
           </button>
           <!-- Insert Image Button -->
@@ -132,15 +131,24 @@
             </div>
           </div>
 
-          <!-- Preview Tab -->
-          <div v-show="activeTab === 'preview'" class="h-full p-4">
-            <div class="w-full h-full bg-white rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
-              <iframe
-                ref="previewFrame"
-                :srcdoc="previewHtml"
-                sandbox="allow-same-origin"
-                class="w-full h-full border-0"
-              ></iframe>
+          <!-- Visual Tab (TinyMCE) -->
+          <div v-show="activeTab === 'visual'" class="h-full p-4">
+            <div
+              :class="[
+                'w-full h-full rounded-lg border overflow-hidden tinymce-wrapper',
+                isDark ? 'tinymce-dark border-dark-border' : 'border-gray-300'
+              ]"
+            >
+              <TinyMceEditor
+                v-if="tinymceReady"
+                :key="tinymceKey"
+                v-model="visualContent"
+                :init="tinymceInit"
+                @init="onTinymceInit"
+              />
+              <div v-else class="flex items-center justify-center h-full text-gray-500">
+                Loading editor...
+              </div>
             </div>
           </div>
         </div>
@@ -184,10 +192,28 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import MonacoEditor from '../../../shared/components/MonacoEditor.vue'
 import ImageInsertModal from '../../../shared/components/ImageInsertModal.vue'
 import { useTheme } from '../../../shared/composables/useTheme'
+import './tinymce-dark.css'
+
+// TinyMCE imports (self-hosted)
+import TinyMceEditor from '@tinymce/tinymce-vue'
+import 'tinymce/tinymce'
+import 'tinymce/themes/silver'
+import 'tinymce/icons/default'
+import 'tinymce/models/dom'
+// Plugins
+import 'tinymce/plugins/table'
+import 'tinymce/plugins/image'
+import 'tinymce/plugins/link'
+import 'tinymce/plugins/lists'
+import 'tinymce/plugins/code'
+import 'tinymce/plugins/fullscreen'
+// Skins - import CSS directly (required for Safari compatibility)
+import 'tinymce/skins/ui/oxide/skin.css'
+import 'tinymce/skins/content/default/content.css'
 
 const { isDark } = useTheme()
 
@@ -213,11 +239,38 @@ const emit = defineEmits(['update:modelValue', 'save'])
 
 const modalRef = ref(null)
 const resizeHandle = ref(null)
-const previewFrame = ref(null)
 
-const activeTab = ref('code')
-const htmlContent = ref('')
+const activeTab = ref('visual')
+const htmlContent = ref('')  // Storage format (with @HttpWebServerAddress)
+const visualContent = ref('')  // Display format (with actual API URL)
 const currentSize = ref('medium')
+
+// TinyMCE state
+const tinymceReady = ref(false)
+const tinymceKey = ref(0)
+const tinymceEditor = ref(null)
+
+// URL conversion utilities
+const API_BASE_URL = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
+
+// Convert storage URL to display URL (for Visual tab)
+const toDisplayUrl = (html) => {
+  if (!html) return ''
+  return html.replace(
+    /http:\/\/@HttpWebServerAddress\/ARS\/EmailImage\//g,
+    `${API_BASE_URL}/images/`
+  )
+}
+
+// Convert display URL back to storage URL (for saving)
+const toStorageUrl = (html) => {
+  if (!html) return ''
+  const escaped = API_BASE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return html.replace(
+    new RegExp(`${escaped}/images/`, 'g'),
+    'http://@HttpWebServerAddress/ARS/EmailImage/'
+  )
+}
 
 // Modal sizes
 const sizes = {
@@ -241,44 +294,75 @@ const modalStyle = computed(() => {
   }
 })
 
-// Wrap content for preview with basic styles
-// @HttpWebServerAddress 플레이스홀더를 WebManager API URL로 치환하여 프리뷰 시 이미지 표시
-// iframe srcdoc은 별도 document 컨텍스트이므로 절대 경로 필요
-const API_BASE_URL = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
-const previewHtml = computed(() => {
-  // 프리뷰용: http://@HttpWebServerAddress/ARS/EmailImage/를 WebManager API 절대 URL로 치환
-  const previewContent = htmlContent.value.replace(
-    /http:\/\/@HttpWebServerAddress\/ARS\/EmailImage\//g,
-    `${API_BASE_URL}/images/`
-  )
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-          padding: 16px;
-          margin: 0;
-          line-height: 1.5;
-          color: #333;
-        }
-        img { max-width: 100%; height: auto; }
-        table { border-collapse: collapse; }
-        td, th { padding: 8px; }
-      </style>
-    </head>
-    <body>${previewContent}</body>
-    </html>
-  `
-})
+// TinyMCE configuration
+const tinymceInit = computed(() => ({
+  height: '100%',
+  menubar: true,
+  statusbar: false,  // Remove bottom status bar (bezel)
+  plugins: 'table image link lists code fullscreen',
+  toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist | table link | image | code fullscreen',
+  // Font options
+  font_family_formats: 'Arial=arial,helvetica,sans-serif; Georgia=georgia,palatino; Times New Roman=times new roman,times; Verdana=verdana,geneva; Courier New=courier new,courier; 맑은 고딕=Malgun Gothic; 나눔고딕=NanumGothic; 돋움=Dotum; 굴림=Gulim',
+  font_size_formats: '8pt 9pt 10pt 11pt 12pt 14pt 16pt 18pt 24pt 36pt 48pt',
+  content_style: `
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 16px;
+      margin: 0;
+      background-color: ${isDark.value ? '#111827' : '#ffffff'};
+      color: ${isDark.value ? '#e5e7eb' : '#333333'};
+    }
+    img { max-width: 100%; height: auto; }
+    table { border-collapse: collapse; width: 100%; }
+    td, th { border: 1px solid ${isDark.value ? '#374151' : '#ddd'}; padding: 8px; }
+  `,
+  // Email-friendly settings
+  valid_elements: '*[*]',
+  extended_valid_elements: 'style,link[href|rel]',
+  // Skin: false because CSS is imported directly (Safari compatibility)
+  skin: false,
+  content_css: false,
+  // Disable auto-upload (we use our own image modal)
+  automatic_uploads: false,
+  images_upload_handler: () => Promise.reject('Use the image button to insert images'),
+  // Prevent URL conversion - keep URLs as-is
+  relative_urls: false,
+  remove_script_host: false,
+  convert_urls: false,
+  // Disable promotion/branding
+  promotion: false,
+  branding: false,
+  // License key not needed for self-hosted (MIT licensed)
+  license_key: 'gpl'
+}))
+
+const onTinymceInit = (event) => {
+  tinymceEditor.value = event.target
+}
 
 const setSize = (size) => {
   currentSize.value = size
   customWidth.value = null
   customHeight.value = null
+}
+
+// Tab switching with content sync
+const switchTab = (tab) => {
+  if (tab === activeTab.value) return
+
+  if (activeTab.value === 'code' && tab === 'visual') {
+    // Code -> Visual: Convert to display URL for TinyMCE
+    visualContent.value = toDisplayUrl(htmlContent.value)
+  } else if (activeTab.value === 'visual' && tab === 'code') {
+    // Visual -> Code: Convert back to storage URL
+    if (tinymceEditor.value) {
+      htmlContent.value = toStorageUrl(tinymceEditor.value.getContent())
+    }
+  }
+
+  activeTab.value = tab
 }
 
 // Resize functionality
@@ -313,10 +397,27 @@ const stopResize = () => {
 }
 
 // Initialize content when modal opens
-watch(() => props.modelValue, (newVal) => {
+watch(() => props.modelValue, async (newVal) => {
   if (newVal) {
     htmlContent.value = props.initialContent
-    activeTab.value = 'code'
+    visualContent.value = toDisplayUrl(props.initialContent)
+    activeTab.value = 'visual'
+
+    // Initialize TinyMCE after a short delay
+    await nextTick()
+    tinymceReady.value = true
+    tinymceKey.value++ // Force re-render to apply new theme
+  } else {
+    // Cleanup on close
+    tinymceReady.value = false
+    tinymceEditor.value = null
+  }
+})
+
+// Watch theme changes to update TinyMCE
+watch(isDark, () => {
+  if (props.modelValue && tinymceReady.value) {
+    tinymceKey.value++ // Force TinyMCE re-render with new theme
   }
 })
 
@@ -325,15 +426,27 @@ const handleCancel = () => {
 }
 
 const handleSave = () => {
-  emit('save', htmlContent.value)
+  let finalContent = htmlContent.value
+
+  // If on Visual tab, get content from TinyMCE and convert to storage format
+  if (activeTab.value === 'visual' && tinymceEditor.value) {
+    finalContent = toStorageUrl(tinymceEditor.value.getContent())
+  }
+
+  emit('save', finalContent)
   emit('update:modelValue', false)
 }
 
 // Handle image insertion
 const handleImageInsert = (imageData) => {
-  // Insert at the end of the current content
-  // (Monaco Editor cursor position would require editor instance access)
-  htmlContent.value = htmlContent.value + '\n' + imageData.htmlTag
+  if (activeTab.value === 'visual' && tinymceEditor.value) {
+    // Visual tab: Convert to display URL and insert into TinyMCE
+    const displayHtmlTag = toDisplayUrl(imageData.htmlTag)
+    tinymceEditor.value.insertContent(displayHtmlTag)
+  } else {
+    // Code tab: Insert storage URL format
+    htmlContent.value = htmlContent.value + '\n' + imageData.htmlTag
+  }
 }
 
 // Handle Escape key
