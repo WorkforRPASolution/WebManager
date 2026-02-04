@@ -22,7 +22,7 @@ const featurePermissionSchema = new Schema({
     required: true,
     unique: true,
     trim: true,
-    enum: ['equipmentInfo', 'emailTemplate', 'users', 'emailInfo', 'osVersion', 'emailRecipients', 'popupTemplate']
+    enum: ['equipmentInfo', 'emailTemplate', 'users', 'emailInfo', 'osVersion', 'emailRecipients', 'popupTemplate', 'emailImage']
   },
   permissions: {
     type: Map,
@@ -103,6 +103,15 @@ const DEFAULT_FEATURE_PERMISSIONS = [
       2: { read: true, write: false, delete: false },   // Conductor
       3: { read: true, write: false, delete: false }    // Manager
     }
+  },
+  {
+    feature: 'emailImage',
+    permissions: {
+      0: { read: false, write: false, delete: false },  // User
+      1: { read: true, write: true, delete: true },     // Admin
+      2: { read: true, write: false, delete: false },   // Conductor
+      3: { read: true, write: false, delete: false }    // Manager
+    }
   }
 ]
 
@@ -114,7 +123,8 @@ const FEATURE_NAMES = {
   emailInfo: 'Email Info',
   osVersion: 'OS Version List',
   emailRecipients: 'Email Recipients',
-  popupTemplate: 'Popup Template'
+  popupTemplate: 'Popup Template',
+  emailImage: 'Email Image'
 }
 
 const FeaturePermission = webManagerConnection.model('FeaturePermission', featurePermissionSchema)

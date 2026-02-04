@@ -101,12 +101,24 @@ export const permissionsApi = {
 
 // Images API
 export const imagesApi = {
-  upload: (file, prefix) => {
+  /**
+   * Upload image with optional context for filtering
+   * @param {File} file - Image file to upload
+   * @param {string} prefix - Image prefix for URL
+   * @param {Object} context - Filter context { process, model, code, subcode }
+   */
+  upload: (file, prefix, context = {}) => {
     const formData = new FormData()
     formData.append('file', file)
     if (prefix) {
       formData.append('prefix', prefix)
     }
+    // 개별 필터 필드 추가
+    if (context.process) formData.append('process', context.process)
+    if (context.model) formData.append('model', context.model)
+    if (context.code) formData.append('code', context.code)
+    if (context.subcode) formData.append('subcode', context.subcode)
+
     return api.post('/images', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
