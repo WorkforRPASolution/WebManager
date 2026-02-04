@@ -406,9 +406,11 @@ const handlePaste = (event) => {
     let dataRows
 
     if (hasTab) {
+      // 탭이 있으면 엑셀 스타일 다중 셀/행 복사
       dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => row.split('\t'))
     } else {
-      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => [row])
+      // 탭이 없으면 단일 셀 값으로 처리 (줄바꿈 포함된 HTML 등)
+      dataRows = [[pastedText]]
     }
 
     const cellUpdates = []
