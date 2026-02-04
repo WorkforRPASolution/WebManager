@@ -143,6 +143,28 @@ const routes = [
       }
     }
   },
+  // Popup Template Management
+  {
+    path: '/popup-template',
+    name: 'PopupTemplate',
+    component: () => import('../features/popup-template/PopupTemplateView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'popupTemplate',
+      menu: {
+        mainMenu: 'masterdata',
+        mainMenuLabel: '기준정보 관리',
+        mainMenuIcon: 'database',
+        mainMenuOrder: 3,
+        subMenu: 'popup-template',
+        subMenuLabel: 'Popup Template',
+        subMenuIcon: 'web_asset',
+        subMenuOrder: 2.5,
+        permission: 'popupTemplate'
+      }
+    }
+  },
   // Email Recipients Management
   {
     path: '/email-recipients',
