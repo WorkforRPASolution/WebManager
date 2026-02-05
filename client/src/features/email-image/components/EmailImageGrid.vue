@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col w-full h-full">
-    <div ref="gridContainer" class="flex-1 min-h-0 ag-grid-custom-scrollbar" @keydown.capture="handleKeyDown" @copy="handleCopy" tabindex="0">
+    <div ref="gridContainer" class="flex-1 min-h-0 ag-grid-custom-scrollbar" @keydown.capture="handleKeyDown" @copy="handleCopy" @paste="handlePaste" tabindex="0">
       <AgGridVue
         :theme="gridTheme"
         :rowData="rowData"
@@ -93,7 +93,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['selection-change', 'preview-image', 'cell-value-changed'])
+const emit = defineEmits(['selection-change', 'preview-image', 'cell-value-changed', 'paste-cells'])
 
 const gridContainer = ref(null)
 const gridApi = ref(null)
@@ -222,6 +222,8 @@ const getCellStyle = (params) => {
 
 // Cell class function - apply 'cell-value-changed' class to modified cells
 const getCellClass = (params) => {
+  if (!props.modifiedCells) return null
+
   const rowId = getRowIdFromData(params.data)
   const field = params.colDef.field
 
@@ -319,6 +321,7 @@ const onSelectionChanged = () => {
 const onCellClicked = (params) => {
   const colId = params.colDef.field
   const rowIndex = params.rowIndex
+  console.log('[EmailImageGrid] onCellClicked - colId:', colId, 'rowIndex:', rowIndex, 'editable:', props.editable)
 
   // 체크박스 컬럼 클릭 처리
   if (params.column.colId === 'ag-Grid-SelectionColumn') {
@@ -343,7 +346,21 @@ const onCellClicked = (params) => {
 
   // 나머지 셀 클릭은 composable에 위임 (편집 가능할 때만)
   if (props.editable) {
-    baseCellClicked(params)
+    // 편집 가능한 컬럼인지 확인
+    if (editableColumns.includes(colId)) {
+      if (params.event.shiftKey && cellSelectionStart.value) {
+        // Shift+클릭: 셀 범위 선택
+        cellSelectionEnd.value = { rowIndex, colId }
+      } else {
+        // 일반 클릭: 단일 셀 선택 (start와 end 모두 같은 셀로 설정 - 복사 지원)
+        cellSelectionStart.value = { rowIndex, colId }
+        cellSelectionEnd.value = { rowIndex, colId }
+      }
+    } else {
+      // 편집 불가능한 컬럼 클릭 시 선택 해제
+      cellSelectionStart.value = null
+      cellSelectionEnd.value = null
+    }
   }
 }
 
@@ -394,6 +411,87 @@ const handleCopy = (event) => {
   if (rows.length > 0) {
     event.preventDefault()
     event.clipboardData.setData('text/plain', rows.join('\n'))
+  }
+}
+
+// Paste handler for clipboard data
+const handlePaste = (event) => {
+  console.log('[EmailImageGrid] handlePaste called, editable:', props.editable)
+  if (!gridApi.value || !props.editable) {
+    console.log('[EmailImageGrid] paste blocked - gridApi:', !!gridApi.value, 'editable:', props.editable)
+    return
+  }
+
+  const clipboardData = event.clipboardData || window.clipboardData
+  if (!clipboardData) return
+
+  const pastedText = clipboardData.getData('text')
+  console.log('[EmailImageGrid] pastedText:', pastedText)
+  if (!pastedText) return
+
+  event.preventDefault()
+
+  // Get start position from focused cell or selection start
+  const focusedCell = gridApi.value.getFocusedCell()
+  console.log('[EmailImageGrid] focusedCell:', focusedCell)
+  console.log('[EmailImageGrid] cellSelectionStart:', cellSelectionStart.value)
+  let startRowIndex, startColId
+
+  if (focusedCell) {
+    startRowIndex = focusedCell.rowIndex
+    startColId = focusedCell.column.colId
+  } else if (cellSelectionStart.value) {
+    startRowIndex = cellSelectionStart.value.rowIndex
+    startColId = cellSelectionStart.value.colId
+  } else {
+    console.log('[EmailImageGrid] No cell focused or selected')
+    return // No cell focused or selected
+  }
+
+  const startColIndex = editableColumns.indexOf(startColId)
+  if (startColIndex === -1) return // Not an editable column
+
+  // Parse clipboard data: tab for columns, newline for rows
+  const hasTab = pastedText.includes('\t')
+  const hasNewline = pastedText.includes('\n')
+  let dataRows
+
+  if (hasTab) {
+    // Spreadsheet format: tab-separated columns, newline-separated rows
+    dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => row.split('\t'))
+  } else if (hasNewline) {
+    // Vertical copy: newline-separated rows, single cell per row
+    dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => [row])
+  } else {
+    // Single cell value
+    dataRows = [[pastedText.trim()]]
+  }
+
+  const cellUpdates = []
+
+  for (let rowOffset = 0; rowOffset < dataRows.length; rowOffset++) {
+    const cells = dataRows[rowOffset]
+    const targetRowIndex = startRowIndex + rowOffset
+    const rowNode = gridApi.value.getDisplayedRowAtIndex(targetRowIndex)
+
+    if (!rowNode) continue
+
+    const rowId = getRowIdFromData(rowNode.data)
+
+    for (let colOffset = 0; colOffset < cells.length; colOffset++) {
+      const targetColIndex = startColIndex + colOffset
+      if (targetColIndex >= editableColumns.length) break
+
+      const field = editableColumns[targetColIndex]
+      const value = cells[colOffset]?.trim() || ''
+
+      cellUpdates.push({ rowId, field, value, rowData: rowNode.data })
+    }
+  }
+
+  if (cellUpdates.length > 0) {
+    emit('paste-cells', cellUpdates)
+    gridApi.value.refreshCells({ force: true })
   }
 }
 

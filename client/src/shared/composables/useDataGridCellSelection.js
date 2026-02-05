@@ -154,9 +154,9 @@ export function useDataGridCellSelection(options) {
       // Shift+클릭: 셀 범위 선택
       cellSelectionEnd.value = { rowIndex, colId }
     } else {
-      // 일반 클릭: 새로운 셀 범위 시작점 (기존 선택 해제)
+      // 일반 클릭: 단일 셀 선택 (start와 end 모두 같은 셀로 설정 - 복사 지원)
       cellSelectionStart.value = { rowIndex, colId }
-      cellSelectionEnd.value = null
+      cellSelectionEnd.value = { rowIndex, colId }
     }
   }
 

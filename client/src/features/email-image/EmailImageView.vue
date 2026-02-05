@@ -61,28 +61,28 @@
         <!-- Divider when changes exist -->
         <div v-if="hasChanges" class="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-2" />
 
-        <!-- Save Button -->
+        <!-- Save Changes Button -->
         <button
           v-if="hasChanges"
           @click="handleSaveChanges"
-          class="flex items-center gap-2 px-3 py-2 text-sm bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors"
+          class="flex items-center gap-2 px-3 py-2 text-sm bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg transition-colors"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
           </svg>
-          Save
+          Save Changes
         </button>
 
-        <!-- Cancel Button -->
+        <!-- Discard Button -->
         <button
           v-if="hasChanges"
           @click="handleCancelChanges"
-          class="flex items-center gap-2 px-3 py-2 text-sm bg-gray-500 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors"
+          class="flex items-center gap-2 px-3 py-2 text-sm bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors"
         >
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           </svg>
-          Cancel
+          Discard
         </button>
       </div>
 
@@ -184,6 +184,7 @@
         @selection-change="handleSelectionChange"
         @preview-image="handlePreviewImage"
         @cell-value-changed="handleCellValueChanged"
+        @paste-cells="handlePasteCells"
       />
     </div>
 
@@ -408,6 +409,23 @@ const handlePermissionsError = (message) => {
 // Handle cell value changes in grid
 const handleCellValueChanged = (rowData, field) => {
   trackModifiedRow(rowData, field)
+}
+
+// Handle paste cells from clipboard
+const handlePasteCells = (cellUpdates) => {
+  for (const update of cellUpdates) {
+    // Update the row data directly
+    update.rowData[update.field] = update.value
+    if (!update.rowData.originalPrefix) {
+      update.rowData.originalPrefix = update.rowData.prefix
+    }
+    // Track as modified
+    trackModifiedRow(update.rowData, update.field)
+  }
+  // Refresh the grid to show changes
+  if (gridRef.value) {
+    gridRef.value.refreshCells()
+  }
 }
 
 // Save all changes
