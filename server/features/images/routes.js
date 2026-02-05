@@ -24,6 +24,9 @@ router.get('/paginated', authenticate, controller.listImagesPaginated);
 // 다중 이미지 삭제 (DELETE /api/images/bulk)
 router.delete('/bulk', authenticate, controller.deleteMultipleImages);
 
+// 다중 이미지 메타데이터 수정 (PUT /api/images/bulk)
+router.put('/bulk', authenticate, controller.updateMultipleImages);
+
 // === Original API ===
 
 // 이미지 업로드 (POST /api/images)

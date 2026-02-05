@@ -19,6 +19,7 @@ export function useDataGridCellSelection(options) {
     editableColumns,   // string[] - 편집 가능한 컬럼 목록
     onBulkEdit,        // (cellUpdates: Array<{rowId, field, value}>) => void
     onCellEdit,        // (rowId, field, value) => void - 단일 셀 편집
+    getRowId = (data) => data._id || data._tempId,  // rowId 추출 함수 (기본: _id || _tempId)
   } = options
 
   // === State ===
@@ -116,7 +117,7 @@ export function useDataGridCellSelection(options) {
     for (let rowIdx = startRow; rowIdx <= endRow; rowIdx++) {
       const rowNode = gridApi.value.getDisplayedRowAtIndex(rowIdx)
       if (!rowNode) continue
-      const rowId = rowNode.data._id || rowNode.data._tempId
+      const rowId = getRowId(rowNode.data)
 
       for (let colIdx = minCol; colIdx <= maxCol; colIdx++) {
         const colId = editableColumns[colIdx]
@@ -219,7 +220,7 @@ export function useDataGridCellSelection(options) {
     for (let rowIdx = startRow; rowIdx <= endRow; rowIdx++) {
       const rowNode = gridApi.value?.getDisplayedRowAtIndex(rowIdx)
       if (!rowNode) continue
-      const rowId = rowNode.data._id || rowNode.data._tempId
+      const rowId = getRowId(rowNode.data)
 
       for (let colIdx = minCol; colIdx <= maxCol; colIdx++) {
         const colId = editableColumns[colIdx]

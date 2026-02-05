@@ -64,5 +64,8 @@ export const emailImageApi = {
   deleteMultiple: (items) => api.delete('/images/bulk', { data: { items } }),
 
   // Delete single image
-  delete: (prefix, name) => api.delete(`/images/${encodeURIComponent(prefix)}/${name}`)
+  delete: (prefix, name) => api.delete(`/images/${encodeURIComponent(prefix)}/${name}`),
+
+  // Update multiple images metadata
+  updateImages: (items) => api.put('/images/bulk', { items })
 }

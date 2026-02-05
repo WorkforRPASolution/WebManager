@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col w-full h-full">
-    <div ref="gridContainer" class="flex-1 min-h-0 ag-grid-custom-scrollbar" tabindex="0">
+    <div ref="gridContainer" class="flex-1 min-h-0 ag-grid-custom-scrollbar" @keydown.capture="handleKeyDown" @copy="handleCopy" tabindex="0">
       <AgGridVue
         :theme="gridTheme"
         :rowData="rowData"
@@ -14,7 +14,12 @@
         :suppressSizeToFit="true"
         @grid-ready="onGridReady"
         @selection-changed="onSelectionChanged"
+        @cell-clicked="onCellClicked"
         @cell-double-clicked="onCellDoubleClicked"
+        @cell-editing-started="onCellEditingStarted"
+        @cell-editing-stopped="onCellEditingStopped"
+        @cell-value-changed="onCellValueChanged"
+        @sort-changed="onSortChanged"
         @displayed-columns-changed="handleColumnChange"
         @column-resized="handleColumnChange"
         style="width: 100%; height: 100%;"
@@ -28,11 +33,12 @@
 </template>
 
 <script setup>
-import { ref, computed, h } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { AgGridVue } from 'ag-grid-vue3'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import { useTheme } from '../../../shared/composables/useTheme'
 import { useCustomScrollbar } from '../../../shared/composables/useCustomScrollbar'
+import { useDataGridCellSelection } from '../../../shared/composables/useDataGridCellSelection'
 import CustomHorizontalScrollbar from '../../../shared/components/CustomHorizontalScrollbar.vue'
 
 // Register AG Grid modules
@@ -76,13 +82,27 @@ const props = defineProps({
   rowData: {
     type: Array,
     default: () => []
+  },
+  editable: {
+    type: Boolean,
+    default: false
+  },
+  modifiedCells: {
+    type: Map,
+    default: () => new Map()
   }
 })
 
-const emit = defineEmits(['selection-change', 'preview-image'])
+const emit = defineEmits(['selection-change', 'preview-image', 'cell-value-changed'])
 
 const gridContainer = ref(null)
 const gridApi = ref(null)
+
+// Shift+클릭 행 범위 선택을 위한 마지막 선택 행
+const lastSelectedRowIndex = ref(null)
+
+// 편집 가능한 컬럼 목록
+const editableColumns = ['process', 'model', 'code', 'subcode']
 
 // Custom Scrollbar
 const { scrollState, scrollTo, handleColumnChange } = useCustomScrollbar(gridContainer)
@@ -90,6 +110,63 @@ const { scrollState, scrollTo, handleColumnChange } = useCustomScrollbar(gridCon
 const handleCustomScroll = (scrollLeft) => {
   scrollTo(scrollLeft)
 }
+
+// rowId 추출 함수 (EmailImage는 prefix_name 형식)
+const getRowIdFromData = (data) => `${data.prefix}_${data.name}`
+
+// 셀 범위 선택 Composable (편집 권한이 있을 때만 사용)
+const {
+  cellSelectionStart,
+  cellSelectionEnd,
+  handleCellClicked: baseCellClicked,
+  handleCellEditingStarted: onCellEditingStarted,
+  handleCellEditingStopped: onCellEditingStopped,
+  handleKeyDown,
+  handleSortChanged: onSortChanged,
+  getCellSelectionStyle,
+  clearSelection,
+  setupHeaderClickHandler,
+  setupRowDataWatcher,
+  setupSelectionWatcher,
+} = useDataGridCellSelection({
+  gridApi,
+  gridContainer,
+  editableColumns,
+  getRowId: getRowIdFromData,
+  onBulkEdit: (updates) => {
+    // 일괄 편집 시 각 업데이트에 대해 cell-value-changed emit
+    for (const update of updates) {
+      const row = props.rowData.find(r => getRowIdFromData(r) === update.rowId)
+      if (row) {
+        row[update.field] = update.value
+        if (!row.originalPrefix) {
+          row.originalPrefix = row.prefix
+        }
+        emit('cell-value-changed', row, update.field)
+      }
+    }
+  },
+  onCellEdit: (rowId, field, value) => {
+    const row = props.rowData.find(r => getRowIdFromData(r) === rowId)
+    if (row) {
+      row[field] = value
+      if (!row.originalPrefix) {
+        row.originalPrefix = row.prefix
+      }
+      emit('cell-value-changed', row, field)
+    }
+  },
+})
+
+// Setup watchers and handlers
+onMounted(() => {
+  if (props.editable) {
+    setupHeaderClickHandler()
+  }
+})
+
+setupRowDataWatcher(() => props.rowData)
+setupSelectionWatcher()
 
 // Format file size
 const formatFileSize = (bytes) => {
@@ -121,7 +198,42 @@ const rowSelection = ref({
   enableClickSelection: false,
 })
 
-const columnDefs = ref([
+// Cell style function
+const getCellStyle = (params) => {
+  const rowIndex = params.rowIndex
+  const colId = params.colDef.field
+
+  // Check for cell range selection
+  if (props.editable) {
+    const selectionStyle = getCellSelectionStyle(rowIndex, colId)
+    if (selectionStyle) return selectionStyle
+  }
+
+  // Editable cell visual feedback
+  if (props.editable && editableColumns.includes(colId)) {
+    return {
+      backgroundColor: isDark.value ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)',
+      cursor: 'text'
+    }
+  }
+
+  return null
+}
+
+// Cell class function - apply 'cell-value-changed' class to modified cells
+const getCellClass = (params) => {
+  const rowId = getRowIdFromData(params.data)
+  const field = params.colDef.field
+
+  // Check if this cell has been modified
+  const cellFields = props.modifiedCells.get(rowId)
+  if (cellFields && cellFields.has(field)) {
+    return 'cell-value-changed'
+  }
+  return null
+}
+
+const columnDefs = computed(() => [
   {
     field: 'thumbnail',
     headerName: '',
@@ -137,10 +249,30 @@ const columnDefs = ref([
     },
     tooltipValueGetter: () => 'Double-click to preview'
   },
-  { field: 'process', headerName: 'Process', width: 100 },
-  { field: 'model', headerName: 'Model', width: 100 },
-  { field: 'code', headerName: 'Code', width: 100 },
-  { field: 'subcode', headerName: 'Subcode', width: 100 },
+  {
+    field: 'process',
+    headerName: 'Process',
+    width: 100,
+    editable: props.editable,
+  },
+  {
+    field: 'model',
+    headerName: 'Model',
+    width: 100,
+    editable: props.editable,
+  },
+  {
+    field: 'code',
+    headerName: 'Code',
+    width: 100,
+    editable: props.editable,
+  },
+  {
+    field: 'subcode',
+    headerName: 'Subcode',
+    width: 100,
+    editable: props.editable,
+  },
   { field: 'filename', headerName: 'Filename', width: 200 },
   {
     field: 'size',
@@ -160,6 +292,8 @@ const defaultColDef = ref({
   sortable: true,
   resizable: true,
   filter: true,
+  cellStyle: params => getCellStyle(params),
+  cellClass: params => getCellClass(params),
 })
 
 const getRowId = (params) => {
@@ -181,16 +315,102 @@ const onSelectionChanged = () => {
   emit('selection-change', selectedItems)
 }
 
+// Shift+클릭으로 체크박스 범위 선택 및 셀 범위 선택
+const onCellClicked = (params) => {
+  const colId = params.colDef.field
+  const rowIndex = params.rowIndex
+
+  // 체크박스 컬럼 클릭 처리
+  if (params.column.colId === 'ag-Grid-SelectionColumn') {
+    if (params.event.shiftKey && lastSelectedRowIndex.value !== null) {
+      // Shift+클릭: 범위 선택
+      const start = Math.min(lastSelectedRowIndex.value, rowIndex)
+      const end = Math.max(lastSelectedRowIndex.value, rowIndex)
+
+      for (let i = start; i <= end; i++) {
+        const node = gridApi.value.getDisplayedRowAtIndex(i)
+        node?.setSelected(true)
+      }
+    } else {
+      // 일반 클릭: 마지막 선택 행 업데이트
+      lastSelectedRowIndex.value = rowIndex
+    }
+    // 셀 범위 선택 초기화
+    cellSelectionStart.value = null
+    cellSelectionEnd.value = null
+    return
+  }
+
+  // 나머지 셀 클릭은 composable에 위임 (편집 가능할 때만)
+  if (props.editable) {
+    baseCellClicked(params)
+  }
+}
+
 const onCellDoubleClicked = (params) => {
   if (params.colDef.field === 'thumbnail') {
     emit('preview-image', params.data)
   }
 }
 
+const onCellValueChanged = (params) => {
+  // Only emit for editable fields
+  if (editableColumns.includes(params.colDef.field)) {
+    // Store original prefix if not already stored
+    if (!params.data.originalPrefix) {
+      params.data.originalPrefix = params.data.prefix
+    }
+    emit('cell-value-changed', params.data, params.colDef.field)
+  }
+}
+
+// Copy handler for selected cells
+const handleCopy = (event) => {
+  if (!gridApi.value || !props.editable) return
+  if (!cellSelectionStart.value || !cellSelectionEnd.value) return
+
+  const startRowIndex = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
+  const endRowIndex = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
+
+  const startColIndex = editableColumns.indexOf(cellSelectionStart.value.colId)
+  const endColIndex = editableColumns.indexOf(cellSelectionEnd.value.colId)
+  const minColIndex = Math.min(startColIndex, endColIndex)
+  const maxColIndex = Math.max(startColIndex, endColIndex)
+
+  const rows = []
+  for (let rowIdx = startRowIndex; rowIdx <= endRowIndex; rowIdx++) {
+    const rowNode = gridApi.value.getDisplayedRowAtIndex(rowIdx)
+    if (!rowNode) continue
+
+    const cells = []
+    for (let colIdx = minColIndex; colIdx <= maxColIndex; colIdx++) {
+      const colId = editableColumns[colIdx]
+      const value = rowNode.data[colId]
+      cells.push(value !== null && value !== undefined ? String(value) : '')
+    }
+    rows.push(cells.join('\t'))
+  }
+
+  if (rows.length > 0) {
+    event.preventDefault()
+    event.clipboardData.setData('text/plain', rows.join('\n'))
+  }
+}
+
+// Watch for modifiedCells changes to update cell styling
+watch(() => props.modifiedCells, () => {
+  if (gridApi.value) {
+    gridApi.value.redrawRows()
+  }
+}, { deep: true })
+
 // Expose methods
 defineExpose({
   getSelectedRows: () => gridApi.value?.getSelectedRows() || [],
-  clearSelection: () => gridApi.value?.deselectAll(),
+  clearSelection: () => {
+    gridApi.value?.deselectAll()
+    clearSelection()
+  },
   refreshCells: () => gridApi.value?.refreshCells({ force: true }),
 })
 </script>

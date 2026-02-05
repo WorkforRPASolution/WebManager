@@ -338,6 +338,80 @@ async function deleteMultipleImages(items) {
   return { deleted };
 }
 
+/**
+ * Update image metadata (process, model, code, subcode)
+ * Automatically regenerates prefix based on new values
+ * @param {string} currentPrefix - Current prefix
+ * @param {string} name - Image name (UUID, immutable)
+ * @param {Object} updates - { process, model, code, subcode }
+ * @returns {Promise<Object|null>} Updated image or null if not found
+ */
+async function updateImageMetadata(currentPrefix, name, updates) {
+  try {
+    // Find existing image
+    const existingImage = await EmailImage.findOne({ prefix: currentPrefix, name });
+    if (!existingImage) {
+      return null;
+    }
+
+    // Build new values (use existing if not provided)
+    const newProcess = updates.process !== undefined ? updates.process : existingImage.process;
+    const newModel = updates.model !== undefined ? updates.model : existingImage.model;
+    const newCode = updates.code !== undefined ? updates.code : existingImage.code;
+    const newSubcode = updates.subcode !== undefined ? updates.subcode : existingImage.subcode;
+
+    // Generate new prefix
+    const newPrefix = `ARS_${newProcess}_${newModel}_${newCode}_${newSubcode}`;
+
+    // Update document
+    existingImage.process = newProcess;
+    existingImage.model = newModel;
+    existingImage.code = newCode;
+    existingImage.subcode = newSubcode;
+    existingImage.prefix = newPrefix;
+
+    await existingImage.save();
+
+    return {
+      prefix: newPrefix,
+      name,
+      process: newProcess,
+      model: newModel,
+      code: newCode,
+      subcode: newSubcode
+    };
+  } catch (error) {
+    console.error('updateImageMetadata error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update multiple images metadata
+ * @param {Array<{prefix: string, name: string, process?: string, model?: string, code?: string, subcode?: string}>} items
+ * @returns {Promise<{updated: number, errors: Array}>}
+ */
+async function updateMultipleImages(items) {
+  let updated = 0;
+  const errors = [];
+
+  for (const item of items) {
+    try {
+      const { prefix, name, ...updates } = item;
+      const result = await updateImageMetadata(prefix, name, updates);
+      if (result) {
+        updated++;
+      } else {
+        errors.push({ prefix, name, error: 'Image not found' });
+      }
+    } catch (error) {
+      errors.push({ prefix: item.prefix, name: item.name, error: error.message });
+    }
+  }
+
+  return { updated, errors };
+}
+
 module.exports = {
   initialize,
   uploadImage,
@@ -352,5 +426,7 @@ module.exports = {
   getDistinctCodes,
   getDistinctSubcodes,
   listImagesPaginated,
-  deleteMultipleImages
+  deleteMultipleImages,
+  updateImageMetadata,
+  updateMultipleImages
 };

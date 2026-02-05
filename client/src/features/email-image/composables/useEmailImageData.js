@@ -14,6 +14,13 @@ export function useEmailImageData() {
   const pageSize = ref(25)
   const currentFilters = ref({})
 
+  // Track modified rows for editing
+  const modifiedRows = ref(new Map()) // Map<rowId, modifiedData>
+  const modifiedCells = ref(new Map()) // Map<rowId, Set<fieldName>> - for cell styling
+
+  // Computed: check if there are unsaved changes
+  const hasChanges = computed(() => modifiedRows.value.size > 0)
+
   const fetchData = async (filters = {}, page = 1, size = 25) => {
     loading.value = true
     error.value = null
@@ -82,10 +89,58 @@ export function useEmailImageData() {
     selectedItems.value = []
     error.value = null
     currentFilters.value = {}
+    modifiedRows.value = new Map()
+    modifiedCells.value = new Map()
   }
 
   const setSelectedItems = (items) => {
     selectedItems.value = items
+  }
+
+  // Track a modified row and cell
+  const trackModifiedRow = (rowData, field = null) => {
+    const rowId = `${rowData.prefix}_${rowData.name}`
+    modifiedRows.value.set(rowId, {
+      prefix: rowData.originalPrefix || rowData.prefix, // Keep original prefix for API call
+      name: rowData.name,
+      process: rowData.process,
+      model: rowData.model,
+      code: rowData.code,
+      subcode: rowData.subcode
+    })
+    // Trigger reactivity
+    modifiedRows.value = new Map(modifiedRows.value)
+
+    // Track modified cell for styling
+    if (field) {
+      if (!modifiedCells.value.has(rowId)) {
+        modifiedCells.value.set(rowId, new Set())
+      }
+      modifiedCells.value.get(rowId).add(field)
+      // Trigger reactivity
+      modifiedCells.value = new Map(modifiedCells.value)
+    }
+  }
+
+  // Clear all modifications
+  const clearModifications = () => {
+    modifiedRows.value = new Map()
+    modifiedCells.value = new Map()
+  }
+
+  // Save all modified rows
+  const saveChanges = async () => {
+    if (modifiedRows.value.size === 0) return { updated: 0 }
+
+    const items = Array.from(modifiedRows.value.values())
+    try {
+      const response = await emailImageApi.updateImages(items)
+      modifiedRows.value = new Map()
+      modifiedCells.value = new Map()
+      return response.data
+    } catch (err) {
+      throw new Error(err.response?.data?.message || 'Failed to save changes')
+    }
   }
 
   // Format file size for display
@@ -110,6 +165,11 @@ export function useEmailImageData() {
     totalPages,
     pageSize,
 
+    // Edit tracking
+    modifiedRows,
+    modifiedCells,
+    hasChanges,
+
     // Data operations
     fetchData,
     changePage,
@@ -119,6 +179,11 @@ export function useEmailImageData() {
     deleteImages,
     resetAllData,
     setSelectedItems,
+
+    // Edit operations
+    trackModifiedRow,
+    clearModifications,
+    saveChanges,
 
     // Utilities
     formatFileSize

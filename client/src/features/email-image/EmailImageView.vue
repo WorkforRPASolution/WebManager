@@ -57,6 +57,33 @@
           </svg>
           Delete
         </button>
+
+        <!-- Divider when changes exist -->
+        <div v-if="hasChanges" class="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-2" />
+
+        <!-- Save Button -->
+        <button
+          v-if="hasChanges"
+          @click="handleSaveChanges"
+          class="flex items-center gap-2 px-3 py-2 text-sm bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          Save
+        </button>
+
+        <!-- Cancel Button -->
+        <button
+          v-if="hasChanges"
+          @click="handleCancelChanges"
+          class="flex items-center gap-2 px-3 py-2 text-sm bg-gray-500 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          Cancel
+        </button>
       </div>
 
       <!-- Pagination -->
@@ -152,8 +179,11 @@
       <EmailImageGrid
         ref="gridRef"
         :row-data="currentData"
+        :editable="canWrite"
+        :modified-cells="modifiedCells"
         @selection-change="handleSelectionChange"
         @preview-image="handlePreviewImage"
+        @cell-value-changed="handleCellValueChanged"
       />
     </div>
 
@@ -212,7 +242,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import EmailImageFilterBar from './components/EmailImageFilterBar.vue'
 import EmailImageGrid from './components/EmailImageGrid.vue'
 import DeleteConfirmModal from '../equipment-info/components/DeleteConfirmModal.vue'
@@ -248,6 +278,8 @@ const {
   totalRecords,
   totalPages,
   pageSize,
+  modifiedCells,
+  hasChanges,
   fetchData,
   changePage,
   changePageSize,
@@ -255,6 +287,9 @@ const {
   uploadImage,
   deleteImages,
   resetAllData,
+  trackModifiedRow,
+  clearModifications,
+  saveChanges,
 } = useEmailImageData()
 
 // Toggle filter bar collapse
@@ -368,5 +403,30 @@ const handlePermissionsSaved = async () => {
 
 const handlePermissionsError = (message) => {
   showToast('error', message)
+}
+
+// Handle cell value changes in grid
+const handleCellValueChanged = (rowData, field) => {
+  trackModifiedRow(rowData, field)
+}
+
+// Save all changes
+const handleSaveChanges = async () => {
+  try {
+    const result = await saveChanges()
+    showToast('success', `${result.updated} image(s) updated`)
+    // Refresh to get updated data with new prefixes
+    await refreshCurrentPage()
+    await filterBarRef.value?.refreshFilters()
+  } catch (err) {
+    showToast('error', err.message || 'Failed to save changes')
+  }
+}
+
+// Cancel all changes
+const handleCancelChanges = async () => {
+  clearModifications()
+  // Refresh to restore original data
+  await refreshCurrentPage()
 }
 </script>

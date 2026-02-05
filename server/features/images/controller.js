@@ -323,6 +323,45 @@ async function deleteMultipleImages(req, res) {
   }
 }
 
+// Update multiple images metadata
+async function updateMultipleImages(req, res) {
+  try {
+    const { items } = req.body;
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '수정할 이미지 목록이 필요합니다.'
+      });
+    }
+
+    // Validate each item has required fields
+    for (const item of items) {
+      if (!item.prefix || !item.name) {
+        return res.status(400).json({
+          success: false,
+          message: '각 항목에는 prefix와 name이 필요합니다.'
+        });
+      }
+    }
+
+    const result = await service.updateMultipleImages(items);
+
+    res.json({
+      success: true,
+      updated: result.updated,
+      errors: result.errors,
+      message: `${result.updated}개의 이미지가 수정되었습니다.`
+    });
+  } catch (error) {
+    console.error('Update multiple images error:', error);
+    res.status(500).json({
+      success: false,
+      message: '이미지 수정에 실패했습니다.'
+    });
+  }
+}
+
 module.exports = {
   uploadImage,
   getImage,
@@ -336,5 +375,6 @@ module.exports = {
   getCodes,
   getSubcodes,
   listImagesPaginated,
-  deleteMultipleImages
+  deleteMultipleImages,
+  updateMultipleImages
 };
