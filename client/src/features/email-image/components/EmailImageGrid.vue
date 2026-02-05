@@ -123,6 +123,8 @@ const {
   handleCellEditingStopped: onCellEditingStopped,
   handleKeyDown,
   handleSortChanged: onSortChanged,
+  handleCopy,
+  handlePaste,
   getCellSelectionStyle,
   clearSelection,
   setupHeaderClickHandler,
@@ -155,6 +157,9 @@ const {
       }
       emit('cell-value-changed', row, field)
     }
+  },
+  onPasteCells: (cellUpdates) => {
+    emit('paste-cells', cellUpdates)
   },
 })
 
@@ -378,120 +383,6 @@ const onCellValueChanged = (params) => {
       params.data.originalPrefix = params.data.prefix
     }
     emit('cell-value-changed', params.data, params.colDef.field)
-  }
-}
-
-// Copy handler for selected cells
-const handleCopy = (event) => {
-  if (!gridApi.value || !props.editable) return
-  if (!cellSelectionStart.value || !cellSelectionEnd.value) return
-
-  const startRowIndex = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-  const endRowIndex = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-
-  const startColIndex = editableColumns.indexOf(cellSelectionStart.value.colId)
-  const endColIndex = editableColumns.indexOf(cellSelectionEnd.value.colId)
-  const minColIndex = Math.min(startColIndex, endColIndex)
-  const maxColIndex = Math.max(startColIndex, endColIndex)
-
-  const rows = []
-  for (let rowIdx = startRowIndex; rowIdx <= endRowIndex; rowIdx++) {
-    const rowNode = gridApi.value.getDisplayedRowAtIndex(rowIdx)
-    if (!rowNode) continue
-
-    const cells = []
-    for (let colIdx = minColIndex; colIdx <= maxColIndex; colIdx++) {
-      const colId = editableColumns[colIdx]
-      const value = rowNode.data[colId]
-      cells.push(value !== null && value !== undefined ? String(value) : '')
-    }
-    rows.push(cells.join('\t'))
-  }
-
-  if (rows.length > 0) {
-    event.preventDefault()
-    event.clipboardData.setData('text/plain', rows.join('\n'))
-  }
-}
-
-// Paste handler for clipboard data
-const handlePaste = (event) => {
-  console.log('[EmailImageGrid] handlePaste called, editable:', props.editable)
-  if (!gridApi.value || !props.editable) {
-    console.log('[EmailImageGrid] paste blocked - gridApi:', !!gridApi.value, 'editable:', props.editable)
-    return
-  }
-
-  const clipboardData = event.clipboardData || window.clipboardData
-  if (!clipboardData) return
-
-  const pastedText = clipboardData.getData('text')
-  console.log('[EmailImageGrid] pastedText:', pastedText)
-  if (!pastedText) return
-
-  event.preventDefault()
-
-  // Get start position from focused cell or selection start
-  const focusedCell = gridApi.value.getFocusedCell()
-  console.log('[EmailImageGrid] focusedCell:', focusedCell)
-  console.log('[EmailImageGrid] cellSelectionStart:', cellSelectionStart.value)
-  let startRowIndex, startColId
-
-  if (focusedCell) {
-    startRowIndex = focusedCell.rowIndex
-    startColId = focusedCell.column.colId
-  } else if (cellSelectionStart.value) {
-    startRowIndex = cellSelectionStart.value.rowIndex
-    startColId = cellSelectionStart.value.colId
-  } else {
-    console.log('[EmailImageGrid] No cell focused or selected')
-    return // No cell focused or selected
-  }
-
-  const startColIndex = editableColumns.indexOf(startColId)
-  if (startColIndex === -1) return // Not an editable column
-
-  // Parse clipboard data: tab for columns, newline for rows
-  const hasTab = pastedText.includes('\t')
-  const hasNewline = pastedText.includes('\n')
-  let dataRows
-
-  if (hasTab) {
-    // Spreadsheet format: tab-separated columns, newline-separated rows
-    dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => row.split('\t'))
-  } else if (hasNewline) {
-    // Vertical copy: newline-separated rows, single cell per row
-    dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => [row])
-  } else {
-    // Single cell value
-    dataRows = [[pastedText.trim()]]
-  }
-
-  const cellUpdates = []
-
-  for (let rowOffset = 0; rowOffset < dataRows.length; rowOffset++) {
-    const cells = dataRows[rowOffset]
-    const targetRowIndex = startRowIndex + rowOffset
-    const rowNode = gridApi.value.getDisplayedRowAtIndex(targetRowIndex)
-
-    if (!rowNode) continue
-
-    const rowId = getRowIdFromData(rowNode.data)
-
-    for (let colOffset = 0; colOffset < cells.length; colOffset++) {
-      const targetColIndex = startColIndex + colOffset
-      if (targetColIndex >= editableColumns.length) break
-
-      const field = editableColumns[targetColIndex]
-      const value = cells[colOffset]?.trim() || ''
-
-      cellUpdates.push({ rowId, field, value, rowData: rowNode.data })
-    }
-  }
-
-  if (cellUpdates.length > 0) {
-    emit('paste-cells', cellUpdates)
-    gridApi.value.refreshCells({ force: true })
   }
 }
 

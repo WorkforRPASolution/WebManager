@@ -19,7 +19,9 @@ export function useDataGridCellSelection(options) {
     editableColumns,   // string[] - 편집 가능한 컬럼 목록
     onBulkEdit,        // (cellUpdates: Array<{rowId, field, value}>) => void
     onCellEdit,        // (rowId, field, value) => void - 단일 셀 편집
+    onPasteCells,      // (cellUpdates: Array<{rowId, field, value, rowData}>) => void - 붙여넣기 셀 업데이트
     getRowId = (data) => data._id || data._tempId,  // rowId 추출 함수 (기본: _id || _tempId)
+    valueTransformer,  // (field, value) => transformedValue - 값 변환 함수 (숫자 필드 등)
   } = options
 
   // === State ===
@@ -384,6 +386,180 @@ export function useDataGridCellSelection(options) {
     })
   }
 
+  /**
+   * 선택 범위 정보 계산 헬퍼
+   */
+  const getSelectionRange = () => {
+    if (!cellSelectionStart.value || !cellSelectionEnd.value) return null
+
+    const startRowIndex = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
+    const endRowIndex = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
+    const startColIndex = editableColumns.indexOf(cellSelectionStart.value.colId)
+    const endColIndex = editableColumns.indexOf(cellSelectionEnd.value.colId)
+
+    if (startColIndex === -1 || endColIndex === -1) return null
+
+    const minColIndex = Math.min(startColIndex, endColIndex)
+    const maxColIndex = Math.max(startColIndex, endColIndex)
+
+    return { startRowIndex, endRowIndex, minColIndex, maxColIndex }
+  }
+
+  /**
+   * 복사 핸들러 - gridContainer @copy에 연결
+   */
+  const handleCopy = (event) => {
+    if (!gridApi.value) return
+    if (!cellSelectionStart.value || !cellSelectionEnd.value) return
+
+    const range = getSelectionRange()
+    if (!range) return
+
+    const { startRowIndex, endRowIndex, minColIndex, maxColIndex } = range
+
+    const rows = []
+    for (let rowIdx = startRowIndex; rowIdx <= endRowIndex; rowIdx++) {
+      const rowNode = gridApi.value.getDisplayedRowAtIndex(rowIdx)
+      if (!rowNode) continue
+
+      const cells = []
+      for (let colIdx = minColIndex; colIdx <= maxColIndex; colIdx++) {
+        const colId = editableColumns[colIdx]
+        const value = rowNode.data[colId]
+        cells.push(value !== null && value !== undefined ? String(value) : '')
+      }
+      rows.push(cells.join('\t'))
+    }
+
+    if (rows.length > 0) {
+      event.preventDefault()
+      event.clipboardData.setData('text/plain', rows.join('\n'))
+    }
+  }
+
+  /**
+   * 붙여넣기 핸들러 - gridContainer @paste에 연결
+   *
+   * 다중 셀 선택 시 단일 값을 모든 셀에 채움 (Excel 스타일)
+   * @returns {boolean} 붙여넣기 처리 여부 (false면 그리드에서 추가 처리 가능)
+   */
+  const handlePaste = (event) => {
+    if (!gridApi.value) return false
+
+    const clipboardData = event.clipboardData || window.clipboardData
+    if (!clipboardData) return false
+
+    const pastedText = clipboardData.getData('text')
+    if (!pastedText) return false
+
+    // 시작 위치 결정: 포커스된 셀 또는 선택 시작점
+    const focusedCell = gridApi.value.getFocusedCell()
+    let startRowIndex, startColId
+
+    if (focusedCell) {
+      startRowIndex = focusedCell.rowIndex
+      startColId = focusedCell.column.colId
+    } else if (cellSelectionStart.value) {
+      startRowIndex = cellSelectionStart.value.rowIndex
+      startColId = cellSelectionStart.value.colId
+    } else {
+      return false // 선택된 셀 없음 - 그리드에서 추가 처리 가능
+    }
+
+    const startColIndex = editableColumns.indexOf(startColId)
+    if (startColIndex === -1) return false // 편집 불가능한 컬럼
+
+    event.preventDefault()
+
+    // 클립보드 데이터 파싱
+    const hasTab = pastedText.includes('\t')
+    const hasNewline = pastedText.includes('\n')
+    let dataRows
+
+    if (hasTab) {
+      // 스프레드시트 형식: 탭으로 열 구분, 줄바꿈으로 행 구분
+      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => row.split('\t'))
+    } else if (hasNewline) {
+      // 세로 복사 형식: 줄바꿈으로 행 구분
+      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => [row])
+    } else {
+      // 단일 셀 값
+      dataRows = [[pastedText.trim()]]
+    }
+
+    // 단일 값이고 다중 셀이 선택된 경우 → 모든 선택된 셀에 채우기
+    const isSingleValue = dataRows.length === 1 && dataRows[0].length === 1
+    const selectionRange = getSelectionRange()
+    const hasMultiCellSelection = selectionRange && (
+      selectionRange.startRowIndex !== selectionRange.endRowIndex ||
+      selectionRange.minColIndex !== selectionRange.maxColIndex
+    )
+
+    const cellUpdates = []
+
+    if (isSingleValue && hasMultiCellSelection) {
+      // 단일 값을 선택된 모든 셀에 채우기 (Excel 스타일)
+      const singleValue = dataRows[0][0]
+      const { startRowIndex: selStartRow, endRowIndex: selEndRow, minColIndex, maxColIndex } = selectionRange
+
+      for (let rowIdx = selStartRow; rowIdx <= selEndRow; rowIdx++) {
+        const rowNode = gridApi.value.getDisplayedRowAtIndex(rowIdx)
+        if (!rowNode) continue
+
+        const rowId = getRowId(rowNode.data)
+
+        for (let colIdx = minColIndex; colIdx <= maxColIndex; colIdx++) {
+          const field = editableColumns[colIdx]
+          let value = singleValue
+
+          // 값 변환 (숫자 필드 등)
+          if (valueTransformer) {
+            value = valueTransformer(field, value)
+          }
+
+          cellUpdates.push({ rowId, field, value, rowData: rowNode.data })
+        }
+      }
+    } else {
+      // 기존 동작: 클립보드 데이터 크기대로 붙여넣기
+      for (let rowOffset = 0; rowOffset < dataRows.length; rowOffset++) {
+        const cells = dataRows[rowOffset]
+        const targetRowIndex = startRowIndex + rowOffset
+        const rowNode = gridApi.value.getDisplayedRowAtIndex(targetRowIndex)
+
+        if (!rowNode) continue
+
+        const rowId = getRowId(rowNode.data)
+
+        for (let colOffset = 0; colOffset < cells.length; colOffset++) {
+          const targetColIndex = startColIndex + colOffset
+          if (targetColIndex >= editableColumns.length) break
+
+          const field = editableColumns[targetColIndex]
+          let value = cells[colOffset]?.trim() || ''
+
+          // 값 변환 (숫자 필드 등)
+          if (valueTransformer) {
+            value = valueTransformer(field, value)
+          }
+
+          cellUpdates.push({ rowId, field, value, rowData: rowNode.data })
+        }
+      }
+    }
+
+    // 셀 업데이트 콜백 호출
+    if (cellUpdates.length > 0) {
+      if (onPasteCells) {
+        onPasteCells(cellUpdates)
+      }
+      gridApi.value.refreshCells({ force: true })
+      return true
+    }
+
+    return false
+  }
+
   return {
     // State
     cellSelectionStart,
@@ -397,12 +573,15 @@ export function useDataGridCellSelection(options) {
     handleCellEditingStopped,
     handleKeyDown,
     handleSortChanged,
+    handleCopy,
+    handlePaste,
 
     // Helpers
     clearSelectedCells,
     clearSelection,
     getCellSelectionStyle,
     isInSelectionRange,
+    getSelectionRange,
 
     // Lifecycle
     setupHeaderClickHandler,

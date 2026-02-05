@@ -144,6 +144,7 @@ const {
   handleCellEditingStopped: baseEditingStopped,
   handleKeyDown,
   handleSortChanged: onSortChanged,
+  handlePaste: basePaste,
   getCellSelectionStyle,
   clearSelection,
   setupHeaderClickHandler,
@@ -155,6 +156,31 @@ const {
   editableColumns,
   onBulkEdit: (updates) => emit('paste-cells', updates),
   onCellEdit: (rowId, field, value) => emit('cell-edit', rowId, field, value),
+  onPasteCells: (updates) => {
+    // Filter out password updates (null values from transformer)
+    const filtered = updates.filter(u => u.value !== null)
+    if (filtered.length > 0) {
+      emit('paste-cells', filtered)
+    }
+  },
+  valueTransformer: (field, value) => {
+    // Skip password field
+    if (field === 'password') return null
+
+    if (field === 'authorityManager') {
+      return parseInt(value) || 2
+    } else if (field === 'accountStatus') {
+      const lower = value.toLowerCase()
+      if (['pending', 'active', 'suspended'].includes(lower)) {
+        return lower
+      }
+      return 'active' // default
+    } else if (field === 'processes') {
+      // Parse semicolon-separated string to array
+      return value.split(';').map(p => p.trim()).filter(Boolean)
+    }
+    return value
+  },
 })
 
 onMounted(() => {
@@ -561,7 +587,30 @@ const handleCopy = (event) => {
   }
 }
 
+// Value transformer for paste new rows
+const transformUserValue = (field, value) => {
+  if (field === 'password') return null
+  if (field === 'authorityManager') {
+    return parseInt(value) || 2
+  } else if (field === 'accountStatus') {
+    const lower = value.toLowerCase()
+    if (['pending', 'active', 'suspended'].includes(lower)) {
+      return lower
+    }
+    return 'active'
+  } else if (field === 'processes') {
+    return value.split(';').map(p => p.trim()).filter(Boolean)
+  }
+  return value
+}
+
 const handlePaste = (event) => {
+  // 공용 composable의 handlePaste 먼저 시도 (셀 범위 선택 시 단일 값 채우기 포함)
+  if (basePaste(event)) {
+    return
+  }
+
+  // 셀이 선택되지 않은 상태 → 새 행 추가
   const clipboardData = event.clipboardData || window.clipboardData
   if (!clipboardData) return
 
@@ -570,177 +619,34 @@ const handlePaste = (event) => {
 
   event.preventDefault()
 
-  const focusedCell = gridApi.value?.getFocusedCell()
+  const rows = pastedText.split('\n').filter(row => row.trim())
+  const parsedRows = []
 
-  // Check if there's a cell selection range (shift+click selection)
-  const hasSelectionRange = cellSelectionStart.value && cellSelectionEnd.value
-
-  if (hasSelectionRange || focusedCell) {
-    // Determine start position and selection range
-    let startRowIndex, startColIndex
-    let selectionStartRow, selectionEndRow, selectionStartCol, selectionEndCol
-
-    if (hasSelectionRange) {
-      // Use selection range
-      selectionStartRow = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-      selectionEndRow = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-      const startColIdx = editableColumns.indexOf(cellSelectionStart.value.colId)
-      const endColIdx = editableColumns.indexOf(cellSelectionEnd.value.colId)
-      selectionStartCol = Math.min(startColIdx, endColIdx)
-      selectionEndCol = Math.max(startColIdx, endColIdx)
-
-      startRowIndex = selectionStartRow
-      startColIndex = selectionStartCol
-    } else {
-      // Use focused cell
-      startRowIndex = focusedCell.rowIndex
-      startColIndex = editableColumns.indexOf(focusedCell.column.colId)
-      selectionStartRow = selectionEndRow = startRowIndex
-      selectionStartCol = selectionEndCol = startColIndex
+  for (const row of rows) {
+    const cells = row.split('\t')
+    const firstCell = cells[0]?.trim().toLowerCase()
+    if (firstCell === 'name' || firstCell === 'singleid' || firstCell === 'user id') {
+      continue // Skip header
     }
 
-    if (startColIndex === -1) return
-
-    const hasTab = pastedText.includes('\t')
-    const hasNewline = pastedText.includes('\n')
-    let dataRows
-
-    if (hasTab) {
-      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => row.split('\t'))
-    } else if (hasNewline) {
-      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => [row])
-    } else {
-      dataRows = [[pastedText.trim()]]
-    }
-
-    const cellUpdates = []
-
-    // If single value is pasted and there's a selection range, fill all selected cells
-    const isSingleValue = dataRows.length === 1 && dataRows[0].length === 1
-
-    if (isSingleValue && hasSelectionRange) {
-      // Fill all selected cells with the single value
-      const pastedValue = dataRows[0][0]
-
-      for (let rowIdx = selectionStartRow; rowIdx <= selectionEndRow; rowIdx++) {
-        const rowNode = gridApi.value.getDisplayedRowAtIndex(rowIdx)
-        if (!rowNode) continue
-
-        const rowId = rowNode.data._id || rowNode.data._tempId
-
-        for (let colIdx = selectionStartCol; colIdx <= selectionEndCol; colIdx++) {
-          const field = editableColumns[colIdx]
-          if (field === 'password') continue // Skip password paste
-
-          let value = pastedValue
-
-          if (field === 'authorityManager') {
-            value = parseInt(value) || 2
-          } else if (field === 'accountStatus') {
-            const lower = value.toLowerCase()
-            if (['pending', 'active', 'suspended'].includes(lower)) {
-              value = lower
-            } else {
-              value = 'active' // default
-            }
-          } else if (field === 'processes') {
-            // Parse semicolon-separated string to array
-            value = value.split(';').map(p => p.trim()).filter(Boolean)
-          }
-
-          cellUpdates.push({ rowId, field, value })
-        }
-      }
-    } else {
-      // Paste data starting from start position (original behavior)
-      for (let rowOffset = 0; rowOffset < dataRows.length; rowOffset++) {
-        const cells = dataRows[rowOffset]
-        const targetRowIndex = startRowIndex + rowOffset
-        const rowNode = gridApi.value.getDisplayedRowAtIndex(targetRowIndex)
-
-        if (!rowNode) continue
-
-        const rowId = rowNode.data._id || rowNode.data._tempId
-
-        for (let colOffset = 0; colOffset < cells.length; colOffset++) {
-          const targetColIndex = startColIndex + colOffset
-          if (targetColIndex >= editableColumns.length) break
-
-          const field = editableColumns[targetColIndex]
-          if (field === 'password') continue // Skip password paste
-
-          let value = cells[colOffset]?.trim() || ''
-
-          if (field === 'authorityManager') {
-            value = parseInt(value) || 2
-          } else if (field === 'accountStatus') {
-            const lower = value.toLowerCase()
-            if (['pending', 'active', 'suspended'].includes(lower)) {
-              value = lower
-            } else {
-              value = 'active' // default
-            }
-          } else if (field === 'processes') {
-            // Parse semicolon-separated string to array
-            value = value.split(';').map(p => p.trim()).filter(Boolean)
-          }
-
-          cellUpdates.push({ rowId, field, value })
-        }
+    const rowData = {}
+    for (let i = 0; i < Math.min(cells.length, editableColumns.length); i++) {
+      const field = editableColumns[i]
+      const value = cells[i]?.trim() || ''
+      const transformed = transformUserValue(field, value)
+      if (transformed !== null) {
+        rowData[field] = transformed
       }
     }
 
-    if (cellUpdates.length > 0) {
-      emit('paste-cells', cellUpdates)
-      // Clear selection after paste
-      if (hasSelectionRange) {
-        clearSelection()
-        gridApi.value?.refreshCells({ force: true })
-      }
+    const hasValue = Object.values(rowData).some(v => v !== '' && v !== null)
+    if (hasValue) {
+      parsedRows.push(rowData)
     }
-  } else {
-    // Paste as new rows
-    const rows = pastedText.split('\n').filter(row => row.trim())
-    const parsedRows = []
+  }
 
-    for (const row of rows) {
-      const cells = row.split('\t')
-      const firstCell = cells[0]?.trim().toLowerCase()
-      if (firstCell === 'name' || firstCell === 'singleid' || firstCell === 'user id') {
-        continue // Skip header
-      }
-
-      const rowData = {}
-      for (let i = 0; i < Math.min(cells.length, editableColumns.length); i++) {
-        const field = editableColumns[i]
-        if (field === 'password') continue
-
-        let value = cells[i]?.trim() || ''
-        if (field === 'authorityManager') {
-          value = parseInt(value) || 2
-        } else if (field === 'accountStatus') {
-          const lower = value.toLowerCase()
-          if (['pending', 'active', 'suspended'].includes(lower)) {
-            value = lower
-          } else {
-            value = 'active' // default
-          }
-        } else if (field === 'processes') {
-          // Parse semicolon-separated string to array
-          value = value.split(';').map(p => p.trim()).filter(Boolean)
-        }
-        rowData[field] = value
-      }
-
-      const hasValue = Object.values(rowData).some(v => v !== '' && v !== null)
-      if (hasValue) {
-        parsedRows.push(rowData)
-      }
-    }
-
-    if (parsedRows.length > 0) {
-      emit('paste-rows', parsedRows)
-    }
+  if (parsedRows.length > 0) {
+    emit('paste-rows', parsedRows)
   }
 }
 

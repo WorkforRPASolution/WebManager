@@ -134,6 +134,18 @@ const editableColumns = [
   'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel'
 ]
 
+// 숫자 필드 목록 (composable에서 사용하기 전에 정의)
+const numericFields = ['onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel']
+
+// 숫자 필드 변환 함수
+const transformNumericValue = (field, value) => {
+  if (numericFields.includes(field)) {
+    const num = field === 'snapshotTimeDiff' ? parseFloat(value) : parseInt(value)
+    return isNaN(num) ? (field === 'snapshotTimeDiff' ? null : 0) : num
+  }
+  return value
+}
+
 // 셀 범위 선택 및 일괄 편집 Composable
 const {
   cellSelectionStart,
@@ -144,6 +156,7 @@ const {
   handleCellEditingStopped: onCellEditingStopped,
   handleKeyDown,
   handleSortChanged: onSortChanged,
+  handlePaste: basePaste,
   getCellSelectionStyle,
   clearSelection,
   setupHeaderClickHandler,
@@ -155,6 +168,8 @@ const {
   editableColumns,
   onBulkEdit: (updates) => emit('paste-cells', updates),
   onCellEdit: (rowId, field, value) => emit('cell-edit', rowId, field, value),
+  onPasteCells: (updates) => emit('paste-cells', updates),
+  valueTransformer: transformNumericValue,
 })
 
 // Load OS version options
@@ -412,9 +427,6 @@ const pasteColumnOrder = [
   'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel'
 ]
 
-// 숫자 필드 목록
-const numericFields = ['onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel']
-
 // 직접 copy 이벤트 처리 (AG Grid Community는 clipboard 미지원)
 const handleCopy = (event) => {
   if (!gridApi.value) return
@@ -477,114 +489,55 @@ const handleCopy = (event) => {
 
 // 직접 paste 이벤트 처리 (AG Grid Community는 paste 미지원)
 const handlePaste = (event) => {
+  // 공용 composable의 handlePaste 먼저 시도 (셀 범위 선택 시 단일 값 채우기 포함)
+  if (basePaste(event)) {
+    return // composable이 처리함
+  }
+
+  // 셀이 선택되지 않은 상태 → 새 행 추가
   const clipboardData = event.clipboardData || window.clipboardData
   if (!clipboardData) return
 
   const pastedText = clipboardData.getData('text')
   if (!pastedText) return
 
-  event.preventDefault() // 기본 paste 동작 방지
+  event.preventDefault()
 
-  // 셀이 포커스된 상태인지 확인
-  const focusedCell = gridApi.value?.getFocusedCell()
+  const rows = pastedText.split('\n').filter(row => row.trim())
+  if (rows.length === 0) return
 
-  if (focusedCell) {
-    // 셀이 포커스된 상태 → 해당 셀부터 가로로 붙여넣기
-    const startRowIndex = focusedCell.rowIndex
-    const startColId = focusedCell.column.colId
-    const startColIndex = editableColumns.indexOf(startColId)
+  const parsedRows = []
 
-    if (startColIndex === -1) return // 편집 불가능한 컬럼
+  for (const row of rows) {
+    const cells = row.split('\t')
+    if (cells.length === 0) continue
 
-    // 데이터 파싱: 탭이 있으면 탭으로, 없으면 줄바꿈으로 구분
-    const hasTab = pastedText.includes('\t')
-    const hasNewline = pastedText.includes('\n')
-    let dataRows
-
-    if (hasTab) {
-      // 스프레드시트 형식: 탭으로 열 구분, 줄바꿈으로 행 구분
-      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => row.split('\t'))
-    } else if (hasNewline) {
-      // 세로 복사 형식: 줄바꿈으로 행 구분, 각 행은 단일 셀
-      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => [row])
-    } else {
-      // 탭이 없으면 단일 셀 값으로 처리 (줄바꿈 포함 텍스트)
-      dataRows = [[pastedText.trim()]]
+    // 첫 번째 셀이 헤더인지 확인 (line, process 등)
+    const firstCell = cells[0]?.trim().toLowerCase()
+    if (firstCell === 'line' || firstCell === 'process' || firstCell === 'eqpid') {
+      continue // 헤더 행 스킵
     }
 
-    const cellUpdates = []
+    const rowData = {}
+    for (let i = 0; i < Math.min(cells.length, pasteColumnOrder.length); i++) {
+      const field = pasteColumnOrder[i]
+      let value = cells[i]?.trim() || ''
 
-    for (let rowOffset = 0; rowOffset < dataRows.length; rowOffset++) {
-      const cells = dataRows[rowOffset]
-      const targetRowIndex = startRowIndex + rowOffset
-      const rowNode = gridApi.value.getDisplayedRowAtIndex(targetRowIndex)
+      // 숫자 필드 변환
+      value = transformNumericValue(field, value)
 
-      if (!rowNode) continue // 행이 없으면 스킵
-
-      const rowId = rowNode.data._id || rowNode.data._tempId
-
-      for (let colOffset = 0; colOffset < cells.length; colOffset++) {
-        const targetColIndex = startColIndex + colOffset
-        if (targetColIndex >= editableColumns.length) break
-
-        const field = editableColumns[targetColIndex]
-        let value = cells[colOffset]?.trim() || ''
-
-        // 숫자 필드 변환
-        if (numericFields.includes(field)) {
-          const num = field === 'snapshotTimeDiff' ? parseFloat(value) : parseInt(value)
-          value = isNaN(num) ? (field === 'snapshotTimeDiff' ? null : 0) : num
-        }
-
-        cellUpdates.push({ rowId, field, value })
-      }
+      rowData[field] = value
     }
 
-    // 셀 업데이트 emit
-    if (cellUpdates.length > 0) {
-      emit('paste-cells', cellUpdates)
+    // 최소한 하나의 필드에 값이 있어야 추가
+    const hasValue = Object.values(rowData).some(v => v !== '' && v !== null && v !== 0)
+    if (hasValue) {
+      parsedRows.push(rowData)
     }
-  } else {
-    // 셀이 선택되지 않은 상태 → 새 행 추가
-    const rows = pastedText.split('\n').filter(row => row.trim())
-    if (rows.length === 0) return
+  }
 
-    const parsedRows = []
-
-    for (const row of rows) {
-      const cells = row.split('\t')
-      if (cells.length === 0) continue
-
-      // 첫 번째 셀이 헤더인지 확인 (line, process 등)
-      const firstCell = cells[0]?.trim().toLowerCase()
-      if (firstCell === 'line' || firstCell === 'process' || firstCell === 'eqpid') {
-        continue // 헤더 행 스킵
-      }
-
-      const rowData = {}
-      for (let i = 0; i < Math.min(cells.length, pasteColumnOrder.length); i++) {
-        const field = pasteColumnOrder[i]
-        let value = cells[i]?.trim() || ''
-
-        // 숫자 필드 변환
-        if (numericFields.includes(field)) {
-          const num = field === 'snapshotTimeDiff' ? parseFloat(value) : parseInt(value)
-          value = isNaN(num) ? (field === 'snapshotTimeDiff' ? null : 0) : num
-        }
-
-        rowData[field] = value
-      }
-
-      // 최소한 하나의 필드에 값이 있어야 추가
-      const hasValue = Object.values(rowData).some(v => v !== '' && v !== null && v !== 0)
-      if (hasValue) {
-        parsedRows.push(rowData)
-      }
-    }
-
-    if (parsedRows.length > 0) {
-      emit('paste-rows', parsedRows)
-    }
+  if (parsedRows.length > 0) {
+    emit('paste-rows', parsedRows)
   }
 }
 

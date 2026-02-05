@@ -197,6 +197,7 @@ const {
   handleCellEditingStopped: onCellEditingStopped,
   handleKeyDown,
   handleSortChanged: onSortChanged,
+  handlePaste: basePaste,
   getCellSelectionStyle,
   clearSelection,
   setupHeaderClickHandler,
@@ -208,6 +209,7 @@ const {
   editableColumns,
   onBulkEdit: (updates) => emit('paste-cells', updates),
   onCellEdit: (rowId, field, value) => emit('cell-edit', rowId, field, value),
+  onPasteCells: (updates) => emit('paste-cells', updates),
 })
 
 onMounted(() => {
@@ -455,6 +457,12 @@ const handleCopy = (event) => {
 
 // Paste handler
 const handlePaste = (event) => {
+  // 공용 composable의 handlePaste 먼저 시도 (셀 범위 선택 시 단일 값 채우기 포함)
+  if (basePaste(event)) {
+    return
+  }
+
+  // 셀이 선택되지 않은 상태 → 새 행 추가
   const clipboardData = event.clipboardData || window.clipboardData
   if (!clipboardData) return
 
@@ -463,132 +471,35 @@ const handlePaste = (event) => {
 
   event.preventDefault()
 
-  const focusedCell = gridApi.value?.getFocusedCell()
+  const rows = pastedText.split('\n').filter(row => row.trim())
+  if (rows.length === 0) return
 
-  // Check if there's a cell selection range (shift+click selection)
-  const hasSelectionRange = cellSelectionStart.value && cellSelectionEnd.value
+  const parsedRows = []
 
-  if (hasSelectionRange || focusedCell) {
-    // Determine start position and selection range
-    let startRowIndex, startColIndex
-    let selectionStartRow, selectionEndRow, selectionStartCol, selectionEndCol
+  for (const row of rows) {
+    const cells = row.split('\t')
+    if (cells.length === 0) continue
 
-    if (hasSelectionRange) {
-      // Use selection range
-      selectionStartRow = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-      selectionEndRow = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-      const startColIdx = editableColumns.indexOf(cellSelectionStart.value.colId)
-      const endColIdx = editableColumns.indexOf(cellSelectionEnd.value.colId)
-      selectionStartCol = Math.min(startColIdx, endColIdx)
-      selectionEndCol = Math.max(startColIdx, endColIdx)
-
-      startRowIndex = selectionStartRow
-      startColIndex = selectionStartCol
-    } else {
-      // Use focused cell
-      startRowIndex = focusedCell.rowIndex
-      startColIndex = editableColumns.indexOf(focusedCell.column.colId)
-      selectionStartRow = selectionEndRow = startRowIndex
-      selectionStartCol = selectionEndCol = startColIndex
+    const firstCell = cells[0]?.trim().toLowerCase()
+    // Skip header row
+    if (firstCell === 'app' || firstCell === 'line') {
+      continue
     }
 
-    if (startColIndex === -1) return
-
-    const hasTab = pastedText.includes('\t')
-    const hasNewline = pastedText.includes('\n')
-    let dataRows
-
-    if (hasTab) {
-      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => row.split('\t'))
-    } else if (hasNewline) {
-      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => [row])
-    } else {
-      dataRows = [[pastedText.trim()]]
+    const rowData = {}
+    for (let i = 0; i < Math.min(cells.length, pasteColumnOrder.length); i++) {
+      const field = pasteColumnOrder[i]
+      rowData[field] = cells[i]?.trim() || ''
     }
 
-    const cellUpdates = []
-
-    // If single value is pasted and there's a selection range, fill all selected cells
-    const isSingleValue = dataRows.length === 1 && dataRows[0].length === 1
-
-    if (isSingleValue && hasSelectionRange) {
-      // Fill all selected cells with the single value
-      const pastedValue = dataRows[0][0]
-
-      for (let rowIdx = selectionStartRow; rowIdx <= selectionEndRow; rowIdx++) {
-        const rowNode = gridApi.value.getDisplayedRowAtIndex(rowIdx)
-        if (!rowNode) continue
-
-        const rowId = rowNode.data._id || rowNode.data._tempId
-
-        for (let colIdx = selectionStartCol; colIdx <= selectionEndCol; colIdx++) {
-          const field = editableColumns[colIdx]
-          cellUpdates.push({ rowId, field, value: pastedValue })
-        }
-      }
-    } else {
-      // Paste data starting from start position (original behavior)
-      for (let rowOffset = 0; rowOffset < dataRows.length; rowOffset++) {
-        const cells = dataRows[rowOffset]
-        const targetRowIndex = startRowIndex + rowOffset
-        const rowNode = gridApi.value.getDisplayedRowAtIndex(targetRowIndex)
-
-        if (!rowNode) continue
-
-        const rowId = rowNode.data._id || rowNode.data._tempId
-
-        for (let colOffset = 0; colOffset < cells.length; colOffset++) {
-          const targetColIndex = startColIndex + colOffset
-          if (targetColIndex >= editableColumns.length) break
-
-          const field = editableColumns[targetColIndex]
-          const value = cells[colOffset]?.trim() || ''
-
-          cellUpdates.push({ rowId, field, value })
-        }
-      }
+    const hasValue = Object.values(rowData).some(v => v !== '' && v !== null)
+    if (hasValue) {
+      parsedRows.push(rowData)
     }
+  }
 
-    if (cellUpdates.length > 0) {
-      emit('paste-cells', cellUpdates)
-      // Clear selection after paste
-      if (hasSelectionRange) {
-        clearSelection()
-        gridApi.value?.refreshCells({ force: true })
-      }
-    }
-  } else {
-    // New rows
-    const rows = pastedText.split('\n').filter(row => row.trim())
-    if (rows.length === 0) return
-
-    const parsedRows = []
-
-    for (const row of rows) {
-      const cells = row.split('\t')
-      if (cells.length === 0) continue
-
-      const firstCell = cells[0]?.trim().toLowerCase()
-      // Skip header row
-      if (firstCell === 'app' || firstCell === 'line') {
-        continue
-      }
-
-      const rowData = {}
-      for (let i = 0; i < Math.min(cells.length, pasteColumnOrder.length); i++) {
-        const field = pasteColumnOrder[i]
-        rowData[field] = cells[i]?.trim() || ''
-      }
-
-      const hasValue = Object.values(rowData).some(v => v !== '' && v !== null)
-      if (hasValue) {
-        parsedRows.push(rowData)
-      }
-    }
-
-    if (parsedRows.length > 0) {
-      emit('paste-rows', parsedRows)
-    }
+  if (parsedRows.length > 0) {
+    emit('paste-rows', parsedRows)
   }
 }
 

@@ -144,6 +144,7 @@ const {
   handleCellEditingStopped: onCellEditingStopped,
   handleKeyDown,
   handleSortChanged: onSortChanged,
+  handlePaste: basePaste,
   getCellSelectionStyle,
   clearSelection,
   setupHeaderClickHandler,
@@ -155,6 +156,8 @@ const {
   editableColumns,
   onBulkEdit: (updates) => emit('paste-cells', updates),
   onCellEdit: (rowId, field, value) => emit('cell-edit', rowId, field, value),
+  onPasteCells: (updates) => emit('paste-cells', updates),
+  valueTransformer: transformArrayValue,
 })
 
 onMounted(() => {
@@ -408,6 +411,14 @@ const onCellClicked = (params) => {
 // Column order for paste
 const pasteColumnOrder = ['project', 'category', 'account', 'departments']
 
+// Array fields transformer for paste
+const transformArrayValue = (field, value) => {
+  if (['account', 'departments'].includes(field)) {
+    return stringToArray(value)
+  }
+  return value
+}
+
 // Copy handler
 const handleCopy = (event) => {
   if (!gridApi.value) return
@@ -477,6 +488,12 @@ const handleCopy = (event) => {
 
 // Paste handler
 const handlePaste = (event) => {
+  // 공용 composable의 handlePaste 먼저 시도 (셀 범위 선택 시 단일 값 채우기 포함)
+  if (basePaste(event)) {
+    return
+  }
+
+  // 셀이 선택되지 않은 상태 → 새 행 추가
   const clipboardData = event.clipboardData || window.clipboardData
   if (!clipboardData) return
 
@@ -485,152 +502,42 @@ const handlePaste = (event) => {
 
   event.preventDefault()
 
-  const focusedCell = gridApi.value?.getFocusedCell()
+  const rows = pastedText.split('\n').filter(row => row.trim())
+  if (rows.length === 0) return
 
-  // Check if there's a cell selection range (shift+click selection)
-  const hasSelectionRange = cellSelectionStart.value && cellSelectionEnd.value
+  const parsedRows = []
 
-  if (hasSelectionRange || focusedCell) {
-    // Determine start position and selection range
-    let startRowIndex, startColIndex
-    let selectionStartRow, selectionEndRow, selectionStartCol, selectionEndCol
+  for (const row of rows) {
+    const cells = row.split('\t')
+    if (cells.length === 0) continue
 
-    if (hasSelectionRange) {
-      // Use selection range
-      selectionStartRow = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-      selectionEndRow = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-      const startColIdx = editableColumns.indexOf(cellSelectionStart.value.colId)
-      const endColIdx = editableColumns.indexOf(cellSelectionEnd.value.colId)
-      selectionStartCol = Math.min(startColIdx, endColIdx)
-      selectionEndCol = Math.max(startColIdx, endColIdx)
-
-      startRowIndex = selectionStartRow
-      startColIndex = selectionStartCol
-    } else {
-      // Use focused cell
-      startRowIndex = focusedCell.rowIndex
-      startColIndex = editableColumns.indexOf(focusedCell.column.colId)
-      selectionStartRow = selectionEndRow = startRowIndex
-      selectionStartCol = selectionEndCol = startColIndex
+    const firstCell = cells[0]?.trim().toLowerCase()
+    if (firstCell === 'project' || firstCell === 'category') {
+      continue
     }
 
-    if (startColIndex === -1) return
+    const rowData = {}
+    for (let i = 0; i < Math.min(cells.length, pasteColumnOrder.length); i++) {
+      const field = pasteColumnOrder[i]
+      let value = cells[i]?.trim() || ''
 
-    const hasTab = pastedText.includes('\t')
-    const hasNewline = pastedText.includes('\n')
-    let dataRows
+      // Array field conversion
+      value = transformArrayValue(field, value)
 
-    if (hasTab) {
-      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => row.split('\t'))
-    } else if (hasNewline) {
-      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => [row])
-    } else {
-      dataRows = [[pastedText.trim()]]
+      rowData[field] = value
     }
 
-    const cellUpdates = []
-
-    // If single value is pasted and there's a selection range, fill all selected cells
-    const isSingleValue = dataRows.length === 1 && dataRows[0].length === 1
-
-    if (isSingleValue && hasSelectionRange) {
-      // Fill all selected cells with the single value
-      const pastedValue = dataRows[0][0]
-
-      for (let rowIdx = selectionStartRow; rowIdx <= selectionEndRow; rowIdx++) {
-        const rowNode = gridApi.value.getDisplayedRowAtIndex(rowIdx)
-        if (!rowNode) continue
-
-        const rowId = rowNode.data._id || rowNode.data._tempId
-
-        for (let colIdx = selectionStartCol; colIdx <= selectionEndCol; colIdx++) {
-          const field = editableColumns[colIdx]
-          let value = pastedValue
-
-          // Convert to array for array fields
-          if (['account', 'departments'].includes(field)) {
-            value = stringToArray(value)
-          }
-
-          cellUpdates.push({ rowId, field, value })
-        }
-      }
-    } else {
-      // Paste data starting from start position (original behavior)
-      for (let rowOffset = 0; rowOffset < dataRows.length; rowOffset++) {
-        const cells = dataRows[rowOffset]
-        const targetRowIndex = startRowIndex + rowOffset
-        const rowNode = gridApi.value.getDisplayedRowAtIndex(targetRowIndex)
-
-        if (!rowNode) continue
-
-        const rowId = rowNode.data._id || rowNode.data._tempId
-
-        for (let colOffset = 0; colOffset < cells.length; colOffset++) {
-          const targetColIndex = startColIndex + colOffset
-          if (targetColIndex >= editableColumns.length) break
-
-          const field = editableColumns[targetColIndex]
-          let value = cells[colOffset]?.trim() || ''
-
-          // Convert to array for array fields
-          if (['account', 'departments'].includes(field)) {
-            value = stringToArray(value)
-          }
-
-          cellUpdates.push({ rowId, field, value })
-        }
-      }
+    const hasValue = Object.values(rowData).some(v => {
+      if (Array.isArray(v)) return v.length > 0
+      return v !== '' && v !== null
+    })
+    if (hasValue) {
+      parsedRows.push(rowData)
     }
+  }
 
-    if (cellUpdates.length > 0) {
-      emit('paste-cells', cellUpdates)
-      // Clear selection after paste
-      if (hasSelectionRange) {
-        clearSelection()
-        gridApi.value?.refreshCells({ force: true })
-      }
-    }
-  } else {
-    // New rows
-    const rows = pastedText.split('\n').filter(row => row.trim())
-    if (rows.length === 0) return
-
-    const parsedRows = []
-
-    for (const row of rows) {
-      const cells = row.split('\t')
-      if (cells.length === 0) continue
-
-      const firstCell = cells[0]?.trim().toLowerCase()
-      if (firstCell === 'project' || firstCell === 'category') {
-        continue
-      }
-
-      const rowData = {}
-      for (let i = 0; i < Math.min(cells.length, pasteColumnOrder.length); i++) {
-        const field = pasteColumnOrder[i]
-        let value = cells[i]?.trim() || ''
-
-        if (['account', 'departments'].includes(field)) {
-          value = stringToArray(value)
-        }
-
-        rowData[field] = value
-      }
-
-      const hasValue = Object.values(rowData).some(v => {
-        if (Array.isArray(v)) return v.length > 0
-        return v !== '' && v !== null
-      })
-      if (hasValue) {
-        parsedRows.push(rowData)
-      }
-    }
-
-    if (parsedRows.length > 0) {
-      emit('paste-rows', parsedRows)
-    }
+  if (parsedRows.length > 0) {
+    emit('paste-rows', parsedRows)
   }
 }
 

@@ -133,6 +133,7 @@ const {
   handleCellEditingStopped: onCellEditingStopped,
   handleKeyDown,
   handleSortChanged: onSortChanged,
+  handlePaste: basePaste,
   getCellSelectionStyle,
   clearSelection,
   setupHeaderClickHandler,
@@ -144,6 +145,7 @@ const {
   editableColumns,
   onBulkEdit: (updates) => emit('paste-cells', updates),
   onCellEdit: (rowId, field, value) => emit('cell-edit', rowId, field, value),
+  onPasteCells: (updates) => emit('paste-cells', updates),
 })
 
 onMounted(() => {
@@ -385,6 +387,12 @@ const handleCopy = (event) => {
 
 // Paste handler
 const handlePaste = (event) => {
+  // 공용 composable의 handlePaste 먼저 시도 (셀 범위 선택 시 단일 값 채우기 포함)
+  if (basePaste(event)) {
+    return
+  }
+
+  // 셀이 선택되지 않은 상태 → 새 행 추가
   const clipboardData = event.clipboardData || window.clipboardData
   if (!clipboardData) return
 
@@ -393,81 +401,34 @@ const handlePaste = (event) => {
 
   event.preventDefault()
 
-  const focusedCell = gridApi.value?.getFocusedCell()
+  const rows = pastedText.split('\n').filter(row => row.trim())
+  if (rows.length === 0) return
 
-  if (focusedCell) {
-    const startRowIndex = focusedCell.rowIndex
-    const startColId = focusedCell.column.colId
-    const startColIndex = editableColumns.indexOf(startColId)
+  const parsedRows = []
 
-    if (startColIndex === -1) return
+  for (const row of rows) {
+    const cells = row.split('\t')
+    if (cells.length === 0) continue
 
-    const hasTab = pastedText.includes('\t')
-    let dataRows
-
-    if (hasTab) {
-      // 탭이 있으면 엑셀 스타일 다중 셀/행 복사
-      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => row.split('\t'))
-    } else {
-      // 탭이 없으면 단일 셀 값으로 처리 (줄바꿈 포함된 HTML 등)
-      dataRows = [[pastedText]]
+    const firstCell = cells[0]?.trim().toLowerCase()
+    if (firstCell === 'app' || firstCell === 'process' || firstCell === 'model') {
+      continue
     }
 
-    const cellUpdates = []
-
-    for (let rowOffset = 0; rowOffset < dataRows.length; rowOffset++) {
-      const cells = dataRows[rowOffset]
-      const targetRowIndex = startRowIndex + rowOffset
-      const rowNode = gridApi.value.getDisplayedRowAtIndex(targetRowIndex)
-
-      if (!rowNode) continue
-
-      const rowId = rowNode.data._id || rowNode.data._tempId
-
-      for (let colOffset = 0; colOffset < cells.length; colOffset++) {
-        const targetColIndex = startColIndex + colOffset
-        if (targetColIndex >= editableColumns.length) break
-
-        const field = editableColumns[targetColIndex]
-        const value = cells[colOffset]?.trim() || ''
-
-        cellUpdates.push({ rowId, field, value })
-      }
+    const rowData = {}
+    for (let i = 0; i < Math.min(cells.length, pasteColumnOrder.length); i++) {
+      const field = pasteColumnOrder[i]
+      rowData[field] = cells[i]?.trim() || ''
     }
 
-    if (cellUpdates.length > 0) {
-      emit('paste-cells', cellUpdates)
+    const hasValue = Object.values(rowData).some(v => v !== '' && v !== null)
+    if (hasValue) {
+      parsedRows.push(rowData)
     }
-  } else {
-    const rows = pastedText.split('\n').filter(row => row.trim())
-    if (rows.length === 0) return
+  }
 
-    const parsedRows = []
-
-    for (const row of rows) {
-      const cells = row.split('\t')
-      if (cells.length === 0) continue
-
-      const firstCell = cells[0]?.trim().toLowerCase()
-      if (firstCell === 'app' || firstCell === 'process' || firstCell === 'model') {
-        continue
-      }
-
-      const rowData = {}
-      for (let i = 0; i < Math.min(cells.length, pasteColumnOrder.length); i++) {
-        const field = pasteColumnOrder[i]
-        rowData[field] = cells[i]?.trim() || ''
-      }
-
-      const hasValue = Object.values(rowData).some(v => v !== '' && v !== null)
-      if (hasValue) {
-        parsedRows.push(rowData)
-      }
-    }
-
-    if (parsedRows.length > 0) {
-      emit('paste-rows', parsedRows)
-    }
+  if (parsedRows.length > 0) {
+    emit('paste-rows', parsedRows)
   }
 }
 
