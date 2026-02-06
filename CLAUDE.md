@@ -1,5 +1,9 @@
 # WebManager Project
 
+## 상위 계획 참조
+
+세션 중 "상위 플랜 체크해" 요청 시: `/Users/hyunkyungmin/Developer/ARS/.claude/PLANNING.md` 읽기
+
 ## Overview
 Akka 기반 서버-클라이언트 시스템에서 **클라이언트들을 모니터링하고 관리**하는 웹 애플리케이션
 
@@ -72,6 +76,12 @@ GET    /api/clients/equipment-info         # 기준정보 조회
 POST   /api/clients/equipment-info         # 다중 생성
 PUT    /api/clients/equipment-info         # 다중 수정
 DELETE /api/clients/equipment-info         # 다중 삭제
+
+GET    /api/clients/config/settings        # Config 파일 설정 조회
+GET    /api/clients/by-model               # 횡전개 대상 Client 목록
+GET    /api/clients/:id/config             # 4개 Config 파일 일괄 읽기 (FTP)
+PUT    /api/clients/:id/config/:fileId     # 단일 Config 파일 저장 (FTP)
+POST   /api/clients/config/deploy          # 횡전개 실행 (SSE 진행률)
 ```
 
 ## Project Structure
@@ -93,11 +103,14 @@ WebManager/
 │   │       ├── routes.js       # 라우트 정의
 │   │       ├── controller.js   # 요청/응답 처리
 │   │       ├── service.js      # DB 쿼리, 비즈니스 로직
+│   │       ├── controlService.js # RPC 제어 (Avro)
+│   │       ├── ftpService.js   # FTP Config 읽기/쓰기/배포
 │   │       ├── validation.js   # 유효성 검사
 │   │       └── model.js        # Mongoose 모델
 │   └── shared/
 │       ├── middleware/     # 미들웨어 (errorHandler 등)
-│       ├── utils/          # 유틸리티 (pagination, queryBuilder)
+│       ├── utils/          # 유틸리티 (pagination, queryBuilder, socksHelper)
+│       ├── avro/           # Avro RPC 클라이언트
 │       └── db/             # DB 연결
 └── docs/                   # 스키마, 개발 가이드, 코드 리뷰 보고서
 ```
@@ -140,7 +153,7 @@ cd server && npm run dev
 npm run dev
 ```
 
-## Current Status (2026-01-28)
+## Current Status (2026-02-06)
 - 메가 메뉴 + 사이드바 + 탭 바 레이아웃 완료
 - 다크/라이트 모드 지원
 - MongoDB API 연동 완료
@@ -151,6 +164,10 @@ npm run dev
 - Backend 서비스 레이어 분리 완료 (clients: routes → controller → service)
 - 보안 개선 완료 (helmet, CORS, bcrypt)
 - DB 분리 완료 (EARS: 공유, WEB_MANAGER: 전용)
+- Client Remote Control (Avro RPC) 완료 (서비스 시작/중지/재시작/상태)
+- Config Management 완료 (FTP 기반 Config 파일 조회/수정/횡전개)
+- Service Control UI 테스트 완료 (상태조회/시작/중지/재시작)
+- Config Management UI 테스트 완료 (FTP 조회/수정/저장)
 
 ## Security Configuration
 - **helmet**: 보안 헤더 자동 설정

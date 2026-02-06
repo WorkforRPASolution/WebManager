@@ -144,6 +144,35 @@ meta: {
 
 ---
 
+## 5. 외부 서비스 연동 패턴
+
+Client PC와 통신하는 기능을 추가할 때 참고할 기존 패턴입니다.
+
+### 네트워크 라우팅 (socksHelper.js)
+
+Client PC 접속 시 직접 연결 또는 SOCKS5 프록시 경유 연결을 `server/shared/utils/socksHelper.js`로 통일합니다.
+
+```javascript
+const { createConnection } = require('../../shared/utils/socksHelper')
+
+// ipAddrL이 있으면 SOCKS 경유, 없으면 직접 연결
+const socket = await createConnection(ipAddr, ipAddrL, targetPort)
+```
+
+### 기존 연동 패턴
+
+| 기능 | 방식 | 서비스 파일 | 상세 문서 |
+|------|------|-------------|-----------|
+| 서비스 제어 (시작/중지/재시작) | Avro RPC | `controlService.js` | - |
+| Config 파일 조회/수정/횡전개 | FTP | `ftpService.js` | `docs/CONFIG_MANAGEMENT.md` |
+
+### FTP 연동 시 주의사항
+
+- FTP 작업은 느릴 수 있으므로 API 타임아웃을 별도 설정 (프론트엔드 60초)
+- SOCKS5 + FTP passive mode 호환성 주의 (상세: `docs/CONFIG_MANAGEMENT.md`)
+
+---
+
 ## 기존 MainMenu에 SubMenu만 추가
 
 같은 `mainMenu` ID 사용 시 자동으로 해당 MainMenu에 SubMenu 추가:
@@ -212,3 +241,69 @@ const iconPaths = {
 | info | 정보 |
 | warning | 경고 |
 | error | 에러 |
+
+---
+
+## 공용 컴포넌트
+
+### 풀스크린 모달 패턴
+
+`Teleport to body` + 리사이즈 핸들 + S/M/L 프리셋을 사용하는 모달 패턴.
+
+**기존 구현 예시:**
+| 모달 | 파일 | 용도 |
+|------|------|------|
+| HtmlEditorModal | `features/email-template/components/` | HTML 편집 (TinyMCE + Monaco) |
+| ConfigManagerModal | `features/clients/components/` | Config 편집 (Monaco + Diff) |
+
+**구현 핵심:**
+```javascript
+// 사이즈 프리셋
+const sizes = {
+  small: { width: 700, height: 500 },
+  medium: { width: 1000, height: 650 },
+  large: { width: 1300, height: 800 }
+}
+
+// 커스텀 리사이즈 (드래그)
+const customWidth = ref(null)
+const customHeight = ref(null)
+```
+
+### Monaco Editor
+
+| 컴포넌트 | 경로 | 용도 |
+|---------|------|------|
+| `MonacoEditor.vue` | `shared/components/` | 일반 코드 편집 (v-model 지원) |
+| `MonacoDiffEditor.vue` | `shared/components/` | 원본/수정본 비교 (read-only) |
+
+### SSE (Server-Sent Events) 패턴
+
+진행률이 필요한 배치 작업에 SSE 사용. 기존 구현: Config 횡전개 (`POST /clients/config/deploy`).
+
+**Backend:**
+```javascript
+res.setHeader('Content-Type', 'text/event-stream')
+res.setHeader('Cache-Control', 'no-cache')
+res.flushHeaders()
+
+// 진행 중
+res.write(`data: ${JSON.stringify({ completed, total, current, status })}\n\n`)
+
+// 완료
+res.write(`data: ${JSON.stringify({ done: true, success, failed, results })}\n\n`)
+res.end()
+```
+
+**Frontend:**
+```javascript
+const response = await fetch(url, { method: 'POST', headers, body })
+const reader = response.body.getReader()
+const decoder = new TextDecoder()
+
+while (true) {
+  const { done, value } = await reader.read()
+  if (done) break
+  // SSE 파싱 (data: {...}\n\n)
+}
+```
