@@ -91,11 +91,48 @@ async function restartClient(eqpId) {
   return executeCommand(eqpId, 'service_restart')
 }
 
+
+/**
+ * 여러 클라이언트의 서비스 상태를 병렬 조회
+ * @param {string[]} eqpIds - 장비 ID 배열
+ * @returns {Promise<Object>} - { [eqpId]: { running, pid, uptime } | { error: message } }
+ */
+async function getBatchClientStatus(eqpIds) {
+  const results = await Promise.allSettled(
+    eqpIds.map(eqpId => getClientStatus(eqpId).then(status => ({ eqpId, status })))
+  )
+
+  const statusMap = {}
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      const { eqpId, status } = result.value
+      statusMap[eqpId] = status
+    } else {
+      // Extract eqpId from the error context
+      const match = result.reason?.message?.match(/Client not found: (.+)/)
+      const eqpId = match ? match[1] : null
+      if (eqpId) {
+        statusMap[eqpId] = { error: result.reason.message }
+      }
+    }
+  }
+
+  // Fill in any missing eqpIds with error status
+  for (const eqpId of eqpIds) {
+    if (!statusMap[eqpId]) {
+      statusMap[eqpId] = { error: 'Failed to get status' }
+    }
+  }
+
+  return statusMap
+}
+
 module.exports = {
   getClientStatus,
   startClient,
   stopClient,
   restartClient,
   executeCommand,
-  getClientIpInfo
+  getClientIpInfo,
+  getBatchClientStatus
 }

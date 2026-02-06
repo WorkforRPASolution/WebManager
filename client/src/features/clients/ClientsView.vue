@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useClientData } from './composables/useClientData'
 import { useConfigManager } from './composables/useConfigManager'
@@ -8,11 +8,19 @@ import ClientFilterBar from './components/ClientFilterBar.vue'
 import ClientToolbar from './components/ClientToolbar.vue'
 import ClientDataGrid from './components/ClientDataGrid.vue'
 import ConfigManagerModal from './components/ConfigManagerModal.vue'
+import LogViewerModal from './components/LogViewerModal.vue'
 
 const router = useRouter()
 
 // Config Manager
 const configManager = useConfigManager()
+
+// Log Viewer state
+const logModalOpen = ref(false)
+const logModalClient = ref({ name: '', eqpId: '' })
+
+// Service status state (RPC-based real-time status)
+const serviceStatuses = ref({})  // { [eqpId]: { running, pid, uptime, loading, error } }
 
 // Composable state
 const {
@@ -36,6 +44,42 @@ const {
   updateClients,
   configClients,
 } = useClientData()
+
+// Fetch all service statuses via batch RPC
+const fetchAllServiceStatuses = async () => {
+  if (!clients.value.length) return
+
+  const eqpIds = clients.value.map(c => c.eqpId || c.id).filter(Boolean)
+  if (!eqpIds.length) return
+
+  // Set all to loading state
+  const loadingState = {}
+  for (const id of eqpIds) {
+    loadingState[id] = { loading: true }
+  }
+  serviceStatuses.value = { ...serviceStatuses.value, ...loadingState }
+
+  try {
+    const response = await clientControlApi.getBatchStatus(eqpIds)
+    const statuses = response.data || {}
+    serviceStatuses.value = { ...serviceStatuses.value, ...statuses }
+  } catch (err) {
+    // Set error state for all
+    const errorState = {}
+    for (const id of eqpIds) {
+      errorState[id] = { error: 'Failed to fetch status' }
+    }
+    serviceStatuses.value = { ...serviceStatuses.value, ...errorState }
+  }
+}
+
+// Computed: merge clients with service statuses
+const clientsWithStatus = computed(() => {
+  return clients.value.map(client => ({
+    ...client,
+    serviceStatus: serviceStatuses.value[client.eqpId || client.id] || null
+  }))
+})
 
 // Component refs
 const filterBarRef = ref(null)
@@ -112,19 +156,56 @@ const handlePageSizeChange = async (size) => {
 const handleRefresh = async () => {
   try {
     await refreshCurrentPage()
-    showToast('Data refreshed', 'success')
+    gridRef.value?.restoreSelection(selectedIds.value)
+    fetchAllServiceStatuses()
+    showToast('All statuses updated', 'success')
   } catch (err) {
     showToast(err.message || 'Failed to refresh', 'error')
   }
 }
 
-// Control handler (Start/Stop/Restart)
+// Control handler (Start/Stop/Restart/Status)
 const handleControl = async (action) => {
   if (!selectedIds.value.length) {
     showToast('Please select at least one client', 'warning')
     return
   }
 
+  // Status: 선택된 클라이언트만 상태 갱신 (페이지 새로고침 없음)
+  if (action === 'status') {
+    // 선택된 클라이언트를 loading 상태로 설정
+    for (const eqpId of selectedIds.value) {
+      serviceStatuses.value[eqpId] = { loading: true }
+    }
+
+    let successCount = 0
+    let failCount = 0
+
+    for (const eqpId of selectedIds.value) {
+      try {
+        const response = await clientControlApi.getStatus(eqpId)
+        if (response.data.success !== false) {
+          serviceStatuses.value[eqpId] = response.data
+          successCount++
+        } else {
+          serviceStatuses.value[eqpId] = { error: 'Failed' }
+          failCount++
+        }
+      } catch (err) {
+        serviceStatuses.value[eqpId] = { error: err.message }
+        failCount++
+      }
+    }
+
+    if (failCount === 0) {
+      showToast(`Status checked for ${successCount} client(s)`, 'success')
+    } else {
+      showToast(`Status check: ${successCount} succeeded, ${failCount} failed`, 'warning')
+    }
+    return
+  }
+
+  // Start/Stop/Restart: 기존 로직
   const actionMap = {
     start: clientControlApi.start,
     stop: clientControlApi.stop,
@@ -159,8 +240,10 @@ const handleControl = async (action) => {
     showToast(`${action}: ${successCount} succeeded, ${failCount} failed`, 'warning')
   }
 
-  // Refresh data after control
+  // Refresh data after control action + restore selection
   await refreshCurrentPage()
+  await fetchAllServiceStatuses()
+  gridRef.value?.restoreSelection(selectedIds.value)
 }
 
 // Update handler
@@ -197,6 +280,33 @@ const handleConfig = async () => {
 
   configManager.openConfig(clientData)
 }
+
+// Log handler - open Log Viewer Modal for selected client
+const handleLog = () => {
+  if (!selectedIds.value.length) {
+    showToast('Please select at least one client', 'warning')
+    return
+  }
+
+  const selectedEqpId = selectedIds.value[0]
+  const clientData = clients.value.find(c => (c.eqpId || c.id) === selectedEqpId)
+
+  logModalClient.value = {
+    name: clientData?.name || clientData?.eqpId || selectedEqpId,
+    eqpId: selectedEqpId
+  }
+  logModalOpen.value = true
+}
+
+// Auto-load all clients on mount
+onMounted(async () => {
+  hasSearched.value = true
+  try {
+    await fetchClients({}, 1, pageSize.value)
+  } catch (err) {
+    showToast(err.message || 'Failed to load clients', 'error')
+  }
+})
 </script>
 
 <template>
@@ -229,6 +339,7 @@ const handleConfig = async () => {
       @control="handleControl"
       @update="handleUpdate"
       @config="handleConfig"
+      @log="handleLog"
       @refresh="handleRefresh"
       @page-size-change="handlePageSizeChange"
       @page-change="handlePageChange"
@@ -236,7 +347,7 @@ const handleConfig = async () => {
     />
 
     <!-- Loading State -->
-    <div v-if="loading && !hasSearched" class="flex-1 flex items-center justify-center">
+    <div v-if="loading && !clients.length" class="flex-1 flex items-center justify-center">
       <div class="flex flex-col items-center gap-4">
         <svg class="w-8 h-8 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -262,21 +373,11 @@ const handleConfig = async () => {
       </div>
     </div>
 
-    <!-- Initial State (before search) -->
-    <div v-else-if="!hasSearched" class="flex-1 flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <p class="text-gray-500 dark:text-gray-400 text-lg">Select filters and click Search to view clients</p>
-      </div>
-    </div>
-
     <!-- Data Grid -->
     <div v-else class="flex-1 min-h-0">
       <ClientDataGrid
         ref="gridRef"
-        :row-data="clients"
+        :row-data="clientsWithStatus"
         :loading="loading"
         @selection-change="handleSelectionChange"
         @row-click="handleRowClick"
@@ -310,6 +411,14 @@ const handleConfig = async () => {
       @save="handleConfigSave"
       @toggle-diff="configManager.toggleDiff()"
       @toggle-rollout="configManager.toggleRollout()"
+    />
+
+    <!-- Log Viewer Modal -->
+    <LogViewerModal
+      :is-open="logModalOpen"
+      :client-name="logModalClient.name"
+      :eqp-id="logModalClient.eqpId"
+      @close="logModalOpen = false"
     />
 
     <!-- Toast Notification -->

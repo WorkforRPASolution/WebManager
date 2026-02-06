@@ -238,6 +238,25 @@ async function stopClient(req, res) {
   }
 }
 
+
+/**
+ * POST /api/clients/batch-status - Get batch client service status
+ */
+async function getBatchClientStatus(req, res) {
+  const { eqpIds } = req.body
+
+  if (!eqpIds || !Array.isArray(eqpIds) || eqpIds.length === 0) {
+    throw ApiError.badRequest('eqpIds array is required')
+  }
+
+  try {
+    const statuses = await controlService.getBatchClientStatus(eqpIds)
+    res.json(statuses)
+  } catch (error) {
+    throw ApiError.internal(`Failed to get batch client status: ${error.message}`)
+  }
+}
+
 // ============================================
 // Equipment Info Management Controllers
 // ============================================
@@ -480,6 +499,7 @@ module.exports = {
   configureClients,
   // Single Client Control (RPC)
   getClientStatus,
+  getBatchClientStatus,
   startClient,
   restartClient,
   stopClient,

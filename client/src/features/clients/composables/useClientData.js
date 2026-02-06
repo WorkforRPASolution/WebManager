@@ -56,7 +56,10 @@ export function useClientData() {
   }
 
   const refreshCurrentPage = async () => {
+    const preservedIds = [...selectedIds.value]
     await fetchClients(currentFilters.value, currentPage.value, pageSize.value)
+    // fetchClients에서 selectedIds가 []로 초기화되므로 복원
+    selectedIds.value = preservedIds
   }
 
   const setSelectedIds = (ids) => {

@@ -40,6 +40,9 @@ router.post('/update', authenticate, requireMenuPermission('clients'), asyncHand
 // POST /api/clients/config - Batch config change
 router.post('/config', authenticate, requireMenuPermission('clients'), asyncHandler(controller.configureClients))
 
+// POST /api/clients/batch-status - Get batch client service status (RPC)
+router.post('/batch-status', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getBatchClientStatus))
+
 // ============================================
 // Equipment Info Management Routes (requires 'equipmentInfo' feature permission)
 // ============================================

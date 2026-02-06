@@ -67,4 +67,8 @@ export const clientControlApi = {
   // 서비스 재시작
   restart: (eqpId) =>
     api.post(`/clients/${eqpId}/restart`),
+
+  // 배치 상태 조회
+  getBatchStatus: (eqpIds) =>
+    api.post('/clients/batch-status', { eqpIds }),
 }
