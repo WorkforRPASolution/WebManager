@@ -57,6 +57,19 @@ router.put('/equipment-info', authenticate, requireFeaturePermission('equipmentI
 router.delete('/equipment-info', authenticate, requireFeaturePermission('equipmentInfo', 'delete'), asyncHandler(controller.deleteMasterData))
 
 // ============================================
+// Config Management Routes (requires 'clients' permission)
+// ============================================
+
+// GET /api/clients/config/settings - Get config file settings
+router.get('/config/settings', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getConfigSettings))
+
+// GET /api/clients/by-model - Get clients by eqpModel (rollout targets)
+router.get('/by-model', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getClientsByModel))
+
+// POST /api/clients/config/deploy - Deploy config to multiple clients (SSE)
+router.post('/config/deploy', authenticate, requireMenuPermission('clients'), asyncHandler(controller.deployConfig))
+
+// ============================================
 // Client Detail Routes (requires 'clients' permission)
 // ============================================
 
@@ -66,10 +79,22 @@ router.get('/:id', authenticate, requireMenuPermission('clients'), asyncHandler(
 // GET /api/clients/:id/logs - Get client logs
 router.get('/:id/logs', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getClientLogs))
 
-// POST /api/clients/:id/restart - Restart client
+// GET /api/clients/:id/status - Get client service status (RPC)
+router.get('/:id/status', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getClientStatus))
+
+// POST /api/clients/:id/start - Start client service (RPC)
+router.post('/:id/start', authenticate, requireMenuPermission('clients'), asyncHandler(controller.startClient))
+
+// POST /api/clients/:id/restart - Restart client service (RPC)
 router.post('/:id/restart', authenticate, requireMenuPermission('clients'), asyncHandler(controller.restartClient))
 
-// POST /api/clients/:id/stop - Stop client
+// POST /api/clients/:id/stop - Stop client service (RPC)
 router.post('/:id/stop', authenticate, requireMenuPermission('clients'), asyncHandler(controller.stopClient))
+
+// GET /api/clients/:id/config - Read all config files (FTP)
+router.get('/:id/config', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getClientConfigs))
+
+// PUT /api/clients/:id/config/:fileId - Save single config file (FTP)
+router.put('/:id/config/:fileId', authenticate, requireMenuPermission('clients'), asyncHandler(controller.updateClientConfig))
 
 module.exports = router

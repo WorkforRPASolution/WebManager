@@ -47,7 +47,8 @@ export const useProcessFilterStore = defineStore('processFilter', () => {
     emailTemplate: [],   // EMAIL_TEMPLATE
     popupTemplate: [],   // POPUP_TEMPLATE
     emailRecipients: [], // EMAIL_RECIPIENTS
-    emailInfo: []        // EMAILINFO (category에서 추출)
+    emailInfo: [],       // EMAILINFO (category에서 추출)
+    emailImage: []       // EMAIL_IMAGE
   })
 
   /**
@@ -112,7 +113,8 @@ export const useProcessFilterStore = defineStore('processFilter', () => {
       emailTemplate: [],
       popupTemplate: [],
       emailRecipients: [],
-      emailInfo: []
+      emailInfo: [],
+      emailImage: []
     }
   }
 

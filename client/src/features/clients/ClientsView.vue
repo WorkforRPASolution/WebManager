@@ -2,11 +2,17 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useClientData } from './composables/useClientData'
+import { useConfigManager } from './composables/useConfigManager'
+import { clientControlApi } from './api'
 import ClientFilterBar from './components/ClientFilterBar.vue'
 import ClientToolbar from './components/ClientToolbar.vue'
 import ClientDataGrid from './components/ClientDataGrid.vue'
+import ConfigManagerModal from './components/ConfigManagerModal.vue'
 
 const router = useRouter()
+
+// Config Manager
+const configManager = useConfigManager()
 
 // Composable state
 const {
@@ -114,8 +120,47 @@ const handleRefresh = async () => {
 
 // Control handler (Start/Stop/Restart)
 const handleControl = async (action) => {
-  // TODO: Phase 3에서 실제 Akka 연동
-  showToast(`${action.charAt(0).toUpperCase() + action.slice(1)} command will be implemented in Phase 3`, 'info')
+  if (!selectedIds.value.length) {
+    showToast('Please select at least one client', 'warning')
+    return
+  }
+
+  const actionMap = {
+    start: clientControlApi.start,
+    stop: clientControlApi.stop,
+    restart: clientControlApi.restart
+  }
+
+  const apiFn = actionMap[action]
+  if (!apiFn) {
+    showToast(`Unknown action: ${action}`, 'error')
+    return
+  }
+
+  let successCount = 0
+  let failCount = 0
+
+  for (const eqpId of selectedIds.value) {
+    try {
+      const response = await apiFn(eqpId)
+      if (response.data.success) {
+        successCount++
+      } else {
+        failCount++
+      }
+    } catch (err) {
+      failCount++
+    }
+  }
+
+  if (failCount === 0) {
+    showToast(`${action.charAt(0).toUpperCase() + action.slice(1)} command sent to ${successCount} client(s)`, 'success')
+  } else {
+    showToast(`${action}: ${successCount} succeeded, ${failCount} failed`, 'warning')
+  }
+
+  // Refresh data after control
+  await refreshCurrentPage()
 }
 
 // Update handler
@@ -124,10 +169,33 @@ const handleUpdate = async () => {
   showToast('Update feature will be implemented in Phase 3', 'info')
 }
 
-// Config handler
+// Config save handler
+const handleConfigSave = async () => {
+  const result = await configManager.saveCurrentFile()
+  if (result?.success) {
+    showToast('Config saved successfully', 'success')
+  } else if (result?.error) {
+    showToast(result.error, 'error')
+  }
+}
+
+// Config handler - open Config Manager Modal for selected client
 const handleConfig = async () => {
-  // TODO: Phase 3에서 실제 Akka 연동
-  showToast('Config feature will be implemented in Phase 3', 'info')
+  if (!selectedIds.value.length) {
+    showToast('Please select at least one client', 'warning')
+    return
+  }
+
+  // Find the first selected client's data
+  const selectedEqpId = selectedIds.value[0]
+  const clientData = clients.value.find(c => (c.eqpId || c.id) === selectedEqpId)
+
+  if (!clientData) {
+    showToast('Client data not found', 'error')
+    return
+  }
+
+  configManager.openConfig(clientData)
 }
 </script>
 
@@ -215,6 +283,34 @@ const handleConfig = async () => {
         class="h-full bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border"
       />
     </div>
+
+    <!-- Config Manager Modal -->
+    <ConfigManagerModal
+      :is-open="configManager.isOpen.value"
+      :source-client="configManager.sourceClient.value"
+      :config-files="configManager.configFiles.value"
+      :active-file-id="configManager.activeFileId.value"
+      :edited-contents="configManager.editedContents.value"
+      :original-contents="configManager.originalContents.value"
+      :loading="configManager.loading.value"
+      :saving="configManager.saving.value"
+      :show-diff="configManager.showDiff.value"
+      :show-rollout="configManager.showRollout.value"
+      :error="configManager.error.value"
+      :active-file="configManager.activeFile.value"
+      :active-content="configManager.activeContent.value"
+      :active-original-content="configManager.activeOriginalContent.value"
+      :has-changes="configManager.hasChanges.value"
+      :active-file-has-changes="configManager.activeFileHasChanges.value"
+      :changed-file-ids="configManager.changedFileIds.value"
+      :global-error="configManager.error.value"
+      @close="configManager.closeConfig()"
+      @select-file="configManager.selectFile($event)"
+      @update-content="configManager.updateContent($event)"
+      @save="handleConfigSave"
+      @toggle-diff="configManager.toggleDiff()"
+      @toggle-rollout="configManager.toggleRollout()"
+    />
 
     <!-- Toast Notification -->
     <Transition

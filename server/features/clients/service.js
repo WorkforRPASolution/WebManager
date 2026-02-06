@@ -478,6 +478,33 @@ async function clientExists(eqpId) {
   return !!client
 }
 
+/**
+ * Get clients by eqpModel (for config rollout targets)
+ * @param {string} eqpModel - Equipment model name
+ * @param {string} excludeEqpId - Exclude this client from results
+ * @returns {Promise<Array>}
+ */
+async function getClientsByModel(eqpModel, excludeEqpId = null) {
+  const query = { eqpModel }
+  if (excludeEqpId) {
+    query.eqpId = { $ne: excludeEqpId }
+  }
+
+  const clients = await Client.find(query)
+    .select('eqpId eqpModel process ipAddr ipAddrL onoff')
+    .sort({ eqpId: 1 })
+    .lean()
+
+  return clients.map(c => ({
+    eqpId: c.eqpId,
+    eqpModel: c.eqpModel,
+    process: c.process,
+    ipAddress: c.ipAddr,
+    innerIp: c.ipAddrL || null,
+    status: c.onoff === 1 ? 'online' : 'offline'
+  }))
+}
+
 module.exports = {
   getProcesses,
   getModels,
@@ -490,5 +517,6 @@ module.exports = {
   createClients,
   updateClients,
   deleteClients,
-  clientExists
+  clientExists,
+  getClientsByModel
 }

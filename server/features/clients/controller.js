@@ -3,6 +3,8 @@
  */
 
 const service = require('./service')
+const controlService = require('./controlService')
+const ftpService = require('./ftpService')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 
 // ============================================
@@ -90,7 +92,7 @@ async function getClientLogs(req, res) {
 }
 
 // ============================================
-// Control Controllers (Mock for Phase 2)
+// Control Controllers (Batch Operations - Mock for Phase 3)
 // ============================================
 
 /**
@@ -156,8 +158,50 @@ async function configureClients(req, res) {
   })
 }
 
+// ============================================
+// Single Client Control (RPC via ManagerAgent)
+// ============================================
+
 /**
- * POST /api/clients/:id/restart
+ * GET /api/clients/:id/status - Get client service status
+ */
+async function getClientStatus(req, res) {
+  const { id } = req.params
+
+  const exists = await service.clientExists(id)
+  if (!exists) {
+    throw ApiError.notFound('Client not found')
+  }
+
+  try {
+    const status = await controlService.getClientStatus(id)
+    res.json(status)
+  } catch (error) {
+    throw ApiError.internal(`Failed to get client status: ${error.message}`)
+  }
+}
+
+/**
+ * POST /api/clients/:id/start - Start client service
+ */
+async function startClient(req, res) {
+  const { id } = req.params
+
+  const exists = await service.clientExists(id)
+  if (!exists) {
+    throw ApiError.notFound('Client not found')
+  }
+
+  try {
+    const result = await controlService.startClient(id)
+    res.json(result)
+  } catch (error) {
+    throw ApiError.internal(`Failed to start client: ${error.message}`)
+  }
+}
+
+/**
+ * POST /api/clients/:id/restart - Restart client service
  */
 async function restartClient(req, res) {
   const { id } = req.params
@@ -167,16 +211,16 @@ async function restartClient(req, res) {
     throw ApiError.notFound('Client not found')
   }
 
-  // Mock response (will connect to Akka server in Phase 3)
-  res.json({
-    success: true,
-    message: `Restart command sent to ${id}`,
-    timestamp: new Date().toISOString()
-  })
+  try {
+    const result = await controlService.restartClient(id)
+    res.json(result)
+  } catch (error) {
+    throw ApiError.internal(`Failed to restart client: ${error.message}`)
+  }
 }
 
 /**
- * POST /api/clients/:id/stop
+ * POST /api/clients/:id/stop - Stop client service
  */
 async function stopClient(req, res) {
   const { id } = req.params
@@ -186,12 +230,12 @@ async function stopClient(req, res) {
     throw ApiError.notFound('Client not found')
   }
 
-  // Mock response (will connect to Akka server in Phase 3)
-  res.json({
-    success: true,
-    message: `Stop command sent to ${id}`,
-    timestamp: new Date().toISOString()
-  })
+  try {
+    const result = await controlService.stopClient(id)
+    res.json(result)
+  } catch (error) {
+    throw ApiError.internal(`Failed to stop client: ${error.message}`)
+  }
 }
 
 // ============================================
@@ -280,6 +324,147 @@ async function deleteMasterData(req, res) {
   })
 }
 
+// ============================================
+// Config Management Controllers (FTP)
+// ============================================
+
+/**
+ * GET /api/clients/config/settings
+ * Get config file settings (names, paths)
+ */
+async function getConfigSettings(req, res) {
+  const settings = ftpService.getConfigSettings()
+  res.json(settings)
+}
+
+/**
+ * GET /api/clients/by-model
+ * Get clients by eqpModel (for rollout targets)
+ */
+async function getClientsByModel(req, res) {
+  const { eqpModel, excludeEqpId } = req.query
+
+  if (!eqpModel) {
+    throw ApiError.badRequest('eqpModel is required')
+  }
+
+  const clients = await service.getClientsByModel(eqpModel, excludeEqpId)
+  res.json(clients)
+}
+
+/**
+ * GET /api/clients/:id/config
+ * Read all config files for a client via FTP
+ */
+async function getClientConfigs(req, res) {
+  const { id } = req.params
+
+  const exists = await service.clientExists(id)
+  if (!exists) {
+    throw ApiError.notFound('Client not found')
+  }
+
+  try {
+    const configs = await ftpService.readAllConfigs(id)
+    res.json(configs)
+  } catch (error) {
+    throw ApiError.internal(`Failed to read configs: ${error.message}`)
+  }
+}
+
+/**
+ * PUT /api/clients/:id/config/:fileId
+ * Save a single config file via FTP
+ */
+async function updateClientConfig(req, res) {
+  const { id, fileId } = req.params
+  const { content } = req.body
+
+  if (content === undefined || content === null) {
+    throw ApiError.badRequest('content is required')
+  }
+
+  const exists = await service.clientExists(id)
+  if (!exists) {
+    throw ApiError.notFound('Client not found')
+  }
+
+  // Find the config file path by fileId
+  const configs = ftpService.getConfigSettings()
+  const config = configs.find(c => c.fileId === fileId)
+  if (!config) {
+    throw ApiError.notFound(`Config file not found: ${fileId}`)
+  }
+
+  try {
+    await ftpService.writeConfigFile(id, config.path, content)
+    res.json({ success: true, message: 'Config saved successfully' })
+  } catch (error) {
+    throw ApiError.internal(`Failed to save config: ${error.message}`)
+  }
+}
+
+/**
+ * POST /api/clients/config/deploy
+ * Deploy config to multiple clients via SSE
+ */
+async function deployConfig(req, res) {
+  const { sourceEqpId, fileId, targetEqpIds, mode, selectedKeys } = req.body
+
+  if (!sourceEqpId || !fileId || !targetEqpIds || !Array.isArray(targetEqpIds) || targetEqpIds.length === 0) {
+    throw ApiError.badRequest('sourceEqpId, fileId, and targetEqpIds are required')
+  }
+
+  // Find config path
+  const configs = ftpService.getConfigSettings()
+  const config = configs.find(c => c.fileId === fileId)
+  if (!config) {
+    throw ApiError.notFound(`Config file not found: ${fileId}`)
+  }
+
+  // Set up SSE
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.flushHeaders()
+
+  try {
+    // Read source config
+    const sourceContent = await ftpService.readConfigFile(sourceEqpId, config.path)
+
+    const onProgress = (progress) => {
+      res.write(`data: ${JSON.stringify(progress)}\n\n`)
+    }
+
+    let results
+    if (mode === 'selective' && selectedKeys && selectedKeys.length > 0) {
+      const sourceConfig = JSON.parse(sourceContent)
+      results = await ftpService.deployConfigSelective(
+        sourceConfig, selectedKeys, targetEqpIds, config.path, onProgress
+      )
+    } else {
+      results = await ftpService.deployConfig(
+        sourceContent, targetEqpIds, config.path, onProgress
+      )
+    }
+
+    // Send final summary
+    const successCount = results.filter(r => r.success).length
+    const failCount = results.filter(r => !r.success).length
+    res.write(`data: ${JSON.stringify({
+      done: true,
+      total: targetEqpIds.length,
+      success: successCount,
+      failed: failCount,
+      results
+    })}\n\n`)
+  } catch (error) {
+    res.write(`data: ${JSON.stringify({ done: true, error: error.message })}\n\n`)
+  }
+
+  res.end()
+}
+
 module.exports = {
   // Filter & List
   getProcesses,
@@ -289,15 +474,24 @@ module.exports = {
   // Detail
   getClientDetail,
   getClientLogs,
-  // Control
+  // Batch Control (Mock)
   controlClients,
   updateClientsSoftware,
   configureClients,
+  // Single Client Control (RPC)
+  getClientStatus,
+  startClient,
   restartClient,
   stopClient,
   // Equipment Info
   getMasterData,
   createMasterData,
   updateMasterData,
-  deleteMasterData
+  deleteMasterData,
+  // Config Management (FTP)
+  getConfigSettings,
+  getClientsByModel,
+  getClientConfigs,
+  updateClientConfig,
+  deployConfig
 }
