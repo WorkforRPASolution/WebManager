@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useClientData } from './composables/useClientData'
 import { useConfigManager } from './composables/useConfigManager'
-import { clientControlApi } from './api'
+import { clientControlApi, serviceApi } from './api'
 import ClientFilterBar from './components/ClientFilterBar.vue'
 import ClientToolbar from './components/ClientToolbar.vue'
 import ClientDataGrid from './components/ClientDataGrid.vue'
@@ -202,6 +202,41 @@ const handleControl = async (action) => {
     } else {
       showToast(`Status check: ${successCount} succeeded, ${failCount} failed`, 'warning')
     }
+    return
+  }
+
+  // Kill: Force kill handling
+  if (action === 'kill') {
+    if (!confirm(`Are you sure you want to force kill ${selectedIds.value.length} client(s)? This will forcefully terminate the processes.`)) {
+      return
+    }
+
+    let successCount = 0
+    let failCount = 0
+
+    for (const eqpId of selectedIds.value) {
+      try {
+        const response = await serviceApi.executeAction(eqpId, 'kill')
+        const result = response.data?.data || response.data
+        if (result.success) {
+          successCount++
+        } else {
+          failCount++
+        }
+      } catch (err) {
+        failCount++
+      }
+    }
+
+    if (failCount === 0) {
+      showToast(`Force kill sent to ${successCount} client(s)`, 'success')
+    } else {
+      showToast(`Force kill: ${successCount} succeeded, ${failCount} failed`, 'warning')
+    }
+
+    await refreshCurrentPage()
+    await fetchAllServiceStatuses()
+    gridRef.value?.restoreSelection(selectedIds.value)
     return
   }
 

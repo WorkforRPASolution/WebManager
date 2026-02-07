@@ -51,6 +51,18 @@
         Restart
       </button>
 
+      <!-- Force Kill Button -->
+      <button
+        @click="$emit('control', 'kill')"
+        :disabled="selectedCount === 0 || operating"
+        class="flex items-center gap-1.5 px-3 py-2 bg-red-700 hover:bg-red-800 text-white font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 11-12.728 0M12 3v9" />
+        </svg>
+        Force Kill
+      </button>
+
       <div class="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
 
       <!-- Update Button -->

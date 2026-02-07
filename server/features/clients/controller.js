@@ -6,6 +6,7 @@ const service = require('./service')
 const controlService = require('./controlService')
 const ftpService = require('./ftpService')
 const { ApiError } = require('../../shared/middleware/errorHandler')
+const strategyRegistry = require('./strategies')
 
 // ============================================
 // Filter & List Controllers
@@ -484,6 +485,47 @@ async function deployConfig(req, res) {
   res.end()
 }
 
+// ============================================
+// Strategy-based Service Control Controllers
+// ============================================
+
+/**
+ * GET /api/clients/service-types
+ */
+async function getServiceTypes(req, res) {
+  const types = strategyRegistry.list()
+  res.json(types)
+}
+
+/**
+ * POST /api/clients/:id/action/:action
+ */
+async function handleExecuteAction(req, res) {
+  const { id, action } = req.params
+  const exists = await service.clientExists(id)
+  if (!exists) throw ApiError.notFound('Client not found')
+
+  try {
+    const result = await controlService.executeAction(id, action)
+    res.json(result)
+  } catch (error) {
+    throw ApiError.internal(`Action '${action}' failed: ${error.message}`)
+  }
+}
+
+/**
+ * POST /api/clients/batch-action/:action
+ */
+async function handleBatchExecuteAction(req, res) {
+  const { action } = req.params
+  const { eqpIds } = req.body
+  if (!eqpIds || !Array.isArray(eqpIds) || eqpIds.length === 0) {
+    throw ApiError.badRequest('eqpIds array is required')
+  }
+  const results = await controlService.batchExecuteAction(eqpIds, action)
+  res.json({ results })
+}
+
 module.exports = {
   // Filter & List
   getProcesses,
@@ -513,5 +555,9 @@ module.exports = {
   getClientsByModel,
   getClientConfigs,
   updateClientConfig,
-  deployConfig
+  deployConfig,
+  // Strategy-based Service Control
+  getServiceTypes,
+  handleExecuteAction,
+  handleBatchExecuteAction
 }

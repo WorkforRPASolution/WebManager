@@ -127,7 +127,14 @@ const iconPaths = {
   bookmark: 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z',
 
   // Save
-  save: 'M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4'
+  save: 'M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4',
+
+  // Play (Start)
+  play: 'M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z',
+  // Stop (Square)
+  square_stop: 'M6 6h12v12H6z',
+  // Power (for kill)
+  power: 'M18.364 5.636a9 9 0 11-12.728 0M12 3v9',
 }
 
 // Settings 아이콘처럼 여러 path가 필요한 아이콘

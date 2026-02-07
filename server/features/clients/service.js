@@ -6,6 +6,7 @@ const Client = require('./model')
 const { parsePaginationParams } = require('../../shared/utils/pagination')
 const { validateBatchCreate, validateUpdate } = require('./validation')
 const { createRulesContext } = require('../../shared/utils/businessRules')
+const strategyRegistry = require('./strategies')
 
 // EQP_INFO 컬렉션용 비즈니스 규칙 컨텍스트
 const rules = createRulesContext('EQP_INFO', { documentIdField: 'eqpId' })
@@ -107,6 +108,7 @@ function transformClient(client) {
  * Transform client document to detail format
  */
 function transformClientDetail(client) {
+  const strategy = strategyRegistry.get(client.serviceType)
   return {
     id: client.eqpId,
     eqpId: client.eqpId,
@@ -122,6 +124,13 @@ function transformClientDetail(client) {
     installDate: client.installdate,
     localPc: client.localpc === 1,
     webmanagerUse: client.webmanagerUse === 1,
+    serviceType: client.serviceType || null,
+    displayType: strategy?.displayType || null,
+    actions: strategy
+      ? Object.entries(strategy.actions)
+          .sort(([, a], [, b]) => a.order - b.order)
+          .map(([name, meta]) => ({ name, ...meta }))
+      : [],
     // Mock resource data (will be from Akka server in Phase 3)
     resources: {
       cpu: Math.floor(Math.random() * 60) + 20,

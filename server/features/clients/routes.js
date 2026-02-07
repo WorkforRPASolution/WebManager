@@ -40,6 +40,16 @@ router.post('/update', authenticate, requireMenuPermission('clients'), asyncHand
 // POST /api/clients/config - Batch config change
 router.post('/config', authenticate, requireMenuPermission('clients'), asyncHandler(controller.configureClients))
 
+// ============================================
+// Strategy-based Service Control Routes
+// ============================================
+
+// GET /api/clients/service-types - Get registered service types
+router.get('/service-types', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getServiceTypes))
+
+// POST /api/clients/batch-action/:action - Strategy-based batch action
+router.post('/batch-action/:action', authenticate, requireMenuPermission('clients'), asyncHandler(controller.handleBatchExecuteAction))
+
 // POST /api/clients/batch-status - Get batch client service status (RPC)
 router.post('/batch-status', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getBatchClientStatus))
 
@@ -96,6 +106,10 @@ router.post('/:id/stop', authenticate, requireMenuPermission('clients'), asyncHa
 
 // GET /api/clients/:id/config - Read all config files (FTP)
 router.get('/:id/config', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getClientConfigs))
+
+
+// POST /api/clients/:id/action/:action - Strategy-based action execution
+router.post('/:id/action/:action', authenticate, requireMenuPermission('clients'), asyncHandler(controller.handleExecuteAction))
 
 // PUT /api/clients/:id/config/:fileId - Save single config file (FTP)
 router.put('/:id/config/:fileId', authenticate, requireMenuPermission('clients'), asyncHandler(controller.updateClientConfig))

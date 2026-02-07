@@ -1,6 +1,7 @@
 const { AvroRpcClient } = require('../../shared/avro/avroClient')
 const execCommandService = require('../exec-commands/service')
 const Client = require('./model')
+const strategyRegistry = require('./strategies')
 
 /**
  * 클라이언트 IP 정보 조회
@@ -127,6 +128,58 @@ async function getBatchClientStatus(eqpIds) {
   return statusMap
 }
 
+
+async function executeRaw(eqpId, commandLine, args, timeout) {
+  const { ipAddr, ipAddrL } = await getClientIpInfo(eqpId)
+  const rpcClient = new AvroRpcClient(ipAddr, ipAddrL)
+  try {
+    await rpcClient.connect()
+    const response = await rpcClient.runCommand(commandLine, args, timeout)
+    return response // { success, output, error } - no throw on !success
+  } finally {
+    rpcClient.disconnect()
+  }
+}
+
+async function executeAction(eqpId, action) {
+  const client = await Client.findOne({ eqpId }).select('serviceType').lean()
+  if (!client) throw new Error(`Client not found: ${eqpId}`)
+  if (!client.serviceType) throw new Error(`No serviceType configured for: ${eqpId}`)
+
+  const strategy = strategyRegistry.get(client.serviceType)
+  if (!strategy) throw new Error(`Unknown serviceType: ${client.serviceType}`)
+
+  // restart = stop + delay + start composite
+  if (action === 'restart') {
+    await executeAction(eqpId, 'stop')
+    await new Promise(resolve => setTimeout(resolve, 3000))
+    return executeAction(eqpId, 'start')
+  }
+
+  const cmd = strategy.getCommand(action)
+  if (!cmd) throw new Error(`No command for action: ${action}`)
+
+  const rpcResult = await executeRaw(eqpId, cmd.commandLine, cmd.args, cmd.timeout)
+  const parsed = strategy.parseResponse(action, rpcResult)
+
+  return {
+    displayType: strategy.displayType,
+    action,
+    data: parsed
+  }
+}
+
+async function batchExecuteAction(eqpIds, action) {
+  const results = await Promise.allSettled(
+    eqpIds.map(eqpId =>
+      executeAction(eqpId, action)
+        .then(data => ({ eqpId, ...data }))
+        .catch(error => ({ eqpId, error: error.message }))
+    )
+  )
+  return results.map(r => r.status === 'fulfilled' ? r.value : { eqpId: 'unknown', error: r.reason?.message })
+}
+
 module.exports = {
   getClientStatus,
   startClient,
@@ -134,5 +187,8 @@ module.exports = {
   restartClient,
   executeCommand,
   getClientIpInfo,
-  getBatchClientStatus
+  getBatchClientStatus,
+  executeRaw,
+  executeAction,
+  batchExecuteAction
 }

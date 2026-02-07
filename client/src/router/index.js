@@ -77,7 +77,7 @@ const routes = [
         mainMenuIcon: 'devices',
         mainMenuOrder: 2,
         subMenu: 'client-list',
-        subMenuLabel: 'Client List',
+        subMenuLabel: 'ARSAgent',
         subMenuIcon: 'list',
         subMenuOrder: 1,
         permission: 'clients'

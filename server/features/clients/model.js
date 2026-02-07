@@ -22,6 +22,7 @@ const clientSchema = new Schema({
   osVer: { type: String, required: true },
   onoff: { type: Number, required: true },
   webmanagerUse: { type: Number, required: true },
+  serviceType: { type: String, default: null, trim: true },
   installdate: { type: String },
   scFirstExcute: { type: String },
   snapshotTimeDiff: { type: Number },

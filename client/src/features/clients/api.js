@@ -72,3 +72,12 @@ export const clientControlApi = {
   getBatchStatus: (eqpIds) =>
     api.post('/clients/batch-status', { eqpIds }),
 }
+
+// Strategy-based Service Control API
+export const serviceApi = {
+  getServiceTypes: () => api.get('/clients/service-types'),
+  executeAction: (eqpId, action, timeout = 40000) =>
+    api.post(`/clients/${eqpId}/action/${action}`, {}, { timeout }),
+  batchExecuteAction: (action, eqpIds, timeout = 75000) =>
+    api.post(`/clients/batch-action/${action}`, { eqpIds }, { timeout }),
+}
