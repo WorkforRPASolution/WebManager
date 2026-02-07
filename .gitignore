@@ -53,6 +53,20 @@ coverage/
 .eslintcache
 *.tsbuildinfo
 
+# Claude Code
+.claude/hooks/
+.claude/settings.json
+.claude/settings.local.json
+
+# bkit / PDCA
+docs/.bkit-memory.json
+docs/.pdca-status.json
+docs/.pdca-snapshots/
+
+# Architecture docs (local reference)
+docs/GENERIC_COMMAND_ARCHITECTURE.md
+docs/SERVICE_STRATEGY_ARCHITECTURE.md
+
 # Misc
 *.local
 .temp/
