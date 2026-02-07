@@ -149,11 +149,22 @@ async function executeAction(eqpId, action) {
   const strategy = strategyRegistry.get(client.serviceType)
   if (!strategy) throw new Error(`Unknown serviceType: ${client.serviceType}`)
 
-  // restart = stop + delay + start composite
+  // restart = stop + poll until stopped + start composite
   if (action === 'restart') {
+    const retries = strategy.actions?.restart?.retries || 5
+    const interval = strategy.actions?.restart?.interval || 1000
+
     await executeAction(eqpId, 'stop')
-    await new Promise(resolve => setTimeout(resolve, 3000))
-    return executeAction(eqpId, 'start')
+
+    for (let i = 0; i < retries; i++) {
+      await new Promise(resolve => setTimeout(resolve, interval))
+      const result = await executeAction(eqpId, 'status')
+      if (!result.data.running) {
+        return executeAction(eqpId, 'start')
+      }
+    }
+
+    throw new Error(`Service did not stop after ${retries} retries (${retries * interval}ms)`)
   }
 
   const cmd = strategy.getCommand(action)
