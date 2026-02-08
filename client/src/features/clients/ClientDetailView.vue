@@ -5,6 +5,7 @@ import api from '../../shared/api'
 import { serviceApi } from './api'
 import { getStatusComponent } from './components/service-status'
 import { useConfigManager } from './composables/useConfigManager'
+import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
 import { useToast } from '../../shared/composables/useToast'
 import AppIcon from '../../shared/components/AppIcon.vue'
 import ConfigManagerModal from './components/ConfigManagerModal.vue'
@@ -14,6 +15,7 @@ const router = useRouter()
 const { showSuccess, showError } = useToast()
 const agentGroup = computed(() => route.meta.agentGroup)
 const configManager = useConfigManager()
+const { canWrite } = useFeaturePermission('arsAgent')
 
 const activeTab = ref('overview')
 const client = ref(null)
@@ -313,17 +315,18 @@ const getLogLevelClass = (level) => {
             <AppIcon name="refresh" size="4" :class="{ 'animate-spin': serviceStatusLoading }" />
             Status
           </button>
-          <button
-            v-for="action in (client.actions || []).filter(a => a.name !== 'status')"
-            :key="action.name"
-            @click="handleAction(action)"
-            :disabled="serviceActionLoading || isActionDisabled(action)"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-            :class="getActionButtonClass(action)"
-          >
-            <AppIcon :name="action.icon || 'settings'" size="4" />
-            {{ action.label }}
-          </button>
+          <template v-for="action in (client.actions || []).filter(a => a.name !== 'status')" :key="action.name">
+            <button
+              v-if="canWrite"
+              @click="handleAction(action)"
+              :disabled="serviceActionLoading || isActionDisabled(action)"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+              :class="getActionButtonClass(action)"
+            >
+              <AppIcon :name="action.icon || 'settings'" size="4" />
+              {{ action.label }}
+            </button>
+          </template>
         </div>
 
         <!-- Dynamic Status Display -->
@@ -357,6 +360,7 @@ const getLogLevelClass = (level) => {
           View and edit configuration files on this client via FTP.
         </p>
         <button
+          v-if="canWrite"
           @click="openConfigManager"
           class="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white font-medium rounded-lg transition text-sm"
         >
@@ -367,6 +371,7 @@ const getLogLevelClass = (level) => {
 
       <!-- Config Manager Modal -->
       <ConfigManagerModal
+        :can-write="canWrite"
         :is-open="configManager.isOpen.value"
         :source-client="configManager.sourceClient.value"
         :config-files="configManager.configFiles.value"

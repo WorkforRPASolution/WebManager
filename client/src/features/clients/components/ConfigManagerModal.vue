@@ -104,7 +104,7 @@
 
             <button
               @click="handleSave"
-              :disabled="!activeFileHasChanges || saving"
+              :disabled="!canWrite || !activeFileHasChanges || saving"
               class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-500 hover:bg-primary-600 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg v-if="saving" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -118,6 +118,7 @@
             </button>
 
             <button
+              v-if="canWrite"
               @click="toggleRollout()"
               :disabled="!activeFile || !!activeFile.error"
               class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-purple-500 hover:bg-purple-600 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -193,7 +194,8 @@
                     wordWrap: 'on',
                     automaticLayout: true,
                     scrollBeyondLastLine: false,
-                    formatOnPaste: true
+                    formatOnPaste: true,
+                    readOnly: !canWrite
                   }"
                 />
               </div>
@@ -259,6 +261,7 @@ import { useTheme } from '../../../shared/composables/useTheme'
 const { isDark } = useTheme()
 
 const props = defineProps({
+  canWrite: { type: Boolean, default: false },
   isOpen: Boolean,
   sourceClient: Object,
   configFiles: Array,
