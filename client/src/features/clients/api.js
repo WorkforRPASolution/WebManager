@@ -73,11 +73,26 @@ export const clientControlApi = {
     api.post('/clients/batch-status', { eqpIds }),
 }
 
+const API_BASE = import.meta.env.VITE_API_URL || '/api'
+
 // Strategy-based Service Control API
 export const serviceApi = {
   getServiceTypes: () => api.get('/clients/service-types'),
-  executeAction: (eqpId, action, timeout = 40000) =>
-    api.post(`/clients/${eqpId}/action/${action}`, {}, { timeout }),
-  batchExecuteAction: (action, eqpIds, timeout = 75000) =>
-    api.post(`/clients/batch-action/${action}`, { eqpIds }, { timeout }),
+  getClientById: (id, agentGroup) =>
+    api.get(`/clients/${id}`, { params: { agentGroup } }),
+  executeAction: (eqpId, agentGroup, action, timeout = 40000) =>
+    api.post(`/clients/${eqpId}/action/${action}`, { agentGroup }, { timeout }),
+  batchExecuteAction: (action, eqpIds, agentGroup, timeout = 75000) =>
+    api.post(`/clients/batch-action/${action}`, { eqpIds, agentGroup }, { timeout }),
+  batchActionStream: (action, eqpIds, agentGroup) => {
+    const token = localStorage.getItem('token')
+    return fetch(`${API_BASE}/clients/batch-action-stream/${action}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ eqpIds, agentGroup })
+    })
+  },
 }

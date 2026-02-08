@@ -1,21 +1,27 @@
 /**
  * Strategy Registry
- * serviceType별 Strategy 모듈을 등록하고 조회한다.
+ * agentGroup:serviceType별 Strategy 모듈을 등록하고 조회한다.
  */
 
 const strategies = new Map()
 
 function register(strategy) {
-  strategies.set(strategy.id, strategy)
+  const key = `${strategy.agentGroup}:${strategy.serviceType}`
+  strategies.set(key, strategy)
 }
 
-function get(serviceType) {
-  return strategies.get(serviceType) || null
+function get(agentGroup, serviceType) {
+  return strategies.get(`${agentGroup}:${serviceType}`) || null
+}
+
+function hasServiceType(serviceType) {
+  return [...strategies.values()].some(s => s.serviceType === serviceType)
 }
 
 function list() {
   return Array.from(strategies.values()).map(s => ({
-    id: s.id,
+    agentGroup: s.agentGroup,
+    serviceType: s.serviceType,
     displayType: s.displayType,
     label: s.label,
     actions: Object.entries(s.actions)
@@ -24,8 +30,14 @@ function list() {
   }))
 }
 
+function getDefault(agentGroup) {
+  return [...strategies.values()].find(
+    s => s.agentGroup === agentGroup && s.isDefault
+  ) || null
+}
+
 // Auto-register strategies
 const arsAgentWinSc = require('./arsAgentWinSc')
 register(arsAgentWinSc)
 
-module.exports = { register, get, list }
+module.exports = { register, get, getDefault, hasServiceType, list }

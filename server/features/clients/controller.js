@@ -67,7 +67,8 @@ async function getClientsList(req, res) {
  */
 async function getClientDetail(req, res) {
   const { id } = req.params
-  const client = await service.getClientById(id)
+  const { agentGroup } = req.query
+  const client = await service.getClientById(id, agentGroup)
 
   if (!client) {
     throw ApiError.notFound('Client not found')
@@ -244,7 +245,9 @@ async function stopClient(req, res) {
  * POST /api/clients/batch-status - Get batch client service status
  */
 async function getBatchClientStatus(req, res) {
-  const { eqpIds } = req.body
+  const { eqpIds, agentGroup } = req.body
+
+  if (!agentGroup) throw ApiError.badRequest('agentGroup is required')
 
   if (!eqpIds || !Array.isArray(eqpIds) || eqpIds.length === 0) {
     throw ApiError.badRequest('eqpIds array is required')
@@ -502,11 +505,14 @@ async function getServiceTypes(req, res) {
  */
 async function handleExecuteAction(req, res) {
   const { id, action } = req.params
+  const { agentGroup } = req.body
+  if (!agentGroup) throw ApiError.badRequest('agentGroup is required')
+
   const exists = await service.clientExists(id)
   if (!exists) throw ApiError.notFound('Client not found')
 
   try {
-    const result = await controlService.executeAction(id, action)
+    const result = await controlService.executeAction(id, agentGroup, action)
     res.json(result)
   } catch (error) {
     throw ApiError.internal(`Action '${action}' failed: ${error.message}`)
@@ -518,12 +524,60 @@ async function handleExecuteAction(req, res) {
  */
 async function handleBatchExecuteAction(req, res) {
   const { action } = req.params
-  const { eqpIds } = req.body
+  const { eqpIds, agentGroup } = req.body
+
+  if (!agentGroup) throw ApiError.badRequest('agentGroup is required')
   if (!eqpIds || !Array.isArray(eqpIds) || eqpIds.length === 0) {
     throw ApiError.badRequest('eqpIds array is required')
   }
-  const results = await controlService.batchExecuteAction(eqpIds, action)
+  const results = await controlService.batchExecuteAction(eqpIds, agentGroup, action)
   res.json({ results })
+}
+
+
+/**
+ * POST /api/clients/batch-action-stream/:action
+ * SSE streaming batch action execution
+ */
+async function handleBatchActionStream(req, res) {
+  const { action } = req.params
+  const { eqpIds, agentGroup } = req.body
+
+  if (!agentGroup) throw ApiError.badRequest('agentGroup is required')
+
+  if (!eqpIds || !Array.isArray(eqpIds) || eqpIds.length === 0) {
+    throw ApiError.badRequest('eqpIds array is required')
+  }
+
+  // SSE headers (same pattern as deployConfig)
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.flushHeaders()
+
+  // Detect client disconnection via res.on('close'), NOT req.on('close').
+  // req 'close' fires when request body is consumed (immediately for small POST),
+  // res 'close' fires when the actual TCP connection drops.
+  let aborted = false
+  res.on('close', () => { aborted = true })
+
+  const onProgress = (progress) => {
+    if (!aborted) {
+      res.write(`data: ${JSON.stringify(progress)}\n\n`)
+    }
+  }
+
+  try {
+    await controlService.batchExecuteActionStream(eqpIds, agentGroup, action, onProgress)
+    if (!aborted) {
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`)
+    }
+  } catch (error) {
+    if (!aborted) {
+      res.write(`data: ${JSON.stringify({ done: true, error: error.message })}\n\n`)
+    }
+  }
+  res.end()
 }
 
 module.exports = {
@@ -559,5 +613,6 @@ module.exports = {
   // Strategy-based Service Control
   getServiceTypes,
   handleExecuteAction,
-  handleBatchExecuteAction
+  handleBatchExecuteAction,
+  handleBatchActionStream
 }

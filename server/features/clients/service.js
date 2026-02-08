@@ -107,8 +107,12 @@ function transformClient(client) {
 /**
  * Transform client document to detail format
  */
-function transformClientDetail(client) {
-  const strategy = strategyRegistry.get(client.serviceType)
+function transformClientDetail(client, agentGroup) {
+  const strategy = agentGroup
+    ? (client.serviceType
+        ? strategyRegistry.get(agentGroup, client.serviceType)
+        : strategyRegistry.getDefault(agentGroup))
+    : null
   return {
     id: client.eqpId,
     eqpId: client.eqpId,
@@ -225,10 +229,10 @@ async function getClientsPaginated(filters, paginationQuery) {
 /**
  * Get client by ID
  */
-async function getClientById(eqpId) {
+async function getClientById(eqpId, agentGroup) {
   const client = await Client.findOne({ eqpId })
   if (!client) return null
-  return transformClientDetail(client)
+  return transformClientDetail(client, agentGroup)
 }
 
 /**

@@ -68,6 +68,7 @@ const routes = [
     name: 'Clients',
     component: () => import('../features/clients/ClientsView.vue'),
     meta: {
+      agentGroup: 'ars_agent',
       layout: 'default',
       requiresAuth: true,
       permission: 'clients',
@@ -89,6 +90,7 @@ const routes = [
     name: 'ClientDetail',
     component: () => import('../features/clients/ClientDetailView.vue'),
     meta: {
+      agentGroup: 'ars_agent',
       layout: 'default',
       requiresAuth: true,
       permission: 'clients',

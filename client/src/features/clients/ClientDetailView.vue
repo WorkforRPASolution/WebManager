@@ -12,6 +12,7 @@ import ConfigManagerModal from './components/ConfigManagerModal.vue'
 const route = useRoute()
 const router = useRouter()
 const { showSuccess, showError } = useToast()
+const agentGroup = computed(() => route.meta.agentGroup)
 const configManager = useConfigManager()
 
 const activeTab = ref('overview')
@@ -44,7 +45,7 @@ const logs = ref([
 
 onMounted(async () => {
   try {
-    const response = await api.get(`/clients/${route.params.id}`)
+    const response = await serviceApi.getClientById(route.params.id, agentGroup.value)
     client.value = response.data.data || response.data
   } catch (error) {
     const message = error.response?.data?.message || error.message
@@ -67,7 +68,7 @@ const fetchServiceStatus = async () => {
   const eqpId = route.params.id
   serviceStatusLoading.value = true
   try {
-    const response = await serviceApi.executeAction(eqpId, 'status')
+    const response = await serviceApi.executeAction(eqpId, agentGroup.value, 'status')
     serviceStatus.value = response.data?.data || response.data
   } catch (error) {
     if (error.message?.includes('timeout')) {
@@ -97,7 +98,7 @@ const handleAction = async (action) => {
 
   try {
     actionMessage.value = 'Waiting for server response...'
-    const response = await serviceApi.executeAction(eqpId, action.name)
+    const response = await serviceApi.executeAction(eqpId, agentGroup.value, action.name)
 
     const result = response.data?.data || response.data
     if (result.success) {

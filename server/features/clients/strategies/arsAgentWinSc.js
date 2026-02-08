@@ -4,7 +4,9 @@
  */
 
 module.exports = {
-  id: 'ars_agent_win_sc',
+  agentGroup: 'ars_agent',
+  serviceType: 'win_sc',
+  isDefault: true,
   displayType: 'ars_agent',
   label: 'ARS Agent (Windows SC)',
 

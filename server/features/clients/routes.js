@@ -50,6 +50,10 @@ router.get('/service-types', authenticate, requireMenuPermission('clients'), asy
 // POST /api/clients/batch-action/:action - Strategy-based batch action
 router.post('/batch-action/:action', authenticate, requireMenuPermission('clients'), asyncHandler(controller.handleBatchExecuteAction))
 
+// POST /api/clients/batch-action-stream/:action - Strategy-based batch action (SSE streaming)
+router.post('/batch-action-stream/:action', authenticate, requireMenuPermission('clients'), asyncHandler(controller.handleBatchActionStream))
+
+
 // POST /api/clients/batch-status - Get batch client service status (RPC)
 router.post('/batch-status', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getBatchClientStatus))
 

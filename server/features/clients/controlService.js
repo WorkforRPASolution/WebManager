@@ -141,26 +141,27 @@ async function executeRaw(eqpId, commandLine, args, timeout) {
   }
 }
 
-async function executeAction(eqpId, action) {
+async function executeAction(eqpId, agentGroup, action) {
   const client = await Client.findOne({ eqpId }).select('serviceType').lean()
   if (!client) throw new Error(`Client not found: ${eqpId}`)
-  if (!client.serviceType) throw new Error(`No serviceType configured for: ${eqpId}`)
-
-  const strategy = strategyRegistry.get(client.serviceType)
-  if (!strategy) throw new Error(`Unknown serviceType: ${client.serviceType}`)
+  const strategy = client.serviceType
+    ? strategyRegistry.get(agentGroup, client.serviceType)
+    : strategyRegistry.getDefault(agentGroup)
+  if (!strategy) throw new Error(`No strategy found for ${agentGroup}` +
+    (client.serviceType ? `:${client.serviceType}` : ' (no default)'))
 
   // restart = stop + poll until stopped + start composite
   if (action === 'restart') {
     const retries = strategy.actions?.restart?.retries || 5
     const interval = strategy.actions?.restart?.interval || 1000
 
-    await executeAction(eqpId, 'stop')
+    await executeAction(eqpId, agentGroup, 'stop')
 
     for (let i = 0; i < retries; i++) {
       await new Promise(resolve => setTimeout(resolve, interval))
-      const result = await executeAction(eqpId, 'status')
+      const result = await executeAction(eqpId, agentGroup, 'status')
       if (!result.data.running) {
-        return executeAction(eqpId, 'start')
+        return executeAction(eqpId, agentGroup, 'start')
       }
     }
 
@@ -180,15 +181,53 @@ async function executeAction(eqpId, action) {
   }
 }
 
-async function batchExecuteAction(eqpIds, action) {
+async function batchExecuteAction(eqpIds, agentGroup, action) {
   const results = await Promise.allSettled(
     eqpIds.map(eqpId =>
-      executeAction(eqpId, action)
+      executeAction(eqpId, agentGroup, action)
         .then(data => ({ eqpId, ...data }))
         .catch(error => ({ eqpId, error: error.message }))
     )
   )
   return results.map(r => r.status === 'fulfilled' ? r.value : { eqpId: 'unknown', error: r.reason?.message })
+}
+
+async function batchExecuteActionStream(eqpIds, agentGroup, action, onProgress) {
+  const total = eqpIds.length
+  let completed = 0
+  const concurrency = parseInt(process.env.BATCH_CONCURRENCY) || 5
+
+  const pool = eqpIds.map((eqpId) => async () => {
+    try {
+      const result = await executeAction(eqpId, agentGroup, action)
+      completed++
+
+      if (action !== 'status') {
+        // For control actions, follow up with status to get running/state
+        try {
+          const statusResult = await executeAction(eqpId, agentGroup, 'status')
+          onProgress({ eqpId, ...statusResult, completed, total })
+        } catch (statusError) {
+          // If status query fails, send the original control result
+          onProgress({ eqpId, ...result, completed, total })
+        }
+      } else {
+        onProgress({ eqpId, ...result, completed, total })
+      }
+    } catch (error) {
+      completed++
+      onProgress({ eqpId, error: error.message, completed, total })
+    }
+  })
+
+  // concurrency pool execution (same pattern as ftpService.deployConfig)
+  const executing = new Set()
+  for (const task of pool) {
+    const p = task().then(() => executing.delete(p))
+    executing.add(p)
+    if (executing.size >= concurrency) await Promise.race(executing)
+  }
+  await Promise.all(executing)
 }
 
 module.exports = {
@@ -201,5 +240,6 @@ module.exports = {
   getBatchClientStatus,
   executeRaw,
   executeAction,
-  batchExecuteAction
+  batchExecuteAction,
+  batchExecuteActionStream
 }

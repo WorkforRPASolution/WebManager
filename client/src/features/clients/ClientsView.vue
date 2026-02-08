@@ -1,9 +1,10 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useClientData } from './composables/useClientData'
 import { useConfigManager } from './composables/useConfigManager'
-import { clientControlApi, serviceApi } from './api'
+import { useBatchActionStream } from './composables/useBatchActionStream'
+import { serviceApi } from './api'
 import ClientFilterBar from './components/ClientFilterBar.vue'
 import ClientToolbar from './components/ClientToolbar.vue'
 import ClientDataGrid from './components/ClientDataGrid.vue'
@@ -11,6 +12,8 @@ import ConfigManagerModal from './components/ConfigManagerModal.vue'
 import LogViewerModal from './components/LogViewerModal.vue'
 
 const router = useRouter()
+const route = useRoute()
+const agentGroup = computed(() => route.meta.agentGroup)
 
 // Config Manager
 const configManager = useConfigManager()
@@ -18,6 +21,9 @@ const configManager = useConfigManager()
 // Log Viewer state
 const logModalOpen = ref(false)
 const logModalClient = ref({ name: '', eqpId: '' })
+
+// SSE batch action stream
+const { streaming, execute: executeStream, cancel: cancelStream } = useBatchActionStream()
 
 // Service status state (RPC-based real-time status)
 const serviceStatuses = ref({})  // { [eqpId]: { running, state, uptime, loading, error } }
@@ -44,41 +50,6 @@ const {
   updateClients,
   configClients,
 } = useClientData()
-
-// Fetch all service statuses via batch RPC
-const fetchAllServiceStatuses = async () => {
-  if (!clients.value.length) return
-
-  const eqpIds = clients.value.map(c => c.eqpId || c.id).filter(Boolean)
-  if (!eqpIds.length) return
-
-  // Set all to loading state
-  const loadingState = {}
-  for (const id of eqpIds) {
-    loadingState[id] = { loading: true }
-  }
-  serviceStatuses.value = { ...serviceStatuses.value, ...loadingState }
-
-  try {
-    const response = await serviceApi.batchExecuteAction('status', eqpIds)
-    const results = response.data?.results || []
-    const statusMap = {}
-    for (const r of results) {
-      if (r.error) {
-        statusMap[r.eqpId] = { error: r.error }
-      } else {
-        statusMap[r.eqpId] = r.data || r
-      }
-    }
-    serviceStatuses.value = { ...serviceStatuses.value, ...statusMap }
-  } catch (err) {
-    const errorState = {}
-    for (const id of eqpIds) {
-      errorState[id] = { error: 'Failed to fetch status' }
-    }
-    serviceStatuses.value = { ...serviceStatuses.value, ...errorState }
-  }
-}
 
 // Computed: merge clients with service statuses
 const clientsWithStatus = computed(() => {
@@ -164,11 +135,27 @@ const handleRefresh = async () => {
   try {
     await refreshCurrentPage()
     gridRef.value?.restoreSelection(selectedIds.value)
-    fetchAllServiceStatuses()
-    showToast('All statuses updated', 'success')
   } catch (err) {
     showToast(err.message || 'Failed to refresh', 'error')
+    return
   }
+
+  const eqpIds = clients.value.map(c => c.eqpId || c.id).filter(Boolean)
+  if (!eqpIds.length) return
+
+  for (const eqpId of eqpIds) {
+    serviceStatuses.value[eqpId] = { loading: true }
+  }
+
+  await executeStream('status', eqpIds, agentGroup.value, (result) => {
+    if (result.error) {
+      serviceStatuses.value[result.eqpId] = { error: result.error }
+    } else {
+      serviceStatuses.value[result.eqpId] = result.data || result
+    }
+  })
+
+  showToast('All statuses updated', 'success')
 }
 
 // Control handler (Start/Stop/Restart/Status)
@@ -178,114 +165,37 @@ const handleControl = async (action) => {
     return
   }
 
-  // Status: 선택된 클라이언트만 상태 갱신 (페이지 새로고침 없음)
-  if (action === 'status') {
-    // 선택된 클라이언트를 loading 상태로 설정
-    for (const eqpId of selectedIds.value) {
-      serviceStatuses.value[eqpId] = { loading: true }
-    }
-
-    let successCount = 0
-    let failCount = 0
-
-    for (const eqpId of selectedIds.value) {
-      try {
-        const response = await clientControlApi.getStatus(eqpId)
-        if (response.data.success !== false) {
-          serviceStatuses.value[eqpId] = response.data
-          successCount++
-        } else {
-          serviceStatuses.value[eqpId] = { error: 'Failed' }
-          failCount++
-        }
-      } catch (err) {
-        serviceStatuses.value[eqpId] = { error: err.message }
-        failCount++
-      }
-    }
-
-    if (failCount === 0) {
-      showToast(`Status checked for ${successCount} client(s)`, 'success')
-    } else {
-      showToast(`Status check: ${successCount} succeeded, ${failCount} failed`, 'warning')
-    }
-    return
-  }
-
-  // Kill: Force kill handling
   if (action === 'kill') {
     if (!confirm(`Are you sure you want to force kill ${selectedIds.value.length} client(s)? This will forcefully terminate the processes.`)) {
       return
     }
-
-    let successCount = 0
-    let failCount = 0
-
-    for (const eqpId of selectedIds.value) {
-      try {
-        const response = await serviceApi.executeAction(eqpId, 'kill')
-        const result = response.data?.data || response.data
-        if (result.success) {
-          successCount++
-        } else {
-          failCount++
-        }
-      } catch (err) {
-        failCount++
-      }
-    }
-
-    if (failCount === 0) {
-      showToast(`Force kill sent to ${successCount} client(s)`, 'success')
-    } else {
-      showToast(`Force kill: ${successCount} succeeded, ${failCount} failed`, 'warning')
-    }
-
-    await refreshCurrentPage()
-    await fetchAllServiceStatuses()
-    gridRef.value?.restoreSelection(selectedIds.value)
-    return
   }
 
-  // Start/Stop/Restart: 기존 로직
-  const actionMap = {
-    start: clientControlApi.start,
-    stop: clientControlApi.stop,
-    restart: clientControlApi.restart
-  }
+  const eqpIds = selectedIds.value
 
-  const apiFn = actionMap[action]
-  if (!apiFn) {
-    showToast(`Unknown action: ${action}`, 'error')
-    return
+  for (const eqpId of eqpIds) {
+    serviceStatuses.value[eqpId] = { loading: true }
   }
 
   let successCount = 0
   let failCount = 0
 
-  for (const eqpId of selectedIds.value) {
-    try {
-      const response = await apiFn(eqpId)
-      if (response.data.success) {
-        successCount++
-      } else {
-        failCount++
-      }
-    } catch (err) {
+  await executeStream(action, eqpIds, agentGroup.value, (result) => {
+    if (result.error) {
+      serviceStatuses.value[result.eqpId] = { error: result.error }
       failCount++
+    } else {
+      serviceStatuses.value[result.eqpId] = result.data || result
+      successCount++
     }
-  }
+  })
 
+  const label = action.charAt(0).toUpperCase() + action.slice(1)
   if (failCount === 0) {
-    showToast(`${action.charAt(0).toUpperCase() + action.slice(1)} command sent to ${successCount} client(s)`, 'success')
+    showToast(`${label} completed for ${successCount} client(s)`, 'success')
   } else {
-    showToast(`${action}: ${successCount} succeeded, ${failCount} failed`, 'warning')
+    showToast(`${label}: ${successCount} succeeded, ${failCount} failed`, 'warning')
   }
-
-  // Refresh data after control action + restore selection
-  await refreshCurrentPage()
-  await fetchAllServiceStatuses()
-  gridRef.value?.restoreSelection(selectedIds.value)
 }
 
 // Update handler
@@ -340,15 +250,7 @@ const handleLog = () => {
   logModalOpen.value = true
 }
 
-// Auto-load all clients on mount
-onMounted(async () => {
-  hasSearched.value = true
-  try {
-    await fetchClients({}, 1, pageSize.value)
-  } catch (err) {
-    showToast(err.message || 'Failed to load clients', 'error')
-  }
-})
+// No auto-load on mount - user must use filters to search
 </script>
 
 <template>
@@ -388,8 +290,24 @@ onMounted(async () => {
       class="mb-4"
     />
 
+
+    <!-- Initial State - No Search Yet -->
+    <div v-if="!hasSearched" class="flex-1 flex items-center justify-center">
+      <div class="text-center">
+        <div class="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-dark-border rounded-full flex items-center justify-center">
+          <svg class="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Select Filters to View Data</h3>
+        <p class="text-gray-500 dark:text-gray-400 max-w-sm">
+          Use the filter bar above to select processes or models, then click Search to load the data.
+        </p>
+      </div>
+    </div>
+
     <!-- Loading State -->
-    <div v-if="loading && !clients.length" class="flex-1 flex items-center justify-center">
+    <div v-else-if="loading && !clients.length" class="flex-1 flex items-center justify-center">
       <div class="flex flex-col items-center gap-4">
         <svg class="w-8 h-8 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
