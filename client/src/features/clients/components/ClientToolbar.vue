@@ -2,6 +2,18 @@
   <div class="flex items-center justify-between p-4 bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border">
     <!-- Left side - Action buttons -->
     <div class="flex items-center gap-2">
+      <!-- All Status Button -->
+      <button
+        @click="$emit('refresh')"
+        :disabled="loading"
+        class="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <svg :class="['w-4 h-4', loading ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+        All Status
+      </button>
+
       <!-- Status Button -->
       <button
         @click="$emit('control', 'status')"
@@ -16,6 +28,7 @@
 
       <!-- Start Button -->
       <button
+        v-if="canWrite"
         @click="$emit('control', 'start')"
         :disabled="selectedCount === 0 || operating"
         class="flex items-center gap-1.5 px-3 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -28,6 +41,7 @@
 
       <!-- Stop Button -->
       <button
+        v-if="canWrite"
         @click="$emit('control', 'stop')"
         :disabled="selectedCount === 0 || operating"
         class="flex items-center gap-1.5 px-3 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -39,20 +53,9 @@
         Stop
       </button>
 
-      <!-- Restart Button -->
-      <button
-        @click="$emit('control', 'restart')"
-        :disabled="selectedCount === 0 || operating"
-        class="flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-        Restart
-      </button>
-
       <!-- Force Kill Button -->
       <button
+        v-if="canWrite"
         @click="$emit('control', 'kill')"
         :disabled="selectedCount === 0 || operating"
         class="flex items-center gap-1.5 px-3 py-2 bg-red-700 hover:bg-red-800 text-white font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -63,10 +66,24 @@
         Force Kill
       </button>
 
-      <div class="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
+      <!-- Restart Button -->
+      <button
+        v-if="canWrite"
+        @click="$emit('control', 'restart')"
+        :disabled="selectedCount === 0 || operating"
+        class="flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Restart
+      </button>
+
+      <div v-if="canWrite || canDelete" class="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
 
       <!-- Update Button -->
       <button
+        v-if="canDelete"
         @click="$emit('update')"
         :disabled="selectedCount === 0 || operating"
         class="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -79,6 +96,7 @@
 
       <!-- Config Button -->
       <button
+        v-if="canWrite"
         @click="$emit('config')"
         :disabled="selectedCount === 0 || operating"
         class="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -102,19 +120,6 @@
         Log
       </button>
 
-      <div class="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
-
-      <!-- All Status Button -->
-      <button
-        @click="$emit('refresh')"
-        :disabled="loading"
-        class="flex items-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <svg :class="['w-4 h-4', loading ? 'animate-spin' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        </svg>
-        All Status
-      </button>
     </div>
 
     <!-- Right side - Status info and Pagination -->
@@ -192,6 +197,14 @@
 
 <script setup>
 defineProps({
+  canWrite: {
+    type: Boolean,
+    default: false
+  },
+  canDelete: {
+    type: Boolean,
+    default: false
+  },
   selectedCount: {
     type: Number,
     default: 0

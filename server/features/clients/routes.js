@@ -7,7 +7,7 @@ const router = express.Router()
 const controller = require('./controller')
 const { asyncHandler } = require('../../shared/middleware/errorHandler')
 const { authenticate, requireMenuPermission } = require('../../shared/middleware/authMiddleware')
-const { requireFeaturePermission } = require('../permissions/middleware')
+const { requireFeaturePermission, requireActionPermission } = require('../permissions/middleware')
 
 // ============================================
 // Filter & List Routes (requires 'clients' OR 'equipmentInfo' permission)
@@ -22,23 +22,23 @@ router.get('/processes', authenticate, requireMenuPermission(['clients', 'equipm
 router.get('/models', authenticate, requireMenuPermission(['clients', 'equipmentInfo']), asyncHandler(controller.getModels))
 
 // GET /api/clients/list - Get clients with server-side pagination
-router.get('/list', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getClientsList))
+router.get('/list', authenticate, requireMenuPermission('clients'), requireFeaturePermission('arsAgent', 'read'), asyncHandler(controller.getClientsList))
 
 // GET /api/clients - Get all clients (simple list)
-router.get('/', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getClients))
+router.get('/', authenticate, requireMenuPermission('clients'), requireFeaturePermission('arsAgent', 'read'), asyncHandler(controller.getClients))
 
 // ============================================
 // Control Routes (requires 'clients' permission)
 // ============================================
 
 // POST /api/clients/control - Batch control clients
-router.post('/control', authenticate, requireMenuPermission('clients'), asyncHandler(controller.controlClients))
+router.post('/control', authenticate, requireMenuPermission('clients'), requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.controlClients))
 
 // POST /api/clients/update - Batch software update
-router.post('/update', authenticate, requireMenuPermission('clients'), asyncHandler(controller.updateClientsSoftware))
+router.post('/update', authenticate, requireMenuPermission('clients'), requireFeaturePermission('arsAgent', 'delete'), asyncHandler(controller.updateClientsSoftware))
 
 // POST /api/clients/config - Batch config change
-router.post('/config', authenticate, requireMenuPermission('clients'), asyncHandler(controller.configureClients))
+router.post('/config', authenticate, requireMenuPermission('clients'), requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.configureClients))
 
 // ============================================
 // Strategy-based Service Control Routes
@@ -48,14 +48,14 @@ router.post('/config', authenticate, requireMenuPermission('clients'), asyncHand
 router.get('/service-types', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getServiceTypes))
 
 // POST /api/clients/batch-action/:action - Strategy-based batch action
-router.post('/batch-action/:action', authenticate, requireMenuPermission('clients'), asyncHandler(controller.handleBatchExecuteAction))
+router.post('/batch-action/:action', authenticate, requireMenuPermission('clients'), requireActionPermission(), asyncHandler(controller.handleBatchExecuteAction))
 
 // POST /api/clients/batch-action-stream/:action - Strategy-based batch action (SSE streaming)
-router.post('/batch-action-stream/:action', authenticate, requireMenuPermission('clients'), asyncHandler(controller.handleBatchActionStream))
+router.post('/batch-action-stream/:action', authenticate, requireMenuPermission('clients'), requireActionPermission(), asyncHandler(controller.handleBatchActionStream))
 
 
 // POST /api/clients/batch-status - Get batch client service status (RPC)
-router.post('/batch-status', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getBatchClientStatus))
+router.post('/batch-status', authenticate, requireMenuPermission('clients'), requireFeaturePermission('arsAgent', 'read'), asyncHandler(controller.getBatchClientStatus))
 
 // ============================================
 // Equipment Info Management Routes (requires 'equipmentInfo' feature permission)
@@ -84,38 +84,38 @@ router.get('/config/settings', authenticate, requireMenuPermission('clients'), a
 router.get('/by-model', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getClientsByModel))
 
 // POST /api/clients/config/deploy - Deploy config to multiple clients (SSE)
-router.post('/config/deploy', authenticate, requireMenuPermission('clients'), asyncHandler(controller.deployConfig))
+router.post('/config/deploy', authenticate, requireMenuPermission('clients'), requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.deployConfig))
 
 // ============================================
 // Client Detail Routes (requires 'clients' permission)
 // ============================================
 
 // GET /api/clients/:id - Get client detail
-router.get('/:id', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getClientDetail))
+router.get('/:id', authenticate, requireMenuPermission('clients'), requireFeaturePermission('arsAgent', 'read'), asyncHandler(controller.getClientDetail))
 
 // GET /api/clients/:id/logs - Get client logs
-router.get('/:id/logs', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getClientLogs))
+router.get('/:id/logs', authenticate, requireMenuPermission('clients'), requireFeaturePermission('arsAgent', 'read'), asyncHandler(controller.getClientLogs))
 
 // GET /api/clients/:id/status - Get client service status (RPC)
-router.get('/:id/status', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getClientStatus))
+router.get('/:id/status', authenticate, requireMenuPermission('clients'), requireFeaturePermission('arsAgent', 'read'), asyncHandler(controller.getClientStatus))
 
 // POST /api/clients/:id/start - Start client service (RPC)
-router.post('/:id/start', authenticate, requireMenuPermission('clients'), asyncHandler(controller.startClient))
+router.post('/:id/start', authenticate, requireMenuPermission('clients'), requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.startClient))
 
 // POST /api/clients/:id/restart - Restart client service (RPC)
-router.post('/:id/restart', authenticate, requireMenuPermission('clients'), asyncHandler(controller.restartClient))
+router.post('/:id/restart', authenticate, requireMenuPermission('clients'), requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.restartClient))
 
 // POST /api/clients/:id/stop - Stop client service (RPC)
-router.post('/:id/stop', authenticate, requireMenuPermission('clients'), asyncHandler(controller.stopClient))
+router.post('/:id/stop', authenticate, requireMenuPermission('clients'), requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.stopClient))
 
 // GET /api/clients/:id/config - Read all config files (FTP)
-router.get('/:id/config', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getClientConfigs))
+router.get('/:id/config', authenticate, requireMenuPermission('clients'), requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.getClientConfigs))
 
 
 // POST /api/clients/:id/action/:action - Strategy-based action execution
-router.post('/:id/action/:action', authenticate, requireMenuPermission('clients'), asyncHandler(controller.handleExecuteAction))
+router.post('/:id/action/:action', authenticate, requireMenuPermission('clients'), requireActionPermission(), asyncHandler(controller.handleExecuteAction))
 
 // PUT /api/clients/:id/config/:fileId - Save single config file (FTP)
-router.put('/:id/config/:fileId', authenticate, requireMenuPermission('clients'), asyncHandler(controller.updateClientConfig))
+router.put('/:id/config/:fileId', authenticate, requireMenuPermission('clients'), requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.updateClientConfig))
 
 module.exports = router

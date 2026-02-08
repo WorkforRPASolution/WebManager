@@ -35,6 +35,39 @@ function requireFeaturePermission(feature, action) {
   }
 }
 
+
+/**
+ * Map action name to feature permission requirement
+ * @param {string} actionName - Action name from route params
+ * @returns {{ feature: string, action: string }}
+ */
+function getActionPermission(actionName) {
+  const map = {
+    status:  { feature: 'arsAgent', action: 'read' },
+    start:   { feature: 'arsAgent', action: 'write' },
+    stop:    { feature: 'arsAgent', action: 'write' },
+    restart: { feature: 'arsAgent', action: 'write' },
+    kill:    { feature: 'arsAgent', action: 'write' },
+  }
+  return map[actionName] !== undefined
+    ? map[actionName]
+    : { feature: 'arsAgent', action: 'write' }  // unknown → write
+}
+
+/**
+ * Dynamic action permission middleware
+ * Reads action from req.params.action and checks corresponding feature permission
+ * @returns {Function} - Express middleware function
+ */
+function requireActionPermission() {
+  return async (req, res, next) => {
+    const permReq = getActionPermission(req.params.action)
+    if (!permReq) return next()
+    return requireFeaturePermission(permReq.feature, permReq.action)(req, res, next)
+  }
+}
+
 module.exports = {
-  requireFeaturePermission
+  requireFeaturePermission,
+  requireActionPermission
 }

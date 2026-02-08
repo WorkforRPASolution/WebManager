@@ -17,7 +17,7 @@
               {{ featureName }} Permissions
             </h2>
             <p class="text-sm text-gray-500 dark:text-gray-400">
-              Configure Read/Write/Delete permissions for each role
+              Configure {{ columnLabels.read }}/{{ columnLabels.write }}/{{ columnLabels.delete }} permissions for each role
             </p>
           </div>
           <button
@@ -42,9 +42,9 @@
               <thead>
                 <tr class="text-left text-sm text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-dark-border">
                   <th class="pb-3 font-medium">Role</th>
-                  <th class="pb-3 font-medium text-center w-24">Read</th>
-                  <th class="pb-3 font-medium text-center w-24">Write</th>
-                  <th class="pb-3 font-medium text-center w-24">Delete</th>
+                  <th class="pb-3 font-medium text-center w-24">{{ columnLabels.read }}</th>
+                  <th class="pb-3 font-medium text-center w-24">{{ columnLabels.write }}</th>
+                  <th class="pb-3 font-medium text-center w-24">{{ columnLabels.delete }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -145,7 +145,8 @@ const saving = ref(false)
 const featureNames = {
   equipmentInfo: 'Equipment Info',
   emailTemplate: 'Email Template',
-  users: 'User Management'
+  users: 'User Management',
+  arsAgent: 'ARS Agent'
 }
 
 const roles = [
@@ -154,6 +155,14 @@ const roles = [
   { level: 3, name: 'Manager', description: 'Team manager' },
   { level: 0, name: 'User', description: 'Standard user' }
 ]
+
+const featureColumnLabels = {
+  arsAgent: { read: 'Monitoring', write: 'Operations', delete: 'Deploy' }
+}
+
+const columnLabels = computed(() => {
+  return featureColumnLabels[props.feature] || { read: 'Read', write: 'Write', delete: 'Delete' }
+})
 
 const featureName = computed(() => featureNames[props.feature] || props.feature)
 
