@@ -18,9 +18,6 @@ defineProps({
       <span class="text-sm font-semibold" :class="data.running ? 'text-green-700 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'">
         {{ data.state || (data.running ? 'RUNNING' : 'STOPPED') }}
       </span>
-      <template v-if="data.running && data.pid">
-        <span class="text-xs text-gray-500 dark:text-gray-400">PID: <span class="font-mono">{{ data.pid }}</span></span>
-      </template>
     </div>
   </div>
   <div v-else class="text-sm text-gray-400 dark:text-gray-500 italic">

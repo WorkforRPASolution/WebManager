@@ -20,7 +20,7 @@ const logModalOpen = ref(false)
 const logModalClient = ref({ name: '', eqpId: '' })
 
 // Service status state (RPC-based real-time status)
-const serviceStatuses = ref({})  // { [eqpId]: { running, pid, uptime, loading, error } }
+const serviceStatuses = ref({})  // { [eqpId]: { running, state, uptime, loading, error } }
 
 // Composable state
 const {
@@ -60,11 +60,18 @@ const fetchAllServiceStatuses = async () => {
   serviceStatuses.value = { ...serviceStatuses.value, ...loadingState }
 
   try {
-    const response = await clientControlApi.getBatchStatus(eqpIds)
-    const statuses = response.data || {}
-    serviceStatuses.value = { ...serviceStatuses.value, ...statuses }
+    const response = await serviceApi.batchExecuteAction('status', eqpIds)
+    const results = response.data?.results || []
+    const statusMap = {}
+    for (const r of results) {
+      if (r.error) {
+        statusMap[r.eqpId] = { error: r.error }
+      } else {
+        statusMap[r.eqpId] = r.data || r
+      }
+    }
+    serviceStatuses.value = { ...serviceStatuses.value, ...statusMap }
   } catch (err) {
-    // Set error state for all
     const errorState = {}
     for (const id of eqpIds) {
       errorState[id] = { error: 'Failed to fetch status' }

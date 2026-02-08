@@ -2,6 +2,7 @@ const net = require('net')
 const { SocksClient } = require('socks')
 
 const SOCKS_PROXY_PORT = parseInt(process.env.SOCKS_PROXY_PORT) || 30000
+const CONNECT_TIMEOUT = parseInt(process.env.CONNECT_TIMEOUT) || 5000
 
 /**
  * Create a socket connection (direct or via SOCKS5 proxy)
@@ -18,24 +19,31 @@ async function createConnection(ipAddr, ipAddrL, targetPort) {
 }
 
 /**
- * Direct TCP connection
+ * Direct TCP connection with timeout
  */
 function createDirectConnection(host, port) {
   return new Promise((resolve, reject) => {
     const socket = net.connect({ host, port })
 
+    const timer = setTimeout(() => {
+      socket.destroy()
+      reject(new Error(`Connection timeout after ${CONNECT_TIMEOUT}ms to ${host}:${port}`))
+    }, CONNECT_TIMEOUT)
+
     socket.once('connect', () => {
+      clearTimeout(timer)
       resolve(socket)
     })
 
     socket.once('error', (err) => {
+      clearTimeout(timer)
       reject(new Error(`Direct connection failed to ${host}:${port}: ${err.message}`))
     })
   })
 }
 
 /**
- * SOCKS5 proxy connection
+ * SOCKS5 proxy connection with timeout
  * WebManager -> ipAddr:SOCKS_PROXY_PORT (SOCKS) -> ipAddrL:targetPort
  */
 async function createSocksConnection(proxyHost, targetHost, targetPort) {
@@ -50,7 +58,8 @@ async function createSocksConnection(proxyHost, targetHost, targetPort) {
       destination: {
         host: targetHost,
         port: targetPort
-      }
+      },
+      timeout: CONNECT_TIMEOUT
     })
     return socket
   } catch (err) {

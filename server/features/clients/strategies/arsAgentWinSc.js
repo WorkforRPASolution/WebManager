@@ -43,19 +43,14 @@ module.exports = {
 
   _parseScQuery(rpcResult) {
     const output = rpcResult.output || ''
-    const stateMatch = output.match(/STATE\s+:\s+\d+\s+(\w+)/)
-    const pidMatch = output.match(/PID\s+:\s+(\d+)/)
 
-    const stateStr = stateMatch ? stateMatch[1] : 'UNKNOWN'
+    const STATE_NAMES = 'STOPPED|START_PENDING|STOP_PENDING|RUNNING|CONTINUE_PENDING|PAUSE_PENDING|PAUSED'
+    const stateMatch = output.match(new RegExp(`:\\s+([1-7])\\s+(${STATE_NAMES})`))
+
+    const stateStr = stateMatch ? stateMatch[2] : 'UNKNOWN'
     const running = stateStr === 'RUNNING'
-    const pid = pidMatch ? parseInt(pidMatch[1]) : null
 
-    return {
-      running,
-      state: stateStr,
-      pid: running ? pid : null,
-      raw: output
-    }
+    return { running, state: stateStr, raw: output }
   },
 
   _parseActionResult(action, rpcResult) {

@@ -152,10 +152,9 @@ const serviceCellRenderer = (params) => {
 
   // Running state
   if (value.running === true) {
-    const pid = value.pid ? ' (PID: ' + value.pid + ')' : ''
     return `<span class="inline-flex items-center text-xs text-green-600 dark:text-green-400 font-medium">
       <span class="w-2 h-2 mr-1.5 rounded-full bg-green-500 animate-pulse"></span>
-      Running${pid}
+      Running
     </span>`
   }
 
