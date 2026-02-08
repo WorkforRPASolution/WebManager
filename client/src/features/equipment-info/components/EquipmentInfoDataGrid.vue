@@ -44,6 +44,7 @@ import { useCustomScrollbar } from '../../../shared/composables/useCustomScrollb
 import { useDataGridCellSelection } from '../../../shared/composables/useDataGridCellSelection'
 import CustomHorizontalScrollbar from '../../../shared/components/CustomHorizontalScrollbar.vue'
 import { osVersionApi } from '../api'
+import { serviceApi } from '../../clients/api'
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule])
@@ -116,6 +117,7 @@ const gridApi = ref(null)
 
 // OS Version options for dropdown
 const osVersionOptions = ref([])
+const serviceTypeOptions = ref([])
 
 // Custom Scrollbar
 const { scrollState, scrollTo, handleColumnChange } = useCustomScrollbar(gridContainer)
@@ -129,7 +131,7 @@ const lastSelectedRowIndex = ref(null)
 
 // 편집 가능한 컬럼 목록 (순서대로)
 const editableColumns = [
-  'line', 'lineDesc', 'process', 'eqpModel', 'eqpId', 'category',
+  'line', 'lineDesc', 'process', 'eqpModel', 'eqpId', 'serviceType', 'category',
   'ipAddr', 'ipAddrL', 'emailcategory', 'osVer',
   'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel'
 ]
@@ -173,6 +175,16 @@ const {
 })
 
 // Load OS version options
+// Load service type options
+async function loadServiceTypeOptions() {
+  try {
+    const response = await serviceApi.getServiceTypes()
+    serviceTypeOptions.value = (response.data.data || response.data || []).map(t => t.id || t)
+  } catch (error) {
+    console.error('Failed to load service types:', error)
+  }
+}
+
 async function loadOSVersionOptions() {
   try {
     const response = await osVersionApi.getDistinct()
@@ -185,6 +197,7 @@ async function loadOSVersionOptions() {
 onMounted(() => {
   setupHeaderClickHandler()
   loadOSVersionOptions()
+  loadServiceTypeOptions()
 })
 
 // rowData 변경 시 선택 해제
@@ -208,6 +221,14 @@ const columnDefs = ref([
   { field: 'process', headerName: 'Process', width: 120, editable: true },
   { field: 'eqpModel', headerName: 'Model', width: 120, editable: true },
   { field: 'eqpId', headerName: 'Eqp ID', width: 120, editable: true },
+  {
+    field: 'serviceType',
+    headerName: 'Service Type',
+    width: 140,
+    editable: true,
+    cellEditor: 'agSelectCellEditor',
+    cellEditorParams: () => ({ values: [...serviceTypeOptions.value, ''] })
+  },
   { field: 'category', headerName: 'Category', width: 100, editable: true },
   { field: 'ipAddr', headerName: 'IP Address', width: 130, editable: true },
   { field: 'ipAddrL', headerName: 'Inner IP', width: 130, editable: true },
@@ -422,7 +443,7 @@ const onCellClicked = (params) => {
 
 // 컬럼 순서 정의 (스프레드시트에서 복사할 때 사용)
 const pasteColumnOrder = [
-  'line', 'lineDesc', 'process', 'eqpModel', 'eqpId', 'category',
+  'line', 'lineDesc', 'process', 'eqpModel', 'eqpId', 'serviceType', 'category',
   'ipAddr', 'ipAddrL', 'emailcategory', 'osVer',
   'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel'
 ]

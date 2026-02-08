@@ -1,13 +1,32 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import api from '../../shared/api'
+import { serviceApi } from './api'
+import { getStatusComponent } from './components/service-status'
+import { useConfigManager } from './composables/useConfigManager'
+import { useToast } from '../../shared/composables/useToast'
+import AppIcon from '../../shared/components/AppIcon.vue'
+import ConfigManagerModal from './components/ConfigManagerModal.vue'
 
 const route = useRoute()
 const router = useRouter()
+const { showSuccess, showError } = useToast()
+const agentGroup = computed(() => route.meta.agentGroup)
+const configManager = useConfigManager()
 
 const activeTab = ref('overview')
 const client = ref(null)
 const loading = ref(true)
+
+// Service Control State
+const serviceStatus = ref(null)
+const serviceStatusLoading = ref(false)
+const serviceActionLoading = ref(false)
+const actionMessage = ref('')
+
+// Dynamic status component based on displayType
+const StatusComponent = computed(() => getStatusComponent(client.value?.displayType))
 
 const tabs = [
   { id: 'overview', label: 'Overview' },
@@ -24,35 +43,118 @@ const logs = ref([
   { time: '14:25:08', level: 'INFO', message: 'Frame 1204/2000 rendered' },
 ])
 
-onMounted(() => {
-  // Mock client data
-  setTimeout(() => {
+onMounted(async () => {
+  try {
+    const response = await serviceApi.getClientById(route.params.id, agentGroup.value)
+    client.value = response.data.data || response.data
+  } catch (error) {
+    const message = error.response?.data?.message || error.message
+    showError(`Failed to load client: ${message}`)
     client.value = {
       eqpId: route.params.id,
-      name: `Client-${route.params.id}`,
-      id: '884-299-AX',
-      ipAddr: '10.0.0.128',
-      status: 'BUSY',
-      statusMessage: 'Processing job #4492 (85% complete)',
-      process: 'Rendering',
-      eqpModel: 'RenderNode-X1',
-      resources: {
-        cpu: { value: 78, status: 'High' },
-        memory: { used: 12, total: 16 },
-        storage: { free: 2.4, unit: 'TB' },
-        latency: { value: 14, unit: 'ms' },
-      }
+      name: route.params.id,
+      ipAddress: '',
+      process: '',
+      eqpModel: '',
+      actions: [],
     }
+  } finally {
     loading.value = false
-  }, 300)
+  }
 })
 
-const handleRestart = () => {
-  alert('Restart service requested')
+// Service Control Functions
+const fetchServiceStatus = async () => {
+  const eqpId = route.params.id
+  serviceStatusLoading.value = true
+  try {
+    const response = await serviceApi.executeAction(eqpId, agentGroup.value, 'status')
+    serviceStatus.value = response.data?.data || response.data
+  } catch (error) {
+    if (error.message?.includes('timeout')) {
+      showError('Status request timeout. The client may be unreachable.')
+    } else {
+      const message = error.response?.data?.message || error.message
+      showError(`Failed to get status: ${message}`)
+    }
+    serviceStatus.value = null
+  } finally {
+    serviceStatusLoading.value = false
+  }
 }
 
-const handleStop = () => {
-  alert('Force stop requested')
+const handleAction = async (action) => {
+  const eqpId = route.params.id
+
+  // Kill action requires confirmation
+  if (action.name === 'kill') {
+    if (!confirm(`Are you sure you want to kill the service on ${eqpId}? This will forcefully terminate the process.`)) {
+      return
+    }
+  }
+
+  serviceActionLoading.value = true
+  actionMessage.value = `Sending ${action.label || action.name} command...`
+
+  try {
+    actionMessage.value = 'Waiting for server response...'
+    const response = await serviceApi.executeAction(eqpId, agentGroup.value, action.name)
+
+    const result = response.data?.data || response.data
+    if (result.success) {
+      showSuccess(result.message || `${action.label || action.name} completed`)
+      actionMessage.value = 'Refreshing status...'
+      await fetchServiceStatus()
+    } else {
+      showError(result.message || `Failed to ${action.name}`)
+    }
+  } catch (error) {
+    if (error.message?.includes('timeout')) {
+      showError('Request timeout. The server may still be processing the command.')
+    } else {
+      const message = error.response?.data?.message || error.message
+      showError(`Failed to ${action.name}: ${message}`)
+    }
+  } finally {
+    serviceActionLoading.value = false
+    actionMessage.value = ''
+  }
+}
+
+const getActionButtonClass = (action) => {
+  const colorMap = {
+    green: 'text-white bg-green-500 hover:bg-green-600',
+    red: 'text-white bg-red-500 hover:bg-red-600',
+    yellow: 'text-white bg-yellow-500 hover:bg-yellow-600',
+    blue: 'text-white bg-blue-500 hover:bg-blue-600',
+    gray: 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600',
+  }
+  return colorMap[action.color] || colorMap.gray
+}
+
+const isActionDisabled = (action) => {
+  if (!serviceStatus.value) return false
+  if (action.name === 'start' && serviceStatus.value.running) return true
+  if (action.name === 'stop' && !serviceStatus.value.running) return true
+  if (action.name === 'restart' && !serviceStatus.value.running) return true
+  if (action.name === 'kill' && !serviceStatus.value.running) return true
+  return false
+}
+
+// Config Management
+const openConfigManager = () => {
+  if (client.value) {
+    configManager.openConfig(client.value)
+  }
+}
+
+const handleConfigSave = async () => {
+  const result = await configManager.saveCurrentFile()
+  if (result?.success) {
+    showSuccess('Config saved successfully')
+  } else if (result?.error) {
+    showError(result.error)
+  }
 }
 
 const getLogLevelClass = (level) => {
@@ -84,25 +186,20 @@ const getLogLevelClass = (level) => {
 
       <div class="flex items-start justify-between">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ client.name }}</h1>
+          <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ client.eqpId }}</h1>
           <p class="text-gray-500 dark:text-gray-400 mt-1">
-            ID: {{ client.id }} • {{ client.ipAddr }}
+            {{ client.process }} &bull; {{ client.eqpModel }} &bull; {{ client.ipAddress }}
+            <template v-if="client.serviceType">
+              &bull; <span class="text-xs font-medium px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400">{{ client.serviceType }}</span>
+            </template>
           </p>
         </div>
         <div class="flex items-center gap-2">
-          <span class="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
-            {{ client.status }}
+          <span v-if="client.status" class="px-3 py-1 rounded-full text-sm font-medium"
+            :class="client.status === 'online' ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'">
+            {{ client.status === 'online' ? 'ON' : 'OFF' }}
           </span>
         </div>
-      </div>
-
-      <!-- Status Message -->
-      <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-        <div class="flex items-center gap-2">
-          <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-          <span class="text-blue-700 dark:text-blue-300 font-medium">STATUS: {{ client.status }}</span>
-        </div>
-        <p class="mt-1 text-blue-600 dark:text-blue-400">{{ client.statusMessage }}</p>
       </div>
     </div>
 
@@ -124,89 +221,180 @@ const getLogLevelClass = (level) => {
     </div>
 
     <!-- Tab Content -->
+    <!-- Overview Tab -->
     <div v-if="activeTab === 'overview'">
+      <!-- Client Info Cards -->
       <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">
-        System Resources
+        Client Information
       </h3>
+      <div class="grid grid-cols-4 gap-3 mb-6">
+        <div class="bg-white dark:bg-dark-card p-4 rounded-xl border border-gray-200 dark:border-dark-border">
+          <span class="text-xs text-gray-500 dark:text-gray-400">EQP ID</span>
+          <div class="text-lg font-bold text-gray-900 dark:text-white mt-1">{{ client.eqpId }}</div>
+        </div>
+        <div class="bg-white dark:bg-dark-card p-4 rounded-xl border border-gray-200 dark:border-dark-border">
+          <span class="text-xs text-gray-500 dark:text-gray-400">PROCESS</span>
+          <div class="text-lg font-bold text-gray-900 dark:text-white mt-1">{{ client.process || '-' }}</div>
+        </div>
+        <div class="bg-white dark:bg-dark-card p-4 rounded-xl border border-gray-200 dark:border-dark-border">
+          <span class="text-xs text-gray-500 dark:text-gray-400">MODEL</span>
+          <div class="text-lg font-bold text-gray-900 dark:text-white mt-1">{{ client.eqpModel || '-' }}</div>
+        </div>
+        <div class="bg-white dark:bg-dark-card p-4 rounded-xl border border-gray-200 dark:border-dark-border">
+          <span class="text-xs text-gray-500 dark:text-gray-400">IP ADDRESS</span>
+          <div class="text-lg font-bold text-gray-900 dark:text-white mt-1">{{ client.ipAddress || '-' }}</div>
+        </div>
+      </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- CPU -->
+      <!-- Additional Info -->
+      <div class="grid grid-cols-2 gap-4">
         <div class="bg-white dark:bg-dark-card p-6 rounded-xl border border-gray-200 dark:border-dark-border">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-sm text-gray-500 dark:text-gray-400">CPU LOAD</span>
-            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
-            </svg>
-          </div>
-          <div class="flex items-baseline gap-2">
-            <span class="text-3xl font-bold text-gray-900 dark:text-white">{{ client.resources.cpu.value }}%</span>
-            <span class="text-sm text-yellow-500 font-medium">{{ client.resources.cpu.status }}</span>
-          </div>
-          <div class="mt-3 h-2 bg-gray-200 dark:bg-dark-border rounded-full overflow-hidden">
-            <div
-              class="h-full rounded-full transition-all"
-              :class="client.resources.cpu.value > 75 ? 'bg-yellow-500' : 'bg-green-500'"
-              :style="{ width: `${client.resources.cpu.value}%` }"
-            ></div>
+          <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Details</h3>
+          <div class="space-y-3">
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-500 dark:text-gray-400">Line</span>
+              <span class="text-sm font-medium text-gray-900 dark:text-white">{{ client.line || '-' }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-500 dark:text-gray-400">Category</span>
+              <span class="text-sm font-medium text-gray-900 dark:text-white">{{ client.category || '-' }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-500 dark:text-gray-400">Service Type</span>
+              <span class="text-sm font-medium text-gray-900 dark:text-white">{{ client.serviceType || 'default' }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-500 dark:text-gray-400">OS Version</span>
+              <span class="text-sm font-medium text-gray-900 dark:text-white">{{ client.osVersion || '-' }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-500 dark:text-gray-400">Install Date</span>
+              <span class="text-sm font-medium text-gray-900 dark:text-white">{{ client.installDate || '-' }}</span>
+            </div>
           </div>
         </div>
-
-        <!-- Memory -->
         <div class="bg-white dark:bg-dark-card p-6 rounded-xl border border-gray-200 dark:border-dark-border">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-sm text-gray-500 dark:text-gray-400">MEMORY</span>
-            <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
-            </svg>
-          </div>
-          <div class="flex items-baseline gap-2">
-            <span class="text-3xl font-bold text-gray-900 dark:text-white">{{ client.resources.memory.used }}</span>
-            <span class="text-lg text-gray-500 dark:text-gray-400">/ {{ client.resources.memory.total }} GB</span>
-          </div>
-          <div class="mt-3 h-2 bg-gray-200 dark:bg-dark-border rounded-full overflow-hidden">
-            <div
-              class="h-full bg-purple-500 rounded-full transition-all"
-              :style="{ width: `${(client.resources.memory.used / client.resources.memory.total) * 100}%` }"
-            ></div>
-          </div>
-        </div>
-
-        <!-- Storage -->
-        <div class="bg-white dark:bg-dark-card p-6 rounded-xl border border-gray-200 dark:border-dark-border">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-sm text-gray-500 dark:text-gray-400">STORAGE</span>
-            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/>
-            </svg>
-          </div>
-          <div class="flex items-baseline gap-2">
-            <span class="text-3xl font-bold text-gray-900 dark:text-white">{{ client.resources.storage.free }}</span>
-            <span class="text-lg text-gray-500 dark:text-gray-400">{{ client.resources.storage.unit }} Free</span>
-          </div>
-        </div>
-
-        <!-- Latency -->
-        <div class="bg-white dark:bg-dark-card p-6 rounded-xl border border-gray-200 dark:border-dark-border">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-sm text-gray-500 dark:text-gray-400">LATENCY</span>
-            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-            </svg>
-          </div>
-          <div class="flex items-baseline gap-2">
-            <span class="text-3xl font-bold text-gray-900 dark:text-white">{{ client.resources.latency.value }}</span>
-            <span class="text-lg text-gray-500 dark:text-gray-400">{{ client.resources.latency.unit }}</span>
+          <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Status Flags</h3>
+          <div class="space-y-3">
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-500 dark:text-gray-400">On/Off</span>
+              <span class="text-sm font-medium" :class="client.status === 'online' ? 'text-green-600 dark:text-green-400' : 'text-gray-500'">{{ client.status === 'online' ? 'ON' : 'OFF' }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-500 dark:text-gray-400">WebManager Use</span>
+              <span class="text-sm font-medium" :class="client.webmanagerUse ? 'text-green-600 dark:text-green-400' : 'text-gray-500'">{{ client.webmanagerUse ? 'YES' : 'NO' }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-500 dark:text-gray-400">Local PC</span>
+              <span class="text-sm font-medium text-gray-900 dark:text-white">{{ client.localPc ? 'YES' : 'NO' }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-sm text-gray-500 dark:text-gray-400">Inner IP</span>
+              <span class="text-sm font-medium text-gray-900 dark:text-white">{{ client.innerIp || '-' }}</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
+    <!-- Configuration Tab -->
     <div v-else-if="activeTab === 'configuration'">
       <div class="bg-white dark:bg-dark-card p-6 rounded-xl border border-gray-200 dark:border-dark-border">
-        <p class="text-gray-500 dark:text-gray-400">Configuration settings will be available here.</p>
+        <!-- Service Control Button Group -->
+        <div class="flex items-center gap-3 mb-6">
+          <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-auto">
+            Service Control
+          </h3>
+          <button
+            @click="fetchServiceStatus"
+            :disabled="serviceStatusLoading"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-border rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition disabled:opacity-50"
+          >
+            <AppIcon name="refresh" size="4" :class="{ 'animate-spin': serviceStatusLoading }" />
+            Status
+          </button>
+          <button
+            v-for="action in (client.actions || []).filter(a => a.name !== 'status')"
+            :key="action.name"
+            @click="handleAction(action)"
+            :disabled="serviceActionLoading || isActionDisabled(action)"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+            :class="getActionButtonClass(action)"
+          >
+            <AppIcon :name="action.icon || 'settings'" size="4" />
+            {{ action.label }}
+          </button>
+        </div>
+
+        <!-- Dynamic Status Display -->
+        <div class="mb-6">
+          <component
+            :is="StatusComponent"
+            :data="serviceStatus"
+            :loading="serviceStatusLoading"
+          />
+        </div>
+
+        <!-- Action Loading -->
+        <div v-if="serviceActionLoading" class="mb-6 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="text-sm font-medium text-blue-700 dark:text-blue-300">{{ actionMessage || 'Processing...' }}</span>
+          </div>
+        </div>
+
+        <!-- Divider -->
+        <div class="border-t border-gray-200 dark:border-dark-border my-4"></div>
+
+        <!-- Config Files Section -->
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Configuration Files</h3>
+        </div>
+        <p class="text-gray-500 dark:text-gray-400 mb-4 text-sm">
+          View and edit configuration files on this client via FTP.
+        </p>
+        <button
+          @click="openConfigManager"
+          class="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white font-medium rounded-lg transition text-sm"
+        >
+          <AppIcon name="settings" size="4" />
+          Open Config Manager
+        </button>
       </div>
+
+      <!-- Config Manager Modal -->
+      <ConfigManagerModal
+        :is-open="configManager.isOpen.value"
+        :source-client="configManager.sourceClient.value"
+        :config-files="configManager.configFiles.value"
+        :active-file-id="configManager.activeFileId.value"
+        :edited-contents="configManager.editedContents.value"
+        :original-contents="configManager.originalContents.value"
+        :loading="configManager.loading.value"
+        :saving="configManager.saving.value"
+        :show-diff="configManager.showDiff.value"
+        :show-rollout="configManager.showRollout.value"
+        :error="configManager.error.value"
+        :active-file="configManager.activeFile.value"
+        :active-content="configManager.activeContent.value"
+        :active-original-content="configManager.activeOriginalContent.value"
+        :has-changes="configManager.hasChanges.value"
+        :active-file-has-changes="configManager.activeFileHasChanges.value"
+        :changed-file-ids="configManager.changedFileIds.value"
+        :global-error="configManager.error.value"
+        @close="configManager.closeConfig()"
+        @select-file="configManager.selectFile($event)"
+        @update-content="configManager.updateContent($event)"
+        @save="handleConfigSave"
+        @toggle-diff="configManager.toggleDiff()"
+        @toggle-rollout="configManager.toggleRollout()"
+      />
     </div>
 
+    <!-- Logs Tab -->
     <div v-else-if="activeTab === 'logs'">
       <div class="bg-white dark:bg-dark-card rounded-xl border border-gray-200 dark:border-dark-border overflow-hidden">
         <div class="p-4 border-b border-gray-200 dark:border-dark-border flex items-center justify-between">
@@ -227,29 +415,6 @@ const getLogLevelClass = (level) => {
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Action Buttons -->
-    <div class="mt-6 flex gap-4">
-      <button
-        @click="handleStop"
-        class="flex-1 py-3 px-4 bg-gray-200 dark:bg-dark-border text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition flex items-center justify-center gap-2"
-      >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/>
-        </svg>
-        Force Stop
-      </button>
-      <button
-        @click="handleRestart"
-        class="flex-1 py-3 px-4 bg-primary-500 text-white font-medium rounded-lg hover:bg-primary-600 transition flex items-center justify-center gap-2"
-      >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-        </svg>
-        Restart Service
-      </button>
     </div>
   </div>
 </template>

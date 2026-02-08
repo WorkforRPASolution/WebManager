@@ -3,7 +3,7 @@
     :collapsed="collapsed"
     :has-active-filters="hasActiveFilters"
     :filter-summary="filterSummary"
-    :search-disabled="searchDisabled"
+    :search-disabled="false"
     :bookmarks="bookmarks"
     @toggle="$emit('toggle')"
     @search="handleSearch"
@@ -112,22 +112,12 @@ const hasActiveFilters = computed(() =>
   ipSearch.value
 )
 
-// Computed: search button disabled state
-const searchDisabled = computed(() =>
-  selectedProcesses.value.length === 0 &&
-  selectedModels.value.length === 0 &&
-  selectedStatus.value.length === 0 &&
-  !ipSearch.value
-)
-
 // Handlers
 const onProcessChange = async (newProcesses) => {
   await handleProcessChange(newProcesses, selectedModels)
 }
 
 const handleSearch = () => {
-  if (searchDisabled.value) return
-
   const filters = buildSearchFilters({
     processes: selectedProcesses.value,
     models: selectedModels.value,

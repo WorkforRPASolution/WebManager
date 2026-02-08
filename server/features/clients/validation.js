@@ -2,6 +2,7 @@
  * Client validation rules and helpers
  */
 
+const strategyRegistry = require('./strategies')
 // Validation patterns
 const patterns = {
   ip: /^(\d{1,3}\.){3}\d{1,3}$/,
@@ -203,11 +204,23 @@ function validateUpdate(data, existingIds, existingIpCombos) {
   return { valid: !validationErrors, errors: validationErrors }
 }
 
+/**
+ * Validate serviceType against strategy registry
+ * @param {string|null|undefined} serviceType
+ * @returns {boolean}
+ */
+function validateServiceType(serviceType) {
+  if (serviceType === null || serviceType === undefined || serviceType === '') return true
+  const strategy = strategyRegistry.get(serviceType)
+  return !!strategy
+}
+
 module.exports = {
   validateClientData,
   validateBatchCreate,
   validateUpdate,
   patterns,
   requiredFields,
-  requiredNumberFields
+  requiredNumberFields,
+  validateServiceType
 }

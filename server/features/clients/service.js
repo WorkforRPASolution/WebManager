@@ -6,6 +6,7 @@ const Client = require('./model')
 const { parsePaginationParams } = require('../../shared/utils/pagination')
 const { validateBatchCreate, validateUpdate } = require('./validation')
 const { createRulesContext } = require('../../shared/utils/businessRules')
+const strategyRegistry = require('./strategies')
 
 // EQP_INFO 컬렉션용 비즈니스 규칙 컨텍스트
 const rules = createRulesContext('EQP_INFO', { documentIdField: 'eqpId' })
@@ -106,7 +107,12 @@ function transformClient(client) {
 /**
  * Transform client document to detail format
  */
-function transformClientDetail(client) {
+function transformClientDetail(client, agentGroup) {
+  const strategy = agentGroup
+    ? (client.serviceType
+        ? strategyRegistry.get(agentGroup, client.serviceType)
+        : strategyRegistry.getDefault(agentGroup))
+    : null
   return {
     id: client.eqpId,
     eqpId: client.eqpId,
@@ -122,6 +128,13 @@ function transformClientDetail(client) {
     installDate: client.installdate,
     localPc: client.localpc === 1,
     webmanagerUse: client.webmanagerUse === 1,
+    serviceType: client.serviceType || null,
+    displayType: strategy?.displayType || null,
+    actions: strategy
+      ? Object.entries(strategy.actions)
+          .sort(([, a], [, b]) => a.order - b.order)
+          .map(([name, meta]) => ({ name, ...meta }))
+      : [],
     // Mock resource data (will be from Akka server in Phase 3)
     resources: {
       cpu: Math.floor(Math.random() * 60) + 20,
@@ -216,10 +229,10 @@ async function getClientsPaginated(filters, paginationQuery) {
 /**
  * Get client by ID
  */
-async function getClientById(eqpId) {
+async function getClientById(eqpId, agentGroup) {
   const client = await Client.findOne({ eqpId })
   if (!client) return null
-  return transformClientDetail(client)
+  return transformClientDetail(client, agentGroup)
 }
 
 /**
@@ -478,6 +491,33 @@ async function clientExists(eqpId) {
   return !!client
 }
 
+/**
+ * Get clients by eqpModel (for config rollout targets)
+ * @param {string} eqpModel - Equipment model name
+ * @param {string} excludeEqpId - Exclude this client from results
+ * @returns {Promise<Array>}
+ */
+async function getClientsByModel(eqpModel, excludeEqpId = null) {
+  const query = { eqpModel }
+  if (excludeEqpId) {
+    query.eqpId = { $ne: excludeEqpId }
+  }
+
+  const clients = await Client.find(query)
+    .select('eqpId eqpModel process ipAddr ipAddrL onoff')
+    .sort({ eqpId: 1 })
+    .lean()
+
+  return clients.map(c => ({
+    eqpId: c.eqpId,
+    eqpModel: c.eqpModel,
+    process: c.process,
+    ipAddress: c.ipAddr,
+    innerIp: c.ipAddrL || null,
+    status: c.onoff === 1 ? 'online' : 'offline'
+  }))
+}
+
 module.exports = {
   getProcesses,
   getModels,
@@ -490,5 +530,6 @@ module.exports = {
   createClients,
   updateClients,
   deleteClients,
-  clientExists
+  clientExists,
+  getClientsByModel
 }

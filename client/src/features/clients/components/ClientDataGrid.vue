@@ -40,7 +40,7 @@ ModuleRegistry.registerModules([AllCommunityModule])
 
 const { isDark } = useTheme()
 
-// AG Grid 35 Theme API - 커스텀 테마 생성
+// AG Grid 35 Theme API
 const lightTheme = themeQuartz.withParams({
   fontSize: 12,
   spacing: 6,
@@ -95,10 +95,10 @@ const handleCustomScroll = (scrollLeft) => {
   scrollTo(scrollLeft)
 }
 
-// Shift+클릭 행 범위 선택을 위한 마지막 선택 행
+// Shift+click range selection
 const lastSelectedRowIndex = ref(null)
 
-// AG Grid 35 rowSelection API - 체크박스와 클릭 선택 비활성화
+// AG Grid 35 rowSelection API
 const rowSelection = ref({
   mode: 'multiRow',
   checkboxes: true,
@@ -106,16 +106,69 @@ const rowSelection = ref({
   enableClickSelection: false,
 })
 
-// Status Badge Cell Renderer
-const statusCellRenderer = (params) => {
-  const status = params.value
-  const isOnline = status === 'online'
-  const bgColor = isOnline ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-100 dark:bg-gray-700'
-  const textColor = isOnline ? 'text-green-800 dark:text-green-400' : 'text-gray-600 dark:text-gray-400'
+// OnOff Badge Cell Renderer
+const onOffCellRenderer = (params) => {
+  const status = (params.value || '').toLowerCase()
+  const isOn = status === 'online'
 
-  return `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${bgColor} ${textColor}">
-    <span class="w-1.5 h-1.5 mr-1 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-400'}"></span>
-    ${status}
+  const config = isOn
+    ? { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-800 dark:text-green-400', dot: 'bg-green-500' }
+    : { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-600 dark:text-gray-400', dot: 'bg-gray-400' }
+
+  const label = isOn ? 'On' : 'Off'
+
+  return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${config.bg} ${config.text}">
+    <span class="w-1.5 h-1.5 mr-1.5 rounded-full ${config.dot}"></span>
+    ${label}
+  </span>`
+}
+
+
+// Service Status Cell Renderer (RPC-based real-time status)
+const serviceCellRenderer = (params) => {
+  const value = params.value
+
+  // No data or null
+  if (!value) {
+    return `<span class="inline-flex items-center text-xs text-gray-400 dark:text-gray-500">
+      <span class="mr-1.5">&#8213;</span> Unknown
+    </span>`
+  }
+
+  // Loading state
+  if (value.loading === true) {
+    return `<span class="inline-flex items-center text-xs text-gray-400 dark:text-gray-500">
+      <span class="inline-block w-3 h-3 mr-1.5 border-2 border-gray-300 dark:border-gray-600 border-t-gray-500 dark:border-t-gray-400 rounded-full" style="animation: spin 1s linear infinite;"></span>
+      Loading...
+    </span>`
+  }
+
+  // Error state
+  if (value.error) {
+    return `<span class="inline-flex items-center text-xs text-gray-400 dark:text-gray-500">
+      <span class="mr-1.5">&#8213;</span> Unknown
+    </span>`
+  }
+
+  // Running state
+  if (value.running === true) {
+    return `<span class="inline-flex items-center text-xs text-green-600 dark:text-green-400 font-medium">
+      <span class="w-2 h-2 mr-1.5 rounded-full bg-green-500 animate-pulse"></span>
+      Running
+    </span>`
+  }
+
+  // Stopped state
+  if (value.running === false) {
+    return `<span class="inline-flex items-center text-xs text-red-600 dark:text-red-400 font-medium">
+      <span class="w-2 h-2 mr-1.5 rounded-full bg-red-500"></span>
+      Stopped
+    </span>`
+  }
+
+  // Fallback
+  return `<span class="inline-flex items-center text-xs text-gray-400 dark:text-gray-500">
+    <span class="mr-1.5">&#8213;</span> Unknown
   </span>`
 }
 
@@ -126,13 +179,13 @@ const eqpIdCellRenderer = (params) => {
 
 const columnDefs = ref([
   {
-    field: 'status',
+    field: 'serviceStatus',
     headerName: 'Status',
-    width: 120,
-    minWidth: 120,
-    cellRenderer: statusCellRenderer,
-    sortable: true,
-    filter: true,
+    width: 180,
+    minWidth: 180,
+    cellRenderer: serviceCellRenderer,
+    sortable: false,
+    filter: false,
   },
   {
     field: 'eqpId',
@@ -157,6 +210,15 @@ const columnDefs = ref([
   { field: 'line', headerName: 'Line', width: 100, minWidth: 100, sortable: true, filter: true },
   { field: 'category', headerName: 'Category', width: 130, minWidth: 130, sortable: true, filter: true },
   { field: 'osVersion', headerName: 'OS Version', width: 180, minWidth: 180, sortable: true, filter: true },
+  {
+    field: 'status',
+    headerName: 'OnOff',
+    width: 100,
+    minWidth: 100,
+    cellRenderer: onOffCellRenderer,
+    sortable: true,
+    filter: true,
+  },
 ])
 
 const defaultColDef = ref({
@@ -164,19 +226,18 @@ const defaultColDef = ref({
 })
 
 const getRowId = (params) => {
-  return params.data.id || params.data.eqpId
+  return params.data.eqpId || params.data.id
 }
 
 const onGridReady = (params) => {
   gridApi.value = params.api
-  // Initialize custom scrollbar after grid is ready
   handleColumnChange()
 }
 
 const onSelectionChanged = () => {
   if (!gridApi.value) return
   const selectedRows = gridApi.value.getSelectedRows()
-  const selectedIds = selectedRows.map(row => row.id || row.eqpId)
+  const selectedIds = selectedRows.map(row => row.eqpId || row.id)
   emit('selection-change', selectedIds)
 }
 
@@ -184,10 +245,8 @@ const onCellClicked = (params) => {
   const colId = params.colDef.field
   const rowIndex = params.rowIndex
 
-  // 체크박스 컬럼 클릭 처리
   if (colId === '_selection') {
     if (params.event.shiftKey && lastSelectedRowIndex.value !== null) {
-      // Shift+클릭: 행 범위 선택
       const start = Math.min(lastSelectedRowIndex.value, rowIndex)
       const end = Math.max(lastSelectedRowIndex.value, rowIndex)
 
@@ -201,19 +260,16 @@ const onCellClicked = (params) => {
     return
   }
 
-  // EqpId 컬럼 클릭 시 상세 페이지로 이동
   if (colId === 'eqpId') {
     emit('row-click', params.data)
     return
   }
 }
 
-// Clear selection when rowData changes
 watch(() => props.rowData, () => {
   lastSelectedRowIndex.value = null
 }, { deep: false })
 
-// Expose methods for parent component
 defineExpose({
   getSelectedRows: () => gridApi.value?.getSelectedRows() || [],
   clearSelection: () => {
@@ -221,6 +277,21 @@ defineExpose({
     lastSelectedRowIndex.value = null
   },
   refreshCells: () => gridApi.value?.refreshCells({ force: true }),
+  restoreSelection: (ids) => {
+    if (!gridApi.value || !ids?.length) return
+    gridApi.value.deselectAll()
+    gridApi.value.forEachNode(node => {
+      const rowId = node.data?.eqpId || node.data?.id
+      if (ids.includes(rowId)) {
+        node.setSelected(true)
+      }
+    })
+  },
 })
 </script>
 
+<style>
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+</style>

@@ -68,6 +68,7 @@ const routes = [
     name: 'Clients',
     component: () => import('../features/clients/ClientsView.vue'),
     meta: {
+      agentGroup: 'ars_agent',
       layout: 'default',
       requiresAuth: true,
       permission: 'clients',
@@ -77,7 +78,7 @@ const routes = [
         mainMenuIcon: 'devices',
         mainMenuOrder: 2,
         subMenu: 'client-list',
-        subMenuLabel: 'Client List',
+        subMenuLabel: 'ARSAgent',
         subMenuIcon: 'list',
         subMenuOrder: 1,
         permission: 'clients'
@@ -89,6 +90,7 @@ const routes = [
     name: 'ClientDetail',
     component: () => import('../features/clients/ClientDetailView.vue'),
     meta: {
+      agentGroup: 'ars_agent',
       layout: 'default',
       requiresAuth: true,
       permission: 'clients',

@@ -1,12 +1,32 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useClientData } from './composables/useClientData'
+import { useConfigManager } from './composables/useConfigManager'
+import { useBatchActionStream } from './composables/useBatchActionStream'
+import { serviceApi } from './api'
 import ClientFilterBar from './components/ClientFilterBar.vue'
 import ClientToolbar from './components/ClientToolbar.vue'
 import ClientDataGrid from './components/ClientDataGrid.vue'
+import ConfigManagerModal from './components/ConfigManagerModal.vue'
+import LogViewerModal from './components/LogViewerModal.vue'
 
 const router = useRouter()
+const route = useRoute()
+const agentGroup = computed(() => route.meta.agentGroup)
+
+// Config Manager
+const configManager = useConfigManager()
+
+// Log Viewer state
+const logModalOpen = ref(false)
+const logModalClient = ref({ name: '', eqpId: '' })
+
+// SSE batch action stream
+const { streaming, execute: executeStream, cancel: cancelStream } = useBatchActionStream()
+
+// Service status state (RPC-based real-time status)
+const serviceStatuses = ref({})  // { [eqpId]: { running, state, uptime, loading, error } }
 
 // Composable state
 const {
@@ -30,6 +50,14 @@ const {
   updateClients,
   configClients,
 } = useClientData()
+
+// Computed: merge clients with service statuses
+const clientsWithStatus = computed(() => {
+  return clients.value.map(client => ({
+    ...client,
+    serviceStatus: serviceStatuses.value[client.eqpId || client.id] || null
+  }))
+})
 
 // Component refs
 const filterBarRef = ref(null)
@@ -106,16 +134,68 @@ const handlePageSizeChange = async (size) => {
 const handleRefresh = async () => {
   try {
     await refreshCurrentPage()
-    showToast('Data refreshed', 'success')
+    gridRef.value?.restoreSelection(selectedIds.value)
   } catch (err) {
     showToast(err.message || 'Failed to refresh', 'error')
+    return
   }
+
+  const eqpIds = clients.value.map(c => c.eqpId || c.id).filter(Boolean)
+  if (!eqpIds.length) return
+
+  for (const eqpId of eqpIds) {
+    serviceStatuses.value[eqpId] = { loading: true }
+  }
+
+  await executeStream('status', eqpIds, agentGroup.value, (result) => {
+    if (result.error) {
+      serviceStatuses.value[result.eqpId] = { error: result.error }
+    } else {
+      serviceStatuses.value[result.eqpId] = result.data || result
+    }
+  })
+
+  showToast('All statuses updated', 'success')
 }
 
-// Control handler (Start/Stop/Restart)
+// Control handler (Start/Stop/Restart/Status)
 const handleControl = async (action) => {
-  // TODO: Phase 3에서 실제 Akka 연동
-  showToast(`${action.charAt(0).toUpperCase() + action.slice(1)} command will be implemented in Phase 3`, 'info')
+  if (!selectedIds.value.length) {
+    showToast('Please select at least one client', 'warning')
+    return
+  }
+
+  if (action === 'kill') {
+    if (!confirm(`Are you sure you want to force kill ${selectedIds.value.length} client(s)? This will forcefully terminate the processes.`)) {
+      return
+    }
+  }
+
+  const eqpIds = selectedIds.value
+
+  for (const eqpId of eqpIds) {
+    serviceStatuses.value[eqpId] = { loading: true }
+  }
+
+  let successCount = 0
+  let failCount = 0
+
+  await executeStream(action, eqpIds, agentGroup.value, (result) => {
+    if (result.error) {
+      serviceStatuses.value[result.eqpId] = { error: result.error }
+      failCount++
+    } else {
+      serviceStatuses.value[result.eqpId] = result.data || result
+      successCount++
+    }
+  })
+
+  const label = action.charAt(0).toUpperCase() + action.slice(1)
+  if (failCount === 0) {
+    showToast(`${label} completed for ${successCount} client(s)`, 'success')
+  } else {
+    showToast(`${label}: ${successCount} succeeded, ${failCount} failed`, 'warning')
+  }
 }
 
 // Update handler
@@ -124,11 +204,53 @@ const handleUpdate = async () => {
   showToast('Update feature will be implemented in Phase 3', 'info')
 }
 
-// Config handler
-const handleConfig = async () => {
-  // TODO: Phase 3에서 실제 Akka 연동
-  showToast('Config feature will be implemented in Phase 3', 'info')
+// Config save handler
+const handleConfigSave = async () => {
+  const result = await configManager.saveCurrentFile()
+  if (result?.success) {
+    showToast('Config saved successfully', 'success')
+  } else if (result?.error) {
+    showToast(result.error, 'error')
+  }
 }
+
+// Config handler - open Config Manager Modal for selected client
+const handleConfig = async () => {
+  if (!selectedIds.value.length) {
+    showToast('Please select at least one client', 'warning')
+    return
+  }
+
+  // Find the first selected client's data
+  const selectedEqpId = selectedIds.value[0]
+  const clientData = clients.value.find(c => (c.eqpId || c.id) === selectedEqpId)
+
+  if (!clientData) {
+    showToast('Client data not found', 'error')
+    return
+  }
+
+  configManager.openConfig(clientData)
+}
+
+// Log handler - open Log Viewer Modal for selected client
+const handleLog = () => {
+  if (!selectedIds.value.length) {
+    showToast('Please select at least one client', 'warning')
+    return
+  }
+
+  const selectedEqpId = selectedIds.value[0]
+  const clientData = clients.value.find(c => (c.eqpId || c.id) === selectedEqpId)
+
+  logModalClient.value = {
+    name: clientData?.name || clientData?.eqpId || selectedEqpId,
+    eqpId: selectedEqpId
+  }
+  logModalOpen.value = true
+}
+
+// No auto-load on mount - user must use filters to search
 </script>
 
 <template>
@@ -161,14 +283,31 @@ const handleConfig = async () => {
       @control="handleControl"
       @update="handleUpdate"
       @config="handleConfig"
+      @log="handleLog"
       @refresh="handleRefresh"
       @page-size-change="handlePageSizeChange"
       @page-change="handlePageChange"
       class="mb-4"
     />
 
+
+    <!-- Initial State - No Search Yet -->
+    <div v-if="!hasSearched" class="flex-1 flex items-center justify-center">
+      <div class="text-center">
+        <div class="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-dark-border rounded-full flex items-center justify-center">
+          <svg class="w-8 h-8 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Select Filters to View Data</h3>
+        <p class="text-gray-500 dark:text-gray-400 max-w-sm">
+          Use the filter bar above to select processes or models, then click Search to load the data.
+        </p>
+      </div>
+    </div>
+
     <!-- Loading State -->
-    <div v-if="loading && !hasSearched" class="flex-1 flex items-center justify-center">
+    <div v-else-if="loading && !clients.length" class="flex-1 flex items-center justify-center">
       <div class="flex flex-col items-center gap-4">
         <svg class="w-8 h-8 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -194,27 +333,53 @@ const handleConfig = async () => {
       </div>
     </div>
 
-    <!-- Initial State (before search) -->
-    <div v-else-if="!hasSearched" class="flex-1 flex items-center justify-center">
-      <div class="text-center">
-        <svg class="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <p class="text-gray-500 dark:text-gray-400 text-lg">Select filters and click Search to view clients</p>
-      </div>
-    </div>
-
     <!-- Data Grid -->
     <div v-else class="flex-1 min-h-0">
       <ClientDataGrid
         ref="gridRef"
-        :row-data="clients"
+        :row-data="clientsWithStatus"
         :loading="loading"
         @selection-change="handleSelectionChange"
         @row-click="handleRowClick"
         class="h-full bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border"
       />
     </div>
+
+    <!-- Config Manager Modal -->
+    <ConfigManagerModal
+      :is-open="configManager.isOpen.value"
+      :source-client="configManager.sourceClient.value"
+      :config-files="configManager.configFiles.value"
+      :active-file-id="configManager.activeFileId.value"
+      :edited-contents="configManager.editedContents.value"
+      :original-contents="configManager.originalContents.value"
+      :loading="configManager.loading.value"
+      :saving="configManager.saving.value"
+      :show-diff="configManager.showDiff.value"
+      :show-rollout="configManager.showRollout.value"
+      :error="configManager.error.value"
+      :active-file="configManager.activeFile.value"
+      :active-content="configManager.activeContent.value"
+      :active-original-content="configManager.activeOriginalContent.value"
+      :has-changes="configManager.hasChanges.value"
+      :active-file-has-changes="configManager.activeFileHasChanges.value"
+      :changed-file-ids="configManager.changedFileIds.value"
+      :global-error="configManager.error.value"
+      @close="configManager.closeConfig()"
+      @select-file="configManager.selectFile($event)"
+      @update-content="configManager.updateContent($event)"
+      @save="handleConfigSave"
+      @toggle-diff="configManager.toggleDiff()"
+      @toggle-rollout="configManager.toggleRollout()"
+    />
+
+    <!-- Log Viewer Modal -->
+    <LogViewerModal
+      :is-open="logModalOpen"
+      :client-name="logModalClient.name"
+      :eqp-id="logModalClient.eqpId"
+      @close="logModalOpen = false"
+    />
 
     <!-- Toast Notification -->
     <Transition
