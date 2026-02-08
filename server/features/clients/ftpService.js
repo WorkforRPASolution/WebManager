@@ -2,6 +2,7 @@ const ftp = require('basic-ftp')
 const { Readable, Writable } = require('stream')
 const { createConnection } = require('../../shared/utils/socksHelper')
 const Client = require('./model')
+const configSettingsService = require('./configSettingsService')
 
 const FTP_PORT = parseInt(process.env.FTP_PORT) || 21
 const FTP_USER = process.env.FTP_USER || 'ftpuser'
@@ -9,19 +10,13 @@ const FTP_PASS = process.env.FTP_PASS || 'ftppassword'
 const FTP_TIMEOUT = parseInt(process.env.FTP_TIMEOUT) || 30000
 
 /**
- * Load config file settings from environment variables
- * @returns {Array<{fileId: string, name: string, path: string}>}
+ * Get config file settings for an agentGroup
+ * Reads from DB first, falls back to .env
+ * @param {string} [agentGroup] - Agent group identifier
+ * @returns {Promise<Array<{fileId: string, name: string, path: string}>>}
  */
-function getConfigSettings() {
-  const configs = []
-  for (let i = 1; i <= 4; i++) {
-    const name = process.env[`CONFIG_FILE_${i}_NAME`]
-    const path = process.env[`CONFIG_FILE_${i}_PATH`]
-    if (name && path) {
-      configs.push({ fileId: `config_${i}`, name, path })
-    }
-  }
-  return configs
+async function getConfigSettings(agentGroup) {
+  return configSettingsService.getByAgentGroup(agentGroup)
 }
 
 /**
@@ -134,8 +129,8 @@ async function writeConfigFile(eqpId, remotePath, content) {
  * @param {string} eqpId - Equipment ID
  * @returns {Promise<Array<{fileId: string, name: string, path: string, content: string|null, error: string|null}>>}
  */
-async function readAllConfigs(eqpId) {
-  const configs = getConfigSettings()
+async function readAllConfigs(eqpId, agentGroup) {
+  const configs = await getConfigSettings(agentGroup)
   const { client: ftpClient } = await connectFtp(eqpId)
 
   try {

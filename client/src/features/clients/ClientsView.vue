@@ -12,6 +12,7 @@ import ClientToolbar from './components/ClientToolbar.vue'
 import ClientDataGrid from './components/ClientDataGrid.vue'
 import ConfigManagerModal from './components/ConfigManagerModal.vue'
 import LogViewerModal from './components/LogViewerModal.vue'
+import ConfigSettingsModal from './components/ConfigSettingsModal.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -27,6 +28,9 @@ const configManager = useConfigManager()
 // Log Viewer state
 const logModalOpen = ref(false)
 const logModalClient = ref({ name: '', eqpId: '' })
+
+// Config Settings
+const showConfigSettings = ref(false)
 
 // SSE batch action stream
 const { streaming, execute: executeStream, cancel: cancelStream } = useBatchActionStream()
@@ -236,7 +240,7 @@ const handleConfig = async () => {
     return
   }
 
-  configManager.openConfig(clientData)
+  configManager.openConfig(clientData, agentGroup.value)
 }
 
 // Log handler - open Log Viewer Modal for selected client
@@ -254,6 +258,11 @@ const handleLog = () => {
     eqpId: selectedEqpId
   }
   logModalOpen.value = true
+}
+
+// Config Settings handler
+const handleConfigSettings = () => {
+  showConfigSettings.value = true
 }
 
 // No auto-load on mount - user must use filters to search
@@ -304,6 +313,7 @@ const handleLog = () => {
       @update="handleUpdate"
       @config="handleConfig"
       @log="handleLog"
+      @config-settings="handleConfigSettings"
       @refresh="handleRefresh"
       @page-size-change="handlePageSizeChange"
       @page-change="handlePageChange"
@@ -408,6 +418,13 @@ const handleLog = () => {
       :client-name="logModalClient.name"
       :eqp-id="logModalClient.eqpId"
       @close="logModalOpen = false"
+    />
+
+    <!-- Config Settings Modal -->
+    <ConfigSettingsModal
+      v-model="showConfigSettings"
+      :agent-group="agentGroup"
+      @saved="showToast('Config settings saved', 'success')"
     />
 
     <!-- Toast Notification -->

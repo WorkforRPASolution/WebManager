@@ -15,6 +15,7 @@ export function useConfigManager() {
   const showDiff = ref(false)
   const showRollout = ref(false)
   const error = ref(null)
+  const currentAgentGroup = ref(null)
 
   // Computed
   const activeFile = computed(() =>
@@ -54,8 +55,9 @@ export function useConfigManager() {
   })
 
   // Methods
-  async function openConfig(client) {
+  async function openConfig(client, agentGroup) {
     sourceClient.value = client
+    currentAgentGroup.value = agentGroup
     isOpen.value = true
     loading.value = true
     error.value = null
@@ -67,11 +69,11 @@ export function useConfigManager() {
 
     try {
       // Load config settings first
-      const settingsRes = await clientConfigApi.getSettings()
+      const settingsRes = await clientConfigApi.getSettings(agentGroup)
       configSettings.value = settingsRes.data
 
       // Load config files via FTP
-      const configsRes = await clientConfigApi.getConfigs(client.eqpId || client.id)
+      const configsRes = await clientConfigApi.getConfigs(client.eqpId || client.id, agentGroup)
       configFiles.value = configsRes.data
 
       // Initialize contents
@@ -134,7 +136,7 @@ export function useConfigManager() {
       }
 
       const eqpId = sourceClient.value.eqpId || sourceClient.value.id
-      await clientConfigApi.updateConfig(eqpId, activeFileId.value, content)
+      await clientConfigApi.updateConfig(eqpId, activeFileId.value, content, currentAgentGroup.value)
 
       // Update original to match saved content
       originalContents.value[activeFileId.value] = content
@@ -170,6 +172,7 @@ export function useConfigManager() {
     showDiff,
     showRollout,
     error,
+    currentAgentGroup,
 
     // Computed
     activeFile,

@@ -80,6 +80,14 @@ router.delete('/equipment-info', authenticate, requireFeaturePermission('equipme
 // GET /api/clients/config/settings - Get config file settings
 router.get('/config/settings', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getConfigSettings))
 
+// GET /api/clients/config/settings/:agentGroup - Get config settings document for management
+router.get('/config/settings/:agentGroup', authenticate, requireMenuPermission('clients'),
+  requireFeaturePermission('arsAgent', 'read'), asyncHandler(controller.getConfigSettingsDocument))
+
+// PUT /api/clients/config/settings/:agentGroup - Save config settings for agentGroup
+router.put('/config/settings/:agentGroup', authenticate, requireMenuPermission('clients'),
+  requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.saveConfigSettingsDocument))
+
 // GET /api/clients/by-model - Get clients by eqpModel (rollout targets)
 router.get('/by-model', authenticate, requireMenuPermission('clients'), asyncHandler(controller.getClientsByModel))
 
