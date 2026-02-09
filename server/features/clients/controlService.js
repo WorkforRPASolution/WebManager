@@ -6,17 +6,17 @@ const strategyRegistry = require('./strategies')
 /**
  * 클라이언트 IP 정보 조회
  * @param {string} eqpId - 장비 ID
- * @returns {Promise<{ipAddr: string, ipAddrL: string|null, socksPort: number|null}>}
+ * @returns {Promise<{ipAddr: string, ipAddrL: string|null, agentPorts: object|null}>}
  */
 async function getClientIpInfo(eqpId) {
-  const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL socksPort').lean()
+  const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL agentPorts').lean()
   if (!client) {
     throw new Error(`Client not found: ${eqpId}`)
   }
   return {
     ipAddr: client.ipAddr,
     ipAddrL: client.ipAddrL || null,
-    socksPort: client.socksPort || null
+    agentPorts: client.agentPorts || null
   }
 }
 
@@ -34,10 +34,10 @@ async function executeCommand(eqpId, commandId) {
   }
 
   // 2. 클라이언트 IP 정보 조회
-  const { ipAddr, ipAddrL, socksPort } = await getClientIpInfo(eqpId)
+  const { ipAddr, ipAddrL, agentPorts } = await getClientIpInfo(eqpId)
 
   // 3. RPC 클라이언트 생성 (ipAddrL이 있으면 SOCKS proxy 경유)
-  const rpcClient = new AvroRpcClient(ipAddr, ipAddrL, socksPort)
+  const rpcClient = new AvroRpcClient(ipAddr, ipAddrL, agentPorts)
 
   try {
     // 4. 연결
@@ -131,8 +131,8 @@ async function getBatchClientStatus(eqpIds) {
 
 
 async function executeRaw(eqpId, commandLine, args, timeout) {
-  const { ipAddr, ipAddrL, socksPort } = await getClientIpInfo(eqpId)
-  const rpcClient = new AvroRpcClient(ipAddr, ipAddrL, socksPort)
+  const { ipAddr, ipAddrL, agentPorts } = await getClientIpInfo(eqpId)
+  const rpcClient = new AvroRpcClient(ipAddr, ipAddrL, agentPorts)
   try {
     await rpcClient.connect()
     const response = await rpcClient.runCommand(commandLine, args, timeout)

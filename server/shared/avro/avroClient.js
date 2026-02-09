@@ -39,12 +39,13 @@ class AvroRpcClient {
   /**
    * @param {string} ipAddr - ManagerAgent 또는 Proxy 서버 IP
    * @param {string|null} ipAddrL - 실제 클라이언트 IP (SOCKS 경유 시)
-   * @param {number|null} socksPort - Per-client SOCKS proxy port
+   * @param {object|null} agentPorts - Per-client port overrides { rpc, ftp, socks }
    */
-  constructor(ipAddr, ipAddrL = null, socksPort = null) {
+  constructor(ipAddr, ipAddrL = null, agentPorts = null) {
     this.ipAddr = ipAddr
     this.ipAddrL = ipAddrL
-    this.socksPort = socksPort
+    this.rpcPort = agentPorts?.rpc || MANAGER_AGENT_PORT
+    this.socksPort = agentPorts?.socks || null
     this.socket = null
     this.client = null
     this.service = avro.Service.forProtocol(PROTOCOL)
@@ -54,7 +55,7 @@ class AvroRpcClient {
    * 연결 (직접 또는 SOCKS proxy 경유)
    */
   async connect() {
-    this.socket = await createConnection(this.ipAddr, this.ipAddrL, MANAGER_AGENT_PORT, this.socksPort)
+    this.socket = await createConnection(this.ipAddr, this.ipAddrL, this.rpcPort, this.socksPort)
     this._initClient()
   }
 

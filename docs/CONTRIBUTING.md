@@ -183,8 +183,27 @@ Client PC 접속 시 직접 연결 또는 SOCKS5 프록시 경유 연결을 `ser
 const { createConnection } = require('../../shared/utils/socksHelper')
 
 // ipAddrL이 있으면 SOCKS 경유, 없으면 직접 연결
-const socket = await createConnection(ipAddr, ipAddrL, targetPort)
+// socksPort가 null이면 .env의 SOCKS_PROXY_PORT 기본값 사용
+const socket = await createConnection(ipAddr, ipAddrL, targetPort, socksPort)
 ```
+
+### 설비별 포트 override (agentPorts)
+
+EQP_INFO의 `agentPorts` 필드로 설비별 포트를 개별 설정할 수 있습니다.
+값이 없으면 `.env`의 글로벌 기본값을 사용합니다.
+
+```javascript
+// 포트 resolve 패턴 (controlService.js, ftpService.js 참조)
+const rpcPort = client.agentPorts?.rpc || MANAGER_AGENT_PORT   // 7180
+const ftpPort = client.agentPorts?.ftp || FTP_PORT             // 7181
+const socksPort = client.agentPorts?.socks || null             // null → socksHelper fallback
+```
+
+| 포트 | .env 변수 | 기본값 | 용도 |
+|------|-----------|--------|------|
+| RPC | `MANAGER_AGENT_PORT` | 7180 | Avro RPC (서비스 제어) |
+| FTP | `FTP_PORT` | 7181 | FTP (Config 파일) |
+| SOCKS | `SOCKS_PROXY_PORT` | 30000 | SOCKS5 프록시 (내부망 경유) |
 
 ### 기존 연동 패턴
 

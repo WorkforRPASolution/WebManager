@@ -132,15 +132,20 @@ const lastSelectedRowIndex = ref(null)
 // 편집 가능한 컬럼 목록 (순서대로)
 const editableColumns = [
   'line', 'lineDesc', 'process', 'eqpModel', 'eqpId', 'serviceType', 'category',
-  'ipAddr', 'ipAddrL', 'emailcategory', 'osVer',
+  'ipAddr', 'ipAddrL', 'agentPorts.rpc', 'agentPorts.ftp', 'agentPorts.socks', 'emailcategory', 'osVer',
   'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel'
 ]
 
 // 숫자 필드 목록 (composable에서 사용하기 전에 정의)
 const numericFields = ['onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel']
+const portFields = ['agentPorts.rpc', 'agentPorts.ftp', 'agentPorts.socks']
 
 // 숫자 필드 변환 함수
 const transformNumericValue = (field, value) => {
+  if (portFields.includes(field)) {
+    const num = parseInt(value)
+    return isNaN(num) ? null : num
+  }
   if (numericFields.includes(field)) {
     const num = field === 'snapshotTimeDiff' ? parseFloat(value) : parseInt(value)
     return isNaN(num) ? (field === 'snapshotTimeDiff' ? null : 0) : num
@@ -232,6 +237,30 @@ const columnDefs = ref([
   { field: 'category', headerName: 'Category', width: 100, editable: true },
   { field: 'ipAddr', headerName: 'IP Address', width: 130, editable: true },
   { field: 'ipAddrL', headerName: 'Inner IP', width: 130, editable: true },
+  {
+    field: 'agentPorts.rpc',
+    headerName: 'RPC Port',
+    width: 95,
+    editable: true,
+    valueParser: p => p.newValue ? parseInt(p.newValue) : null,
+    valueFormatter: p => p.value ?? '',
+  },
+  {
+    field: 'agentPorts.ftp',
+    headerName: 'FTP Port',
+    width: 95,
+    editable: true,
+    valueParser: p => p.newValue ? parseInt(p.newValue) : null,
+    valueFormatter: p => p.value ?? '',
+  },
+  {
+    field: 'agentPorts.socks',
+    headerName: 'SOCKS Port',
+    width: 105,
+    editable: true,
+    valueParser: p => p.newValue ? parseInt(p.newValue) : null,
+    valueFormatter: p => p.value ?? '',
+  },
   {
     field: 'localpc',
     headerName: 'Local PC',
@@ -375,10 +404,17 @@ const getRowStyle = (params) => {
 
 const processCellFromClipboard = (params) => {
   const value = params.value?.toString().trim() || ''
+  const colId = params.column.colId
+
+  // Port fields: empty → null, otherwise int
+  if (['agentPorts.rpc', 'agentPorts.ftp', 'agentPorts.socks'].includes(colId)) {
+    const num = parseInt(value)
+    return isNaN(num) ? null : num
+  }
 
   // Convert to number for numeric fields
   const numericFields = ['onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel']
-  if (numericFields.includes(params.column.colId)) {
+  if (numericFields.includes(colId)) {
     const num = parseInt(value)
     return isNaN(num) ? 0 : num
   }
@@ -444,7 +480,7 @@ const onCellClicked = (params) => {
 // 컬럼 순서 정의 (스프레드시트에서 복사할 때 사용)
 const pasteColumnOrder = [
   'line', 'lineDesc', 'process', 'eqpModel', 'eqpId', 'serviceType', 'category',
-  'ipAddr', 'ipAddrL', 'emailcategory', 'osVer',
+  'ipAddr', 'ipAddrL', 'agentPorts.rpc', 'agentPorts.ftp', 'agentPorts.socks', 'emailcategory', 'osVer',
   'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel'
 ]
 

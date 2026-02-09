@@ -36,6 +36,11 @@ WEBMANAGER_DB_URI=mongodb://localhost:27017/WEB_MANAGER
 | category | String | Required | Equipment Category |
 | ipAddr | String | Required (PK) | Equipment IP Address |
 | ipAddrL | String | Optional | Inner Network IP |
+| serviceType | String | Optional | 서비스 제어 방식 (예: `win_sc`) |
+| agentPorts | Object | Optional | 설비별 Agent 포트 override (미설정 시 .env 기본값 사용) |
+| agentPorts.rpc | Number | Optional | ManagerAgent RPC 포트 (기본: `MANAGER_AGENT_PORT=7180`) |
+| agentPorts.ftp | Number | Optional | ManagerAgent FTP 포트 (기본: `FTP_PORT=7181`) |
+| agentPorts.socks | Number | Optional | SOCKS5 프록시 포트 (기본: `SOCKS_PROXY_PORT=30000`) |
 | localpc | Long | Required | Local PC 여부 (1: Yes, 0: No) |
 | emailcategory | String | Required | Email category |
 | osVer | String | Required | OS version |
@@ -47,8 +52,31 @@ WEBMANAGER_DB_URI=mongodb://localhost:27017/WEB_MANAGER
 | usereleasemsg | Number | Required | Release Message 사용 여부 |
 | usetkincancel | Number | Required | TKIN Cancel 사용 여부 |
 
+### agentPorts 필드 설명
+
+설비별로 ManagerAgent 접속 포트가 다를 수 있으므로, `agentPorts` 객체에 개별 포트를 저장합니다.
+값이 설정되지 않은 항목은 `.env`의 글로벌 기본값을 사용합니다.
+
+```javascript
+// 예시: SOCKS 프록시만 별도 포트 사용
+{
+  eqpId: "SOCKS_01",
+  agentPorts: {
+    socks: 30000    // rpc, ftp는 미설정 → .env 기본값 사용
+  }
+}
+
+// 예시: 모든 포트를 기본값 사용 (agentPorts 없음)
+{
+  eqpId: "DIRECT_01"
+  // agentPorts 필드 없음 → 모두 .env 기본값
+}
+```
+
+**마이그레이션**: 기존 `socksPort` 필드는 `agentPorts.socks`로 통합됨 (`server/scripts/migrateAgentPorts.js`)
+
 ### Sample Data
-- 71 clients (5 processes, 15 models)
+- 75 clients (5 processes, 15 models)
 
 ---
 

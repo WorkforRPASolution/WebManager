@@ -2,6 +2,26 @@ import { ref, computed } from 'vue'
 import { equipmentInfoApi } from '../api'
 import { validateAllRows } from '../validation'
 
+// Dot notation 유틸: nested object 접근 (예: 'agentPorts.rpc')
+function getByPath(obj, path) {
+  if (!path.includes('.')) return obj[path]
+  return path.split('.').reduce((o, k) => o?.[k], obj)
+}
+
+function setByPath(obj, path, value) {
+  if (!path.includes('.')) {
+    obj[path] = value
+    return
+  }
+  const keys = path.split('.')
+  let cur = obj
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (cur[keys[i]] == null) cur[keys[i]] = {}
+    cur = cur[keys[i]]
+  }
+  cur[keys[keys.length - 1]] = value
+}
+
 export function useEquipmentInfoData() {
   const originalData = ref([])
   const currentData = ref([])
@@ -96,7 +116,7 @@ export function useEquipmentInfoData() {
     const row = currentData.value.find(r => (r._id || r._tempId) === rowId)
     if (!row) return
 
-    row[field] = newValue
+    setByPath(row, field, newValue)
 
     // Check if it's a new row
     if (row._tempId) {
@@ -109,7 +129,7 @@ export function useEquipmentInfoData() {
     } else {
       // Check if value differs from original
       const original = originalData.value.find(r => r._id === rowId)
-      if (original && original[field] !== newValue) {
+      if (original && getByPath(original, field) !== newValue) {
         modifiedRows.value.add(rowId)
         // 수정된 셀 추적
         if (!modifiedCells.value.has(rowId)) {
@@ -130,7 +150,9 @@ export function useEquipmentInfoData() {
         // Check if row is still modified in any field
         const isModified = Object.keys(row).some(key => {
           if (key === '_id' || key === '__v') return false
-          return row[key] !== original[key]
+          const rv = row[key], ov = original[key]
+          if (rv != null && typeof rv === 'object') return JSON.stringify(rv) !== JSON.stringify(ov)
+          return rv !== ov
         })
         if (!isModified) {
           modifiedRows.value.delete(rowId)
@@ -165,6 +187,7 @@ export function useEquipmentInfoData() {
       snapshotTimeDiff: null,
       usereleasemsg: 1,
       usetkincancel: 0,
+      agentPorts: { rpc: null, ftp: null, socks: null },
     }
     currentData.value.unshift(newRow)
     unsavedNewRows.value.unshift(newRow)  // Track for pagination persistence
@@ -196,6 +219,7 @@ export function useEquipmentInfoData() {
         snapshotTimeDiff: rowData.snapshotTimeDiff ?? null,
         usereleasemsg: rowData.usereleasemsg ?? 1,
         usetkincancel: rowData.usetkincancel ?? 0,
+        agentPorts: rowData.agentPorts ?? { rpc: null, ftp: null, socks: null },
       }
       currentData.value.unshift(newRow)
       unsavedNewRows.value.unshift(newRow)  // Track for pagination persistence

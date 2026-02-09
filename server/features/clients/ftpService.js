@@ -24,7 +24,7 @@ async function getConfigSettings(agentGroup) {
  * Get client IP info from DB
  */
 async function getClientIpInfo(eqpId) {
-  const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL eqpModel socksPort').lean()
+  const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL eqpModel agentPorts').lean()
   if (!client) {
     throw new Error(`Client not found: ${eqpId}`)
   }
@@ -32,7 +32,7 @@ async function getClientIpInfo(eqpId) {
     ipAddr: client.ipAddr,
     ipAddrL: client.ipAddrL || null,
     eqpModel: client.eqpModel,
-    socksPort: client.socksPort || null
+    agentPorts: client.agentPorts || null
   }
 }
 
@@ -46,12 +46,14 @@ async function connectFtp(eqpId) {
   const ipInfo = await getClientIpInfo(eqpId)
   const ftpClient = new ftp.Client(FTP_TIMEOUT)
 
-  // Determine target host for FTP
+  // Resolve per-client ports with defaults
+  const ftpPort = ipInfo.agentPorts?.ftp || FTP_PORT
+  const socksPort = ipInfo.agentPorts?.socks || null
   const ftpHost = ipInfo.ipAddrL || ipInfo.ipAddr
 
   if (ipInfo.ipAddrL) {
     // SOCKS tunnel: create tunnel socket first, then use it for FTP
-    const tunnelSocket = await createConnection(ipInfo.ipAddr, ipInfo.ipAddrL, FTP_PORT, ipInfo.socksPort)
+    const tunnelSocket = await createConnection(ipInfo.ipAddr, ipInfo.ipAddrL, ftpPort, socksPort)
 
     // Inject the tunnel socket into basic-ftp
     // basic-ftp uses ftp.socket internally for the control connection
@@ -78,7 +80,7 @@ async function connectFtp(eqpId) {
         ipInfo.ipAddr,
         ipInfo.ipAddrL,
         target.port,
-        ipInfo.socksPort
+        socksPort
       )
       ftp.dataSocket = dataSocket
       return res
@@ -87,7 +89,7 @@ async function connectFtp(eqpId) {
     // Direct connection
     await ftpClient.access({
       host: ftpHost,
-      port: FTP_PORT,
+      port: ftpPort,
       user: FTP_USER,
       password: FTP_PASS,
       secure: false
