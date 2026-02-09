@@ -29,9 +29,9 @@
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
           </div>
 
-          <div v-else class="space-y-6">
-            <div v-for="role in roles" :key="role.roleLevel" class="border border-gray-200 dark:border-dark-border rounded-lg p-4">
-              <div class="flex items-center justify-between mb-3">
+          <div v-else class="space-y-4">
+            <div v-for="role in roles" :key="role.roleLevel" class="border border-gray-200 dark:border-dark-border rounded-lg px-4 py-3">
+              <div class="flex items-center justify-between mb-2">
                 <div>
                   <h3 class="font-semibold text-gray-900 dark:text-white">{{ role.roleName }}</h3>
                   <p class="text-sm text-gray-500 dark:text-gray-400">Level {{ role.roleLevel }}</p>
@@ -39,21 +39,27 @@
                 <span class="text-xs text-gray-400">{{ role.description }}</span>
               </div>
 
-              <div class="grid grid-cols-3 gap-3">
-                <label
-                  v-for="(value, key) in role.permissions"
-                  :key="key"
-                  class="flex items-center gap-2 text-sm"
-                >
-                  <input
-                    type="checkbox"
-                    :checked="value"
-                    @change="updatePermission(role.roleLevel, key, $event.target.checked)"
-                    class="w-4 h-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
-                    :disabled="role.roleLevel === 1"
-                  />
-                  <span class="text-gray-700 dark:text-gray-300 capitalize">{{ formatPermissionName(key) }}</span>
-                </label>
+              <div class="space-y-2">
+                <div v-for="group in permissionGroups" :key="group.label">
+                  <p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">{{ group.label }}</p>
+                  <div class="grid grid-cols-3 gap-1.5 ml-1">
+                    <label
+                      v-for="perm in group.keys"
+                      :key="perm"
+                      v-show="role.permissions[perm] !== undefined"
+                      class="flex items-center gap-2 text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        :checked="role.permissions[perm]"
+                        @change="updatePermission(role.roleLevel, perm, $event.target.checked)"
+                        class="w-4 h-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+                        :disabled="role.roleLevel === 1"
+                      />
+                      <span class="text-gray-700 dark:text-gray-300">{{ formatPermissionName(perm) }}</span>
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -102,15 +108,34 @@ const hasChanges = computed(() => {
 const formatPermissionName = (key) => {
   const names = {
     dashboard: 'Dashboard',
-    clients: 'Clients',
+    arsAgent: 'ARS Agent',
+    resourceAgent: 'Resource Agent',
     equipmentInfo: 'Equipment Info',
     emailTemplate: 'Email Template',
+    popupTemplate: 'Popup Template',
+    emailRecipients: 'Email Recipients',
+    emailInfo: 'Email Info',
     alerts: 'Alerts',
     settings: 'Settings',
     users: 'Users'
   }
   return names[key] || key
 }
+
+const permissionGroups = [
+  {
+    label: 'Clients',
+    keys: ['arsAgent', 'resourceAgent']
+  },
+  {
+    label: '기준정보 관리',
+    keys: ['equipmentInfo', 'emailTemplate', 'popupTemplate', 'emailRecipients', 'emailInfo']
+  },
+  {
+    label: 'System',
+    keys: ['dashboard', 'alerts', 'settings', 'users']
+  }
+]
 
 const fetchRoles = async () => {
   loading.value = true

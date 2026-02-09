@@ -313,15 +313,52 @@ async function deployConfigSelective(sourceConfig, selectedKeys, targetEqpIds, r
 
 /**
  * Merge selected keys from source into target (deep merge)
+ * Array elements selected by index are union-merged (values added, not replaced by position).
+ * Selecting the array key itself replaces the entire array.
  * @param {object} target - Target config
  * @param {object} source - Source config
- * @param {string[]} keys - Dot-notation keys to merge (e.g. ['database', 'server.port'])
+ * @param {string[]} keys - Dot-notation keys to merge (e.g. ['database', 'server.port', 'processes.2'])
  * @returns {object} Merged config
  */
 function mergeSelectedKeys(target, source, keys) {
   const result = JSON.parse(JSON.stringify(target))
 
+  // Separate array element keys from regular keys
+  // Array element keys: parent is an array in source and last segment is numeric index
+  const arrayUnions = new Map() // parentPath -> [source values]
+  const regularKeys = []
+
   for (const key of keys) {
+    const parts = key.split('.')
+    if (parts.length >= 2) {
+      const lastPart = parts[parts.length - 1]
+      const index = parseInt(lastPart)
+      if (!isNaN(index)) {
+        // Check if parent in source is actually an array
+        let parent = source
+        for (let i = 0; i < parts.length - 1; i++) {
+          if (parent && typeof parent === 'object' && parts[i] in parent) {
+            parent = parent[parts[i]]
+          } else {
+            parent = null
+            break
+          }
+        }
+        if (parent && Array.isArray(parent) && index < parent.length) {
+          const parentPath = parts.slice(0, -1).join('.')
+          if (!arrayUnions.has(parentPath)) {
+            arrayUnions.set(parentPath, [])
+          }
+          arrayUnions.get(parentPath).push(parent[index])
+          continue
+        }
+      }
+    }
+    regularKeys.push(key)
+  }
+
+  // Process regular keys (object properties, whole arrays)
+  for (const key of regularKeys) {
     const parts = key.split('.')
     let srcVal = source
     let valid = true
@@ -353,6 +390,40 @@ function mergeSelectedKeys(target, source, keys) {
       ref[lastKey] = deepMerge(ref[lastKey], srcVal)
     } else {
       ref[lastKey] = JSON.parse(JSON.stringify(srcVal))
+    }
+  }
+
+  // Process array union merges: add selected source values to target array
+  for (const [parentPath, sourceValues] of arrayUnions) {
+    const parts = parentPath.split('.')
+    let ref = result
+    for (const part of parts) {
+      if (ref && typeof ref === 'object' && part in ref) {
+        ref = ref[part]
+      } else {
+        ref = null
+        break
+      }
+    }
+
+    if (ref && Array.isArray(ref)) {
+      // Union: add source values not already present in target
+      for (const val of sourceValues) {
+        const valStr = JSON.stringify(val)
+        if (!ref.some(v => JSON.stringify(v) === valStr)) {
+          ref.push(JSON.parse(JSON.stringify(val)))
+        }
+      }
+    } else {
+      // Target doesn't have this array yet — create it
+      let parent = result
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!(parts[i] in parent) || typeof parent[parts[i]] !== 'object') {
+          parent[parts[i]] = {}
+        }
+        parent = parent[parts[i]]
+      }
+      parent[parts[parts.length - 1]] = sourceValues.map(v => JSON.parse(JSON.stringify(v)))
     }
   }
 

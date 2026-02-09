@@ -4,14 +4,13 @@
  */
 
 require('dotenv').config()
-const mongoose = require('mongoose')
+const { connectDB, closeConnections } = require('../shared/db/connection')
 const { RolePermission, DEFAULT_ROLE_PERMISSIONS } = require('../features/users/model')
 
 async function seedRolePermissions() {
   try {
-    // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI)
-    console.log('Connected to MongoDB')
+    // Connect to both databases (EARS + WEBMANAGER)
+    await connectDB()
 
     // Check existing roles
     const existingCount = await RolePermission.countDocuments()
@@ -24,7 +23,7 @@ async function seedRolePermissions() {
         console.log('Deleted existing role permissions')
       } else {
         console.log('Skipping seed (use --reset to overwrite)')
-        await mongoose.disconnect()
+        await closeConnections()
         return
       }
     }
@@ -39,7 +38,7 @@ async function seedRolePermissions() {
 
     console.log('\nRole permissions seeded successfully!')
 
-    await mongoose.disconnect()
+    await closeConnections()
     console.log('Disconnected from MongoDB')
   } catch (error) {
     console.error('Error seeding role permissions:', error)

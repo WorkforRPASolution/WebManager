@@ -142,6 +142,33 @@ meta: {
 
 > ⚠️ **주의**: 두 위치 중 하나라도 누락되면 보안 취약점이 발생할 수 있습니다.
 
+### Role Permission 다이얼로그 업데이트
+
+새 permission을 추가하면 Role Permission 관리 UI에도 반영해야 합니다.
+
+**파일**: `client/src/features/users/components/RolePermissionDialog.vue`
+
+1. **`formatPermissionName`**: 새 permission 키의 표시 라벨 추가
+```javascript
+const formatPermissionName = (key) => {
+  const names = {
+    // ...기존 항목
+    newFeature: 'New Feature',  // ⬅️ 추가
+  }
+}
+```
+
+2. **`permissionGroups`**: 적절한 카테고리에 permission 키 추가
+```javascript
+const permissionGroups = [
+  { label: 'Clients', keys: ['arsAgent', 'resourceAgent'] },
+  { label: '기준정보 관리', keys: ['equipmentInfo', 'emailTemplate', 'popupTemplate', 'emailRecipients', 'emailInfo'] },
+  { label: 'System', keys: ['dashboard', 'alerts', 'settings', 'users', 'newFeature'] }  // ⬅️ 추가
+]
+```
+
+> ⚠️ **주의**: `permissionGroups`에 누락되면 Role Permission Settings 다이얼로그에서 해당 권한이 표시되지 않습니다.
+
 ---
 
 ## 5. 외부 서비스 연동 패턴

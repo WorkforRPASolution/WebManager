@@ -5,50 +5,24 @@
 const ConfigSettings = require('./configSettingsModel')
 
 /**
- * Initialize config settings from .env on first startup
- * Seeds ars_agent entry from CONFIG_FILE_* env vars
+ * Initialize config settings collection and indexes
  */
 async function initializeConfigSettings() {
-  const count = await ConfigSettings.countDocuments()
-  if (count === 0) {
-    const configs = []
-    for (let i = 1; i <= 20; i++) {
-      const name = process.env[`CONFIG_FILE_${i}_NAME`]
-      const path = process.env[`CONFIG_FILE_${i}_PATH`]
-      if (name && path) {
-        configs.push({ fileId: `config_${i}`, name, path })
-      }
-    }
-    if (configs.length > 0) {
-      await ConfigSettings.create({
-        agentGroup: 'ars_agent',
-        configFiles: configs,
-        updatedBy: 'system'
-      })
-      console.log(`  + Seeded CONFIG_SETTINGS for ars_agent with ${configs.length} file(s)`)
-    }
-  }
+  // Ensure collection and indexes exist (model registration handles this)
+  await ConfigSettings.createIndexes()
+  console.log('  + CONFIG_SETTINGS collection ready')
 }
 
 /**
  * Get config files for an agentGroup
- * Falls back to .env if not found in DB
+ * Returns empty array if not found in DB
  */
 async function getByAgentGroup(agentGroup) {
   if (agentGroup) {
     const doc = await ConfigSettings.findOne({ agentGroup }).lean()
     if (doc) return doc.configFiles
   }
-  // Fallback to .env for backward compatibility
-  const configs = []
-  for (let i = 1; i <= 20; i++) {
-    const name = process.env[`CONFIG_FILE_${i}_NAME`]
-    const path = process.env[`CONFIG_FILE_${i}_PATH`]
-    if (name && path) {
-      configs.push({ fileId: `config_${i}`, name, path })
-    }
-  }
-  return configs
+  return []
 }
 
 /**

@@ -144,7 +144,8 @@ const rolePermissionSchema = new Schema({
   },
   permissions: {
     dashboard: { type: Boolean, default: true },
-    clients: { type: Boolean, default: true },
+    arsAgent: { type: Boolean, default: true },
+    resourceAgent: { type: Boolean, default: true },
     equipmentInfo: { type: Boolean, default: false },
     emailTemplate: { type: Boolean, default: false },
     popupTemplate: { type: Boolean, default: false },
@@ -169,7 +170,8 @@ const DEFAULT_ROLE_PERMISSIONS = [
     description: '일반 유저',
     permissions: {
       dashboard: true,
-      clients: false,
+      arsAgent: false,
+      resourceAgent: false,
       equipmentInfo: false,
       emailTemplate: false,
       popupTemplate: false,
@@ -186,7 +188,8 @@ const DEFAULT_ROLE_PERMISSIONS = [
     description: '시스템 관리자',
     permissions: {
       dashboard: true,
-      clients: true,
+      arsAgent: true,
+      resourceAgent: true,
       equipmentInfo: true,
       emailTemplate: true,
       popupTemplate: true,
@@ -203,7 +206,8 @@ const DEFAULT_ROLE_PERMISSIONS = [
     description: '유저 중 최고 관리자',
     permissions: {
       dashboard: true,
-      clients: false,
+      arsAgent: false,
+      resourceAgent: false,
       equipmentInfo: false,
       emailTemplate: false,
       popupTemplate: false,
@@ -220,7 +224,8 @@ const DEFAULT_ROLE_PERMISSIONS = [
     description: '유저 중 관리자',
     permissions: {
       dashboard: true,
-      clients: false,
+      arsAgent: false,
+      resourceAgent: false,
       equipmentInfo: false,
       emailTemplate: false,
       popupTemplate: false,

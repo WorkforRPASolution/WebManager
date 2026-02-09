@@ -58,7 +58,6 @@ export function useConfigManager() {
   async function openConfig(client, agentGroup) {
     sourceClient.value = client
     currentAgentGroup.value = agentGroup
-    isOpen.value = true
     loading.value = true
     error.value = null
     showDiff.value = false
@@ -71,6 +70,15 @@ export function useConfigManager() {
       // Load config settings first
       const settingsRes = await clientConfigApi.getSettings(agentGroup)
       configSettings.value = settingsRes.data
+
+      // If no config settings registered, show error and don't open modal
+      if (!configSettings.value || configSettings.value.length === 0) {
+        error.value = `No config file settings found for this agent group. Please register settings in "Config File Settings" first.`
+        return
+      }
+
+      // Open modal only after confirming settings exist
+      isOpen.value = true
 
       // Load config files via FTP
       const configsRes = await clientConfigApi.getConfigs(client.eqpId || client.id, agentGroup)

@@ -255,6 +255,7 @@
             :active-file="activeFile"
             :active-content="activeContent"
             :config-files="configFiles"
+            :agent-group="currentAgentGroup"
             @close="showRollout = false"
           />
         </div>
@@ -335,7 +336,8 @@ const props = defineProps({
   hasChanges: Boolean,
   activeFileHasChanges: Boolean,
   changedFileIds: Set,
-  globalError: String
+  globalError: String,
+  currentAgentGroup: String
 })
 
 const emit = defineEmits([

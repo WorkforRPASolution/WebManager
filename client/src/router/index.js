@@ -71,7 +71,7 @@ const routes = [
       agentGroup: 'ars_agent',
       layout: 'default',
       requiresAuth: true,
-      permission: 'clients',
+      permission: 'arsAgent',
       menu: {
         mainMenu: 'clients',
         mainMenuLabel: 'Clients',
@@ -81,7 +81,7 @@ const routes = [
         subMenuLabel: 'ARSAgent',
         subMenuIcon: 'list',
         subMenuOrder: 1,
-        permission: 'clients'
+        permission: 'arsAgent'
       }
     }
   },
@@ -93,55 +93,55 @@ const routes = [
       agentGroup: 'ars_agent',
       layout: 'default',
       requiresAuth: true,
-      permission: 'clients',
+      permission: 'arsAgent',
       menu: {
         mainMenu: 'clients',
         subMenu: 'client-detail',
         subMenuLabel: 'Client Detail',
         hidden: true,  // 메뉴에 표시하지 않음
-        permission: 'clients'
+        permission: 'arsAgent'
       }
     }
   },
-  { 
-    path: '/resource-clients', 
-    name: 'ResourceClients', 
-    component: () => import('../features/clients/ClientsView.vue'), 
-    meta: { 
-      agentGroup: 'resource_agent', 
-      layout: 'default', 
-      requiresAuth: true, 
-      permission: 'clients', 
-      menu: { 
-        mainMenu: 'clients', 
-        mainMenuLabel: 'Clients', 
-        mainMenuIcon: 'devices', 
-        mainMenuOrder: 2, 
-        subMenu: 'resource-client-list', 
-        subMenuLabel: 'ResourceAgent', 
-        subMenuIcon: 'memory', 
-        subMenuOrder: 2, 
-        permission: 'clients' 
-      } 
-    } 
-  }, 
-  { 
-    path: '/resource-clients/:id', 
-    name: 'ResourceClientDetail', 
-    component: () => import('../features/clients/ClientDetailView.vue'), 
-    meta: { 
-      agentGroup: 'resource_agent', 
-      layout: 'default', 
-      requiresAuth: true, 
-      permission: 'clients', 
-      menu: { 
-        mainMenu: 'clients', 
-        subMenu: 'resource-client-detail', 
-        subMenuLabel: 'Resource Client Detail', 
-        hidden: true, 
-        permission: 'clients' 
-      } 
-    } 
+  {
+    path: '/resource-clients',
+    name: 'ResourceClients',
+    component: () => import('../features/clients/ClientsView.vue'),
+    meta: {
+      agentGroup: 'resource_agent',
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'resourceAgent',
+      menu: {
+        mainMenu: 'clients',
+        mainMenuLabel: 'Clients',
+        mainMenuIcon: 'devices',
+        mainMenuOrder: 2,
+        subMenu: 'resource-client-list',
+        subMenuLabel: 'ResourceAgent',
+        subMenuIcon: 'memory',
+        subMenuOrder: 2,
+        permission: 'resourceAgent'
+      }
+    }
+  },
+  {
+    path: '/resource-clients/:id',
+    name: 'ResourceClientDetail',
+    component: () => import('../features/clients/ClientDetailView.vue'),
+    meta: {
+      agentGroup: 'resource_agent',
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'resourceAgent',
+      menu: {
+        mainMenu: 'clients',
+        subMenu: 'resource-client-detail',
+        subMenuLabel: 'Resource Client Detail',
+        hidden: true,
+        permission: 'resourceAgent'
+      }
+    }
   },
   {
     path: '/equipment-info',

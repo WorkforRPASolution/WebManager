@@ -153,7 +153,8 @@ const props = defineProps({
   sourceClient: Object,
   activeFile: Object,
   activeContent: String,
-  configFiles: Array
+  configFiles: Array,
+  agentGroup: String
 })
 
 const emit = defineEmits(['close'])
@@ -239,7 +240,8 @@ async function executeDeploy() {
       fileId,
       targetEqpIds,
       mode: deployMode.value,
-      selectedKeys: deployMode.value === 'selective' ? Array.from(selectedKeys.value) : undefined
+      selectedKeys: deployMode.value === 'selective' ? Array.from(selectedKeys.value) : undefined,
+      agentGroup: props.agentGroup
     }
 
     const response = await fetch(`${API_URL}/clients/config/deploy`, {
