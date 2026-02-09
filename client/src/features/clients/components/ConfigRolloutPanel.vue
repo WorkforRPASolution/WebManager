@@ -154,7 +154,8 @@ const props = defineProps({
   activeFile: Object,
   activeContent: String,
   configFiles: Array,
-  agentGroup: String
+  agentGroup: String,
+  selectedClientIds: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits(['close'])
@@ -192,8 +193,15 @@ async function loadTargets() {
       props.sourceClient.eqpId || props.sourceClient.id
     )
     targets.value = res.data
-    // Pre-select all
-    selectedTargets.value = new Set(targets.value.map(t => t.eqpId))
+    // Pre-select: if selectedClientIds provided, select only those; otherwise select all
+    if (props.selectedClientIds.length > 0) {
+      const preSelectSet = new Set(props.selectedClientIds)
+      selectedTargets.value = new Set(
+        targets.value.filter(t => preSelectSet.has(t.eqpId)).map(t => t.eqpId)
+      )
+    } else {
+      selectedTargets.value = new Set(targets.value.map(t => t.eqpId))
+    }
   } catch {
     targets.value = []
   } finally {

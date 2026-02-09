@@ -226,28 +226,34 @@ const handleConfigSave = async () => {
   }
 }
 
-// Config handler - open Config Manager Modal for selected client
+// Config handler - open Config Manager Modal for selected clients
 const handleConfig = async () => {
   if (!selectedIds.value.length) {
     showToast('Please select at least one client', 'warning')
     return
   }
 
-  // Find the first selected client's data
-  const selectedEqpId = selectedIds.value[0]
-  const clientData = clients.value.find(c => (c.eqpId || c.id) === selectedEqpId)
+  // Pass all selected clients
+  const selectedClientData = selectedIds.value
+    .map(id => clients.value.find(c => (c.eqpId || c.id) === id))
+    .filter(Boolean)
 
-  if (!clientData) {
+  if (selectedClientData.length === 0) {
     showToast('Client data not found', 'error')
     return
   }
 
-  await configManager.openConfig(clientData, agentGroup.value)
+  await configManager.openConfig(selectedClientData, agentGroup.value)
 
   // If settings not found, show toast (modal won't open)
   if (!configManager.isOpen.value && configManager.error.value) {
     showToast(configManager.error.value, 'warning')
   }
+}
+
+// Switch client in config manager
+const handleSwitchClient = (eqpId) => {
+  configManager.switchClient(eqpId)
 }
 
 // Log handler - open Log Viewer Modal for selected client
@@ -404,12 +410,18 @@ const handleConfigSettings = () => {
       :changed-file-ids="configManager.changedFileIds.value"
       :global-error="configManager.error.value"
       :current-agent-group="configManager.currentAgentGroup.value"
+      :selected-clients="configManager.selectedClients.value"
+      :active-client-id="configManager.activeClientId.value"
+      :is-multi-mode="configManager.isMultiMode.value"
+      :client-statuses="configManager.clientStatuses.value"
       @close="configManager.closeConfig()"
       @select-file="configManager.selectFile($event)"
       @update-content="configManager.updateContent($event)"
       @save="handleConfigSave"
+      @discard="configManager.discardCurrentFile"
       @toggle-diff="configManager.toggleDiff()"
       @toggle-rollout="configManager.toggleRollout()"
+      @switch-client="handleSwitchClient"
     />
 
     <!-- Permission Settings Dialog -->

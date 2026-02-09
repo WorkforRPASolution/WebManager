@@ -125,6 +125,19 @@
             </button>
 
             <button
+              v-if="canWrite"
+              @click="$emit('discard')"
+              :disabled="!activeFileHasChanges || !activeFile || !!activeFile.error"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Discard changes and revert to saved version"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a5 5 0 015 5v2M3 10l4-4m-4 4l4 4" />
+              </svg>
+              Discard
+            </button>
+
+            <button
               @click="handleSave"
               :disabled="!canWrite || !activeFileHasChanges || saving || !!jsonError"
               class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-500 hover:bg-primary-600 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -155,6 +168,36 @@
 
         <!-- Content Area -->
         <div class="flex-1 overflow-hidden flex">
+          <!-- Client List Sidebar (multi-mode only) -->
+          <div v-if="isMultiMode" class="w-48 border-r border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg flex flex-col shrink-0">
+            <div class="px-3 py-2 border-b border-gray-200 dark:border-dark-border">
+              <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clients ({{ clientStatuses.length }})</span>
+            </div>
+            <div class="flex-1 overflow-y-auto">
+              <button
+                v-for="cs in clientStatuses"
+                :key="cs.eqpId"
+                @click="$emit('switch-client', cs.eqpId)"
+                :class="[
+                  'w-full text-left px-3 py-2 text-sm border-l-2 transition-colors',
+                  cs.eqpId === activeClientId
+                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
+                    : 'border-transparent hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-700 dark:text-gray-300'
+                ]"
+              >
+                <div class="font-mono text-xs truncate">{{ cs.eqpId }}</div>
+                <div class="flex items-center gap-1 mt-0.5">
+                  <span v-if="cs.status === 'loaded'" class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                  <span v-else-if="cs.status === 'loading'" class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                  <span v-else-if="cs.status === 'error'" class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                  <span v-else class="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></span>
+                  <span class="text-xs text-gray-400 truncate">{{ cs.eqpModel }}</span>
+                  <span v-if="cs.hasChanges" class="ml-auto w-2 h-2 rounded-full bg-amber-500" title="Unsaved changes"></span>
+                </div>
+              </button>
+            </div>
+          </div>
+
           <!-- Main Editor Area -->
           <div class="flex-1 overflow-hidden">
             <!-- Loading State -->
@@ -256,6 +299,7 @@
             :active-content="activeContent"
             :config-files="configFiles"
             :agent-group="currentAgentGroup"
+            :selected-client-ids="otherSelectedClientIds"
             @close="showRollout = false"
           />
         </div>
@@ -337,7 +381,11 @@ const props = defineProps({
   activeFileHasChanges: Boolean,
   changedFileIds: Set,
   globalError: String,
-  currentAgentGroup: String
+  currentAgentGroup: String,
+  selectedClients: { type: Array, default: () => [] },
+  activeClientId: String,
+  isMultiMode: Boolean,
+  clientStatuses: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits([
@@ -345,8 +393,10 @@ const emit = defineEmits([
   'select-file',
   'update-content',
   'save',
+  'discard',
   'toggle-diff',
-  'toggle-rollout'
+  'toggle-rollout',
+  'switch-client'
 ])
 
 // Modal sizing
@@ -361,8 +411,10 @@ const sizes = {
   large: { width: 1300, height: 800 }
 }
 
+const sidebarExtra = computed(() => props.isMultiMode ? 192 : 0)
+
 const modalStyle = computed(() => {
-  const width = customWidth.value || sizes[currentSize.value].width
+  const width = (customWidth.value || sizes[currentSize.value].width) + sidebarExtra.value
   const height = customHeight.value || sizes[currentSize.value].height
   return {
     width: `${width}px`,
@@ -376,7 +428,11 @@ const clientLabel = computed(() => {
   if (!props.sourceClient) return ''
   const id = props.sourceClient.eqpId || props.sourceClient.id
   const model = props.sourceClient.eqpModel || ''
-  return model ? `${id} (${model})` : id
+  const base = model ? `${id} (${model})` : id
+  if (props.isMultiMode && props.clientStatuses.length > 1) {
+    return `${base} - ${props.clientStatuses.length} clients`
+  }
+  return base
 })
 
 const setSize = (size) => {
@@ -410,6 +466,12 @@ const jsonError = computed(() => {
     }
     return { message: e.message, line, col }
   }
+})
+
+const otherSelectedClientIds = computed(() => {
+  if (!props.isMultiMode) return []
+  const sourceId = props.sourceClient?.eqpId || props.sourceClient?.id
+  return props.selectedClients.map(c => c.eqpId || c.id).filter(id => id !== sourceId)
 })
 
 const formatJson = () => {
