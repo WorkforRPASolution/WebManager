@@ -1,6 +1,7 @@
 const ftp = require('basic-ftp')
 const { Readable, Writable } = require('stream')
-const { createConnection } = require('../../shared/utils/socksHelper')
+const { createConnection, createSocksConnection } = require('../../shared/utils/socksHelper')
+const { parsePasvResponse } = require('basic-ftp/dist/transfer')
 const Client = require('./model')
 const configSettingsService = require('./configSettingsService')
 
@@ -23,14 +24,15 @@ async function getConfigSettings(agentGroup) {
  * Get client IP info from DB
  */
 async function getClientIpInfo(eqpId) {
-  const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL eqpModel').lean()
+  const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL eqpModel socksPort').lean()
   if (!client) {
     throw new Error(`Client not found: ${eqpId}`)
   }
   return {
     ipAddr: client.ipAddr,
     ipAddrL: client.ipAddrL || null,
-    eqpModel: client.eqpModel
+    eqpModel: client.eqpModel,
+    socksPort: client.socksPort || null
   }
 }
 
@@ -49,7 +51,7 @@ async function connectFtp(eqpId) {
 
   if (ipInfo.ipAddrL) {
     // SOCKS tunnel: create tunnel socket first, then use it for FTP
-    const tunnelSocket = await createConnection(ipInfo.ipAddr, ipInfo.ipAddrL, FTP_PORT)
+    const tunnelSocket = await createConnection(ipInfo.ipAddr, ipInfo.ipAddrL, FTP_PORT, ipInfo.socksPort)
 
     // Inject the tunnel socket into basic-ftp
     // basic-ftp uses ftp.socket internally for the control connection
@@ -67,7 +69,20 @@ async function connectFtp(eqpId) {
 
     // Login after establishing connection
     await ftpClient.login(FTP_USER, FTP_PASS)
-    await ftpClient.usePasv()
+    // Override prepareTransfer to route PASV data connections through SOCKS tunnel
+    ftpClient.prepareTransfer = async (ftp) => {
+      const res = await ftp.request('PASV')
+      const target = parsePasvResponse(res.message)
+      if (!target) throw new Error("Can't parse PASV response: " + res.message)
+      const dataSocket = await createSocksConnection(
+        ipInfo.ipAddr,
+        ipInfo.ipAddrL,
+        target.port,
+        ipInfo.socksPort
+      )
+      ftp.dataSocket = dataSocket
+      return res
+    }
   } else {
     // Direct connection
     await ftpClient.access({
@@ -157,13 +172,25 @@ async function readAllConfigs(eqpId, agentGroup) {
           error: null
         })
       } catch (err) {
-        results.push({
-          fileId: config.fileId,
-          name: config.name,
-          path: config.path,
-          content: null,
-          error: err.message
-        })
+        const isNotFound = err.code === 550 || err.message?.includes('No such file')
+        if (isNotFound) {
+          results.push({
+            fileId: config.fileId,
+            name: config.name,
+            path: config.path,
+            content: '',
+            error: null,
+            missing: true
+          })
+        } else {
+          results.push({
+            fileId: config.fileId,
+            name: config.name,
+            path: config.path,
+            content: null,
+            error: err.message
+          })
+        }
       }
     }
 

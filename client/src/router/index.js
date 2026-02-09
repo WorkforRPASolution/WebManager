@@ -103,6 +103,46 @@ const routes = [
       }
     }
   },
+  { 
+    path: '/resource-clients', 
+    name: 'ResourceClients', 
+    component: () => import('../features/clients/ClientsView.vue'), 
+    meta: { 
+      agentGroup: 'resource_agent', 
+      layout: 'default', 
+      requiresAuth: true, 
+      permission: 'clients', 
+      menu: { 
+        mainMenu: 'clients', 
+        mainMenuLabel: 'Clients', 
+        mainMenuIcon: 'devices', 
+        mainMenuOrder: 2, 
+        subMenu: 'resource-client-list', 
+        subMenuLabel: 'ResourceAgent', 
+        subMenuIcon: 'memory', 
+        subMenuOrder: 2, 
+        permission: 'clients' 
+      } 
+    } 
+  }, 
+  { 
+    path: '/resource-clients/:id', 
+    name: 'ResourceClientDetail', 
+    component: () => import('../features/clients/ClientDetailView.vue'), 
+    meta: { 
+      agentGroup: 'resource_agent', 
+      layout: 'default', 
+      requiresAuth: true, 
+      permission: 'clients', 
+      menu: { 
+        mainMenu: 'clients', 
+        subMenu: 'resource-client-detail', 
+        subMenuLabel: 'Resource Client Detail', 
+        hidden: true, 
+        permission: 'clients' 
+      } 
+    } 
+  },
   {
     path: '/equipment-info',
     name: 'EquipmentInfo',

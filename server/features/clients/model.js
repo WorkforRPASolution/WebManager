@@ -17,6 +17,7 @@ const clientSchema = new Schema({
   category: { type: String, required: true },
   ipAddr: { type: String, required: true },
   ipAddrL: { type: String },
+  socksPort: { type: Number },
   localpc: { type: Number, required: true },
   emailcategory: { type: String, required: true },
   osVer: { type: String, required: true },

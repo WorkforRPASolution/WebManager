@@ -3,36 +3,19 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../../shared/api'
 import { serviceApi } from './api'
-import { getStatusComponent } from './components/service-status'
-import { useConfigManager } from './composables/useConfigManager'
-import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
 import { useToast } from '../../shared/composables/useToast'
-import AppIcon from '../../shared/components/AppIcon.vue'
-import ConfigManagerModal from './components/ConfigManagerModal.vue'
 
 const route = useRoute()
 const router = useRouter()
-const { showSuccess, showError } = useToast()
+const { showError } = useToast()
 const agentGroup = computed(() => route.meta.agentGroup)
-const configManager = useConfigManager()
-const { canWrite } = useFeaturePermission('arsAgent')
 
 const activeTab = ref('overview')
 const client = ref(null)
 const loading = ref(true)
 
-// Service Control State
-const serviceStatus = ref(null)
-const serviceStatusLoading = ref(false)
-const serviceActionLoading = ref(false)
-const actionMessage = ref('')
-
-// Dynamic status component based on displayType
-const StatusComponent = computed(() => getStatusComponent(client.value?.displayType))
-
 const tabs = [
   { id: 'overview', label: 'Overview' },
-  { id: 'configuration', label: 'Configuration' },
   { id: 'logs', label: 'Logs' },
 ]
 
@@ -64,100 +47,6 @@ onMounted(async () => {
     loading.value = false
   }
 })
-
-// Service Control Functions
-const fetchServiceStatus = async () => {
-  const eqpId = route.params.id
-  serviceStatusLoading.value = true
-  try {
-    const response = await serviceApi.executeAction(eqpId, agentGroup.value, 'status')
-    serviceStatus.value = response.data?.data || response.data
-  } catch (error) {
-    if (error.message?.includes('timeout')) {
-      showError('Status request timeout. The client may be unreachable.')
-    } else {
-      const message = error.response?.data?.message || error.message
-      showError(`Failed to get status: ${message}`)
-    }
-    serviceStatus.value = null
-  } finally {
-    serviceStatusLoading.value = false
-  }
-}
-
-const handleAction = async (action) => {
-  const eqpId = route.params.id
-
-  // Kill action requires confirmation
-  if (action.name === 'kill') {
-    if (!confirm(`Are you sure you want to kill the service on ${eqpId}? This will forcefully terminate the process.`)) {
-      return
-    }
-  }
-
-  serviceActionLoading.value = true
-  actionMessage.value = `Sending ${action.label || action.name} command...`
-
-  try {
-    actionMessage.value = 'Waiting for server response...'
-    const response = await serviceApi.executeAction(eqpId, agentGroup.value, action.name)
-
-    const result = response.data?.data || response.data
-    if (result.success) {
-      showSuccess(result.message || `${action.label || action.name} completed`)
-      actionMessage.value = 'Refreshing status...'
-      await fetchServiceStatus()
-    } else {
-      showError(result.message || `Failed to ${action.name}`)
-    }
-  } catch (error) {
-    if (error.message?.includes('timeout')) {
-      showError('Request timeout. The server may still be processing the command.')
-    } else {
-      const message = error.response?.data?.message || error.message
-      showError(`Failed to ${action.name}: ${message}`)
-    }
-  } finally {
-    serviceActionLoading.value = false
-    actionMessage.value = ''
-  }
-}
-
-const getActionButtonClass = (action) => {
-  const colorMap = {
-    green: 'text-white bg-green-500 hover:bg-green-600',
-    red: 'text-white bg-red-500 hover:bg-red-600',
-    yellow: 'text-white bg-yellow-500 hover:bg-yellow-600',
-    blue: 'text-white bg-blue-500 hover:bg-blue-600',
-    gray: 'text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600',
-  }
-  return colorMap[action.color] || colorMap.gray
-}
-
-const isActionDisabled = (action) => {
-  if (!serviceStatus.value) return false
-  if (action.name === 'start' && serviceStatus.value.running) return true
-  if (action.name === 'stop' && !serviceStatus.value.running) return true
-  if (action.name === 'restart' && !serviceStatus.value.running) return true
-  if (action.name === 'kill' && !serviceStatus.value.running) return true
-  return false
-}
-
-// Config Management
-const openConfigManager = () => {
-  if (client.value) {
-    configManager.openConfig(client.value)
-  }
-}
-
-const handleConfigSave = async () => {
-  const result = await configManager.saveCurrentFile()
-  if (result?.success) {
-    showSuccess('Config saved successfully')
-  } else if (result?.error) {
-    showError(result.error)
-  }
-}
 
 const getLogLevelClass = (level) => {
   switch (level) {
@@ -297,106 +186,6 @@ const getLogLevelClass = (level) => {
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Configuration Tab -->
-    <div v-else-if="activeTab === 'configuration'">
-      <div class="bg-white dark:bg-dark-card p-6 rounded-xl border border-gray-200 dark:border-dark-border">
-        <!-- Service Control Button Group -->
-        <div class="flex items-center gap-3 mb-6">
-          <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mr-auto">
-            Service Control
-          </h3>
-          <button
-            @click="fetchServiceStatus"
-            :disabled="serviceStatusLoading"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-border rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition disabled:opacity-50"
-          >
-            <AppIcon name="refresh" size="4" :class="{ 'animate-spin': serviceStatusLoading }" />
-            Status
-          </button>
-          <template v-for="action in (client.actions || []).filter(a => a.name !== 'status')" :key="action.name">
-            <button
-              v-if="canWrite"
-              @click="handleAction(action)"
-              :disabled="serviceActionLoading || isActionDisabled(action)"
-              class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-              :class="getActionButtonClass(action)"
-            >
-              <AppIcon :name="action.icon || 'settings'" size="4" />
-              {{ action.label }}
-            </button>
-          </template>
-        </div>
-
-        <!-- Dynamic Status Display -->
-        <div class="mb-6">
-          <component
-            :is="StatusComponent"
-            :data="serviceStatus"
-            :loading="serviceStatusLoading"
-          />
-        </div>
-
-        <!-- Action Loading -->
-        <div v-if="serviceActionLoading" class="mb-6 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-          <div class="flex items-center gap-2">
-            <svg class="w-4 h-4 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span class="text-sm font-medium text-blue-700 dark:text-blue-300">{{ actionMessage || 'Processing...' }}</span>
-          </div>
-        </div>
-
-        <!-- Divider -->
-        <div class="border-t border-gray-200 dark:border-dark-border my-4"></div>
-
-        <!-- Config Files Section -->
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Configuration Files</h3>
-        </div>
-        <p class="text-gray-500 dark:text-gray-400 mb-4 text-sm">
-          View and edit configuration files on this client via FTP.
-        </p>
-        <button
-          v-if="canWrite"
-          @click="openConfigManager"
-          class="flex items-center gap-2 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white font-medium rounded-lg transition text-sm"
-        >
-          <AppIcon name="settings" size="4" />
-          Open Config Manager
-        </button>
-      </div>
-
-      <!-- Config Manager Modal -->
-      <ConfigManagerModal
-        :can-write="canWrite"
-        :is-open="configManager.isOpen.value"
-        :source-client="configManager.sourceClient.value"
-        :config-files="configManager.configFiles.value"
-        :active-file-id="configManager.activeFileId.value"
-        :edited-contents="configManager.editedContents.value"
-        :original-contents="configManager.originalContents.value"
-        :loading="configManager.loading.value"
-        :saving="configManager.saving.value"
-        :show-diff="configManager.showDiff.value"
-        :show-rollout="configManager.showRollout.value"
-        :error="configManager.error.value"
-        :active-file="configManager.activeFile.value"
-        :active-content="configManager.activeContent.value"
-        :active-original-content="configManager.activeOriginalContent.value"
-        :has-changes="configManager.hasChanges.value"
-        :active-file-has-changes="configManager.activeFileHasChanges.value"
-        :changed-file-ids="configManager.changedFileIds.value"
-        :global-error="configManager.error.value"
-        @close="configManager.closeConfig()"
-        @select-file="configManager.selectFile($event)"
-        @update-content="configManager.updateContent($event)"
-        @save="handleConfigSave"
-        @toggle-diff="configManager.toggleDiff()"
-        @toggle-rollout="configManager.toggleRollout()"
-      />
     </div>
 
     <!-- Logs Tab -->
