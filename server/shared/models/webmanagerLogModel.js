@@ -303,6 +303,61 @@ async function getRecentAuthLogs(options = {}) {
 }
 
 // ============================================
+// Login Stats Functions
+// ============================================
+
+/**
+ * Get login stats for a single user from auth logs
+ * @param {string} userId - User's singleid
+ * @returns {{ lastLoginAt: Date|null, loginCount: number }}
+ */
+async function getLoginStats(userId) {
+  const [lastLog, countResult] = await Promise.all([
+    WebManagerLog.findOne(
+      { category: 'auth', authAction: 'login', userId }
+    ).sort({ timestamp: -1 }).lean(),
+    WebManagerLog.countDocuments(
+      { category: 'auth', authAction: 'login', userId }
+    )
+  ])
+
+  return {
+    lastLoginAt: lastLog?.timestamp || null,
+    loginCount: countResult
+  }
+}
+
+/**
+ * Get login stats for multiple users in bulk (aggregation)
+ * @param {string[]} userIds - Array of singleid values
+ * @returns {Object} - Map of userId → { lastLoginAt, loginCount }
+ */
+async function getLoginStatsBulk(userIds) {
+  if (!userIds || userIds.length === 0) return {}
+
+  const pipeline = [
+    { $match: { category: 'auth', authAction: 'login', userId: { $in: userIds } } },
+    { $group: {
+      _id: '$userId',
+      lastLoginAt: { $max: '$timestamp' },
+      loginCount: { $sum: 1 }
+    } }
+  ]
+
+  const results = await WebManagerLog.aggregate(pipeline)
+
+  const statsMap = {}
+  for (const r of results) {
+    statsMap[r._id] = {
+      lastLoginAt: r.lastLoginAt,
+      loginCount: r.loginCount
+    }
+  }
+
+  return statsMap
+}
+
+// ============================================
 // 통합 조회 Functions
 // ============================================
 
@@ -341,6 +396,9 @@ module.exports = {
   // Auth functions (신규)
   createAuthLog,
   getRecentAuthLogs,
+  // Login stats
+  getLoginStats,
+  getLoginStatsBulk,
   // 통합 조회
   getAllLogs
 }

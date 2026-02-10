@@ -20,7 +20,7 @@ const connectDB = async () => {
     const webManagerUri = process.env.WEBMANAGER_DB_URI || 'mongodb://localhost:27017/WEB_MANAGER';
 
     // Connect to EARS database (shared with Akka)
-    await earsConnection.openUri(earsUri);
+    await earsConnection.openUri(earsUri, { autoIndex: false });
     console.log(`MongoDB EARS Connected: ${earsConnection.host}`);
 
     // Connect to WEBMANAGER database (WebManager-specific)

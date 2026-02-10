@@ -4,8 +4,9 @@
 
 const bcrypt = require('bcrypt')
 const { generateToken, generateRefreshToken, verifyToken } = require('../../shared/utils/jwt')
-const { getUserBySingleId, updateLastLogin, getRolePermissionByLevel } = require('../users/service')
+const { getUserBySingleId, getRolePermissionByLevel } = require('../users/service')
 const { User } = require('../users/model')
+const { getLoginStats } = require('../../shared/models/webmanagerLogModel')
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
 
@@ -54,8 +55,8 @@ async function login(singleid, password) {
   const token = generateToken(tokenPayload)
   const refreshToken = generateRefreshToken({ id: user._id.toString() })
 
-  // Update last login
-  await updateLastLogin(user._id)
+  // Get login stats from WEBMANAGER_LOG (before current login is recorded by controller)
+  const loginStats = await getLoginStats(user.singleid)
 
   // Return user data without password
   const { password: _, ...userWithoutPassword } = user
@@ -67,6 +68,8 @@ async function login(singleid, password) {
     mustChangePassword: user.passwordStatus === 'must_change',
     user: {
       ...userWithoutPassword,
+      lastLoginAt: loginStats.lastLoginAt,
+      loginCount: loginStats.loginCount,
       roleName: rolePermission?.roleName || 'Unknown',
       permissions
     }

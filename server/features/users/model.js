@@ -91,10 +91,6 @@ const userSchema = new Schema({
     type: Date,
     default: null
   },
-  lastLoginAt: {
-    type: Date,
-    default: null
-  },
   accessnum: {
     type: Number,
     default: 0

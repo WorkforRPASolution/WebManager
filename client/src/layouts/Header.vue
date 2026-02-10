@@ -21,6 +21,17 @@ const userInitial = computed(() => {
 const userName = computed(() => authStore.user?.name || 'User')
 const userEmail = computed(() => authStore.user?.email || '')
 
+const lastLoginText = computed(() => {
+  const lastLoginAt = authStore.user?.lastLoginAt
+  if (!lastLoginAt) return null
+  const date = new Date(lastLoginAt)
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  const hh = String(date.getHours()).padStart(2, '0')
+  const min = String(date.getMinutes()).padStart(2, '0')
+  return `${mm}/${dd} ${hh}:${min}`
+})
+
 const handleSubMenuClick = (subMenu, mainMenuId) => {
   menuStore.setActiveMainMenu(mainMenuId)
   menuStore.closeMegaMenu()
@@ -131,6 +142,9 @@ const handleLogout = async () => {
                 {{ authStore.roleName }}
               </span>
             </div>
+            <p v-if="lastLoginText" class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              Last login: {{ lastLoginText }}
+            </p>
           </div>
           <button
             @click="handleLogout"

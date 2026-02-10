@@ -6,6 +6,7 @@ const bcrypt = require('bcrypt')
 const { User, RolePermission, DEFAULT_ROLE_PERMISSIONS } = require('./model')
 const { parsePaginationParams } = require('../../shared/utils/pagination')
 const { validateBatchCreate, validateUpdate } = require('./validation')
+const { getLoginStatsBulk } = require('../../shared/models/webmanagerLogModel')
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
 
@@ -92,8 +93,18 @@ async function getUsers(filters = {}, paginationQuery = {}) {
     User.countDocuments(query)
   ])
 
+  // Bulk fetch login stats from WEBMANAGER_LOG
+  const singleIds = users.map(u => u.singleid)
+  const loginStatsMap = await getLoginStatsBulk(singleIds)
+
+  const usersWithStats = users.map(u => ({
+    ...u,
+    lastLoginAt: loginStatsMap[u.singleid]?.lastLoginAt || null,
+    loginCount: loginStatsMap[u.singleid]?.loginCount || 0
+  }))
+
   return {
-    data: users,
+    data: usersWithStats,
     total,
     page,
     pageSize,
@@ -213,19 +224,6 @@ async function updateUsers(usersData) {
 async function deleteUsers(ids) {
   const result = await User.deleteMany({ _id: { $in: ids } })
   return { deleted: result.deletedCount }
-}
-
-/**
- * Update last login timestamp
- */
-async function updateLastLogin(userId) {
-  await User.updateOne(
-    { _id: userId },
-    {
-      $set: { lastLoginAt: new Date() },
-      $inc: { accessnum: 1 }
-    }
-  )
 }
 
 // ===========================================
@@ -405,7 +403,6 @@ module.exports = {
   createUsers,
   updateUsers,
   deleteUsers,
-  updateLastLogin,
 
   // Role Permissions
   getRolePermissions,
