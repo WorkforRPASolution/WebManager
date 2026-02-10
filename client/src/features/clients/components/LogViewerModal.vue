@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="logViewer.isOpen.value"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      class="fixed inset-0 z-50"
     >
       <!-- Backdrop -->
       <div
@@ -13,11 +13,11 @@
       <!-- Modal -->
       <div
         ref="modalRef"
-        class="relative bg-white dark:bg-dark-card rounded-lg shadow-xl flex flex-col overflow-hidden"
+        class="fixed bg-white dark:bg-dark-card rounded-lg shadow-xl flex flex-col overflow-hidden"
         :style="modalStyle"
       >
         <!-- Header -->
-        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg shrink-0">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg shrink-0 select-none" :class="{ 'cursor-move': !isMaximized }" @mousedown="startDrag" @dblclick="toggleMaximize">
           <div class="flex items-center gap-3">
             <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -27,21 +27,25 @@
             </h3>
           </div>
           <div class="flex items-center gap-2">
-            <!-- Resize buttons -->
+            <!-- Maximize/Restore toggle -->
             <button
-              v-for="size in ['small', 'medium', 'large']"
-              :key="size"
-              @click="setSize(size)"
-              :class="['p-1.5 rounded transition', currentSize === size ? 'bg-primary-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600']"
-              :title="size.charAt(0).toUpperCase() + size.slice(1)"
+              @click="toggleMaximize"
+              @mousedown.stop
+              class="p-1.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+              :title="isMaximized ? 'Restore' : 'Maximize'"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <rect :x="size === 'small' ? 6 : size === 'medium' ? 4 : 2" :y="size === 'small' ? 6 : size === 'medium' ? 4 : 2" :width="size === 'small' ? 12 : size === 'medium' ? 16 : 20" :height="size === 'small' ? 12 : size === 'medium' ? 16 : 20" rx="1" stroke-width="2" />
+              <svg v-if="!isMaximized" class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="2" y="2" width="12" height="12" rx="1" />
+              </svg>
+              <svg v-else class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="4" y="1" width="11" height="11" rx="1" />
+                <rect x="1" y="4" width="11" height="11" rx="1" />
               </svg>
             </button>
             <div class="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
             <button
               @click="handleClose"
+              @mousedown.stop
               class="p-1.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
               title="Close"
             >
@@ -122,98 +126,176 @@
                 @tail-selected="handleTailSelected"
               />
 
-              <!-- Tab bar -->
-              <div v-if="logViewer.openTabs.value.length > 0 || tailTabKeys.length > 0" class="flex items-center border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg px-2 shrink-0">
-                <div class="flex items-center gap-1 flex-1 overflow-x-auto">
-                  <!-- File tabs -->
-                  <button
-                    v-for="tab in logViewer.openTabs.value"
-                    :key="tab.filePath"
-                    @click="logViewer.activeTabId.value = tab.filePath"
-                    :class="[
-                      'group relative px-3 py-1.5 text-sm font-medium transition border-b-2 -mb-px whitespace-nowrap',
-                      logViewer.activeTabId.value === tab.filePath
-                        ? 'text-primary-600 dark:text-primary-400 border-primary-500'
-                        : 'text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-300'
-                    ]"
-                  >
-                    {{ tab.fileName }}
-                    <span
-                      @click.stop="logViewer.closeTab(logViewer.activeClientId.value, tab.filePath)"
-                      class="ml-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >&times;</span>
+              <!-- File View Section (collapsible) -->
+              <div class="flex flex-col overflow-hidden" :style="fileViewCollapsed ? 'height: 28px' : 'flex: 1'">
+                <!-- File View Header (integrates tab bar) -->
+                <div class="flex items-center border-b border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-bg px-2 shrink-0">
+                  <button @click="fileViewCollapsed = !fileViewCollapsed" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 mr-1 shrink-0">
+                    <svg class="w-3.5 h-3.5 transition-transform" :class="fileViewCollapsed ? '-rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
                   </button>
-                  <!-- Tail tabs -->
-                  <button
-                    v-for="tKey in tailTabKeys"
-                    :key="'tail-' + tKey"
-                    @click="logViewer.activeTabId.value = 'tail:' + tailKeyToFilePath(tKey)"
-                    :class="[
-                      'group relative px-3 py-1.5 text-sm font-medium transition border-b-2 -mb-px whitespace-nowrap flex items-center',
-                      logViewer.activeTabId.value === 'tail:' + tailKeyToFilePath(tKey)
-                        ? 'text-green-600 dark:text-green-400 border-green-500'
-                        : 'text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-300'
-                    ]"
-                  >
-                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block mr-1.5"></span>
-                    {{ tailKeyToFileName(tKey) }}
-                    <span
-                      @click.stop="handleStopSingleTail(tKey)"
-                      class="ml-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >&times;</span>
-                  </button>
-                </div>
-              </div>
+                  <span class="text-xs font-medium text-gray-600 dark:text-gray-400 mr-2 shrink-0">Content</span>
 
-              <!-- Editor / Content area -->
-              <div class="flex-1 overflow-hidden">
-                <!-- Loading -->
-                <div v-if="isActiveTabLoading" class="h-full flex items-center justify-center">
-                  <svg class="w-8 h-8 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                </div>
+                  <!-- Tab bar with scroll navigation -->
+                  <div v-if="!fileViewCollapsed && (logViewer.openTabs.value.length > 0 || tailTabKeys.length > 0)" class="flex items-center flex-1 min-w-0">
+                    <!-- Left scroll button -->
+                    <button
+                      v-show="tabScrollState.canScrollLeft"
+                      @click="scrollTabs('left')"
+                      class="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 shrink-0"
+                      title="Scroll left"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                      </svg>
+                    </button>
 
-                <!-- Tail View -->
-                <div v-else-if="activeTailBuffer" class="h-full">
-                  <LogTailView
-                    :lines="activeTailBuffer.lines"
-                    :file-name="activeTabFileName"
-                    :truncated="activeTailBuffer.truncated"
-                    :error="activeTailBuffer.error"
-                    @stop="handleStopTail"
-                    @clear="handleClearTail"
-                  />
-                </div>
+                    <!-- Scrollable tab container -->
+                    <div
+                      ref="tabContainerRef"
+                      @wheel.prevent="handleTabWheel"
+                      @scroll="updateTabScrollState"
+                      class="flex items-center gap-1 flex-1 overflow-x-auto min-w-0 scrollbar-hide"
+                    >
+                      <!-- File tabs (global, composite key) -->
+                      <button
+                        v-for="tab in logViewer.openTabs.value"
+                        :key="logViewer.makeTabKey(tab.eqpId, tab.filePath)"
+                        @click="logViewer.activeTabId.value = logViewer.makeTabKey(tab.eqpId, tab.filePath)"
+                        :class="[
+                          'group relative px-3 py-1.5 text-sm font-medium transition border-b-2 -mb-px whitespace-nowrap',
+                          logViewer.activeTabId.value === logViewer.makeTabKey(tab.eqpId, tab.filePath)
+                            ? 'text-primary-600 dark:text-primary-400 border-primary-500'
+                            : 'text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-300'
+                        ]"
+                      >
+                        <span v-if="logViewer.isMultiMode.value" class="text-gray-400 mr-1">{{ tab.eqpId }} &gt;</span>
+                        {{ tab.fileName }}
+                        <span
+                          @click.stop="logViewer.closeTab(tab.eqpId, tab.filePath)"
+                          class="ml-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >&times;</span>
+                      </button>
+                      <!-- Tail tabs -->
+                      <button
+                        v-for="tKey in tailTabKeys"
+                        :key="'tail-' + tKey"
+                        @click="logViewer.activeTabId.value = 'tail:' + tKey"
+                        :class="[
+                          'group relative px-3 py-1.5 text-sm font-medium transition border-b-2 -mb-px whitespace-nowrap flex items-center',
+                          logViewer.activeTabId.value === 'tail:' + tKey
+                            ? 'text-green-600 dark:text-green-400 border-green-500'
+                            : 'text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-300'
+                        ]"
+                      >
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block mr-1.5"></span>
+                        <span v-if="logViewer.isMultiMode.value" class="text-gray-400 mr-1">{{ tailKeyToEqpId(tKey) }} &gt;</span>
+                        {{ tailKeyToFileName(tKey) }}
+                        <span
+                          @click.stop="handleStopSingleTail(tKey)"
+                          class="ml-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >&times;</span>
+                      </button>
+                    </div>
 
-                <!-- Monaco Editor (read-only) -->
-                <div v-else-if="logViewer.activeTabContent.value" class="h-full p-1">
-                  <div class="w-full h-full rounded border border-gray-300 dark:border-dark-border overflow-hidden">
-                    <MonacoEditor
-                      :modelValue="logViewer.activeTabContent.value"
-                      language="plaintext"
-                      :theme="isDark ? 'vs-dark' : 'vs'"
-                      :read-only="true"
-                      :options="{ minimap: { enabled: false }, fontSize: 13, wordWrap: 'on', automaticLayout: true, scrollBeyondLastLine: false, readOnly: true }"
-                    />
+                    <!-- Right scroll button -->
+                    <button
+                      v-show="tabScrollState.canScrollRight"
+                      @click="scrollTabs('right')"
+                      class="p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 shrink-0"
+                      title="Scroll right"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
 
-                <!-- No tab open -->
-                <div v-else class="h-full flex items-center justify-center">
-                  <p class="text-gray-500 dark:text-gray-400">Click a file to view its content</p>
+                <!-- Editor / Content area (hidden when collapsed) -->
+                <div v-show="!fileViewCollapsed" class="flex-1 overflow-hidden">
+                  <!-- Loading -->
+                  <div v-if="isActiveTabLoading" class="h-full flex items-center justify-center">
+                    <svg class="w-8 h-8 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
+
+                  <!-- Tail View -->
+                  <div v-else-if="activeTailBuffer" class="h-full">
+                    <LogTailView
+                      :lines="activeTailBuffer.lines"
+                      :file-name="activeTabFileName"
+                      :truncated="activeTailBuffer.truncated"
+                      :error="activeTailBuffer.error"
+                      @stop="handleStopTail"
+                      @clear="handleClearTail"
+                    />
+                  </div>
+
+                  <!-- Monaco Editor (read-only) -->
+                  <div v-else-if="logViewer.activeTabContent.value" class="h-full p-1">
+                    <div class="w-full h-full rounded border border-gray-300 dark:border-dark-border overflow-hidden">
+                      <MonacoEditor
+                        ref="monacoEditorRef"
+                        :modelValue="logViewer.activeTabContent.value"
+                        language="plaintext"
+                        :theme="isDark ? 'vs-dark' : 'vs'"
+                        :read-only="true"
+                        :options="{ minimap: { enabled: false }, fontSize: 13, wordWrap: 'on', automaticLayout: true, scrollBeyondLastLine: false, readOnly: true }"
+                      />
+                    </div>
+                  </div>
+
+                  <!-- No tab open -->
+                  <div v-else class="h-full flex items-center justify-center">
+                    <p class="text-gray-500 dark:text-gray-400">Click a file to view its content</p>
+                  </div>
                 </div>
               </div>
 
-              <!-- Search Panel (collapsible) -->
-              <LogSearchPanel
+              <!-- Vertical Drag Divider -->
+              <div
                 v-if="showSearch"
-                :client-cache="logViewer.clientCache.value"
-                :selected-clients="logViewer.selectedClients.value"
-                @go-to="handleSearchGoTo"
-                @close="showSearch = false"
-              />
+                class="h-1 shrink-0 cursor-row-resize bg-gray-200 dark:bg-dark-border hover:bg-primary-300 dark:hover:bg-primary-700 transition-colors"
+                @mousedown="startDividerDrag"
+              ></div>
+
+              <!-- Search Section (collapsible) -->
+              <div
+                v-if="showSearch"
+                class="flex flex-col overflow-hidden shrink-0"
+                :style="searchCollapsed ? 'height: 28px' : `height: ${searchPanelHeight}px`"
+              >
+                <!-- Search Section Header -->
+                <div class="flex items-center gap-2 px-3 py-1 border-b border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-bg shrink-0">
+                  <button @click="searchCollapsed = !searchCollapsed" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 shrink-0">
+                    <svg class="w-3.5 h-3.5 transition-transform" :class="searchCollapsed ? '-rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  <span class="text-xs font-medium text-gray-600 dark:text-gray-400 shrink-0">Search</span>
+                  <button @click="handleSearchClose" class="ml-auto p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <!-- Search Panel Content (hidden when collapsed) -->
+                <div v-show="!searchCollapsed" class="flex-1 overflow-hidden">
+                  <LogSearchPanel
+                    :global-contents="searchGlobalContents"
+                    :global-open-tabs="searchGlobalOpenTabs"
+                    :selected-clients="logViewer.selectedClients.value"
+                    @go-to="handleSearchGoTo"
+                    @searched="handleSearched"
+                    @close="handleSearchClose"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -253,7 +335,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import * as monaco from 'monaco-editor'
 import MonacoEditor from '../../../shared/components/MonacoEditor.vue'
 import LogFileList from './LogFileList.vue'
 import LogSearchPanel from './LogSearchPanel.vue'
@@ -269,9 +352,40 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
+// Computed wrappers for LogSearchPanel props (safe null handling)
+const searchGlobalContents = computed(() => props.logViewer.globalContents?.value || {})
+const searchGlobalOpenTabs = computed(() => props.logViewer.openTabs?.value || [])
+
 // Local state
 const selectedSourceId = ref(null)
 const showSearch = ref(false)
+const fileViewCollapsed = ref(false)
+const searchCollapsed = ref(false)
+const searchPanelHeight = ref(200)
+const monacoEditorRef = ref(null)
+const tabContainerRef = ref(null)
+const tabScrollState = reactive({ canScrollLeft: false, canScrollRight: false })
+let currentDecorations = []
+
+// Divider drag state
+let isDividerDragging = false
+let dividerStartY = 0
+let dividerStartHeight = 0
+
+const startDividerDrag = (e) => {
+  isDividerDragging = true
+  dividerStartY = e.clientY
+  dividerStartHeight = searchPanelHeight.value
+  e.preventDefault()
+}
+
+const doDividerDrag = (e) => {
+  if (!isDividerDragging) return
+  const delta = dividerStartY - e.clientY
+  searchPanelHeight.value = Math.max(60, Math.min(500, dividerStartHeight + delta))
+}
+
+const stopDividerDrag = () => { isDividerDragging = false }
 
 // Tail stream composable
 const tailStream = useLogTailStream()
@@ -281,26 +395,43 @@ watch(() => props.logViewer.activeSourceId.value, (val) => {
   selectedSourceId.value = val
 }, { immediate: true })
 
-// Modal sizing (same as ConfigManagerModal)
+// Modal sizing
 const modalRef = ref(null)
-const currentSize = ref('large')
+const isMaximized = ref(false)
+const modalPos = reactive({ x: null, y: null })
 const customWidth = ref(null)
 const customHeight = ref(null)
 
-const sizes = {
-  small: { width: 700, height: 500 },
-  medium: { width: 1000, height: 650 },
-  large: { width: 1300, height: 800 }
-}
+const DEFAULT_WIDTH = 1000
+const DEFAULT_HEIGHT = 650
+
+// Drag state
+let isDragging = false
+let dragStartX = 0
+let dragStartY = 0
+let dragStartPosX = 0
+let dragStartPosY = 0
 
 const sidebarExtra = computed(() => props.logViewer.isMultiMode.value ? 192 : 0)
 
 const modalStyle = computed(() => {
-  const width = (customWidth.value || sizes[currentSize.value].width) + sidebarExtra.value
-  const height = customHeight.value || sizes[currentSize.value].height
+  if (isMaximized.value) {
+    return {
+      left: '2.5vw',
+      top: '2.5vh',
+      width: '95vw',
+      height: '95vh'
+    }
+  }
+
+  const w = (customWidth.value || DEFAULT_WIDTH) + sidebarExtra.value
+  const h = customHeight.value || DEFAULT_HEIGHT
+
   return {
-    width: `${width}px`,
-    height: `${height}px`,
+    left: modalPos.x !== null ? `${modalPos.x}px` : `calc(50vw - ${w / 2}px)`,
+    top: modalPos.y !== null ? `${modalPos.y}px` : `calc(50vh - ${h / 2}px)`,
+    width: `${w}px`,
+    height: `${h}px`,
     maxWidth: '95vw',
     maxHeight: '95vh'
   }
@@ -319,11 +450,7 @@ const clientLabel = computed(() => {
 })
 
 const isActiveTabLoading = computed(() => {
-  const cache = props.logViewer.activeCache?.value
-  const tabId = props.logViewer.activeTabId.value
-  if (!cache || !tabId) return false
-  if (tabId.startsWith('tail:')) return false
-  return cache.contentLoading?.[tabId] || false
+  return props.logViewer.activeTabLoading?.value || false
 })
 
 // Tail-related computed properties
@@ -334,20 +461,28 @@ const tailTabKeys = computed(() => {
 const activeTailBuffer = computed(() => {
   const tabId = props.logViewer.activeTabId.value
   if (!tabId || !tabId.startsWith('tail:')) return null
-  const filePath = tabId.slice(5)
-  const eqpId = props.logViewer.activeClientId.value
-  const key = tailStream.getBufferKey(eqpId, filePath)
-  return tailStream.tailBuffers.get(key) || null
+  const bufferKey = tabId.slice(5)  // 'tail:' removed -> 'eqpId:filePath'
+  return tailStream.tailBuffers.get(bufferKey) || null
 })
 
 const activeTabFileName = computed(() => {
   const tabId = props.logViewer.activeTabId.value
   if (!tabId) return ''
   if (tabId.startsWith('tail:')) {
-    return tabId.slice(5).split('/').pop()
+    // tail:eqpId:filePath -> extract filePath part
+    const bufferKey = tabId.slice(5)
+    return tailKeyToFileName(bufferKey)
   }
-  return tabId.split('/').pop()
+  // composite key eqpId:filePath -> extract filePath part
+  const parsed = props.logViewer.parseTabKey(tabId)
+  return parsed.filePath.split('/').pop()
 })
+
+// Helper: extract eqpId from buffer key (eqpId:filePath)
+function tailKeyToEqpId(key) {
+  const idx = key.indexOf(':')
+  return idx >= 0 ? key.substring(0, idx) : ''
+}
 
 // Helper: extract filePath from buffer key (eqpId:filePath)
 function tailKeyToFilePath(key) {
@@ -361,13 +496,13 @@ function tailKeyToFileName(key) {
   return filePath.split('/').pop()
 }
 
-const setSize = (size) => {
-  currentSize.value = size
-  customWidth.value = null
-  customHeight.value = null
+const toggleMaximize = () => {
+  isMaximized.value = !isMaximized.value
 }
 
 const handleClose = () => {
+  modalPos.x = null
+  modalPos.y = null
   tailStream.stopTailing()
   tailStream.clearAllBuffers()
   emit('close')
@@ -402,9 +537,9 @@ const handleTailSelected = () => {
     props.logViewer.clientCache.value[eqpId] = { ...cache, tailingFiles: newTailing }
   }
 
-  // Activate first tail tab
+  // Activate first tail tab (tail:eqpId:filePath)
   const firstPath = [...selected][0]
-  props.logViewer.activeTabId.value = `tail:${firstPath}`
+  props.logViewer.activeTabId.value = `tail:${eqpId}:${firstPath}`
 }
 
 const handleStopTail = () => {
@@ -413,7 +548,8 @@ const handleStopTail = () => {
   // Switch to last open file tab if available
   const tabs = props.logViewer.openTabs.value
   if (tabs.length > 0) {
-    props.logViewer.activeTabId.value = tabs[tabs.length - 1].filePath
+    const last = tabs[tabs.length - 1]
+    props.logViewer.activeTabId.value = props.logViewer.makeTabKey(last.eqpId, last.filePath)
   } else {
     props.logViewer.activeTabId.value = null
   }
@@ -422,15 +558,14 @@ const handleStopTail = () => {
 const handleClearTail = () => {
   const tabId = props.logViewer.activeTabId.value
   if (tabId?.startsWith('tail:')) {
-    const filePath = tabId.slice(5)
-    const eqpId = props.logViewer.activeClientId.value
+    const bufferKey = tabId.slice(5) // 'eqpId:filePath'
+    const { eqpId, filePath } = props.logViewer.parseTabKey(bufferKey)
     tailStream.clearBuffer(eqpId, filePath)
   }
 }
 
 const handleStopSingleTail = (bufferKey) => {
-  const filePath = tailKeyToFilePath(bufferKey)
-  const eqpId = props.logViewer.activeClientId.value
+  const { eqpId, filePath } = props.logViewer.parseTabKey(bufferKey)
 
   // Remove from buffer
   tailStream.tailBuffers.delete(bufferKey)
@@ -450,14 +585,19 @@ const handleStopSingleTail = (bufferKey) => {
 
   // Switch active tab if the closed one was active
   const activeTab = props.logViewer.activeTabId.value
-  if (activeTab === `tail:${filePath}`) {
+  if (activeTab === `tail:${bufferKey}`) {
     // Try to switch to another tail tab or file tab
     const remainingTailKeys = [...tailStream.tailBuffers.keys()]
     if (remainingTailKeys.length > 0) {
-      props.logViewer.activeTabId.value = 'tail:' + tailKeyToFilePath(remainingTailKeys[0])
+      props.logViewer.activeTabId.value = 'tail:' + remainingTailKeys[0]
     } else {
       const tabs = props.logViewer.openTabs.value
-      props.logViewer.activeTabId.value = tabs.length > 0 ? tabs[tabs.length - 1].filePath : null
+      if (tabs.length > 0) {
+        const last = tabs[tabs.length - 1]
+        props.logViewer.activeTabId.value = props.logViewer.makeTabKey(last.eqpId, last.filePath)
+      } else {
+        props.logViewer.activeTabId.value = null
+      }
     }
   }
 }
@@ -471,23 +611,153 @@ function clearTailingFlags() {
 }
 
 const handleSearchGoTo = ({ eqpId, filePath, lineNum }) => {
-  // Switch client if needed
+  // Switch client in sidebar for file list display
   if (eqpId !== props.logViewer.activeClientId.value) {
     props.logViewer.switchClient(eqpId)
   }
-  // Open file if not already open
-  const cache = props.logViewer.clientCache.value[eqpId]
-  const tab = cache?.openTabs?.find(t => t.filePath === filePath)
-  if (!tab) {
+  // Activate the tab (using composite key)
+  const tabKey = props.logViewer.makeTabKey(eqpId, filePath)
+  const existing = props.logViewer.openTabs.value.find(t =>
+    props.logViewer.makeTabKey(t.eqpId, t.filePath) === tabKey
+  )
+  if (!existing) {
+    const cache = props.logViewer.clientCache.value[eqpId]
     const file = cache?.files?.find(f => f.path === filePath)
     if (file) {
       props.logViewer.openFile(eqpId, file)
     }
   } else {
-    props.logViewer.activeTabId.value = filePath
+    props.logViewer.activeTabId.value = tabKey
   }
-  // TODO: scroll to lineNum in Monaco
+  // Scroll to line and apply highlights for current tab
+  nextTick(() => {
+    applyHighlights()
+    scrollToLine(lineNum)
+  })
 }
+
+// Store search results for highlight application on tab switch
+let lastSearchResults = []
+
+function handleSearched(results) {
+  lastSearchResults = results || []
+  applyHighlights()
+}
+
+function handleSearchClose() {
+  showSearch.value = false
+  lastSearchResults = []
+  clearHighlights()
+}
+
+function applyHighlights() {
+  if (!monacoEditorRef.value) return
+  const editor = monacoEditorRef.value.getEditor()
+  if (!editor) return
+
+  const activeTabKey = props.logViewer.activeTabId.value
+  if (!activeTabKey) {
+    currentDecorations = editor.deltaDecorations(currentDecorations, [])
+    return
+  }
+
+  // Filter search results for current active tab
+  const { eqpId, filePath } = props.logViewer.parseTabKey(activeTabKey)
+  const matchingLines = lastSearchResults.filter(r => r.eqpId === eqpId && r.filePath === filePath)
+
+  if (matchingLines.length === 0) {
+    currentDecorations = editor.deltaDecorations(currentDecorations, [])
+    return
+  }
+
+  // Create decorations for all matching lines
+  const decorations = matchingLines.map(r => ({
+    range: new monaco.Range(r.lineNum, 1, r.lineNum, 1),
+    options: {
+      isWholeLine: true,
+      className: 'log-search-highlight-line',
+      overviewRuler: {
+        color: '#fbbf24',
+        position: monaco.editor.OverviewRulerLane.Full
+      }
+    }
+  }))
+
+  currentDecorations = editor.deltaDecorations(currentDecorations, decorations)
+}
+
+function clearHighlights() {
+  if (!monacoEditorRef.value) return
+  const editor = monacoEditorRef.value.getEditor()
+  if (editor) {
+    currentDecorations = editor.deltaDecorations(currentDecorations, [])
+  }
+}
+
+function scrollToLine(lineNum) {
+  if (!monacoEditorRef.value) return
+  const editor = monacoEditorRef.value.getEditor()
+  if (!editor) return
+  editor.revealLineInCenter(lineNum)
+}
+
+// Re-apply highlights when switching tabs
+watch(() => props.logViewer.activeTabId.value, () => {
+  if (lastSearchResults.length > 0) {
+    nextTick(() => applyHighlights())
+  }
+})
+
+// Update tab scroll state when tabs change
+watch(() => props.logViewer.openTabs.value.length, () => {
+  nextTick(() => updateTabScrollState())
+}, { flush: 'post' })
+
+// Tab scroll navigation
+function updateTabScrollState() {
+  const el = tabContainerRef.value
+  if (!el) {
+    tabScrollState.canScrollLeft = false
+    tabScrollState.canScrollRight = false
+    return
+  }
+  tabScrollState.canScrollLeft = el.scrollLeft > 0
+  tabScrollState.canScrollRight = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+}
+
+function scrollTabs(direction) {
+  const el = tabContainerRef.value
+  if (!el) return
+  const amount = 200
+  el.scrollBy({ left: direction === 'left' ? -amount : amount, behavior: 'smooth' })
+}
+
+function handleTabWheel(e) {
+  const el = tabContainerRef.value
+  if (!el) return
+  el.scrollLeft += e.deltaY || e.deltaX
+  updateTabScrollState()
+}
+
+// Drag functionality
+const startDrag = (e) => {
+  if (isMaximized.value) return
+  isDragging = true
+  dragStartX = e.clientX
+  dragStartY = e.clientY
+  const rect = modalRef.value.getBoundingClientRect()
+  dragStartPosX = rect.left
+  dragStartPosY = rect.top
+  e.preventDefault()
+}
+
+const doDrag = (e) => {
+  if (!isDragging) return
+  modalPos.x = Math.max(0, Math.min(window.innerWidth - 100, dragStartPosX + (e.clientX - dragStartX)))
+  modalPos.y = Math.max(0, Math.min(window.innerHeight - 50, dragStartPosY + (e.clientY - dragStartY)))
+}
+
+const stopDrag = () => { isDragging = false }
 
 // Resize functionality
 let isResizing = false
@@ -503,6 +773,9 @@ const startResize = (e) => {
   const rect = modalRef.value.getBoundingClientRect()
   startWidth = rect.width
   startHeight = rect.height
+  // Anchor top-left so resize doesn't shift position
+  modalPos.x = rect.left
+  modalPos.y = rect.top
   e.preventDefault()
 }
 
@@ -514,6 +787,19 @@ const doResize = (e) => {
 
 const stopResize = () => { isResizing = false }
 
+// Combined mouse handlers
+const onMouseMove = (e) => {
+  doDrag(e)
+  doResize(e)
+  doDividerDrag(e)
+}
+
+const onMouseUp = () => {
+  stopDrag()
+  stopResize()
+  stopDividerDrag()
+}
+
 // Keyboard shortcut - ESC to close
 const handleKeyDown = (e) => {
   if (!props.logViewer.isOpen.value) return
@@ -523,16 +809,29 @@ const handleKeyDown = (e) => {
 }
 
 onMounted(() => {
-  document.addEventListener('mousemove', doResize)
-  document.addEventListener('mouseup', stopResize)
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
   document.addEventListener('keydown', handleKeyDown)
 })
 
 onUnmounted(() => {
   tailStream.stopTailing()
   tailStream.clearAllBuffers()
-  document.removeEventListener('mousemove', doResize)
-  document.removeEventListener('mouseup', stopResize)
+  document.removeEventListener('mousemove', onMouseMove)
+  document.removeEventListener('mouseup', onMouseUp)
   document.removeEventListener('keydown', handleKeyDown)
 })
 </script>
+
+<style>
+.log-search-highlight-line {
+  background-color: rgba(251, 191, 36, 0.3) !important;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+</style>

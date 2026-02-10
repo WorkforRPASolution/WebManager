@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="isOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      class="fixed inset-0 z-50"
     >
       <!-- Backdrop -->
       <div
@@ -13,11 +13,11 @@
       <!-- Modal -->
       <div
         ref="modalRef"
-        class="relative bg-white dark:bg-dark-card rounded-lg shadow-xl flex flex-col overflow-hidden"
+        class="fixed bg-white dark:bg-dark-card rounded-lg shadow-xl flex flex-col overflow-hidden"
         :style="modalStyle"
       >
         <!-- Header -->
-        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg shrink-0">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg shrink-0 select-none" :class="{ 'cursor-move': !isMaximized }" @mousedown="startDrag" @dblclick="toggleMaximize">
           <div class="flex items-center gap-3">
             <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -28,21 +28,25 @@
             </h3>
           </div>
           <div class="flex items-center gap-2">
-            <!-- Resize buttons -->
+            <!-- Maximize/Restore toggle -->
             <button
-              v-for="size in ['small', 'medium', 'large']"
-              :key="size"
-              @click="setSize(size)"
-              :class="['p-1.5 rounded transition', currentSize === size ? 'bg-primary-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600']"
-              :title="size.charAt(0).toUpperCase() + size.slice(1)"
+              @click="toggleMaximize"
+              @mousedown.stop
+              class="p-1.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+              :title="isMaximized ? 'Restore' : 'Maximize'"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <rect :x="size === 'small' ? 6 : size === 'medium' ? 4 : 2" :y="size === 'small' ? 6 : size === 'medium' ? 4 : 2" :width="size === 'small' ? 12 : size === 'medium' ? 16 : 20" :height="size === 'small' ? 12 : size === 'medium' ? 16 : 20" rx="1" stroke-width="2" />
+              <svg v-if="!isMaximized" class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="2" y="2" width="12" height="12" rx="1" />
+              </svg>
+              <svg v-else class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="4" y="1" width="11" height="11" rx="1" />
+                <rect x="1" y="4" width="11" height="11" rx="1" />
               </svg>
             </button>
             <div class="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
             <button
               @click="handleClose"
+              @mousedown.stop
               class="p-1.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
               title="Close"
             >
@@ -353,7 +357,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import MonacoEditor from '../../../shared/components/MonacoEditor.vue'
 import MonacoDiffEditor from '../../../shared/components/MonacoDiffEditor.vue'
 import ConfigRolloutPanel from './ConfigRolloutPanel.vue'
@@ -401,24 +405,41 @@ const emit = defineEmits([
 
 // Modal sizing
 const modalRef = ref(null)
-const currentSize = ref('large')
+const isMaximized = ref(false)
+const modalPos = reactive({ x: null, y: null })
 const customWidth = ref(null)
 const customHeight = ref(null)
 
-const sizes = {
-  small: { width: 700, height: 500 },
-  medium: { width: 1000, height: 650 },
-  large: { width: 1300, height: 800 }
-}
+const DEFAULT_WIDTH = 1000
+const DEFAULT_HEIGHT = 650
+
+// Drag state
+let isDragging = false
+let dragStartX = 0
+let dragStartY = 0
+let dragStartPosX = 0
+let dragStartPosY = 0
 
 const sidebarExtra = computed(() => props.isMultiMode ? 192 : 0)
 
 const modalStyle = computed(() => {
-  const width = (customWidth.value || sizes[currentSize.value].width) + sidebarExtra.value
-  const height = customHeight.value || sizes[currentSize.value].height
+  if (isMaximized.value) {
+    return {
+      left: '2.5vw',
+      top: '2.5vh',
+      width: '95vw',
+      height: '95vh'
+    }
+  }
+
+  const w = (customWidth.value || DEFAULT_WIDTH) + sidebarExtra.value
+  const h = customHeight.value || DEFAULT_HEIGHT
+
   return {
-    width: `${width}px`,
-    height: `${height}px`,
+    left: modalPos.x !== null ? `${modalPos.x}px` : `calc(50vw - ${w / 2}px)`,
+    top: modalPos.y !== null ? `${modalPos.y}px` : `calc(50vh - ${h / 2}px)`,
+    width: `${w}px`,
+    height: `${h}px`,
     maxWidth: '95vw',
     maxHeight: '95vh'
   }
@@ -435,13 +456,15 @@ const clientLabel = computed(() => {
   return base
 })
 
-const setSize = (size) => {
-  currentSize.value = size
-  customWidth.value = null
-  customHeight.value = null
+const toggleMaximize = () => {
+  isMaximized.value = !isMaximized.value
 }
 
-const handleClose = () => emit('close')
+const handleClose = () => {
+  modalPos.x = null
+  modalPos.y = null
+  emit('close')
+}
 const selectFile = (fileId) => emit('select-file', fileId)
 const updateContent = (content) => emit('update-content', content)
 const handleSave = () => emit('save')
@@ -487,6 +510,26 @@ const formatJson = () => {
   }
 }
 
+// Drag functionality
+const startDrag = (e) => {
+  if (isMaximized.value) return
+  isDragging = true
+  dragStartX = e.clientX
+  dragStartY = e.clientY
+  const rect = modalRef.value.getBoundingClientRect()
+  dragStartPosX = rect.left
+  dragStartPosY = rect.top
+  e.preventDefault()
+}
+
+const doDrag = (e) => {
+  if (!isDragging) return
+  modalPos.x = Math.max(0, Math.min(window.innerWidth - 100, dragStartPosX + (e.clientX - dragStartX)))
+  modalPos.y = Math.max(0, Math.min(window.innerHeight - 50, dragStartPosY + (e.clientY - dragStartY)))
+}
+
+const stopDrag = () => { isDragging = false }
+
 // Resize functionality
 let isResizing = false
 let startX = 0
@@ -501,6 +544,9 @@ const startResize = (e) => {
   const rect = modalRef.value.getBoundingClientRect()
   startWidth = rect.width
   startHeight = rect.height
+  // Anchor top-left so resize doesn't shift position
+  modalPos.x = rect.left
+  modalPos.y = rect.top
   e.preventDefault()
 }
 
@@ -511,6 +557,17 @@ const doResize = (e) => {
 }
 
 const stopResize = () => { isResizing = false }
+
+// Combined mouse handlers
+const onMouseMove = (e) => {
+  doDrag(e)
+  doResize(e)
+}
+
+const onMouseUp = () => {
+  stopDrag()
+  stopResize()
+}
 
 // Keyboard shortcut
 const handleKeyDown = (e) => {
@@ -527,14 +584,14 @@ const handleKeyDown = (e) => {
 }
 
 onMounted(() => {
-  document.addEventListener('mousemove', doResize)
-  document.addEventListener('mouseup', stopResize)
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
   document.addEventListener('keydown', handleKeyDown)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('mousemove', doResize)
-  document.removeEventListener('mouseup', stopResize)
+  document.removeEventListener('mousemove', onMouseMove)
+  document.removeEventListener('mouseup', onMouseUp)
   document.removeEventListener('keydown', handleKeyDown)
 })
 </script>

@@ -51,15 +51,17 @@
 import { useLogSearch } from '../composables/useLogSearch'
 
 const props = defineProps({
-  clientCache: { type: Object, required: true },
+  globalContents: { type: Object, required: true },
+  globalOpenTabs: { type: Array, required: true },
   selectedClients: { type: Array, required: true }
 })
 
-defineEmits(['go-to', 'close'])
+const emit = defineEmits(['go-to', 'close', 'searched'])
 
 const search = useLogSearch()
 
 function doSearch() {
-  search.searchAll(props.clientCache, props.selectedClients)
+  search.searchAll(props.globalContents, props.globalOpenTabs, props.selectedClients)
+  emit('searched', search.searchResults.value)
 }
 </script>
