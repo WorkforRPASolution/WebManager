@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useClientData } from './composables/useClientData'
 import { useConfigManager } from './composables/useConfigManager'
 import { useBatchActionStream } from './composables/useBatchActionStream'
+import { useLogViewer } from './composables/useLogViewer'
 import { serviceApi } from './api'
 import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
 import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDialog.vue'
@@ -25,9 +26,8 @@ const showPermissionDialog = ref(false)
 // Config Manager
 const configManager = useConfigManager()
 
-// Log Viewer state
-const logModalOpen = ref(false)
-const logModalClient = ref({ name: '', eqpId: '' })
+// Log Viewer
+const logViewer = useLogViewer()
 
 // Config Settings
 const showConfigSettings = ref(false)
@@ -257,20 +257,22 @@ const handleSwitchClient = (eqpId) => {
 }
 
 // Log handler - open Log Viewer Modal for selected client
-const handleLog = () => {
+const handleLog = async () => {
   if (!selectedIds.value.length) {
     showToast('Please select at least one client', 'warning')
     return
   }
-
-  const selectedEqpId = selectedIds.value[0]
-  const clientData = clients.value.find(c => (c.eqpId || c.id) === selectedEqpId)
-
-  logModalClient.value = {
-    name: clientData?.name || clientData?.eqpId || selectedEqpId,
-    eqpId: selectedEqpId
+  const selectedClientData = selectedIds.value
+    .map(id => clients.value.find(c => (c.eqpId || c.id) === id))
+    .filter(Boolean)
+  if (selectedClientData.length === 0) {
+    showToast('Client data not found', 'error')
+    return
   }
-  logModalOpen.value = true
+  await logViewer.openLogViewer(selectedClientData, agentGroup.value)
+  if (!logViewer.isOpen.value && logViewer.filesError.value) {
+    showToast(logViewer.filesError.value, 'warning')
+  }
 }
 
 // Config Settings handler
@@ -434,10 +436,8 @@ const handleConfigSettings = () => {
 
     <!-- Log Viewer Modal -->
     <LogViewerModal
-      :is-open="logModalOpen"
-      :client-name="logModalClient.name"
-      :eqp-id="logModalClient.eqpId"
-      @close="logModalOpen = false"
+      :log-viewer="logViewer"
+      @close="logViewer.closeLogViewer()"
     />
 
     <!-- Config Settings Modal -->

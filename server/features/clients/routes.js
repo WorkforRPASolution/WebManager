@@ -95,6 +95,26 @@ router.get('/by-model', authenticate, requireMenuPermission(['arsAgent', 'resour
 router.post('/config/deploy', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.deployConfig))
 
 // ============================================
+// Log Settings Routes
+// ============================================
+
+// GET /api/clients/log-settings/:agentGroup - Get log settings for agentGroup
+router.get('/log-settings/:agentGroup', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(controller.getLogSettings))
+
+// PUT /api/clients/log-settings/:agentGroup - Save log settings for agentGroup
+router.put('/log-settings/:agentGroup', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(controller.saveLogSettings))
+
+// ============================================
+// Log Tail SSE Stream
+// ============================================
+
+// POST /api/clients/log-tail-stream - SSE tail streaming for log files
+router.post('/log-tail-stream', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(controller.handleLogTailStream))
+
+// POST /api/clients/:id/detect-base-path - Detect basePath via RPC
+router.post('/:id/detect-base-path', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.detectClientBasePath))
+
+// ============================================
 // Client Detail Routes (requires 'arsAgent' or 'resourceAgent' permission)
 // ============================================
 
@@ -119,6 +139,14 @@ router.post('/:id/stop', authenticate, requireMenuPermission(['arsAgent', 'resou
 // GET /api/clients/:id/config - Read all config files (FTP)
 router.get('/:id/config', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.getClientConfigs))
 
+// GET /api/clients/:id/log-files - Get log file list (FTP)
+router.get('/:id/log-files', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(controller.getLogFileList))
+
+// GET /api/clients/:id/log-content - Get log file content (FTP)
+router.get('/:id/log-content', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(controller.getLogFileContent))
+
+// DELETE /api/clients/:id/log-files - Delete log files (FTP)
+router.delete('/:id/log-files', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(controller.deleteLogFiles))
 
 // POST /api/clients/:id/action/:action - Strategy-based action execution
 router.post('/:id/action/:action', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireActionPermission(), asyncHandler(controller.handleExecuteAction))

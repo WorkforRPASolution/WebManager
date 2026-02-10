@@ -132,7 +132,7 @@ const lastSelectedRowIndex = ref(null)
 // 편집 가능한 컬럼 목록 (순서대로)
 const editableColumns = [
   'line', 'lineDesc', 'process', 'eqpModel', 'eqpId', 'serviceType', 'category',
-  'ipAddr', 'ipAddrL', 'agentPorts.rpc', 'agentPorts.ftp', 'agentPorts.socks', 'emailcategory', 'osVer',
+  'ipAddr', 'ipAddrL', 'agentPorts.rpc', 'agentPorts.ftp', 'agentPorts.socks', 'basePath', 'emailcategory', 'osVer',
   'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel'
 ]
 
@@ -260,6 +260,12 @@ const columnDefs = ref([
     editable: true,
     valueParser: p => p.newValue ? parseInt(p.newValue) : null,
     valueFormatter: p => p.value ?? '',
+  },
+  {
+    field: 'basePath',
+    headerName: 'Base Path',
+    width: 200,
+    editable: true,
   },
   {
     field: 'localpc',
@@ -480,7 +486,7 @@ const onCellClicked = (params) => {
 // 컬럼 순서 정의 (스프레드시트에서 복사할 때 사용)
 const pasteColumnOrder = [
   'line', 'lineDesc', 'process', 'eqpModel', 'eqpId', 'serviceType', 'category',
-  'ipAddr', 'ipAddrL', 'agentPorts.rpc', 'agentPorts.ftp', 'agentPorts.socks', 'emailcategory', 'osVer',
+  'ipAddr', 'ipAddrL', 'agentPorts.rpc', 'agentPorts.ftp', 'agentPorts.socks', 'basePath', 'emailcategory', 'osVer',
   'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel'
 ]
 

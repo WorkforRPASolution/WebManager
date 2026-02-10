@@ -22,6 +22,7 @@ const clientSchema = new Schema({
     ftp: { type: Number },
     socks: { type: Number },
   },
+  basePath: { type: String },
   localpc: { type: Number, required: true },
   emailcategory: { type: String, required: true },
   osVer: { type: String, required: true },

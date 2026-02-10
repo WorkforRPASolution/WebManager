@@ -231,6 +231,41 @@ async function batchExecuteActionStream(eqpIds, agentGroup, action, onProgress) 
   await Promise.all(executing)
 }
 
+
+/**
+ * Detect basePath via RPC: sc qc ARSAgent -> parse BINARY_PATH_NAME
+ * Extracts path before \bin\ or /bin/
+ */
+async function detectBasePath(eqpId) {
+  const { ipAddr, ipAddrL, agentPorts } = await getClientIpInfo(eqpId)
+  const rpcClient = new AvroRpcClient(ipAddr, ipAddrL, agentPorts)
+  try {
+    await rpcClient.connect()
+    const response = await rpcClient.runCommand('sc', ['qc', 'ARSAgent'], 10000)
+    if (!response.success) {
+      throw new Error(response.error || 'sc qc command failed')
+    }
+
+    const output = response.output
+    const match = output.match(/BINARY_PATH_NAME\s*:\s*(.+)/)
+    if (!match) {
+      throw new Error('BINARY_PATH_NAME not found in sc qc output')
+    }
+
+    const binaryLine = match[1].trim()
+    const binIdx = binaryLine.search(/[\\\/]bin[\\\/]/i)
+    if (binIdx <= 0) {
+      throw new Error(`Cannot extract basePath from: ${binaryLine}`)
+    }
+
+    const basePath = binaryLine.substring(0, binIdx).replace(/\\/g, '/')
+    await Client.updateOne({ eqpId }, { basePath })
+    return basePath
+  } finally {
+    rpcClient.disconnect()
+  }
+}
+
 module.exports = {
   getClientStatus,
   startClient,
@@ -242,5 +277,6 @@ module.exports = {
   executeRaw,
   executeAction,
   batchExecuteAction,
-  batchExecuteActionStream
+  batchExecuteActionStream,
+  detectBasePath
 }

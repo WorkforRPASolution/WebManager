@@ -82,6 +82,13 @@ GET    /api/clients/by-model               # 횡전개 대상 Client 목록
 GET    /api/clients/:id/config             # 4개 Config 파일 일괄 읽기 (FTP)
 PUT    /api/clients/:id/config/:fileId     # 단일 Config 파일 저장 (FTP)
 POST   /api/clients/config/deploy          # 횡전개 실행 (SSE 진행률)
+
+GET    /api/clients/log-settings/:agentGroup # 로그 소스 설정 조회
+PUT    /api/clients/log-settings/:agentGroup # 로그 소스 설정 저장
+GET    /api/clients/:id/log-files            # 로그 파일 목록 (FTP list)
+GET    /api/clients/:id/log-content          # 파일 내용 다운로드 (FTP read)
+DELETE /api/clients/:id/log-files            # 파일 삭제 (FTP delete)
+POST   /api/clients/log-tail-stream          # 실시간 Tailing (SSE)
 ```
 
 ## Project Structure
@@ -105,6 +112,9 @@ WebManager/
 │   │       ├── service.js      # DB 쿼리, 비즈니스 로직
 │   │       ├── controlService.js # RPC 제어 (Avro)
 │   │       ├── ftpService.js   # FTP Config 읽기/쓰기/배포
+│   │       ├── logService.js       # 로그 파일 조회/삭제/Tail
+│   │       ├── logSettingsModel.js # LOG_SETTINGS Mongoose 모델
+│   │       ├── logSettingsService.js # 로그 설정 CRUD + 초기화
 │   │       ├── validation.js   # 유효성 검사
 │   │       └── model.js        # Mongoose 모델
 │   └── shared/
@@ -133,6 +143,8 @@ WebManager/
 | FEATURE_PERMISSIONS | WEB_MANAGER | 기능별 권한 (전용) |
 | OS_VERSION_LIST | WEB_MANAGER | OS 버전 목록 (전용) |
 | WEBMANAGER_ROLE_PERMISSIONS | WEB_MANAGER | 역할별 메뉴 권한 (전용) |
+| CONFIG_SETTINGS | WEB_MANAGER | Config 파일 설정 (전용) |
+| LOG_SETTINGS | WEB_MANAGER | 로그 소스 설정 (전용) |
 
 - 스키마 상세: `docs/SCHEMA.md`
 
@@ -168,6 +180,7 @@ npm run dev
 - Config Management 완료 (FTP 기반 Config 파일 조회/수정/횡전개)
 - Service Control UI 테스트 완료 (상태조회/시작/중지/재시작)
 - Config Management UI 테스트 완료 (FTP 조회/수정/저장)
+- Log Viewer 완료 (FTP 파일 목록/읽기/삭제 + RPC 실시간 Tailing + 멀티클라이언트 + 크로스 검색)
 
 ## Security Configuration
 - **helmet**: 보안 헤더 자동 설정
