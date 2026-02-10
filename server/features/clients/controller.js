@@ -767,12 +767,14 @@ async function handleLogTailStream(req, res) {
  */
 async function detectClientBasePath(req, res) {
   const { id } = req.params
+  const agentGroup = req.body.agentGroup || req.query.agentGroup
+  if (!agentGroup) throw ApiError.badRequest('agentGroup is required')
 
   const exists = await service.clientExists(id)
   if (!exists) throw ApiError.notFound('Client not found')
 
   try {
-    const basePath = await controlService.detectBasePath(id)
+    const basePath = await controlService.detectBasePath(id, agentGroup)
     res.json({ basePath })
   } catch (error) {
     throw ApiError.internal(`Failed to detect base path: ${error.message}`)

@@ -142,7 +142,7 @@ async function tailLogStream(targets, onData, signal) {
           if (!basePathRetried && /no such file|not found|exit value: 1/i.test(errMsg)) {
             basePathRetried = true
             try {
-              const newBasePath = await detectBasePath(eqpId)
+              const newBasePath = await detectBasePath(eqpId, agentGroup)
               if (newBasePath && newBasePath !== currentBasePath) {
                 currentBasePath = newBasePath
                 onData({ eqpId, filePath, info: `basePath updated to ${newBasePath}, retrying...` })

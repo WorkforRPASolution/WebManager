@@ -233,32 +233,31 @@ async function batchExecuteActionStream(eqpIds, agentGroup, action, onProgress) 
 
 
 /**
- * Detect basePath via RPC: sc qc ARSAgent -> parse BINARY_PATH_NAME
- * Extracts path before \bin\ or /bin/
+ * Detect basePath via strategy-specific RPC command
+ * Strategy module provides the command and parsing logic
+ * @param {string} eqpId - Equipment ID
+ * @param {string} agentGroup - Agent group for strategy lookup
  */
-async function detectBasePath(eqpId) {
-  const { ipAddr, ipAddrL, agentPorts } = await getClientIpInfo(eqpId)
-  const rpcClient = new AvroRpcClient(ipAddr, ipAddrL, agentPorts)
+async function detectBasePath(eqpId, agentGroup) {
+  const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL agentPorts serviceType').lean()
+  if (!client) throw new Error(`Client not found: ${eqpId}`)
+
+  const strategy = client.serviceType
+    ? strategyRegistry.get(agentGroup, client.serviceType)
+    : strategyRegistry.getDefault(agentGroup)
+  if (!strategy) throw new Error(`No strategy found for ${agentGroup}`)
+  if (!strategy.getDetectBasePathCommand) throw new Error(`Strategy ${agentGroup}:${strategy.serviceType} does not support detectBasePath`)
+
+  const cmd = strategy.getDetectBasePathCommand()
+  const rpcClient = new AvroRpcClient(client.ipAddr, client.ipAddrL, client.agentPorts)
   try {
     await rpcClient.connect()
-    const response = await rpcClient.runCommand('sc', ['qc', 'ARSAgent'], 10000)
+    const response = await rpcClient.runCommand(cmd.commandLine, cmd.args, cmd.timeout)
     if (!response.success) {
-      throw new Error(response.error || 'sc qc command failed')
+      throw new Error(response.error || 'detectBasePath command failed')
     }
 
-    const output = response.output
-    const match = output.match(/BINARY_PATH_NAME\s*:\s*(.+)/)
-    if (!match) {
-      throw new Error('BINARY_PATH_NAME not found in sc qc output')
-    }
-
-    const binaryLine = match[1].trim()
-    const binIdx = binaryLine.search(/[\\\/]bin[\\\/]/i)
-    if (binIdx <= 0) {
-      throw new Error(`Cannot extract basePath from: ${binaryLine}`)
-    }
-
-    const basePath = binaryLine.substring(0, binIdx).replace(/\\/g, '/')
+    const basePath = strategy.parseBasePath(response)
     await Client.updateOne({ eqpId }, { basePath })
     return basePath
   } finally {

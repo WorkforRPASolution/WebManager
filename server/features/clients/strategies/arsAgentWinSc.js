@@ -62,5 +62,23 @@ module.exports = {
         ? rpcResult.output || `${action} completed`
         : rpcResult.error || rpcResult.output || `${action} failed`,
     }
+  },
+
+  getDetectBasePathCommand() {
+    return { commandLine: 'sc', args: ['qc', 'ARSAgent'], timeout: 10000 }
+  },
+
+  parseBasePath(rpcResult) {
+    const output = rpcResult.output || ''
+    const match = output.match(/BINARY_PATH_NAME\s*:\s*(.+)/)
+    if (!match) {
+      throw new Error('BINARY_PATH_NAME not found in sc qc output')
+    }
+    const binaryLine = match[1].trim()
+    const binIdx = binaryLine.search(/[\\\/]bin[\\\/]/i)
+    if (binIdx <= 0) {
+      throw new Error(`Cannot extract basePath from: ${binaryLine}`)
+    }
+    return binaryLine.substring(0, binIdx).replace(/\\/g, '/')
   }
 }

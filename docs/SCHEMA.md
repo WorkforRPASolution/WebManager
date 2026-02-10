@@ -7,7 +7,7 @@ WebManager는 두 개의 MongoDB 데이터베이스를 사용합니다:
 | Database | 용도 | 컬렉션 |
 |----------|------|--------|
 | **EARS** | Akka 서버와 공유 | EQP_INFO, ARS_USER_INFO, EMAIL_TEMPLATE_REPOSITORY, POPUP_TEMPLATE_REPOSITORY, EMAILINFO, EMAIL_RECIPIENTS, EMAIL_IMAGE_REPOSITORY |
-| **WEB_MANAGER** | WebManager 전용 | FEATURE_PERMISSIONS, WEBMANAGER_ROLE_PERMISSIONS, CONFIG_SETTINGS, OS_VERSION_LIST, EXEC_COMMANDS, WEBMANAGER_LOG |
+| **WEB_MANAGER** | WebManager 전용 | FEATURE_PERMISSIONS, WEBMANAGER_ROLE_PERMISSIONS, CONFIG_SETTINGS, LOG_SETTINGS, OS_VERSION_LIST, EXEC_COMMANDS, WEBMANAGER_LOG |
 
 ### 환경변수
 
@@ -46,6 +46,7 @@ EARS Database의 컬렉션에 WebManager가 추가한 전용 필드는 `[WM]`으
 | agentPorts.rpc | Number | Optional | `[WM]` ManagerAgent RPC 포트 (기본: `MANAGER_AGENT_PORT=7180`) |
 | agentPorts.ftp | Number | Optional | `[WM]` ManagerAgent FTP 포트 (기본: `FTP_PORT=7181`) |
 | agentPorts.socks | Number | Optional | `[WM]` SOCKS5 프록시 포트 (기본: `SOCKS_PROXY_PORT=30000`) |
+| basePath | String | Optional | `[WM]` ManagerAgent 설치 경로 (예: `/app/ManagerAgent`, `D:/EARS/EEGAgent`). Tail/FTP 경로 resolve에 사용. `sc qc ARSAgent` RPC로 자동 감지 가능. |
 | localpc | Long | Required | Local PC 여부 (1: Yes, 0: No) |
 | emailcategory | String | Required | Email category |
 | osVer | String | Required | OS version |
@@ -277,6 +278,7 @@ WEB_MANAGER DB의 컬렉션들은 서버 시작 시 **자동 초기화**됩니�
 | EMAIL_IMAGE_REPOSITORY | `initializeImageStorage()` | `server/features/images/service.js` | 인덱스 확인 |
 | EXEC_COMMANDS | `initializeExecCommands()` | `server/features/exec-commands/service.js` | 없으면 4개 기본 명령어 upsert |
 | CONFIG_SETTINGS | `initializeConfigSettings()` | `server/features/clients/configSettingsService.js` | 인덱스 확인 |
+| LOG_SETTINGS | `initializeLogSettings()` | `server/features/clients/logSettingsService.js` | 없으면 기본 로그 소스 upsert |
 
 ### 호출 순서 (`server/index.js`)
 
@@ -287,6 +289,7 @@ await initializeOSVersions();
 await initializeImageStorage();
 await initializeExecCommands();
 await initializeConfigSettings();
+await initializeLogSettings();
 ```
 
 ### 신규 컬렉션 추가 시 체크리스트
@@ -420,6 +423,43 @@ Config Manager에서 FTP로 읽기/쓰기할 파일 목록을 관리합니다.
     { fileId: "config_2", name: "process.json", path: "config/process.json" }
   ],
   updatedBy: "admin"
+}
+```
+
+---
+
+## LOG_SETTINGS (로그 소스 설정)
+
+agentGroup별 로그 파일 소스 정보를 저장하는 컬렉션.
+Log Viewer에서 FTP로 조회할 로그 디렉토리와 파일명 필터를 관리합니다.
+
+### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| agentGroup | String | Required (PK) | Agent 그룹 식별자 (예: `ars_agent`, `resource_agent`) |
+| logSources | Array | Optional | 로그 소스 목록 |
+| logSources[].sourceId | String | Required | 소스 ID (예: `log_1`, `log_2`) |
+| logSources[].name | String | Required | 소스 표시명 (예: `Agent Log`) |
+| logSources[].path | String | Required | FTP 상대 디렉토리 경로 (예: `/logs/ARSAgentDummy`) |
+| logSources[].keyword | String | Optional | 파일명 필터 (예: `arsagent`, `*`) |
+| updatedBy | String | Optional | 수정자 (기본: `system`) |
+| createdAt | Date | Auto | 생성일 |
+| updatedAt | Date | Auto | 수정일 |
+
+### Indexes
+
+- `{ agentGroup: 1 }` (unique)
+
+### Sample Data
+
+```javascript
+{
+  agentGroup: "ars_agent",
+  logSources: [
+    { sourceId: "log_1", name: "Agent Log", path: "/logs/ARSAgentDummy", keyword: "arsagent" }
+  ],
+  updatedBy: "system"
 }
 ```
 
