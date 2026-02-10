@@ -83,19 +83,27 @@ class AvroRpcClient {
 
     return new Promise((resolve, reject) => {
       const request = { commandLine, timeout, args }
+      let settled = false
+
+      // 클라이언트 측 타임아웃
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true
+          this.disconnect()
+          reject(new Error(`RPC call timeout after ${timeout}ms`))
+        }
+      }, timeout + 5000) // RPC 타임아웃보다 약간 여유 있게
 
       this.client.RunCommand(request, (err, response) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
         if (err) {
           reject(new Error(`RPC call failed: ${err.message}`))
         } else {
           resolve(response)
         }
       })
-
-      // 클라이언트 측 타임아웃
-      setTimeout(() => {
-        reject(new Error(`RPC call timeout after ${timeout}ms`))
-      }, timeout + 5000) // RPC 타임아웃보다 약간 여유 있게
     })
   }
 

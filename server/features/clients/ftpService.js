@@ -55,35 +55,41 @@ async function connectFtp(eqpId) {
     // SOCKS tunnel: create tunnel socket first, then use it for FTP
     const tunnelSocket = await createConnection(ipInfo.ipAddr, ipInfo.ipAddrL, ftpPort, socksPort)
 
-    // Inject the tunnel socket into basic-ftp
-    // basic-ftp uses ftp.socket internally for the control connection
-    ftpClient.ftp.socket = tunnelSocket
-    ftpClient.ftp.dataSocket = undefined
+    try {
+      // Inject the tunnel socket into basic-ftp
+      // basic-ftp uses ftp.socket internally for the control connection
+      ftpClient.ftp.socket = tunnelSocket
+      ftpClient.ftp.dataSocket = undefined
 
-    // Manually trigger the greeting handling
-    await ftpClient.ftp.handle(undefined, (res, task) => {
-      if (res instanceof Error) {
-        task.reject(res)
-      } else if (res.code === 220) {
-        task.resolve(res)
+      // Manually trigger the greeting handling
+      await ftpClient.ftp.handle(undefined, (res, task) => {
+        if (res instanceof Error) {
+          task.reject(res)
+        } else if (res.code === 220) {
+          task.resolve(res)
+        }
+      })
+
+      // Login after establishing connection
+      await ftpClient.login(FTP_USER, FTP_PASS)
+      // Override prepareTransfer to route PASV data connections through SOCKS tunnel
+      ftpClient.prepareTransfer = async (ftp) => {
+        const res = await ftp.request('PASV')
+        const target = parsePasvResponse(res.message)
+        if (!target) throw new Error("Can't parse PASV response: " + res.message)
+        const dataSocket = await createSocksConnection(
+          ipInfo.ipAddr,
+          ipInfo.ipAddrL,
+          target.port,
+          socksPort
+        )
+        ftp.dataSocket = dataSocket
+        return res
       }
-    })
-
-    // Login after establishing connection
-    await ftpClient.login(FTP_USER, FTP_PASS)
-    // Override prepareTransfer to route PASV data connections through SOCKS tunnel
-    ftpClient.prepareTransfer = async (ftp) => {
-      const res = await ftp.request('PASV')
-      const target = parsePasvResponse(res.message)
-      if (!target) throw new Error("Can't parse PASV response: " + res.message)
-      const dataSocket = await createSocksConnection(
-        ipInfo.ipAddr,
-        ipInfo.ipAddrL,
-        target.port,
-        socksPort
-      )
-      ftp.dataSocket = dataSocket
-      return res
+    } catch (err) {
+      tunnelSocket.destroy()
+      ftpClient.close()
+      throw err
     }
   } else {
     // Direct connection

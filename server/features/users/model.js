@@ -105,7 +105,7 @@ const userSchema = new Schema({
   }
 }, {
   collection: 'ARS_USER_INFO',
-  timestamps: true
+  timestamps: false
 })
 
 // Indexes (singleid unique index already created by unique: true in schema)

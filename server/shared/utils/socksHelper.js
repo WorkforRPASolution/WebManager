@@ -38,6 +38,7 @@ function createDirectConnection(host, port) {
 
     socket.once('error', (err) => {
       clearTimeout(timer)
+      socket.destroy()
       reject(new Error(`Direct connection failed to ${host}:${port}: ${err.message}`))
     })
   })
