@@ -231,6 +231,40 @@ async function batchExecuteActionStream(eqpIds, agentGroup, action, onProgress) 
   await Promise.all(executing)
 }
 
+
+/**
+ * Detect basePath via strategy-specific RPC command
+ * Strategy module provides the command and parsing logic
+ * @param {string} eqpId - Equipment ID
+ * @param {string} agentGroup - Agent group for strategy lookup
+ */
+async function detectBasePath(eqpId, agentGroup) {
+  const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL agentPorts serviceType').lean()
+  if (!client) throw new Error(`Client not found: ${eqpId}`)
+
+  const strategy = client.serviceType
+    ? strategyRegistry.get(agentGroup, client.serviceType)
+    : strategyRegistry.getDefault(agentGroup)
+  if (!strategy) throw new Error(`No strategy found for ${agentGroup}`)
+  if (!strategy.getDetectBasePathCommand) throw new Error(`Strategy ${agentGroup}:${strategy.serviceType} does not support detectBasePath`)
+
+  const cmd = strategy.getDetectBasePathCommand()
+  const rpcClient = new AvroRpcClient(client.ipAddr, client.ipAddrL, client.agentPorts)
+  try {
+    await rpcClient.connect()
+    const response = await rpcClient.runCommand(cmd.commandLine, cmd.args, cmd.timeout)
+    if (!response.success) {
+      throw new Error(response.error || 'detectBasePath command failed')
+    }
+
+    const basePath = strategy.parseBasePath(response)
+    await Client.updateOne({ eqpId }, { basePath })
+    return basePath
+  } finally {
+    rpcClient.disconnect()
+  }
+}
+
 module.exports = {
   getClientStatus,
   startClient,
@@ -242,5 +276,6 @@ module.exports = {
   executeRaw,
   executeAction,
   batchExecuteAction,
-  batchExecuteActionStream
+  batchExecuteActionStream,
+  detectBasePath
 }

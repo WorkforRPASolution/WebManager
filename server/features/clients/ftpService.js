@@ -448,6 +448,96 @@ function deepMerge(target, source) {
   return result
 }
 
+// ============================================
+// Log File Operations (FTP)
+// ============================================
+
+const LOG_MAX_FILE_SIZE_DEFAULT = 10485760 // 10MB
+
+/**
+ * List log files in a directory via FTP
+ * @param {string} eqpId - Equipment ID
+ * @param {string} dirPath - Remote directory path
+ * @param {string} keyword - Filename filter keyword (case-insensitive)
+ * @returns {Promise<Array<{name, size, modifiedAt, path}>>}
+ */
+async function listLogFiles(eqpId, dirPath, keyword) {
+  const { client: ftpClient } = await connectFtp(eqpId)
+
+  try {
+    const listing = await ftpClient.list(dirPath)
+
+    // Filter: files only (type === 1 in basic-ftp), keyword match
+    const files = listing
+      .filter(entry => entry.type === 1)
+      .filter(entry => {
+        if (!keyword) return true
+        return entry.name.toLowerCase().includes(keyword.toLowerCase())
+      })
+      .map(entry => ({
+        name: entry.name,
+        size: entry.size,
+        modifiedAt: entry.modifiedAt ? entry.modifiedAt.toISOString() : null,
+        path: `${dirPath}/${entry.name}`
+      }))
+      .sort((a, b) => {
+        if (!a.modifiedAt || !b.modifiedAt) return 0
+        return new Date(b.modifiedAt) - new Date(a.modifiedAt)
+      })
+
+    return files
+  } finally {
+    ftpClient.close()
+  }
+}
+
+/**
+ * Read a log file via FTP with size check
+ * @param {string} eqpId - Equipment ID
+ * @param {string} filePath - Remote file path
+ * @param {number} [maxSize] - Maximum file size in bytes
+ * @returns {Promise<string>} File content
+ */
+async function readLogFile(eqpId, filePath, maxSize) {
+  const maxFileSize = maxSize || parseInt(process.env.LOG_MAX_FILE_SIZE) || LOG_MAX_FILE_SIZE_DEFAULT
+  const { client: ftpClient } = await connectFtp(eqpId)
+
+  try {
+    const fileSize = await ftpClient.size(filePath)
+    if (fileSize > maxFileSize) {
+      throw new Error(`File too large: ${fileSize} bytes (max ${maxFileSize} bytes)`)
+    }
+
+    const chunks = []
+    const writable = new Writable({
+      write(chunk, encoding, callback) {
+        chunks.push(chunk)
+        callback()
+      }
+    })
+
+    await ftpClient.downloadTo(writable, filePath)
+    return Buffer.concat(chunks).toString('utf-8')
+  } finally {
+    ftpClient.close()
+  }
+}
+
+/**
+ * Delete a log file via FTP
+ * @param {string} eqpId - Equipment ID
+ * @param {string} filePath - Remote file path
+ */
+async function deleteLogFile(eqpId, filePath) {
+  const { client: ftpClient } = await connectFtp(eqpId)
+
+  try {
+    await ftpClient.remove(filePath)
+  } finally {
+    ftpClient.close()
+  }
+}
+
 module.exports = {
   getConfigSettings,
   connectFtp,
@@ -456,5 +546,8 @@ module.exports = {
   readAllConfigs,
   deployConfig,
   deployConfigSelective,
-  mergeSelectedKeys
+  mergeSelectedKeys,
+  listLogFiles,
+  readLogFile,
+  deleteLogFile
 }

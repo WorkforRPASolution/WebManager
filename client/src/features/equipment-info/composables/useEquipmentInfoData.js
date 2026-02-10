@@ -188,6 +188,7 @@ export function useEquipmentInfoData() {
       usereleasemsg: 1,
       usetkincancel: 0,
       agentPorts: { rpc: null, ftp: null, socks: null },
+      basePath: null,
     }
     currentData.value.unshift(newRow)
     unsavedNewRows.value.unshift(newRow)  // Track for pagination persistence
@@ -220,6 +221,7 @@ export function useEquipmentInfoData() {
         usereleasemsg: rowData.usereleasemsg ?? 1,
         usetkincancel: rowData.usetkincancel ?? 0,
         agentPorts: rowData.agentPorts ?? { rpc: null, ftp: null, socks: null },
+        basePath: rowData.basePath || null,
       }
       currentData.value.unshift(newRow)
       unsavedNewRows.value.unshift(newRow)  // Track for pagination persistence

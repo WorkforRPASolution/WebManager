@@ -101,3 +101,23 @@ export const serviceApi = {
     })
   },
 }
+
+// Log Viewer API
+export const logApi = {
+  getSettings: (agentGroup) => api.get(`/clients/log-settings/${agentGroup}`),
+  saveSettings: (agentGroup, data) => api.put(`/clients/log-settings/${agentGroup}`, data),
+  getFileList: (eqpId, agentGroup) => api.get(`/clients/${eqpId}/log-files`, { params: { agentGroup } }),
+  getFileContent: (eqpId, path) => api.get(`/clients/${eqpId}/log-content`, { params: { path }, timeout: 60000 }),
+  deleteFiles: (eqpId, paths) => api.delete(`/clients/${eqpId}/log-files`, { data: { paths } }),
+  tailStream: (targets) => {
+    const token = localStorage.getItem('token')
+    return fetch(`${API_BASE}/clients/log-tail-stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ targets })
+    })
+  }
+}
