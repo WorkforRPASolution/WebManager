@@ -110,6 +110,33 @@ await initializeItems();
 
 > 📌 상세 내용: `docs/SCHEMA.md`의 "자동 초기화 로직" 섹션 참조
 
+### Mongoose 모델 등록 시 주의사항 (Dual DB)
+
+WebManager는 EARS와 WEB_MANAGER 두 개의 DB 연결을 사용합니다.
+**`mongoose.model()` (기본 연결)을 사용하면 안 됩니다.** 기본 연결은 열리지 않으므로 10초 타임아웃이 발생합니다.
+
+```javascript
+// ❌ 잘못된 사용 (기본 연결 → 타임아웃)
+const mongoose = require('mongoose')
+const Model = mongoose.model('MyModel', schema)
+
+// ✅ 올바른 사용 (명시적 연결)
+const { earsConnection } = require('../../shared/db/connection')
+const Model = earsConnection.model('MyModel', schema)
+
+// ✅ WEB_MANAGER DB인 경우
+const { webManagerConnection } = require('../../shared/db/connection')
+const Model = webManagerConnection.model('MyModel', schema)
+```
+
+standalone 스크립트에서도 `connectDB()` / `closeConnections()`를 사용해야 합니다:
+```javascript
+const { connectDB, closeConnections } = require('../shared/db/connection')
+await connectDB()     // 두 연결 모두 오픈
+// ... 작업 ...
+await closeConnections()
+```
+
 ---
 
 ## 4. 권한 설정 (필수)
@@ -136,9 +163,9 @@ meta: {
 ```
 
 ### 권한 값 규칙
-- 권한 값은 해당 기능의 식별자와 일치 (예: `reports`, `master`, `users`)
-- `permissions` 테이블의 `name` 필드 값 사용
-- 대소문자 구분됨 (소문자 사용 권장)
+- 권한 값은 해당 기능의 식별자와 일치 (예: `reports`, `equipmentInfo`, `users`)
+- `FEATURE_PERMISSIONS`의 `feature` 필드 enum 값 사용 (상세: `docs/SCHEMA.md`)
+- 대소문자 구분됨 (camelCase 사용)
 
 > ⚠️ **주의**: 두 위치 중 하나라도 누락되면 보안 취약점이 발생할 수 있습니다.
 
