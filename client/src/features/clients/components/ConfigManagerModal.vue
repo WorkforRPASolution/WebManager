@@ -79,6 +79,15 @@
                 v-if="file.error"
                 class="absolute top-1.5 right-1 w-2 h-2 rounded-full bg-red-500"
               ></span>
+              <!-- Missing file indicator -->
+              <span
+                v-if="file.missing && !changedFileIds.has(file.fileId)"
+                class="absolute top-1.5 right-1" title="File not found on server"
+              >
+                <svg class="w-3 h-3 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92z" clip-rule="evenodd" />
+                </svg>
+              </span>
             </button>
           </div>
 
@@ -103,8 +112,34 @@
             </button>
 
             <button
+              v-if="canWrite"
+              @click="formatJson"
+              :disabled="!activeFile || !!activeFile.error || !!jsonError"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Format JSON (Prettify)"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+              Format
+            </button>
+
+            <button
+              v-if="canWrite"
+              @click="$emit('discard')"
+              :disabled="!activeFileHasChanges || !activeFile || !!activeFile.error"
+              class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Discard changes and revert to saved version"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a5 5 0 015 5v2M3 10l4-4m-4 4l4 4" />
+              </svg>
+              Discard
+            </button>
+
+            <button
               @click="handleSave"
-              :disabled="!canWrite || !activeFileHasChanges || saving"
+              :disabled="!canWrite || !activeFileHasChanges || saving || !!jsonError"
               class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary-500 hover:bg-primary-600 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg v-if="saving" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -133,6 +168,36 @@
 
         <!-- Content Area -->
         <div class="flex-1 overflow-hidden flex">
+          <!-- Client List Sidebar (multi-mode only) -->
+          <div v-if="isMultiMode" class="w-48 border-r border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg flex flex-col shrink-0">
+            <div class="px-3 py-2 border-b border-gray-200 dark:border-dark-border">
+              <span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Clients ({{ clientStatuses.length }})</span>
+            </div>
+            <div class="flex-1 overflow-y-auto">
+              <button
+                v-for="cs in clientStatuses"
+                :key="cs.eqpId"
+                @click="$emit('switch-client', cs.eqpId)"
+                :class="[
+                  'w-full text-left px-3 py-2 text-sm border-l-2 transition-colors',
+                  cs.eqpId === activeClientId
+                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
+                    : 'border-transparent hover:bg-gray-100 dark:hover:bg-dark-hover text-gray-700 dark:text-gray-300'
+                ]"
+              >
+                <div class="font-mono text-xs truncate">{{ cs.eqpId }}</div>
+                <div class="flex items-center gap-1 mt-0.5">
+                  <span v-if="cs.status === 'loaded'" class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                  <span v-else-if="cs.status === 'loading'" class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                  <span v-else-if="cs.status === 'error'" class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                  <span v-else class="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></span>
+                  <span class="text-xs text-gray-400 truncate">{{ cs.eqpModel }}</span>
+                  <span v-if="cs.hasChanges" class="ml-auto w-2 h-2 rounded-full bg-amber-500" title="Unsaved changes"></span>
+                </div>
+              </button>
+            </div>
+          </div>
+
           <!-- Main Editor Area -->
           <div class="flex-1 overflow-hidden">
             <!-- Loading State -->
@@ -168,36 +233,55 @@
             </div>
 
             <!-- Diff View -->
-            <div v-else-if="showDiff && activeFile && !activeFile.error" class="h-full p-2">
-              <div class="w-full h-full rounded border border-gray-300 dark:border-dark-border overflow-hidden">
-                <MonacoDiffEditor
-                  :original="activeOriginalContent"
-                  :modified="activeContent"
-                  language="json"
-                  :theme="isDark ? 'vs-dark' : 'vs'"
-                  :read-only="true"
-                />
+            <div v-else-if="showDiff && activeFile && !activeFile.error" class="h-full flex flex-col">
+              <!-- Missing file banner -->
+              <div v-if="activeFile.missing" class="px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm flex items-center gap-2 shrink-0">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>File not found on server. Save to create a new file.</span>
+              </div>
+              <div class="flex-1 p-2">
+                <div class="w-full h-full rounded border border-gray-300 dark:border-dark-border overflow-hidden">
+                  <MonacoDiffEditor
+                    :original="activeOriginalContent"
+                    :modified="activeContent"
+                    language="json"
+                    :theme="isDark ? 'vs-dark' : 'vs'"
+                    :read-only="!canWrite"
+                    @update:modelValue="updateContent"
+                  />
+                </div>
               </div>
             </div>
 
             <!-- Editor View -->
-            <div v-else-if="activeFile && !activeFile.error" class="h-full p-2">
-              <div class="w-full h-full rounded border border-gray-300 dark:border-dark-border overflow-hidden">
-                <MonacoEditor
-                  :modelValue="activeContent"
-                  @update:modelValue="updateContent"
-                  language="json"
-                  :theme="isDark ? 'vs-dark' : 'vs'"
-                  :options="{
-                    minimap: { enabled: false },
-                    fontSize: 14,
-                    wordWrap: 'on',
-                    automaticLayout: true,
-                    scrollBeyondLastLine: false,
-                    formatOnPaste: true,
-                    readOnly: !canWrite
-                  }"
-                />
+            <div v-else-if="activeFile && !activeFile.error" class="h-full flex flex-col">
+              <!-- Missing file banner -->
+              <div v-if="activeFile.missing" class="px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm flex items-center gap-2 shrink-0">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>File not found on server. Save to create a new file.</span>
+              </div>
+              <div class="flex-1 p-2">
+                <div class="w-full h-full rounded border border-gray-300 dark:border-dark-border overflow-hidden">
+                  <MonacoEditor
+                    :modelValue="activeContent"
+                    @update:modelValue="updateContent"
+                    language="json"
+                    :theme="isDark ? 'vs-dark' : 'vs'"
+                    :options="{
+                      minimap: { enabled: false },
+                      fontSize: 14,
+                      wordWrap: 'on',
+                      automaticLayout: true,
+                      scrollBeyondLastLine: false,
+                      formatOnPaste: true,
+                      readOnly: !canWrite
+                    }"
+                  />
+                </div>
               </div>
             </div>
 
@@ -214,6 +298,8 @@
             :active-file="activeFile"
             :active-content="activeContent"
             :config-files="configFiles"
+            :agent-group="currentAgentGroup"
+            :selected-client-ids="otherSelectedClientIds"
             @close="showRollout = false"
           />
         </div>
@@ -221,7 +307,11 @@
         <!-- Status Bar -->
         <div class="flex items-center justify-between px-4 py-1.5 border-t border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg text-xs text-gray-500 dark:text-gray-400 shrink-0">
           <div class="flex items-center gap-4">
-            <span v-if="activeFileHasChanges" class="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+            <span v-if="activeFile?.missing && !activeFileHasChanges" class="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+              New File
+            </span>
+            <span v-else-if="activeFileHasChanges" class="flex items-center gap-1 text-amber-600 dark:text-amber-400">
               <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
               Modified
             </span>
@@ -233,7 +323,18 @@
           <div class="flex items-center gap-4">
             <span v-if="error" class="text-red-500">{{ error }}</span>
             <span>{{ sourceClient?.eqpModel }}</span>
-            <span>JSON</span>
+            <span v-if="jsonError" class="flex items-center gap-1 text-red-500" :title="jsonError.message">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              {{ jsonError.line ? `JSON Error (Ln ${jsonError.line}, Col ${jsonError.col})` : 'JSON Error' }}
+            </span>
+            <span v-else class="flex items-center gap-1">
+              <svg class="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+              JSON
+            </span>
           </div>
         </div>
 
@@ -279,7 +380,12 @@ const props = defineProps({
   hasChanges: Boolean,
   activeFileHasChanges: Boolean,
   changedFileIds: Set,
-  globalError: String
+  globalError: String,
+  currentAgentGroup: String,
+  selectedClients: { type: Array, default: () => [] },
+  activeClientId: String,
+  isMultiMode: Boolean,
+  clientStatuses: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits([
@@ -287,8 +393,10 @@ const emit = defineEmits([
   'select-file',
   'update-content',
   'save',
+  'discard',
   'toggle-diff',
-  'toggle-rollout'
+  'toggle-rollout',
+  'switch-client'
 ])
 
 // Modal sizing
@@ -303,8 +411,10 @@ const sizes = {
   large: { width: 1300, height: 800 }
 }
 
+const sidebarExtra = computed(() => props.isMultiMode ? 192 : 0)
+
 const modalStyle = computed(() => {
-  const width = customWidth.value || sizes[currentSize.value].width
+  const width = (customWidth.value || sizes[currentSize.value].width) + sidebarExtra.value
   const height = customHeight.value || sizes[currentSize.value].height
   return {
     width: `${width}px`,
@@ -318,7 +428,11 @@ const clientLabel = computed(() => {
   if (!props.sourceClient) return ''
   const id = props.sourceClient.eqpId || props.sourceClient.id
   const model = props.sourceClient.eqpModel || ''
-  return model ? `${id} (${model})` : id
+  const base = model ? `${id} (${model})` : id
+  if (props.isMultiMode && props.clientStatuses.length > 1) {
+    return `${base} - ${props.clientStatuses.length} clients`
+  }
+  return base
 })
 
 const setSize = (size) => {
@@ -333,6 +447,45 @@ const updateContent = (content) => emit('update-content', content)
 const handleSave = () => emit('save')
 const toggleDiff = () => emit('toggle-diff')
 const toggleRollout = () => emit('toggle-rollout')
+
+// JSON validation
+const jsonError = computed(() => {
+  if (!props.activeContent || !props.activeContent.trim()) return null
+  try {
+    JSON.parse(props.activeContent)
+    return null
+  } catch (e) {
+    const posMatch = e.message.match(/position\s+(\d+)/i)
+    let line = null, col = null
+    if (posMatch) {
+      const pos = parseInt(posMatch[1])
+      const before = props.activeContent.substring(0, pos)
+      const lines = before.split('\n')
+      line = lines.length
+      col = lines[lines.length - 1].length + 1
+    }
+    return { message: e.message, line, col }
+  }
+})
+
+const otherSelectedClientIds = computed(() => {
+  if (!props.isMultiMode) return []
+  const sourceId = props.sourceClient?.eqpId || props.sourceClient?.id
+  return props.selectedClients.map(c => c.eqpId || c.id).filter(id => id !== sourceId)
+})
+
+const formatJson = () => {
+  if (!props.activeContent) return
+  try {
+    const parsed = JSON.parse(props.activeContent)
+    const formatted = JSON.stringify(parsed, null, 2) + '\n'
+    if (formatted !== props.activeContent) {
+      emit('update-content', formatted)
+    }
+  } catch {
+    // Cannot format invalid JSON
+  }
+}
 
 // Resize functionality
 let isResizing = false

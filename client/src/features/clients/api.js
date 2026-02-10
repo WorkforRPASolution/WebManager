@@ -36,18 +36,23 @@ export const clientListApi = {
 // Config Management API (FTP via ManagerAgent)
 export const clientConfigApi = {
   // Config 파일 설정 조회 (이름, 경로)
-  getSettings: () => api.get('/clients/config/settings'),
+  getSettings: (agentGroup) => api.get('/clients/config/settings', { params: { agentGroup } }),
 
-  // 4개 Config 파일 일괄 읽기
-  getConfigs: (eqpId) => api.get(`/clients/${eqpId}/config`, { timeout: 60000 }),
+  // Config 파일 일괄 읽기
+  getConfigs: (eqpId, agentGroup) => api.get(`/clients/${eqpId}/config`, { params: { agentGroup }, timeout: 60000 }),
 
   // 단일 Config 파일 저장
-  updateConfig: (eqpId, fileId, content) =>
-    api.put(`/clients/${eqpId}/config/${fileId}`, { content }, { timeout: 60000 }),
+  updateConfig: (eqpId, fileId, content, agentGroup) =>
+    api.put(`/clients/${eqpId}/config/${fileId}`, { content, agentGroup }, { timeout: 60000 }),
 
   // 횡전개 대상 Client 목록 (같은 eqpModel)
   getClientsByModel: (eqpModel, excludeEqpId) =>
     api.get('/clients/by-model', { params: { eqpModel, excludeEqpId } }),
+
+  // Config Settings 관리 (agentGroup별)
+  getSettingsDocument: (agentGroup) => api.get(`/clients/config/settings/${agentGroup}`),
+  saveSettingsDocument: (agentGroup, configFiles) =>
+    api.put(`/clients/config/settings/${agentGroup}`, { configFiles }),
 }
 
 // Single Client Control API (RPC via ManagerAgent)

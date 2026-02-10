@@ -1,7 +1,9 @@
 const ftp = require('basic-ftp')
 const { Readable, Writable } = require('stream')
-const { createConnection } = require('../../shared/utils/socksHelper')
+const { createConnection, createSocksConnection } = require('../../shared/utils/socksHelper')
+const { parsePasvResponse } = require('basic-ftp/dist/transfer')
 const Client = require('./model')
+const configSettingsService = require('./configSettingsService')
 
 const FTP_PORT = parseInt(process.env.FTP_PORT) || 21
 const FTP_USER = process.env.FTP_USER || 'ftpuser'
@@ -9,33 +11,28 @@ const FTP_PASS = process.env.FTP_PASS || 'ftppassword'
 const FTP_TIMEOUT = parseInt(process.env.FTP_TIMEOUT) || 30000
 
 /**
- * Load config file settings from environment variables
- * @returns {Array<{fileId: string, name: string, path: string}>}
+ * Get config file settings for an agentGroup
+ * Reads from DB first, falls back to .env
+ * @param {string} [agentGroup] - Agent group identifier
+ * @returns {Promise<Array<{fileId: string, name: string, path: string}>>}
  */
-function getConfigSettings() {
-  const configs = []
-  for (let i = 1; i <= 4; i++) {
-    const name = process.env[`CONFIG_FILE_${i}_NAME`]
-    const path = process.env[`CONFIG_FILE_${i}_PATH`]
-    if (name && path) {
-      configs.push({ fileId: `config_${i}`, name, path })
-    }
-  }
-  return configs
+async function getConfigSettings(agentGroup) {
+  return configSettingsService.getByAgentGroup(agentGroup)
 }
 
 /**
  * Get client IP info from DB
  */
 async function getClientIpInfo(eqpId) {
-  const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL eqpModel').lean()
+  const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL eqpModel agentPorts').lean()
   if (!client) {
     throw new Error(`Client not found: ${eqpId}`)
   }
   return {
     ipAddr: client.ipAddr,
     ipAddrL: client.ipAddrL || null,
-    eqpModel: client.eqpModel
+    eqpModel: client.eqpModel,
+    agentPorts: client.agentPorts || null
   }
 }
 
@@ -49,12 +46,14 @@ async function connectFtp(eqpId) {
   const ipInfo = await getClientIpInfo(eqpId)
   const ftpClient = new ftp.Client(FTP_TIMEOUT)
 
-  // Determine target host for FTP
+  // Resolve per-client ports with defaults
+  const ftpPort = ipInfo.agentPorts?.ftp || FTP_PORT
+  const socksPort = ipInfo.agentPorts?.socks || null
   const ftpHost = ipInfo.ipAddrL || ipInfo.ipAddr
 
   if (ipInfo.ipAddrL) {
     // SOCKS tunnel: create tunnel socket first, then use it for FTP
-    const tunnelSocket = await createConnection(ipInfo.ipAddr, ipInfo.ipAddrL, FTP_PORT)
+    const tunnelSocket = await createConnection(ipInfo.ipAddr, ipInfo.ipAddrL, ftpPort, socksPort)
 
     // Inject the tunnel socket into basic-ftp
     // basic-ftp uses ftp.socket internally for the control connection
@@ -72,12 +71,25 @@ async function connectFtp(eqpId) {
 
     // Login after establishing connection
     await ftpClient.login(FTP_USER, FTP_PASS)
-    await ftpClient.usePasv()
+    // Override prepareTransfer to route PASV data connections through SOCKS tunnel
+    ftpClient.prepareTransfer = async (ftp) => {
+      const res = await ftp.request('PASV')
+      const target = parsePasvResponse(res.message)
+      if (!target) throw new Error("Can't parse PASV response: " + res.message)
+      const dataSocket = await createSocksConnection(
+        ipInfo.ipAddr,
+        ipInfo.ipAddrL,
+        target.port,
+        socksPort
+      )
+      ftp.dataSocket = dataSocket
+      return res
+    }
   } else {
     // Direct connection
     await ftpClient.access({
       host: ftpHost,
-      port: FTP_PORT,
+      port: ftpPort,
       user: FTP_USER,
       password: FTP_PASS,
       secure: false
@@ -134,8 +146,8 @@ async function writeConfigFile(eqpId, remotePath, content) {
  * @param {string} eqpId - Equipment ID
  * @returns {Promise<Array<{fileId: string, name: string, path: string, content: string|null, error: string|null}>>}
  */
-async function readAllConfigs(eqpId) {
-  const configs = getConfigSettings()
+async function readAllConfigs(eqpId, agentGroup) {
+  const configs = await getConfigSettings(agentGroup)
   const { client: ftpClient } = await connectFtp(eqpId)
 
   try {
@@ -162,13 +174,25 @@ async function readAllConfigs(eqpId) {
           error: null
         })
       } catch (err) {
-        results.push({
-          fileId: config.fileId,
-          name: config.name,
-          path: config.path,
-          content: null,
-          error: err.message
-        })
+        const isNotFound = err.code === 550 || err.message?.includes('No such file')
+        if (isNotFound) {
+          results.push({
+            fileId: config.fileId,
+            name: config.name,
+            path: config.path,
+            content: '',
+            error: null,
+            missing: true
+          })
+        } else {
+          results.push({
+            fileId: config.fileId,
+            name: config.name,
+            path: config.path,
+            content: null,
+            error: err.message
+          })
+        }
       }
     }
 
@@ -291,15 +315,52 @@ async function deployConfigSelective(sourceConfig, selectedKeys, targetEqpIds, r
 
 /**
  * Merge selected keys from source into target (deep merge)
+ * Array elements selected by index are union-merged (values added, not replaced by position).
+ * Selecting the array key itself replaces the entire array.
  * @param {object} target - Target config
  * @param {object} source - Source config
- * @param {string[]} keys - Dot-notation keys to merge (e.g. ['database', 'server.port'])
+ * @param {string[]} keys - Dot-notation keys to merge (e.g. ['database', 'server.port', 'processes.2'])
  * @returns {object} Merged config
  */
 function mergeSelectedKeys(target, source, keys) {
   const result = JSON.parse(JSON.stringify(target))
 
+  // Separate array element keys from regular keys
+  // Array element keys: parent is an array in source and last segment is numeric index
+  const arrayUnions = new Map() // parentPath -> [source values]
+  const regularKeys = []
+
   for (const key of keys) {
+    const parts = key.split('.')
+    if (parts.length >= 2) {
+      const lastPart = parts[parts.length - 1]
+      const index = parseInt(lastPart)
+      if (!isNaN(index)) {
+        // Check if parent in source is actually an array
+        let parent = source
+        for (let i = 0; i < parts.length - 1; i++) {
+          if (parent && typeof parent === 'object' && parts[i] in parent) {
+            parent = parent[parts[i]]
+          } else {
+            parent = null
+            break
+          }
+        }
+        if (parent && Array.isArray(parent) && index < parent.length) {
+          const parentPath = parts.slice(0, -1).join('.')
+          if (!arrayUnions.has(parentPath)) {
+            arrayUnions.set(parentPath, [])
+          }
+          arrayUnions.get(parentPath).push(parent[index])
+          continue
+        }
+      }
+    }
+    regularKeys.push(key)
+  }
+
+  // Process regular keys (object properties, whole arrays)
+  for (const key of regularKeys) {
     const parts = key.split('.')
     let srcVal = source
     let valid = true
@@ -331,6 +392,40 @@ function mergeSelectedKeys(target, source, keys) {
       ref[lastKey] = deepMerge(ref[lastKey], srcVal)
     } else {
       ref[lastKey] = JSON.parse(JSON.stringify(srcVal))
+    }
+  }
+
+  // Process array union merges: add selected source values to target array
+  for (const [parentPath, sourceValues] of arrayUnions) {
+    const parts = parentPath.split('.')
+    let ref = result
+    for (const part of parts) {
+      if (ref && typeof ref === 'object' && part in ref) {
+        ref = ref[part]
+      } else {
+        ref = null
+        break
+      }
+    }
+
+    if (ref && Array.isArray(ref)) {
+      // Union: add source values not already present in target
+      for (const val of sourceValues) {
+        const valStr = JSON.stringify(val)
+        if (!ref.some(v => JSON.stringify(v) === valStr)) {
+          ref.push(JSON.parse(JSON.stringify(val)))
+        }
+      }
+    } else {
+      // Target doesn't have this array yet — create it
+      let parent = result
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!(parts[i] in parent) || typeof parent[parts[i]] !== 'object') {
+          parent[parts[i]] = {}
+        }
+        parent = parent[parts[i]]
+      }
+      parent[parts[parts.length - 1]] = sourceValues.map(v => JSON.parse(JSON.stringify(v)))
     }
   }
 

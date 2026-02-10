@@ -6,13 +6,13 @@
  */
 
 require('dotenv').config()
-const mongoose = require('mongoose')
+const { connectDB, closeConnections } = require('../shared/db/connection')
 const { FeaturePermission, DEFAULT_FEATURE_PERMISSIONS, FEATURE_NAMES } = require('../features/permissions/model')
 
 async function seedPermissions() {
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI)
+    await connectDB()
     console.log('Connected to MongoDB')
 
     // Check existing permissions
@@ -74,7 +74,7 @@ async function seedPermissions() {
 
     console.log('\nFeature permissions seeded successfully!')
 
-    await mongoose.disconnect()
+    await closeConnections()
     console.log('Disconnected from MongoDB')
   } catch (error) {
     console.error('Error seeding feature permissions:', error)

@@ -110,6 +110,33 @@ await initializeItems();
 
 > 📌 상세 내용: `docs/SCHEMA.md`의 "자동 초기화 로직" 섹션 참조
 
+### Mongoose 모델 등록 시 주의사항 (Dual DB)
+
+WebManager는 EARS와 WEB_MANAGER 두 개의 DB 연결을 사용합니다.
+**`mongoose.model()` (기본 연결)을 사용하면 안 됩니다.** 기본 연결은 열리지 않으므로 10초 타임아웃이 발생합니다.
+
+```javascript
+// ❌ 잘못된 사용 (기본 연결 → 타임아웃)
+const mongoose = require('mongoose')
+const Model = mongoose.model('MyModel', schema)
+
+// ✅ 올바른 사용 (명시적 연결)
+const { earsConnection } = require('../../shared/db/connection')
+const Model = earsConnection.model('MyModel', schema)
+
+// ✅ WEB_MANAGER DB인 경우
+const { webManagerConnection } = require('../../shared/db/connection')
+const Model = webManagerConnection.model('MyModel', schema)
+```
+
+standalone 스크립트에서도 `connectDB()` / `closeConnections()`를 사용해야 합니다:
+```javascript
+const { connectDB, closeConnections } = require('../shared/db/connection')
+await connectDB()     // 두 연결 모두 오픈
+// ... 작업 ...
+await closeConnections()
+```
+
 ---
 
 ## 4. 권한 설정 (필수)
@@ -136,11 +163,38 @@ meta: {
 ```
 
 ### 권한 값 규칙
-- 권한 값은 해당 기능의 식별자와 일치 (예: `reports`, `master`, `users`)
-- `permissions` 테이블의 `name` 필드 값 사용
-- 대소문자 구분됨 (소문자 사용 권장)
+- 권한 값은 해당 기능의 식별자와 일치 (예: `reports`, `equipmentInfo`, `users`)
+- `FEATURE_PERMISSIONS`의 `feature` 필드 enum 값 사용 (상세: `docs/SCHEMA.md`)
+- 대소문자 구분됨 (camelCase 사용)
 
 > ⚠️ **주의**: 두 위치 중 하나라도 누락되면 보안 취약점이 발생할 수 있습니다.
+
+### Role Permission 다이얼로그 업데이트
+
+새 permission을 추가하면 Role Permission 관리 UI에도 반영해야 합니다.
+
+**파일**: `client/src/features/users/components/RolePermissionDialog.vue`
+
+1. **`formatPermissionName`**: 새 permission 키의 표시 라벨 추가
+```javascript
+const formatPermissionName = (key) => {
+  const names = {
+    // ...기존 항목
+    newFeature: 'New Feature',  // ⬅️ 추가
+  }
+}
+```
+
+2. **`permissionGroups`**: 적절한 카테고리에 permission 키 추가
+```javascript
+const permissionGroups = [
+  { label: 'Clients', keys: ['arsAgent', 'resourceAgent'] },
+  { label: '기준정보 관리', keys: ['equipmentInfo', 'emailTemplate', 'popupTemplate', 'emailRecipients', 'emailInfo'] },
+  { label: 'System', keys: ['dashboard', 'alerts', 'settings', 'users', 'newFeature'] }  // ⬅️ 추가
+]
+```
+
+> ⚠️ **주의**: `permissionGroups`에 누락되면 Role Permission Settings 다이얼로그에서 해당 권한이 표시되지 않습니다.
 
 ---
 
@@ -156,8 +210,27 @@ Client PC 접속 시 직접 연결 또는 SOCKS5 프록시 경유 연결을 `ser
 const { createConnection } = require('../../shared/utils/socksHelper')
 
 // ipAddrL이 있으면 SOCKS 경유, 없으면 직접 연결
-const socket = await createConnection(ipAddr, ipAddrL, targetPort)
+// socksPort가 null이면 .env의 SOCKS_PROXY_PORT 기본값 사용
+const socket = await createConnection(ipAddr, ipAddrL, targetPort, socksPort)
 ```
+
+### 설비별 포트 override (agentPorts)
+
+EQP_INFO의 `agentPorts` 필드로 설비별 포트를 개별 설정할 수 있습니다.
+값이 없으면 `.env`의 글로벌 기본값을 사용합니다.
+
+```javascript
+// 포트 resolve 패턴 (controlService.js, ftpService.js 참조)
+const rpcPort = client.agentPorts?.rpc || MANAGER_AGENT_PORT   // 7180
+const ftpPort = client.agentPorts?.ftp || FTP_PORT             // 7181
+const socksPort = client.agentPorts?.socks || null             // null → socksHelper fallback
+```
+
+| 포트 | .env 변수 | 기본값 | 용도 |
+|------|-----------|--------|------|
+| RPC | `MANAGER_AGENT_PORT` | 7180 | Avro RPC (서비스 제어) |
+| FTP | `FTP_PORT` | 7181 | FTP (Config 파일) |
+| SOCKS | `SOCKS_PROXY_PORT` | 30000 | SOCKS5 프록시 (내부망 경유) |
 
 ### 기존 연동 패턴
 

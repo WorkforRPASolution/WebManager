@@ -1,14 +1,14 @@
 /**
- * ARS Agent (Windows SC) Strategy
+ * Resource Agent (Windows SC) Strategy
  * Windows sc 명령을 사용한 서비스 관리
  */
 
 module.exports = {
-  agentGroup: 'ars_agent',
+  agentGroup: 'resource_agent',
   serviceType: 'win_sc',
   isDefault: true,
-  displayType: 'ars_agent',
-  label: 'ARS Agent (Windows SC)',
+  displayType: 'resource_agent',
+  label: 'Resource Agent (Windows SC)',
 
   actions: {
     status:  { label: 'Status',     icon: 'refresh', color: 'gray',  order: 0, confirmRequired: false, disableWhen: null },
@@ -20,11 +20,11 @@ module.exports = {
 
   getCommand(action) {
     const commands = {
-      status:  { commandLine: 'sc', args: ['query', 'ARSAgentDummy'], timeout: 10000 },
-      start:   { commandLine: 'sc', args: ['start', 'ARSAgentDummy'], timeout: 30000 },
-      stop:    { commandLine: 'sc', args: ['stop', 'ARSAgentDummy'], timeout: 30000 },
+      status:  { commandLine: 'sc', args: ['query', 'ResourceAgentDummy'], timeout: 10000 },
+      start:   { commandLine: 'sc', args: ['start', 'ResourceAgentDummy'], timeout: 30000 },
+      stop:    { commandLine: 'sc', args: ['stop', 'ResourceAgentDummy'], timeout: 30000 },
       restart: null, // composite: handled by controlService
-      kill:    { commandLine: 'taskkill.exe', args: ['/F', '/IM', 'arsagentdummy.exe'], timeout: 10000 },
+      kill:    { commandLine: 'taskkill.exe', args: ['/F', '/IM', 'resourceagentdummy.exe'], timeout: 10000 },
     }
     return commands[action] || null
   },

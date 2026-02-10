@@ -7,6 +7,7 @@ const controlService = require('./controlService')
 const ftpService = require('./ftpService')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 const strategyRegistry = require('./strategies')
+const configSettingsService = require('./configSettingsService')
 
 // ============================================
 // Filter & List Controllers
@@ -356,7 +357,8 @@ async function deleteMasterData(req, res) {
  * Get config file settings (names, paths)
  */
 async function getConfigSettings(req, res) {
-  const settings = ftpService.getConfigSettings()
+  const { agentGroup } = req.query
+  const settings = await ftpService.getConfigSettings(agentGroup)
   res.json(settings)
 }
 
@@ -381,6 +383,7 @@ async function getClientsByModel(req, res) {
  */
 async function getClientConfigs(req, res) {
   const { id } = req.params
+  const { agentGroup } = req.query
 
   const exists = await service.clientExists(id)
   if (!exists) {
@@ -388,7 +391,7 @@ async function getClientConfigs(req, res) {
   }
 
   try {
-    const configs = await ftpService.readAllConfigs(id)
+    const configs = await ftpService.readAllConfigs(id, agentGroup)
     res.json(configs)
   } catch (error) {
     throw ApiError.internal(`Failed to read configs: ${error.message}`)
@@ -401,7 +404,7 @@ async function getClientConfigs(req, res) {
  */
 async function updateClientConfig(req, res) {
   const { id, fileId } = req.params
-  const { content } = req.body
+  const { content, agentGroup } = req.body
 
   if (content === undefined || content === null) {
     throw ApiError.badRequest('content is required')
@@ -413,7 +416,7 @@ async function updateClientConfig(req, res) {
   }
 
   // Find the config file path by fileId
-  const configs = ftpService.getConfigSettings()
+  const configs = await ftpService.getConfigSettings(agentGroup)
   const config = configs.find(c => c.fileId === fileId)
   if (!config) {
     throw ApiError.notFound(`Config file not found: ${fileId}`)
@@ -432,14 +435,14 @@ async function updateClientConfig(req, res) {
  * Deploy config to multiple clients via SSE
  */
 async function deployConfig(req, res) {
-  const { sourceEqpId, fileId, targetEqpIds, mode, selectedKeys } = req.body
+  const { sourceEqpId, fileId, targetEqpIds, mode, selectedKeys, agentGroup } = req.body
 
   if (!sourceEqpId || !fileId || !targetEqpIds || !Array.isArray(targetEqpIds) || targetEqpIds.length === 0) {
     throw ApiError.badRequest('sourceEqpId, fileId, and targetEqpIds are required')
   }
 
   // Find config path
-  const configs = ftpService.getConfigSettings()
+  const configs = await ftpService.getConfigSettings(agentGroup)
   const config = configs.find(c => c.fileId === fileId)
   if (!config) {
     throw ApiError.notFound(`Config file not found: ${fileId}`)
@@ -580,6 +583,43 @@ async function handleBatchActionStream(req, res) {
   res.end()
 }
 
+
+// ============================================
+// Config Settings Management Controllers
+// ============================================
+
+/**
+ * GET /api/clients/config/settings/:agentGroup
+ * Get config settings document for management UI
+ */
+async function getConfigSettingsDocument(req, res) {
+  const { agentGroup } = req.params
+  const doc = await configSettingsService.getDocument(agentGroup)
+  res.json(doc || { agentGroup, configFiles: [] })
+}
+
+/**
+ * PUT /api/clients/config/settings/:agentGroup
+ * Save config settings for an agentGroup
+ */
+async function saveConfigSettingsDocument(req, res) {
+  const { agentGroup } = req.params
+  const { configFiles } = req.body
+
+  if (!configFiles || !Array.isArray(configFiles)) {
+    throw ApiError.badRequest('configFiles array is required')
+  }
+
+  for (const f of configFiles) {
+    if (!f.name || !f.name.trim()) throw ApiError.badRequest('Config file name is required')
+    if (!f.path || !f.path.trim()) throw ApiError.badRequest('Config file path is required')
+  }
+
+  const updatedBy = req.user?.username || 'unknown'
+  const doc = await configSettingsService.saveConfigSettings(agentGroup, configFiles, updatedBy)
+  res.json(doc)
+}
+
 module.exports = {
   // Filter & List
   getProcesses,
@@ -610,6 +650,8 @@ module.exports = {
   getClientConfigs,
   updateClientConfig,
   deployConfig,
+  getConfigSettingsDocument,
+  saveConfigSettingsDocument,
   // Strategy-based Service Control
   getServiceTypes,
   handleExecuteAction,

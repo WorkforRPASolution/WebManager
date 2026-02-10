@@ -8,6 +8,7 @@
  */
 
 const mongoose = require('mongoose')
+const { webManagerConnection } = require('../db/connection')
 
 const webmanagerLogSchema = new mongoose.Schema({
   // 공통 필드
@@ -103,7 +104,7 @@ webmanagerLogSchema.index({ category: 1, errorType: 1, timestamp: -1 })
 // auth 관련 인덱스
 webmanagerLogSchema.index({ category: 1, authAction: 1, timestamp: -1 })
 
-const WebManagerLog = mongoose.model('WebManagerLog', webmanagerLogSchema)
+const WebManagerLog = webManagerConnection.model('WebManagerLog', webmanagerLogSchema)
 
 // ============================================
 // Audit Log Functions (기존 기능 유지)

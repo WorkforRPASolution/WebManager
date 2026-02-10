@@ -6,6 +6,8 @@
 import { ref, onMounted, onUnmounted, watch, shallowRef } from 'vue'
 import * as monaco from 'monaco-editor'
 
+const emit = defineEmits(['update:modelValue'])
+
 const props = defineProps({
   original: {
     type: String,
@@ -57,6 +59,11 @@ onMounted(() => {
   diffEditor.value.setModel({
     original: originalModel,
     modified: modifiedModel
+  })
+
+  const modifiedEditor = diffEditor.value.getModifiedEditor()
+  modifiedEditor.onDidChangeModelContent(() => {
+    emit('update:modelValue', modifiedEditor.getValue())
   })
 
   monaco.editor.setTheme(props.theme)

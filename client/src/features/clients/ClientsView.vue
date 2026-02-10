@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useClientData } from './composables/useClientData'
 import { useConfigManager } from './composables/useConfigManager'
@@ -12,6 +12,7 @@ import ClientToolbar from './components/ClientToolbar.vue'
 import ClientDataGrid from './components/ClientDataGrid.vue'
 import ConfigManagerModal from './components/ConfigManagerModal.vue'
 import LogViewerModal from './components/LogViewerModal.vue'
+import ConfigSettingsModal from './components/ConfigSettingsModal.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -27,6 +28,9 @@ const configManager = useConfigManager()
 // Log Viewer state
 const logModalOpen = ref(false)
 const logModalClient = ref({ name: '', eqpId: '' })
+
+// Config Settings
+const showConfigSettings = ref(false)
 
 // SSE batch action stream
 const { streaming, execute: executeStream, cancel: cancelStream } = useBatchActionStream()
@@ -79,16 +83,18 @@ const handleFilterToggle = () => {
 }
 
 // Toast notification
-const toast = ref({
+const toast = reactive({
   show: false,
   message: '',
   type: 'success'
 })
 
 const showToast = (message, type = 'success') => {
-  toast.value = { show: true, message, type }
+  toast.show = true
+  toast.message = message
+  toast.type = type
   setTimeout(() => {
-    toast.value.show = false
+    toast.show = false
   }, 3000)
 }
 
@@ -220,23 +226,34 @@ const handleConfigSave = async () => {
   }
 }
 
-// Config handler - open Config Manager Modal for selected client
+// Config handler - open Config Manager Modal for selected clients
 const handleConfig = async () => {
   if (!selectedIds.value.length) {
     showToast('Please select at least one client', 'warning')
     return
   }
 
-  // Find the first selected client's data
-  const selectedEqpId = selectedIds.value[0]
-  const clientData = clients.value.find(c => (c.eqpId || c.id) === selectedEqpId)
+  // Pass all selected clients
+  const selectedClientData = selectedIds.value
+    .map(id => clients.value.find(c => (c.eqpId || c.id) === id))
+    .filter(Boolean)
 
-  if (!clientData) {
+  if (selectedClientData.length === 0) {
     showToast('Client data not found', 'error')
     return
   }
 
-  configManager.openConfig(clientData)
+  await configManager.openConfig(selectedClientData, agentGroup.value)
+
+  // If settings not found, show toast (modal won't open)
+  if (!configManager.isOpen.value && configManager.error.value) {
+    showToast(configManager.error.value, 'warning')
+  }
+}
+
+// Switch client in config manager
+const handleSwitchClient = (eqpId) => {
+  configManager.switchClient(eqpId)
 }
 
 // Log handler - open Log Viewer Modal for selected client
@@ -254,6 +271,11 @@ const handleLog = () => {
     eqpId: selectedEqpId
   }
   logModalOpen.value = true
+}
+
+// Config Settings handler
+const handleConfigSettings = () => {
+  showConfigSettings.value = true
 }
 
 // No auto-load on mount - user must use filters to search
@@ -304,6 +326,7 @@ const handleLog = () => {
       @update="handleUpdate"
       @config="handleConfig"
       @log="handleLog"
+      @config-settings="handleConfigSettings"
       @refresh="handleRefresh"
       @page-size-change="handlePageSizeChange"
       @page-change="handlePageChange"
@@ -386,12 +409,19 @@ const handleLog = () => {
       :active-file-has-changes="configManager.activeFileHasChanges.value"
       :changed-file-ids="configManager.changedFileIds.value"
       :global-error="configManager.error.value"
+      :current-agent-group="configManager.currentAgentGroup.value"
+      :selected-clients="configManager.selectedClients.value"
+      :active-client-id="configManager.activeClientId.value"
+      :is-multi-mode="configManager.isMultiMode.value"
+      :client-statuses="configManager.clientStatuses.value"
       @close="configManager.closeConfig()"
       @select-file="configManager.selectFile($event)"
       @update-content="configManager.updateContent($event)"
       @save="handleConfigSave"
+      @discard="configManager.discardCurrentFile"
       @toggle-diff="configManager.toggleDiff()"
       @toggle-rollout="configManager.toggleRollout()"
+      @switch-client="handleSwitchClient"
     />
 
     <!-- Permission Settings Dialog -->
@@ -410,35 +440,37 @@ const handleLog = () => {
       @close="logModalOpen = false"
     />
 
+    <!-- Config Settings Modal -->
+    <ConfigSettingsModal
+      v-model="showConfigSettings"
+      :agent-group="agentGroup"
+      @saved="showToast('Config settings saved', 'success')"
+    />
+
     <!-- Toast Notification -->
-    <Transition
-      enter-active-class="transition-all duration-300 ease-out"
-      enter-from-class="translate-y-4 opacity-0"
-      enter-to-class="translate-y-0 opacity-100"
-      leave-active-class="transition-all duration-200 ease-in"
-      leave-from-class="translate-y-0 opacity-100"
-      leave-to-class="translate-y-4 opacity-0"
+    <div
+      v-show="toast.show"
+      :class="[
+        'fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50 transition-all duration-300',
+        toast.type === 'success' ? 'bg-green-500 text-white' :
+        toast.type === 'error' ? 'bg-red-500 text-white' :
+        toast.type === 'warning' ? 'bg-amber-500 text-white' :
+        'bg-blue-500 text-white'
+      ]"
     >
-      <div
-        v-if="toast.show"
-        :class="[
-          'fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50',
-          toast.type === 'success' ? 'bg-green-500 text-white' :
-          toast.type === 'error' ? 'bg-red-500 text-white' :
-          'bg-blue-500 text-white'
-        ]"
-      >
-        <svg v-if="toast.type === 'success'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-        </svg>
-        <svg v-else-if="toast.type === 'error'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-        <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <span>{{ toast.message }}</span>
-      </div>
-    </Transition>
+      <svg v-if="toast.type === 'success'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+      </svg>
+      <svg v-else-if="toast.type === 'error'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+      <svg v-else-if="toast.type === 'warning'" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+      <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <span>{{ toast.message }}</span>
+    </div>
   </div>
 </template>
