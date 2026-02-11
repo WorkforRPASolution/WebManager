@@ -7,7 +7,7 @@ WebManager는 두 개의 MongoDB 데이터베이스를 사용합니다:
 | Database | 용도 | 컬렉션 |
 |----------|------|--------|
 | **EARS** | Akka 서버와 공유 | EQP_INFO, ARS_USER_INFO, EMAIL_TEMPLATE_REPOSITORY, POPUP_TEMPLATE_REPOSITORY, EMAILINFO, EMAIL_RECIPIENTS, EMAIL_IMAGE_REPOSITORY |
-| **WEB_MANAGER** | WebManager 전용 | FEATURE_PERMISSIONS, WEBMANAGER_ROLE_PERMISSIONS, CONFIG_SETTINGS, LOG_SETTINGS, OS_VERSION_LIST, EXEC_COMMANDS, WEBMANAGER_LOG |
+| **WEB_MANAGER** | WebManager 전용 | FEATURE_PERMISSIONS, WEBMANAGER_ROLE_PERMISSIONS, CONFIG_SETTINGS, LOG_SETTINGS, UPDATE_SETTINGS, OS_VERSION_LIST, EXEC_COMMANDS, WEBMANAGER_LOG |
 
 ### 환경변수
 
@@ -283,6 +283,7 @@ WEB_MANAGER DB의 컬렉션들은 서버 시작 시 **자동 초기화**됩니�
 | EXEC_COMMANDS | `initializeExecCommands()` | `server/features/exec-commands/service.js` | 없으면 4개 기본 명령어 upsert |
 | CONFIG_SETTINGS | `initializeConfigSettings()` | `server/features/clients/configSettingsService.js` | 인덱스 확인 |
 | LOG_SETTINGS | `initializeLogSettings()` | `server/features/clients/logSettingsService.js` | 없으면 기본 로그 소스 upsert |
+| UPDATE_SETTINGS | `initializeUpdateSettings()` | `server/features/clients/updateSettingsService.js` | 인덱스 확인 |
 
 ### 호출 순서 (`server/index.js`)
 
@@ -294,6 +295,7 @@ await initializeImageStorage();
 await initializeExecCommands();
 await initializeConfigSettings();
 await initializeLogSettings();
+await initializeUpdateSettings();
 ```
 
 ### 신규 컬렉션 추가 시 체크리스트
@@ -464,6 +466,64 @@ Log Viewer에서 FTP로 조회할 로그 디렉토리와 파일명 필터를 관
     { sourceId: "log_1", name: "Agent Log", path: "/logs/ARSAgent", keyword: "arsagent" }
   ],
   updatedBy: "system"
+}
+```
+
+---
+
+## UPDATE_SETTINGS (소프트웨어 업데이트 설정)
+
+agentGroup별 소프트웨어 업데이트 패키지 및 소스 정보를 저장하는 컬렉션.
+Update 기능에서 배포 대상 패키지 목록과 소스(Local/FTP/MinIO) 설정을 관리합니다.
+
+### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| agentGroup | String | Required (PK) | Agent 그룹 식별자 (예: `ars_agent`, `resource_agent`) |
+| packages | Array | Optional | 배포 패키지 목록 |
+| packages[].packageId | String | Required | 패키지 ID (예: `pkg_1`, `pkg_2`) |
+| packages[].name | String | Required | 패키지 표시명 (예: `Agent Binary`) |
+| packages[].targetPath | String | Required | basePath 기준 상대경로 (예: `bin/agent.jar`) |
+| packages[].targetType | String | Optional | `file` (단일 파일) 또는 `directory` (폴더 전체). 기본: `file` |
+| packages[].description | String | Optional | 패키지 설명 |
+| source | Object | Optional | 업데이트 소스 설정 |
+| source.type | String | Optional | 소스 타입: `local`, `ftp`, 또는 `minio`. 기본: `local` |
+| source.localPath | String | Optional | 로컬 경로 (type=local 시) |
+| source.ftpHost | String | Optional | 외부 FTP 호스트 (type=ftp 시) |
+| source.ftpPort | Number | Optional | 외부 FTP 포트. 기본: 21 |
+| source.ftpUser | String | Optional | 외부 FTP 사용자 |
+| source.ftpPass | String | Optional | 외부 FTP 비밀번호 |
+| source.ftpBasePath | String | Optional | 외부 FTP 기본 경로 |
+| source.minioEndpoint | String | Optional | MinIO 호스트 (type=minio 시) |
+| source.minioPort | Number | Optional | MinIO 포트. 기본: 9000 |
+| source.minioBucket | String | Optional | MinIO 버킷명 |
+| source.minioAccessKey | String | Optional | MinIO Access Key |
+| source.minioSecretKey | String | Optional | MinIO Secret Key |
+| source.minioUseSSL | Boolean | Optional | SSL 사용 여부. 기본: false |
+| source.minioBasePath | String | Optional | 오브젝트 prefix (선택) |
+| updatedBy | String | Optional | 수정자 (기본: `system`) |
+| createdAt | Date | Auto | 생성일 |
+| updatedAt | Date | Auto | 수정일 |
+
+### Indexes
+
+- `{ agentGroup: 1 }` (unique)
+
+### Sample Data
+
+```javascript
+{
+  agentGroup: "ars_agent",
+  packages: [
+    { packageId: "pkg_1", name: "Agent Binary", targetPath: "bin/agent.jar", targetType: "file", description: "Main agent JAR" },
+    { packageId: "pkg_2", name: "Config Files", targetPath: "config/", targetType: "directory", description: "All config files" }
+  ],
+  source: {
+    type: "local",
+    localPath: "/opt/releases/ars-agent/latest"
+  },
+  updatedBy: "admin"
 }
 ```
 

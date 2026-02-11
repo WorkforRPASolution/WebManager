@@ -94,6 +94,19 @@
         Update
       </button>
 
+      <!-- Update Settings Button -->
+      <button
+        v-if="canWrite"
+        @click="$emit('update-settings')"
+        :disabled="operating"
+        class="flex items-center p-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        title="Update Settings"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        </svg>
+      </button>
+
       <!-- Config Button -->
       <button
         v-if="canWrite"
@@ -261,5 +274,5 @@ defineProps({
   }
 })
 
-defineEmits(['control', 'update', 'config', 'config-settings', 'log', 'log-settings', 'refresh', 'page-size-change', 'page-change'])
+defineEmits(['control', 'update', 'config', 'config-settings', 'log', 'log-settings', 'update-settings', 'refresh', 'page-size-change', 'page-change'])
 </script>

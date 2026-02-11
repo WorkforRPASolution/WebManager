@@ -15,6 +15,8 @@ import ConfigManagerModal from './components/ConfigManagerModal.vue'
 import LogViewerModal from './components/LogViewerModal.vue'
 import ConfigSettingsModal from './components/ConfigSettingsModal.vue'
 import LogSettingsModal from './components/LogSettingsModal.vue'
+import UpdateSettingsModal from './components/UpdateSettingsModal.vue'
+import UpdateModal from './components/UpdateModal.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -35,6 +37,13 @@ const showConfigSettings = ref(false)
 
 // Log Settings
 const showLogSettings = ref(false)
+
+// Update Settings
+const showUpdateSettings = ref(false)
+
+// Update Modal
+const showUpdateModal = ref(false)
+const updateTargetClients = ref([])
 
 // SSE batch action stream
 const { streaming, execute: executeStream, cancel: cancelStream } = useBatchActionStream()
@@ -214,10 +223,21 @@ const handleControl = async (action) => {
   }
 }
 
-// Update handler
+// Update handler - open Update Modal for selected clients
 const handleUpdate = async () => {
-  // TODO: Phase 3에서 실제 Akka 연동
-  showToast('Update feature will be implemented in Phase 3', 'info')
+  if (!selectedIds.value.length) {
+    showToast('Please select at least one client', 'warning')
+    return
+  }
+  const selectedClientData = selectedIds.value
+    .map(id => clients.value.find(c => (c.eqpId || c.id) === id))
+    .filter(Boolean)
+  if (selectedClientData.length === 0) {
+    showToast('Client data not found', 'error')
+    return
+  }
+  updateTargetClients.value = selectedClientData
+  showUpdateModal.value = true
 }
 
 // Config save handler
@@ -289,6 +309,11 @@ const handleLogSettings = () => {
   showLogSettings.value = true
 }
 
+// Update Settings handler
+const handleUpdateSettings = () => {
+  showUpdateSettings.value = true
+}
+
 // No auto-load on mount - user must use filters to search
 </script>
 
@@ -339,6 +364,7 @@ const handleLogSettings = () => {
       @log="handleLog"
       @config-settings="handleConfigSettings"
       @log-settings="handleLogSettings"
+      @update-settings="handleUpdateSettings"
       @refresh="handleRefresh"
       @page-size-change="handlePageSizeChange"
       @page-change="handlePageChange"
@@ -462,6 +488,21 @@ const handleLogSettings = () => {
       v-model="showLogSettings"
       :agent-group="agentGroup"
       @saved="showToast('Log settings saved', 'success')"
+    />
+
+    <!-- Update Settings Modal -->
+    <UpdateSettingsModal
+      v-model="showUpdateSettings"
+      :agent-group="agentGroup"
+      @saved="showToast('Update settings saved', 'success')"
+    />
+
+    <!-- Update Modal -->
+    <UpdateModal
+      v-model="showUpdateModal"
+      :agent-group="agentGroup"
+      :target-clients="updateTargetClients"
+      @deployed="showToast('Deployment completed', 'success')"
     />
 
     <!-- Toast Notification -->

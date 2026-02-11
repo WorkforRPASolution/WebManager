@@ -550,6 +550,28 @@ async function deleteLogFile(eqpId, filePath) {
   }
 }
 
+
+/**
+ * Upload a readable stream to a remote file via FTP
+ * @param {string} eqpId - Equipment ID
+ * @param {ReadableStream} readableStream - Source stream
+ * @param {string} remotePath - Remote file path (absolute)
+ */
+async function uploadStreamToFile(eqpId, readableStream, remotePath) {
+  const { client: ftpClient } = await connectFtp(eqpId)
+  try {
+    const path = require('path')
+    const dir = path.posix.dirname(remotePath)
+    if (dir && dir !== '/' && dir !== '.') {
+      await ftpClient.ensureDir(dir)
+      await ftpClient.cd('/')
+    }
+    await ftpClient.uploadFrom(readableStream, remotePath)
+  } finally {
+    ftpClient.close()
+  }
+}
+
 module.exports = {
   getConfigSettings,
   connectFtp,
@@ -561,5 +583,6 @@ module.exports = {
   mergeSelectedKeys,
   listLogFiles,
   readLogFile,
-  deleteLogFile
+  deleteLogFile,
+  uploadStreamToFile
 }

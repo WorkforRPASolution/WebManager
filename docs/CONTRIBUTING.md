@@ -251,6 +251,102 @@ basePath는 `POST /api/clients/:id/detect-base-path`로 자동 감지하거나, 
 | 서비스 제어 (시작/중지/재시작) | Avro RPC | `controlService.js` | - |
 | Config 파일 조회/수정/횡전개 | FTP | `ftpService.js` | `docs/CONFIG_MANAGEMENT.md` |
 | 로그 파일 조회/Tail/삭제 | FTP + RPC | `logService.js` | - |
+| 소프트웨어 배포 | Source(Local/FTP) → FTP | `updateService.js` | - |
+
+### Software Update 소스 추상화
+
+소프트웨어 배포 시 소스(파일 읽기)를 추상화하여 Local/FTP 양쪽 지원:
+
+```javascript
+const { createUpdateSource } = require('./updateSources')
+
+// sourceConfig.type이 'local'이면 LocalSource, 'ftp'이면 FtpSource 반환
+const source = createUpdateSource(sourceConfig)
+const files = await source.listFilesRecursive('config/')
+const stream = await source.getFileStream('bin/agent.jar')
+await source.close()
+```
+
+### Software Update 로컬 캐시 패턴
+
+다중 클라이언트 배포 시 동일 파일을 클라이언트마다 반복 다운로드하는 비효율을 방지:
+
+```javascript
+// 1. Source에서 1회만 다운로드 → 임시 디렉토리
+const tempDir = await cacheSourceFiles(source, packages)
+// 2. LocalSource(tempDir)로 모든 클라이언트에 배포 (concurrent safe)
+const cacheSource = new LocalSource(tempDir)
+// 3. 배포 완료 후 임시 디렉토리 삭제 (finally 블록)
+await fsPromises.rm(tempDir, { recursive: true, force: true })
+```
+
+### FTP 배포 시 경로 주의사항 (중요!)
+
+FTP 서버는 basePath(예: `/app/ManagerAgent`)로 **chroot**됩니다.
+FTP 경로에 basePath를 포함하면 이중 경로가 발생합니다.
+
+```javascript
+// ❌ 잘못된 사용 (이중 경로: /app/ManagerAgent/app/ManagerAgent/bin/...)
+const remotePath = path.posix.join(basePath, targetPath)
+
+// ✅ 올바른 사용 (FTP chroot 내에서 targetPath만 사용)
+const remotePath = '/' + targetPath
+```
+
+### basic-ftp 동시 작업 주의사항
+
+`basic-ftp`의 `Client` 인스턴스는 **동시 작업을 지원하지 않습니다**.
+`downloadTo`를 await하지 않고 다음 작업을 시작하면 서버가 crash합니다.
+
+```javascript
+// ❌ 잘못된 사용 (공유 client로 fire-and-forget download)
+client.downloadTo(stream, path).catch(err => stream.destroy(err))
+// 이후 같은 client로 다시 downloadTo 호출 → crash
+
+// ✅ FtpSource 해결: getFileStream()에서 전용 dlClient 생성
+const dlClient = new ftp.Client(30000)
+await dlClient.access({ host, port, user, password, secure: false })
+dlClient.downloadTo(passthrough, fullPath)
+  .then(() => dlClient.close())
+  .catch(err => { passthrough.destroy(err); dlClient.close() })
+```
+
+### FTP Source 경로 처리 주의사항
+
+FTP 경로 결합 시 `path.posix.join()` 사용 필수. 문자열 결합은 trailing slash에서 double-slash 발생:
+
+```javascript
+// ❌ 'config/' + '/' + 'main.json' → 'config//main.json'
+const relChild = relBase + '/' + entry.name
+
+// ✅ path.posix.join('config/', 'main.json') → 'config/main.json'
+const relChild = path.posix.join(relBase, entry.name)
+```
+
+### MinIO Source 개발 가이드
+
+MinIO/S3-compatible 오브젝트 스토리지를 Update Source로 사용할 때:
+
+```javascript
+// MinioSource는 minio SDK (npm: minio) 사용
+// HTTP connection pooling이므로 명시적 close() 불필요 (FTP와 차이)
+const Minio = require('minio')
+const client = new Minio.Client({
+  endPoint: 'localhost', port: 9000,
+  useSSL: false, accessKey: 'minioadmin', secretKey: 'minioadmin'
+})
+
+// listObjectsV2 recursive=false → 현재 디렉토리만 (common prefix로 하위 디렉토리 표현)
+// listObjectsV2 recursive=true → 모든 하위 파일
+// getObject → ReadableStream 반환 (FTP와 달리 concurrent 안전)
+```
+
+**MinIO 테스트 환경:**
+```bash
+docker run -d --name minio -p 9000:9000 -p 9001:9001 \
+  minio/minio server /data --console-address ":9001"
+# 기본 인증: minioadmin/minioadmin, 콘솔: http://localhost:9001
+```
 
 ### FTP 연동 시 주의사항
 

@@ -121,3 +121,27 @@ export const logApi = {
     })
   }
 }
+
+// Update Settings API
+export const updateSettingsApi = {
+  getSettings: (agentGroup) => api.get(`/clients/update-settings/${agentGroup}`),
+  saveSettings: (agentGroup, packages, source) =>
+    api.put(`/clients/update-settings/${agentGroup}`, { packages, source }),
+  listSourceFiles: (source, relativePath) =>
+    api.post('/clients/update-source/list', { source, relativePath }),
+}
+
+// Update Deploy API (SSE)
+export const updateDeployApi = {
+  deploy: (agentGroup, packageIds, targetEqpIds) => {
+    const token = localStorage.getItem('token')
+    return fetch(`${API_BASE}/clients/update/deploy`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ agentGroup, packageIds, targetEqpIds })
+    })
+  }
+}
