@@ -143,7 +143,7 @@ async function executeRaw(eqpId, commandLine, args, timeout) {
 }
 
 async function executeAction(eqpId, agentGroup, action) {
-  const client = await Client.findOne({ eqpId }).select('serviceType').lean()
+  const client = await Client.findOne({ eqpId }).select('serviceType basePath').lean()
   if (!client) throw new Error(`Client not found: ${eqpId}`)
   const strategy = client.serviceType
     ? strategyRegistry.get(agentGroup, client.serviceType)
@@ -172,7 +172,27 @@ async function executeAction(eqpId, agentGroup, action) {
   const cmd = strategy.getCommand(action)
   if (!cmd) throw new Error(`No command for action: ${action}`)
 
-  const rpcResult = await executeRaw(eqpId, cmd.commandLine, cmd.args, cmd.timeout)
+  // [상대경로 → 절대경로 변환] (logService tail 파일경로 패턴과 동일)
+  // commandLine이 상대경로(./ 또는 .\)인 경우, basePath를 이용해 절대경로로 변환.
+  // 서비스 모드에서 Java CWD ≠ EEG_BASE이므로 상대경로 실행 시 경로 불일치 발생.
+  // basePath 조회: client.basePath (DB) → detectBasePath (RPC 감지 + DB 저장)
+  let commandLine = cmd.commandLine
+  if (commandLine.startsWith('./') || commandLine.startsWith('.\\')) {
+    let basePath = client.basePath
+    if (!basePath) {
+      try {
+        basePath = await detectBasePath(eqpId, agentGroup)
+      } catch (e) {
+        console.warn(`[executeAction] detectBasePath failed for ${eqpId}, proceeding with relative path: ${e.message}`)
+      }
+    }
+    if (basePath) {
+      const cleanBase = basePath.replace(/\/+$/, '')
+      commandLine = `${cleanBase}/${commandLine.substring(2).replace(/\\/g, '/')}`
+    }
+  }
+
+  const rpcResult = await executeRaw(eqpId, commandLine, cmd.args, cmd.timeout)
   const parsed = strategy.parseResponse(action, rpcResult)
 
   return {

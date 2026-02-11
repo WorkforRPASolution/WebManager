@@ -90,7 +90,7 @@
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Line</label>
           <select
             v-model="selectedLine"
-            class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 text-sm w-[150px]"
+            class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 text-sm w-[150px] h-[38px]"
           >
             <option value="">All Lines</option>
             <option v-for="l in lines" :key="l" :value="l">{{ l }}</option>
@@ -102,7 +102,7 @@
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
           <select
             v-model="selectedRole"
-            class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 text-sm w-[150px]"
+            class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 text-sm w-[150px] h-[38px]"
           >
             <option value="">All Roles</option>
             <option value="0">User (0)</option>
@@ -117,7 +117,7 @@
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account</label>
           <select
             v-model="selectedAccountStatus"
-            class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 text-sm w-[150px]"
+            class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 text-sm w-[150px] h-[38px]"
           >
             <option value="">All</option>
             <option value="active">Active</option>
@@ -131,7 +131,7 @@
           <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
           <select
             v-model="selectedPasswordStatus"
-            class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 text-sm w-[160px]"
+            class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 text-sm w-[160px] h-[38px]"
           >
             <option value="">All</option>
             <option value="normal">Normal</option>
