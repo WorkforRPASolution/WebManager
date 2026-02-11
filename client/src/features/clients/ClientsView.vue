@@ -14,6 +14,7 @@ import ClientDataGrid from './components/ClientDataGrid.vue'
 import ConfigManagerModal from './components/ConfigManagerModal.vue'
 import LogViewerModal from './components/LogViewerModal.vue'
 import ConfigSettingsModal from './components/ConfigSettingsModal.vue'
+import LogSettingsModal from './components/LogSettingsModal.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -31,6 +32,9 @@ const logViewer = useLogViewer()
 
 // Config Settings
 const showConfigSettings = ref(false)
+
+// Log Settings
+const showLogSettings = ref(false)
 
 // SSE batch action stream
 const { streaming, execute: executeStream, cancel: cancelStream } = useBatchActionStream()
@@ -280,6 +284,11 @@ const handleConfigSettings = () => {
   showConfigSettings.value = true
 }
 
+// Log Settings handler
+const handleLogSettings = () => {
+  showLogSettings.value = true
+}
+
 // No auto-load on mount - user must use filters to search
 </script>
 
@@ -329,6 +338,7 @@ const handleConfigSettings = () => {
       @config="handleConfig"
       @log="handleLog"
       @config-settings="handleConfigSettings"
+      @log-settings="handleLogSettings"
       @refresh="handleRefresh"
       @page-size-change="handlePageSizeChange"
       @page-change="handlePageChange"
@@ -445,6 +455,13 @@ const handleConfigSettings = () => {
       v-model="showConfigSettings"
       :agent-group="agentGroup"
       @saved="showToast('Config settings saved', 'success')"
+    />
+
+    <!-- Log Settings Modal -->
+    <LogSettingsModal
+      v-model="showLogSettings"
+      :agent-group="agentGroup"
+      @saved="showToast('Log settings saved', 'success')"
     />
 
     <!-- Toast Notification -->
