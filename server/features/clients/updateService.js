@@ -13,6 +13,7 @@ const LocalSource = require('./updateSources/localSource')
 const ftpService = require('./ftpService')
 const updateSettingsService = require('./updateSettingsService')
 const { createUpdateSource } = require('./updateSources')
+const { runConcurrently } = require('../../shared/utils/concurrencyPool')
 
 /**
  * Download source files to a local temp cache directory.
@@ -85,48 +86,35 @@ async function deployUpdate(agentGroup, packageIds, targetEqpIds, onProgress, co
     let failCount = 0
 
     // 5. Concurrency pool
-    const pool = new Set()
-
-    for (const task of tasks) {
-      const promise = (async () => {
-        try {
-          await deployPackageToClient(task.eqpId, agentGroup, task.pkg, cacheSource)
-          completed++
-          successCount++
-          if (onProgress) {
-            onProgress({
-              eqpId: task.eqpId,
-              packageId: task.pkg.packageId,
-              status: 'success',
-              completed,
-              total
-            })
-          }
-        } catch (err) {
-          completed++
-          failCount++
-          if (onProgress) {
-            onProgress({
-              eqpId: task.eqpId,
-              packageId: task.pkg.packageId,
-              status: 'error',
-              error: err.message,
-              completed,
-              total
-            })
-          }
+    await runConcurrently(tasks, async (task) => {
+      try {
+        await deployPackageToClient(task.eqpId, agentGroup, task.pkg, cacheSource)
+        completed++
+        successCount++
+        if (onProgress) {
+          onProgress({
+            eqpId: task.eqpId,
+            packageId: task.pkg.packageId,
+            status: 'success',
+            completed,
+            total
+          })
         }
-      })()
-
-      pool.add(promise)
-      promise.finally(() => pool.delete(promise))
-
-      if (pool.size >= concurrency) {
-        await Promise.race(pool)
+      } catch (err) {
+        completed++
+        failCount++
+        if (onProgress) {
+          onProgress({
+            eqpId: task.eqpId,
+            packageId: task.pkg.packageId,
+            status: 'error',
+            error: err.message,
+            completed,
+            total
+          })
+        }
       }
-    }
-
-    await Promise.all(pool)
+    }, concurrency)
 
     return { total, success: successCount, failed: failCount }
   } finally {

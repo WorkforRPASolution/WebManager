@@ -6,6 +6,7 @@ const { parsePasvResponse } = require('basic-ftp/dist/transfer')
 const Client = require('./model')
 const configSettingsService = require('./configSettingsService')
 const { createBufferCollector } = require('../../shared/utils/streamCollector')
+const { runConcurrently } = require('../../shared/utils/concurrencyPool')
 
 const FTP_PORT = parseInt(process.env.FTP_PORT) || 21
 const FTP_USER = process.env.FTP_USER || 'ftpuser'
@@ -212,44 +213,24 @@ async function readAllConfigs(eqpId, agentGroup) {
 async function deployConfig(content, targetEqpIds, remotePath, onProgress, concurrency = 5) {
   const total = targetEqpIds.length
   let completed = 0
-
-  // Simple promise pool for concurrency control
-  const pool = []
   const results = []
 
-  for (const eqpId of targetEqpIds) {
-    const task = (async () => {
-      try {
-        await writeConfigFile(eqpId, remotePath, content)
-        completed++
-        results.push({ eqpId, success: true })
-        if (onProgress) {
-          onProgress({ completed, total, current: eqpId, status: 'success', error: null })
-        }
-      } catch (err) {
-        completed++
-        results.push({ eqpId, success: false, error: err.message })
-        if (onProgress) {
-          onProgress({ completed, total, current: eqpId, status: 'error', error: err.message })
-        }
+  await runConcurrently(targetEqpIds, async (eqpId) => {
+    try {
+      await writeConfigFile(eqpId, remotePath, content)
+      completed++
+      results.push({ eqpId, success: true })
+      if (onProgress) {
+        onProgress({ completed, total, current: eqpId, status: 'success', error: null })
       }
-    })()
-
-    pool.push(task)
-
-    // Wait when pool reaches concurrency limit
-    if (pool.length >= concurrency) {
-      await Promise.race(pool)
-      // Remove settled promises
-      for (let i = pool.length - 1; i >= 0; i--) {
-        const settled = await Promise.race([pool[i].then(() => true), Promise.resolve(false)])
-        if (settled) pool.splice(i, 1)
+    } catch (err) {
+      completed++
+      results.push({ eqpId, success: false, error: err.message })
+      if (onProgress) {
+        onProgress({ completed, total, current: eqpId, status: 'error', error: err.message })
       }
     }
-  }
-
-  // Wait for remaining tasks
-  await Promise.all(pool)
+  }, concurrency)
 
   return results
 }
@@ -267,48 +248,34 @@ async function deployConfigSelective(sourceConfig, selectedKeys, targetEqpIds, r
   const total = targetEqpIds.length
   let completed = 0
   const results = []
-  const pool = []
 
-  for (const eqpId of targetEqpIds) {
-    const task = (async () => {
-      try {
-        // Read target's current config
-        const currentContent = await readConfigFile(eqpId, remotePath)
-        const currentConfig = JSON.parse(currentContent)
+  await runConcurrently(targetEqpIds, async (eqpId) => {
+    try {
+      // Read target's current config
+      const currentContent = await readConfigFile(eqpId, remotePath)
+      const currentConfig = JSON.parse(currentContent)
 
-        // Merge selected keys from source into target
-        const merged = mergeSelectedKeys(currentConfig, sourceConfig, selectedKeys)
-        const newContent = JSON.stringify(merged, null, 2)
+      // Merge selected keys from source into target
+      const merged = mergeSelectedKeys(currentConfig, sourceConfig, selectedKeys)
+      const newContent = JSON.stringify(merged, null, 2)
 
-        // Write merged config
-        await writeConfigFile(eqpId, remotePath, newContent)
+      // Write merged config
+      await writeConfigFile(eqpId, remotePath, newContent)
 
-        completed++
-        results.push({ eqpId, success: true })
-        if (onProgress) {
-          onProgress({ completed, total, current: eqpId, status: 'success', error: null })
-        }
-      } catch (err) {
-        completed++
-        results.push({ eqpId, success: false, error: err.message })
-        if (onProgress) {
-          onProgress({ completed, total, current: eqpId, status: 'error', error: err.message })
-        }
+      completed++
+      results.push({ eqpId, success: true })
+      if (onProgress) {
+        onProgress({ completed, total, current: eqpId, status: 'success', error: null })
       }
-    })()
-
-    pool.push(task)
-
-    if (pool.length >= concurrency) {
-      await Promise.race(pool)
-      for (let i = pool.length - 1; i >= 0; i--) {
-        const settled = await Promise.race([pool[i].then(() => true), Promise.resolve(false)])
-        if (settled) pool.splice(i, 1)
+    } catch (err) {
+      completed++
+      results.push({ eqpId, success: false, error: err.message })
+      if (onProgress) {
+        onProgress({ completed, total, current: eqpId, status: 'error', error: err.message })
       }
     }
-  }
+  }, concurrency)
 
-  await Promise.all(pool)
   return results
 }
 
