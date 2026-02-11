@@ -40,19 +40,21 @@ function syncProcessFields(userData) {
 async function getUsers(filters = {}, paginationQuery = {}) {
   const query = {}
 
-  // Multi-process filtering with OR logic (any match)
+  // Multi-process filtering: process 필드(세미콜론 구분 문자열)에서 매칭
   if (filters.processes && filters.processes.length > 0) {
-    // Array of processes: use $in operator on processes array field
-    query.processes = { $in: filters.processes }
+    // 여러 process 중 하나라도 포함된 사용자 (OR)
+    const escaped = filters.processes.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    query.process = { $regex: new RegExp(`(^|;)(${escaped.join('|')})(;|$)`, 'i') }
   } else if (filters.process) {
-    // Single process: use $in on processes array field for backward compatibility
-    query.processes = { $in: [filters.process] }
+    const escaped = filters.process.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    query.process = { $regex: new RegExp(`(^|;)${escaped}(;|$)`, 'i') }
   }
 
   // 키워드 검색 시 process 권한 필터링 (userProcesses가 전달된 경우)
   // process 필터가 이미 설정된 경우에는 적용하지 않음
   if (filters.userProcesses && Array.isArray(filters.userProcesses) && filters.userProcesses.length > 0 && !filters.processes && !filters.process) {
-    query.processes = { $in: filters.userProcesses }
+    const escaped = filters.userProcesses.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    query.process = { $regex: new RegExp(`(^|;)(${escaped.join('|')})(;|$)`, 'i') }
   }
 
   if (filters.line) {
@@ -95,6 +97,15 @@ async function getUsers(filters = {}, paginationQuery = {}) {
 
   const usersWithStats = users.map(u => {
     const { webmanagerLoginInfo, ...rest } = u
+    // [process → processes 동기화]
+    // process 필드가 단일 진실 소스 (source of truth).
+    // Akka 시스템이 process를 외부에서 변경할 수 있으므로,
+    // DB의 processes 배열이 stale할 수 있음.
+    // 조회 시 항상 process에서 재생성하여 불일치 방지.
+    // (WebManager 저장 시에는 syncProcessFields()가 역방향 동기화)
+    if (rest.process) {
+      rest.processes = rest.process.split(';').map(p => p.trim()).filter(Boolean)
+    }
     return {
       ...rest,
       lastLoginAt: webmanagerLoginInfo?.lastLoginAt || null,
@@ -355,13 +366,21 @@ async function initializeRolePermissions() {
 // ===========================================
 
 /**
- * Get distinct process values from processes array field
+ * Get distinct process values from process field (semicolon-separated string)
  * @param {string[]} userProcesses - User's process permissions (for filtering)
  */
 async function getProcesses(userProcesses) {
-  // Get distinct values from processes array field
-  const processesFromArray = await User.distinct('processes')
-  let result = processesFromArray.filter(p => p)
+  // process 필드(세미콜론 구분 문자열)에서 distinct 값 추출
+  const rawValues = await User.distinct('process')
+  const allProcesses = new Set()
+  for (const val of rawValues) {
+    if (!val) continue
+    for (const p of val.split(';')) {
+      const trimmed = p.trim()
+      if (trimmed) allProcesses.add(trimmed)
+    }
+  }
+  let result = [...allProcesses]
 
   // If userProcesses is provided, filter to only include processes the user has access to
   if (userProcesses && userProcesses.length > 0) {
@@ -379,16 +398,17 @@ async function getProcesses(userProcesses) {
  */
 async function getLines(processFilter, userProcesses) {
   const query = {}
-  // 복수 process 지원: 콤마로 구분된 문자열 파싱
+  // 복수 process 지원: process 필드(세미콜론 구분 문자열)에서 매칭
   if (processFilter) {
     const processes = processFilter.split(',').map(p => p.trim()).filter(p => p)
     if (processes.length > 0) {
-      // Use processes array field for filtering
-      query.processes = { $in: processes }
+      const escaped = processes.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      query.process = { $regex: new RegExp(`(^|;)(${escaped.join('|')})(;|$)`, 'i') }
     }
   } else if (userProcesses && userProcesses.length > 0) {
     // Process 선택 없이 조회 시 사용자 권한으로 필터링
-    query.processes = { $in: userProcesses }
+    const escaped = userProcesses.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    query.process = { $regex: new RegExp(`(^|;)(${escaped.join('|')})(;|$)`, 'i') }
   }
   const lines = await User.distinct('line', query)
   return lines.filter(l => l).sort()

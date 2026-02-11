@@ -1,6 +1,16 @@
 /**
  * Resource Agent (Windows SC) Strategy
  * Windows sc 명령을 사용한 서비스 관리
+ *
+ * [Service Control] actions + getCommand(action) + parseResponse(action, result)
+ *   - controlService.executeAction()에서 호출
+ *   - action 문자열 하나로 고정 커맨드 반환 → 통일된 {running, state} 응답 파싱
+ *
+ * [Log Tail] getTailCommand(filePath, lines)
+ *   - logService.js에서 호출 — 런타임 인자(파일경로, 줄 수)가 필요하여 별도 메서드
+ *
+ * [BasePath Detection] getDetectBasePathCommand() + parseBasePath(rpcResult)
+ *   - controlService.detectBasePath()에서 호출 — 반환 형식(단순 문자열)이 parseResponse와 다름
  */
 
 module.exports = {
@@ -64,10 +74,12 @@ module.exports = {
     }
   },
 
+  // --- Log Tail (logService.js) ---
   getTailCommand(filePath, lines) {
     return { commandLine: 'powershell', args: ['-Command', `Get-Content '${filePath}' -Tail ${lines} -Encoding UTF8`], timeout: 10000 }
   },
 
+  // --- BasePath Detection (controlService.js) ---
   getDetectBasePathCommand() {
     return { commandLine: 'sc', args: ['qc', 'ResourceAgent'], timeout: 10000 }
   },
