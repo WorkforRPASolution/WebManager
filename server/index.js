@@ -8,6 +8,7 @@ const { initialize: initializeImageStorage } = require('./features/images/servic
 const { initializeExecCommands } = require('./features/exec-commands/service');
 const { initializeConfigSettings } = require('./features/clients/configSettingsService')
 const { initializeLogSettings } = require('./features/clients/logSettingsService')
+const { initializeUpdateSettings } = require('./features/clients/updateSettingsService')
 
 const PORT = process.env.PORT || 3000;
 
@@ -25,6 +26,7 @@ const startServer = async () => {
     await initializeExecCommands();
     await initializeConfigSettings();
     await initializeLogSettings();
+    await initializeUpdateSettings();
     console.log('Permissions synced');
 
     const server = app.listen(PORT, () => {

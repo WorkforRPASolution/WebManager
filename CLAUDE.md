@@ -92,6 +92,11 @@ DELETE /api/clients/:id/log-files            # 파일 삭제 (FTP delete)
 POST   /api/clients/log-tail-stream          # 실시간 Tailing (SSE)
 POST   /api/clients/:id/detect-base-path     # basePath 자동 감지 (RPC)
 
+GET    /api/clients/update-settings/:agentGroup  # 업데이트 설정 조회
+PUT    /api/clients/update-settings/:agentGroup  # 업데이트 설정 저장
+POST   /api/clients/update-source/list           # 소스 파일 목록 조회
+POST   /api/clients/update/deploy                # 소프트웨어 배포 (SSE 진행률)
+
 GET    /api/users                            # 사용자 목록 (필터/페이지네이션)
 POST   /api/users                            # 사용자 다중 생성
 PUT    /api/users                            # 사용자 다중 수정
@@ -125,6 +130,10 @@ WebManager/
 │   │   │   ├── ftpService.js   # FTP Config 읽기/쓰기/배포
 │   │   │   ├── logService.js       # 로그 파일 조회/삭제/Tail
 │   │   │   ├── logSettingsService.js # 로그 설정 CRUD + 초기화
+│   │   │   ├── updateService.js    # 소프트웨어 배포 엔진 (캐시 + concurrency pool)
+│   │   │   ├── updateSettingsService.js # 업데이트 설정 CRUD + 초기화
+│   │   │   ├── updateSettingsModel.js  # UPDATE_SETTINGS 스키마
+│   │   │   ├── updateSources/  # Source 추상화 (Local/FTP/MinIO + Factory)
 │   │   │   ├── strategies/     # 서비스 제어 전략 모듈 (agentGroup:serviceType)
 │   │   │   ├── validation.js   # 유효성 검사
 │   │   │   └── model.js        # Mongoose 모델
@@ -158,6 +167,7 @@ WebManager/
 | WEBMANAGER_ROLE_PERMISSIONS | WEB_MANAGER | 역할별 메뉴 권한 (전용) |
 | CONFIG_SETTINGS | WEB_MANAGER | Config 파일 설정 (전용) |
 | LOG_SETTINGS | WEB_MANAGER | 로그 소스 설정 (전용) |
+| UPDATE_SETTINGS | WEB_MANAGER | 소프트웨어 업데이트 설정 (전용) |
 
 - 스키마 상세: `docs/SCHEMA.md`
 
@@ -197,6 +207,7 @@ npm run dev
 - Log Settings UI 완료 (LogSettingsModal)
 - User Management 완료 (CRUD/필터/권한 관리/계정 상태/비밀번호 관리)
 - Per-client basePath 완료 (자동 감지 + 수동 설정 + commandLine 절대경로 변환)
+- Software Update 완료 (Source 추상화(Local/FTP/MinIO) + FTP 배포 + SSE 진행률 + UpdateSettings/Update 모달)
 
 ## Security Configuration
 - **helmet**: 보안 헤더 자동 설정

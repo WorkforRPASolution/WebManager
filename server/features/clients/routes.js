@@ -115,6 +115,26 @@ router.post('/log-tail-stream', authenticate, requireMenuPermission(['arsAgent',
 router.post('/:id/detect-base-path', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.detectClientBasePath))
 
 // ============================================
+// Update Settings & Deploy Routes
+// ============================================
+
+// GET /api/clients/update-settings/:agentGroup
+router.get('/update-settings/:agentGroup', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']),
+  requireFeaturePermission('arsAgent', 'read'), asyncHandler(controller.getUpdateSettings))
+
+// PUT /api/clients/update-settings/:agentGroup
+router.put('/update-settings/:agentGroup', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']),
+  requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.saveUpdateSettings))
+
+// POST /api/clients/update-source/list
+router.post('/update-source/list', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']),
+  requireFeaturePermission('arsAgent', 'read'), asyncHandler(controller.listUpdateSourceFiles))
+
+// POST /api/clients/update/deploy
+router.post('/update/deploy', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']),
+  requireFeaturePermission('arsAgent', 'delete'), asyncHandler(controller.deployUpdate))
+
+// ============================================
 // Client Detail Routes (requires 'arsAgent' or 'resourceAgent' permission)
 // ============================================
 

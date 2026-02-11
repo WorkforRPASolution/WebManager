@@ -10,6 +10,8 @@ const logSettingsService = require('./logSettingsService')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 const strategyRegistry = require('./strategies')
 const configSettingsService = require('./configSettingsService')
+const updateSettingsService = require('./updateSettingsService')
+const updateService = require('./updateService')
 
 // ============================================
 // Filter & List Controllers
@@ -781,6 +783,104 @@ async function detectClientBasePath(req, res) {
   }
 }
 
+
+// ============================================
+// Update Settings & Deploy Controllers
+// ============================================
+
+/**
+ * GET /api/clients/update-settings/:agentGroup
+ */
+async function getUpdateSettings(req, res) {
+  const { agentGroup } = req.params
+  const doc = await updateSettingsService.getDocument(agentGroup)
+  res.json(doc || { agentGroup, packages: [], source: {} })
+}
+
+/**
+ * PUT /api/clients/update-settings/:agentGroup
+ */
+async function saveUpdateSettings(req, res) {
+  const { agentGroup } = req.params
+  const { packages, source } = req.body
+
+  if (!packages || !Array.isArray(packages)) {
+    throw ApiError.badRequest('packages array is required')
+  }
+
+  for (const p of packages) {
+    if (!p.name || !p.name.trim()) throw ApiError.badRequest('Package name is required')
+    if (!p.targetPath || !p.targetPath.trim()) throw ApiError.badRequest('Package targetPath is required')
+  }
+
+  const updatedBy = req.user?.username || 'unknown'
+  const doc = await updateSettingsService.saveUpdateSettings(agentGroup, packages, source || {}, updatedBy)
+  res.json(doc)
+}
+
+/**
+ * POST /api/clients/update-source/list
+ * Preview files in the update source
+ */
+async function listUpdateSourceFiles(req, res) {
+  const { source, relativePath } = req.body
+
+  if (!source || !source.type) {
+    throw ApiError.badRequest('source with type is required')
+  }
+
+  try {
+    const files = await updateService.listSourceFiles(source, relativePath)
+    res.json(files)
+  } catch (error) {
+    throw ApiError.internal(`Failed to list source files: ${error.message}`)
+  }
+}
+
+/**
+ * POST /api/clients/update/deploy
+ * Deploy update packages to clients (SSE stream)
+ */
+async function deployUpdate(req, res) {
+  const { agentGroup, packageIds, targetEqpIds } = req.body
+
+  if (!agentGroup) throw ApiError.badRequest('agentGroup is required')
+  if (!packageIds || !Array.isArray(packageIds) || packageIds.length === 0) {
+    throw ApiError.badRequest('packageIds array is required')
+  }
+  if (!targetEqpIds || !Array.isArray(targetEqpIds) || targetEqpIds.length === 0) {
+    throw ApiError.badRequest('targetEqpIds array is required')
+  }
+
+  // SSE headers
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.flushHeaders()
+
+  let aborted = false
+  res.on('close', () => { aborted = true })
+
+  const onProgress = (progress) => {
+    if (!aborted) {
+      res.write(`data: ${JSON.stringify(progress)}\n\n`)
+    }
+  }
+
+  try {
+    const result = await updateService.deployUpdate(agentGroup, packageIds, targetEqpIds, onProgress)
+    if (!aborted) {
+      res.write(`data: ${JSON.stringify({ done: true, ...result })}\n\n`)
+    }
+  } catch (error) {
+    if (!aborted) {
+      res.write(`data: ${JSON.stringify({ done: true, error: error.message })}\n\n`)
+    }
+  }
+
+  res.end()
+}
+
 module.exports = {
   // Filter & List
   getProcesses,
@@ -828,5 +928,10 @@ module.exports = {
   // Log Tail SSE Stream
   handleLogTailStream,
   // Base Path Detection
-  detectClientBasePath
+  detectClientBasePath,
+  // Update Settings & Deploy
+  getUpdateSettings,
+  saveUpdateSettings,
+  listUpdateSourceFiles,
+  deployUpdate
 }
