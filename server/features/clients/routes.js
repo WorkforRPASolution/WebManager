@@ -5,6 +5,9 @@
 const express = require('express')
 const router = express.Router()
 const controller = require('./controller')
+const configController = require('./configController')
+const logController = require('./logController')
+const updateController = require('./updateController')
 const { asyncHandler } = require('../../shared/middleware/errorHandler')
 const { authenticate, requireMenuPermission } = require('../../shared/middleware/authMiddleware')
 const { requireFeaturePermission, requireActionPermission } = require('../permissions/middleware')
@@ -79,41 +82,41 @@ router.delete('/equipment-info', authenticate, requireFeaturePermission('equipme
 // ============================================
 
 // GET /api/clients/config/settings - Get config file settings
-router.get('/config/settings', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(controller.getConfigSettings))
+router.get('/config/settings', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(configController.getConfigSettings))
 
 // GET /api/clients/config/settings/:agentGroup - Get config settings document for management
 router.get('/config/settings/:agentGroup', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']),
-  requireFeaturePermission('arsAgent', 'read'), asyncHandler(controller.getConfigSettingsDocument))
+  requireFeaturePermission('arsAgent', 'read'), asyncHandler(configController.getConfigSettingsDocument))
 
 // PUT /api/clients/config/settings/:agentGroup - Save config settings for agentGroup
 router.put('/config/settings/:agentGroup', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']),
-  requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.saveConfigSettingsDocument))
+  requireFeaturePermission('arsAgent', 'write'), asyncHandler(configController.saveConfigSettingsDocument))
 
 // GET /api/clients/by-model - Get clients by eqpModel (rollout targets)
-router.get('/by-model', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(controller.getClientsByModel))
+router.get('/by-model', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(configController.getClientsByModel))
 
 // POST /api/clients/config/deploy - Deploy config to multiple clients (SSE)
-router.post('/config/deploy', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.deployConfig))
+router.post('/config/deploy', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('arsAgent', 'write'), asyncHandler(configController.deployConfig))
 
 // ============================================
 // Log Settings Routes
 // ============================================
 
 // GET /api/clients/log-settings/:agentGroup - Get log settings for agentGroup
-router.get('/log-settings/:agentGroup', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(controller.getLogSettings))
+router.get('/log-settings/:agentGroup', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(logController.getLogSettings))
 
 // PUT /api/clients/log-settings/:agentGroup - Save log settings for agentGroup
-router.put('/log-settings/:agentGroup', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(controller.saveLogSettings))
+router.put('/log-settings/:agentGroup', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(logController.saveLogSettings))
 
 // ============================================
 // Log Tail SSE Stream
 // ============================================
 
 // POST /api/clients/log-tail-stream - SSE tail streaming for log files
-router.post('/log-tail-stream', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(controller.handleLogTailStream))
+router.post('/log-tail-stream', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(logController.handleLogTailStream))
 
 // POST /api/clients/:id/detect-base-path - Detect basePath via RPC
-router.post('/:id/detect-base-path', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('arsAgent', 'write'), requireClientExists(), asyncHandler(controller.detectClientBasePath))
+router.post('/:id/detect-base-path', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('arsAgent', 'write'), requireClientExists(), asyncHandler(logController.detectClientBasePath))
 
 // ============================================
 // Update Settings & Deploy Routes
@@ -121,19 +124,19 @@ router.post('/:id/detect-base-path', authenticate, requireMenuPermission(['arsAg
 
 // GET /api/clients/update-settings/:agentGroup
 router.get('/update-settings/:agentGroup', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']),
-  requireFeaturePermission('arsAgent', 'read'), asyncHandler(controller.getUpdateSettings))
+  requireFeaturePermission('arsAgent', 'read'), asyncHandler(updateController.getUpdateSettings))
 
 // PUT /api/clients/update-settings/:agentGroup
 router.put('/update-settings/:agentGroup', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']),
-  requireFeaturePermission('arsAgent', 'write'), asyncHandler(controller.saveUpdateSettings))
+  requireFeaturePermission('arsAgent', 'write'), asyncHandler(updateController.saveUpdateSettings))
 
 // POST /api/clients/update-source/list
 router.post('/update-source/list', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']),
-  requireFeaturePermission('arsAgent', 'read'), asyncHandler(controller.listUpdateSourceFiles))
+  requireFeaturePermission('arsAgent', 'read'), asyncHandler(updateController.listUpdateSourceFiles))
 
 // POST /api/clients/update/deploy
 router.post('/update/deploy', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']),
-  requireFeaturePermission('arsAgent', 'delete'), asyncHandler(controller.deployUpdate))
+  requireFeaturePermission('arsAgent', 'delete'), asyncHandler(updateController.deployUpdate))
 
 // ============================================
 // Client Detail Routes (requires 'arsAgent' or 'resourceAgent' permission)
@@ -158,21 +161,21 @@ router.post('/:id/restart', authenticate, requireMenuPermission(['arsAgent', 're
 router.post('/:id/stop', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('arsAgent', 'write'), requireClientExists(), asyncHandler(controller.stopClient))
 
 // GET /api/clients/:id/config - Read all config files (FTP)
-router.get('/:id/config', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('arsAgent', 'write'), requireClientExists(), asyncHandler(controller.getClientConfigs))
+router.get('/:id/config', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('arsAgent', 'write'), requireClientExists(), asyncHandler(configController.getClientConfigs))
 
 // GET /api/clients/:id/log-files - Get log file list (FTP)
-router.get('/:id/log-files', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireClientExists(), asyncHandler(controller.getLogFileList))
+router.get('/:id/log-files', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireClientExists(), asyncHandler(logController.getLogFileList))
 
 // GET /api/clients/:id/log-content - Get log file content (FTP)
-router.get('/:id/log-content', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireClientExists(), asyncHandler(controller.getLogFileContent))
+router.get('/:id/log-content', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireClientExists(), asyncHandler(logController.getLogFileContent))
 
 // DELETE /api/clients/:id/log-files - Delete log files (FTP)
-router.delete('/:id/log-files', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireClientExists(), asyncHandler(controller.deleteLogFiles))
+router.delete('/:id/log-files', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireClientExists(), asyncHandler(logController.deleteLogFiles))
 
 // POST /api/clients/:id/action/:action - Strategy-based action execution
 router.post('/:id/action/:action', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireActionPermission(), requireClientExists(), asyncHandler(controller.handleExecuteAction))
 
 // PUT /api/clients/:id/config/:fileId - Save single config file (FTP)
-router.put('/:id/config/:fileId', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('arsAgent', 'write'), requireClientExists(), asyncHandler(controller.updateClientConfig))
+router.put('/:id/config/:fileId', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('arsAgent', 'write'), requireClientExists(), asyncHandler(configController.updateClientConfig))
 
 module.exports = router
