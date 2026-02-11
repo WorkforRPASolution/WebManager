@@ -39,9 +39,13 @@ function getDefault(agentGroup) {
 // Auto-register strategies
 const arsAgentWinSc = require('./arsAgentWinSc')
 const resourceAgentWinSc = require('./resourceAgentWinSc')
+const arsAgentLinuxSystemd = require('./arsAgentLinuxSystemd')
+const resourceAgentLinuxSystemd = require('./resourceAgentLinuxSystemd')
 
 register(arsAgentWinSc)
 register(resourceAgentWinSc)
+register(arsAgentLinuxSystemd)
+register(resourceAgentLinuxSystemd)
 
 
 module.exports = { register, get, getDefault, hasServiceType, list }

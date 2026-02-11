@@ -6,6 +6,7 @@ const { AvroRpcClient } = require('../../shared/avro/avroClient')
 const Client = require('./model')
 const { detectBasePath } = require('./controlService')
 const logSettingsService = require('./logSettingsService')
+const strategyRegistry = require('./strategies')
 const { listLogFiles, readLogFile, deleteLogFile } = require('./ftpService')
 const crypto = require('crypto')
 
@@ -100,7 +101,7 @@ async function tailLogStream(targets, onData, signal) {
 
   const tailOneTarget = async (target) => {
     const { eqpId, filePath, agentGroup } = target
-    const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL agentPorts basePath').lean()
+    const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL agentPorts basePath serviceType').lean()
     if (!client) {
       onData({ eqpId, filePath, error: `Client not found: ${eqpId}` })
       return
@@ -118,8 +119,20 @@ async function tailLogStream(targets, onData, signal) {
 
         const relPath = filePath.startsWith('/') ? filePath.substring(1) : filePath
         const fullPath = currentBasePath ? `${currentBasePath}/${relPath}` : relPath
-        const commandLine = 'tail'
-        const args = ['-n', String(LOG_TAIL_BATCH_LINES), fullPath]
+        const strategy = client.serviceType
+          ? strategyRegistry.get(agentGroup, client.serviceType)
+          : strategyRegistry.getDefault(agentGroup)
+        
+        let commandLine, args
+        if (strategy && strategy.getTailCommand) {
+          const tailCmd = strategy.getTailCommand(fullPath, LOG_TAIL_BATCH_LINES)
+          commandLine = tailCmd.commandLine
+          args = tailCmd.args
+        } else {
+          // fallback: Linux tail
+          commandLine = 'tail'
+          args = ['-n', String(LOG_TAIL_BATCH_LINES), fullPath]
+        }
         const response = await rpcClient.runCommand(commandLine, args, LOG_TAIL_RPC_TIMEOUT)
 
         if (response.success && response.output) {

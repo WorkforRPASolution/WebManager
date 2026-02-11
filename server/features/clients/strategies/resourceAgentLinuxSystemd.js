@@ -1,14 +1,14 @@
 /**
- * Resource Agent (Windows SC) Strategy
- * Windows sc 명령을 사용한 서비스 관리
+ * Resource Agent (Linux Systemd) Strategy
+ * systemctl 명령을 사용한 서비스 관리
  */
 
 module.exports = {
   agentGroup: 'resource_agent',
-  serviceType: 'win_sc',
-  isDefault: true,
+  serviceType: 'linux_systemd',
+  isDefault: false,
   displayType: 'resource_agent',
-  label: 'Resource Agent (Windows SC)',
+  label: 'Resource Agent (Linux Systemd)',
 
   actions: {
     status:  { label: 'Status',     icon: 'refresh', color: 'gray',  order: 0, confirmRequired: false, disableWhen: null },
@@ -20,20 +20,19 @@ module.exports = {
 
   getCommand(action) {
     const commands = {
-      status:  { commandLine: 'sc', args: ['query', 'ResourceAgent'], timeout: 10000 },
-      start:   { commandLine: 'sc', args: ['start', 'ResourceAgent'], timeout: 30000 },
-      stop:    { commandLine: 'sc', args: ['stop', 'ResourceAgent'], timeout: 30000 },
+      status:  { commandLine: 'systemctl', args: ['status', 'ResourceAgent'], timeout: 10000 },
+      start:   { commandLine: 'systemctl', args: ['start', 'ResourceAgent'], timeout: 30000 },
+      stop:    { commandLine: 'systemctl', args: ['stop', 'ResourceAgent'], timeout: 30000 },
       restart: null, // composite: handled by controlService
-      kill:    { commandLine: 'taskkill.exe', args: ['/F', '/IM', 'resourceagent.exe'], timeout: 10000 },
+      kill:    { commandLine: 'kill', args: ['-9', '$(pgrep -f ResourceAgent)'], timeout: 10000 },
     }
     return commands[action] || null
   },
 
   parseResponse(action, rpcResult) {
-    // rpcResult = { success, output, error }
     switch (action) {
       case 'status':
-        return this._parseScQuery(rpcResult)
+        return this._parseSystemctlStatus(rpcResult)
       case 'start':
       case 'stop':
       case 'kill':
@@ -43,16 +42,17 @@ module.exports = {
     }
   },
 
-  _parseScQuery(rpcResult) {
+  _parseSystemctlStatus(rpcResult) {
     const output = rpcResult.output || ''
+    const running = /Active:\s+active\s+\(running\)/i.test(output)
+    const stopped = /Active:\s+inactive|Active:\s+failed/i.test(output)
+    const stateStr = running ? 'RUNNING' : (stopped ? 'STOPPED' : 'UNKNOWN')
 
-    const STATE_NAMES = 'STOPPED|START_PENDING|STOP_PENDING|RUNNING|CONTINUE_PENDING|PAUSE_PENDING|PAUSED'
-    const stateMatch = output.match(new RegExp(`:\\s+([1-7])\\s+(${STATE_NAMES})`))
+    // Extract PID from systemctl output
+    const pidMatch = output.match(/Main PID:\s+(\d+)/)
+    const pid = pidMatch ? parseInt(pidMatch[1]) : 0
 
-    const stateStr = stateMatch ? stateMatch[2] : 'UNKNOWN'
-    const running = stateStr === 'RUNNING'
-
-    return { running, state: stateStr, raw: output }
+    return { running, state: stateStr, pid, raw: output }
   },
 
   _parseActionResult(action, rpcResult) {
@@ -65,25 +65,26 @@ module.exports = {
   },
 
   getTailCommand(filePath, lines) {
-    return { commandLine: 'powershell', args: ['-Command', `Get-Content '${filePath}' -Tail ${lines} -Encoding UTF8`], timeout: 10000 }
+    return { commandLine: 'tail', args: ['-n', String(lines), filePath], timeout: 10000 }
   },
 
   getDetectBasePathCommand() {
-    return { commandLine: 'sc', args: ['qc', 'ResourceAgent'], timeout: 10000 }
+    return { commandLine: 'systemctl', args: ['show', 'ResourceAgent', '-p', 'ExecStart'], timeout: 10000 }
   },
 
   parseBasePath(rpcResult) {
-    // 동일한 파싱 로직 (arsAgentWinSc와 같음)
     const output = rpcResult.output || ''
-    const match = output.match(/BINARY_PATH_NAME\s*:\s*(.+)/)
+    // ExecStart 라인에서 실행 경로 추출
+    // Format: ExecStart={ path=/opt/ResourceAgent/bin/start.sh ; ... }
+    const match = output.match(/path=([^\s;]+)/)
     if (!match) {
-      throw new Error('BINARY_PATH_NAME not found in sc qc output')
+      throw new Error('ExecStart path not found in systemctl show output')
     }
-    const binaryLine = match[1].trim()
-    const binIdx = binaryLine.search(/[\\\/]bin[\\\/]/i)
+    const binaryPath = match[1].trim()
+    const binIdx = binaryPath.search(/[\\\/]bin[\\\/]/i)
     if (binIdx <= 0) {
-      throw new Error(`Cannot extract basePath from: ${binaryLine}`)
+      throw new Error(`Cannot extract basePath from: ${binaryPath}`)
     }
-    return binaryLine.substring(0, binIdx).replace(/\\/g, '/')
+    return binaryPath.substring(0, binIdx)
   }
 }

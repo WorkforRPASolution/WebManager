@@ -8,13 +8,13 @@ const DEFAULT_LOG_SETTINGS = [
   {
     agentGroup: 'ars_agent',
     logSources: [
-      { sourceId: 'log_1', name: 'Agent Log', path: '/logs/ARSAgentDummy', keyword: 'arsagent' }
+      { sourceId: 'log_1', name: 'Agent Log', path: '/log/ARSAgent', keyword: 'arsagent' }
     ]
   },
   {
     agentGroup: 'resource_agent',
     logSources: [
-      { sourceId: 'log_1', name: 'Agent Log', path: '/logs/ResourceAgentDummy', keyword: 'resourceagent' }
+      { sourceId: 'log_1', name: 'Agent Log', path: '/log/Resource/Agent', keyword: 'resourceagent' }
     ]
   }
 ]

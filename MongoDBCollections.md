@@ -31,7 +31,7 @@ agentGroup별 로그 파일 소스 설정. 서버 시작 시 자동 초기화.
 | logSources | Array | 필수 | 로그 소스 목록 |
 | logSources[].sourceId | String | 필수 | 소스 식별자 ('log_1', 'log_2', ...) |
 | logSources[].name | String | 필수 | 소스 표시명 ('Agent Log') |
-| logSources[].path | String | 필수 | FTP 상대 디렉토리 경로 ('/logs/ARSAgentDummy') |
+| logSources[].path | String | 필수 | FTP 상대 디렉토리 경로 ('/log/ARSAgent') |
 | logSources[].keyword | String | 선택 | 파일명 필터 ('arsagent', '*') |
 | updatedBy | String | 선택 | 마지막 수정자 |
 | createdAt | Date | 자동 | 생성 시각 |
@@ -41,8 +41,8 @@ agentGroup별 로그 파일 소스 설정. 서버 시작 시 자동 초기화.
 
 | agentGroup | sourceId | name | path | keyword |
 |---|---|---|---|---|
-| ars_agent | log_1 | Agent Log | /logs/ARSAgentDummy | arsagent |
-| resource_agent | log_1 | Agent Log | /logs/ResourceAgentDummy | resourceagent |
+| ars_agent | log_1 | Agent Log | /log/ARSAgent | arsagent |
+| resource_agent | log_1 | Agent Log | /log/Resource/Agent | resourceagent |
 
 ---
 

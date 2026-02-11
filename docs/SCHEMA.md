@@ -441,7 +441,7 @@ Log Viewer에서 FTP로 조회할 로그 디렉토리와 파일명 필터를 관
 | logSources | Array | Optional | 로그 소스 목록 |
 | logSources[].sourceId | String | Required | 소스 ID (예: `log_1`, `log_2`) |
 | logSources[].name | String | Required | 소스 표시명 (예: `Agent Log`) |
-| logSources[].path | String | Required | FTP 상대 디렉토리 경로 (예: `/logs/ARSAgentDummy`) |
+| logSources[].path | String | Required | FTP 상대 디렉토리 경로 (예: `/logs/ARSAgent`) |
 | logSources[].keyword | String | Optional | 파일명 필터 (예: `arsagent`, `*`) |
 | updatedBy | String | Optional | 수정자 (기본: `system`) |
 | createdAt | Date | Auto | 생성일 |
@@ -457,7 +457,7 @@ Log Viewer에서 FTP로 조회할 로그 디렉토리와 파일명 필터를 관
 {
   agentGroup: "ars_agent",
   logSources: [
-    { sourceId: "log_1", name: "Agent Log", path: "/logs/ARSAgentDummy", keyword: "arsagent" }
+    { sourceId: "log_1", name: "Agent Log", path: "/logs/ARSAgent", keyword: "arsagent" }
   ],
   updatedBy: "system"
 }

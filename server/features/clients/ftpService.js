@@ -140,6 +140,12 @@ async function writeConfigFile(eqpId, remotePath, content) {
   const { client: ftpClient } = await connectFtp(eqpId)
 
   try {
+    const path = require('path')
+    const dir = path.posix.dirname(remotePath)
+    if (dir && dir !== '/' && dir !== '.') {
+      await ftpClient.ensureDir(dir)
+      await ftpClient.cd('/')
+    }
     const readable = Readable.from(Buffer.from(content, 'utf-8'))
     await ftpClient.uploadFrom(readable, remotePath)
   } finally {

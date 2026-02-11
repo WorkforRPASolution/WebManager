@@ -195,21 +195,27 @@ Server running on http://localhost:3000
 | `not authorized on WEB_MANAGER to execute command` | WEB_MANAGER DB 권한 없음 | Step 2 실행 |
 | `not authorized on EARS to execute command` | EARS DB 권한 없음 | ars 계정에 EARS readWrite 권한 확인 |
 
-### 2. 클라이언트 API 주소 설정
+### 2. 클라이언트 환경 변수 설정 (필수)
 
-`client/src/shared/api/index.js` 파일에서 baseURL 확인:
+`client/.env` 파일을 생성하여 백엔드 API 주소를 지정합니다.
 
-```javascript
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
-  // ...
-})
+> **이 설정이 없으면 API 요청이 프론트엔드 자신(5173 포트)으로 전송되어 로그인 등 모든 API 호출이 실패합니다.**
+
+```cmd
+cd client
+copy .env.example .env
 ```
 
-다른 서버에서 API 접속 시 `client/.env` 파일 생성:
+`client/.env` 내용:
 ```env
-VITE_API_URL=http://192.168.1.100:3000/api
+# 개발 모드 (프론트엔드 5173, 백엔드 3000 분리 실행)
+VITE_API_URL=http://localhost:3000/api
+
+# 원격 접속 시 서버 IP로 변경
+# VITE_API_URL=http://12.93.14.33:3000/api
 ```
+
+> **프로덕션 빌드 모드**(`npm run build` → `npm start`)에서는 Express가 프론트엔드를 직접 서빙하므로 같은 포트(3000)에서 동작합니다. 이 경우에도 빌드 시점에 `VITE_API_URL`이 번들에 포함되므로 `.env` 설정이 필요합니다.
 
 ---
 
