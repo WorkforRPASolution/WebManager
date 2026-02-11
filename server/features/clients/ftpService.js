@@ -1,9 +1,11 @@
 const ftp = require('basic-ftp')
-const { Readable, Writable } = require('stream')
+const path = require('path')
+const { Readable } = require('stream')
 const { createConnection, createSocksConnection } = require('../../shared/utils/socksHelper')
 const { parsePasvResponse } = require('basic-ftp/dist/transfer')
 const Client = require('./model')
 const configSettingsService = require('./configSettingsService')
+const { createBufferCollector } = require('../../shared/utils/streamCollector')
 
 const FTP_PORT = parseInt(process.env.FTP_PORT) || 21
 const FTP_USER = process.env.FTP_USER || 'ftpuser'
@@ -115,16 +117,9 @@ async function readConfigFile(eqpId, remotePath) {
   const { client: ftpClient } = await connectFtp(eqpId)
 
   try {
-    const chunks = []
-    const writable = new Writable({
-      write(chunk, encoding, callback) {
-        chunks.push(chunk)
-        callback()
-      }
-    })
-
-    await ftpClient.downloadTo(writable, remotePath)
-    return Buffer.concat(chunks).toString('utf-8')
+    const collector = createBufferCollector()
+    await ftpClient.downloadTo(collector.writable, remotePath)
+    return collector.toString()
   } finally {
     ftpClient.close()
   }
@@ -140,7 +135,6 @@ async function writeConfigFile(eqpId, remotePath, content) {
   const { client: ftpClient } = await connectFtp(eqpId)
 
   try {
-    const path = require('path')
     const dir = path.posix.dirname(remotePath)
     if (dir && dir !== '/' && dir !== '.') {
       await ftpClient.ensureDir(dir)
@@ -167,16 +161,9 @@ async function readAllConfigs(eqpId, agentGroup) {
 
     for (const config of configs) {
       try {
-        const chunks = []
-        const writable = new Writable({
-          write(chunk, encoding, callback) {
-            chunks.push(chunk)
-            callback()
-          }
-        })
-
-        await ftpClient.downloadTo(writable, config.path)
-        const content = Buffer.concat(chunks).toString('utf-8')
+        const collector = createBufferCollector()
+        await ftpClient.downloadTo(collector.writable, config.path)
+        const content = collector.toString()
 
         results.push({
           fileId: config.fileId,
@@ -520,16 +507,9 @@ async function readLogFile(eqpId, filePath, maxSize) {
       throw new Error(`File too large: ${fileSize} bytes (max ${maxFileSize} bytes)`)
     }
 
-    const chunks = []
-    const writable = new Writable({
-      write(chunk, encoding, callback) {
-        chunks.push(chunk)
-        callback()
-      }
-    })
-
-    await ftpClient.downloadTo(writable, filePath)
-    return Buffer.concat(chunks).toString('utf-8')
+    const collector = createBufferCollector()
+    await ftpClient.downloadTo(collector.writable, filePath)
+    return collector.toString()
   } finally {
     ftpClient.close()
   }
@@ -560,7 +540,6 @@ async function deleteLogFile(eqpId, filePath) {
 async function uploadStreamToFile(eqpId, readableStream, remotePath) {
   const { client: ftpClient } = await connectFtp(eqpId)
   try {
-    const path = require('path')
     const dir = path.posix.dirname(remotePath)
     if (dir && dir !== '/' && dir !== '.') {
       await ftpClient.ensureDir(dir)
