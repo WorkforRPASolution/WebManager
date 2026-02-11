@@ -251,16 +251,16 @@ basePath는 `POST /api/clients/:id/detect-base-path`로 자동 감지하거나, 
 | 서비스 제어 (시작/중지/재시작) | Avro RPC | `controlService.js` | - |
 | Config 파일 조회/수정/횡전개 | FTP | `ftpService.js` | `docs/CONFIG_MANAGEMENT.md` |
 | 로그 파일 조회/Tail/삭제 | FTP + RPC | `logService.js` | - |
-| 소프트웨어 배포 | Source(Local/FTP) → FTP | `updateService.js` | - |
+| 소프트웨어 배포 | Source(Local/FTP/MinIO) → FTP | `updateService.js` | - |
 
 ### Software Update 소스 추상화
 
-소프트웨어 배포 시 소스(파일 읽기)를 추상화하여 Local/FTP 양쪽 지원:
+소프트웨어 배포 시 소스(파일 읽기)를 추상화하여 Local/FTP/MinIO 지원:
 
 ```javascript
 const { createUpdateSource } = require('./updateSources')
 
-// sourceConfig.type이 'local'이면 LocalSource, 'ftp'이면 FtpSource 반환
+// sourceConfig.type에 따라 LocalSource / FtpSource / MinioSource 반환
 const source = createUpdateSource(sourceConfig)
 const files = await source.listFilesRecursive('config/')
 const stream = await source.getFileStream('bin/agent.jar')

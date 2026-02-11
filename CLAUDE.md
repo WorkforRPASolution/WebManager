@@ -130,6 +130,10 @@ WebManager/
 │   │   │   ├── ftpService.js   # FTP Config 읽기/쓰기/배포
 │   │   │   ├── logService.js       # 로그 파일 조회/삭제/Tail
 │   │   │   ├── logSettingsService.js # 로그 설정 CRUD + 초기화
+│   │   │   ├── updateService.js    # 소프트웨어 배포 엔진 (캐시 + concurrency pool)
+│   │   │   ├── updateSettingsService.js # 업데이트 설정 CRUD + 초기화
+│   │   │   ├── updateSettingsModel.js  # UPDATE_SETTINGS 스키마
+│   │   │   ├── updateSources/  # Source 추상화 (Local/FTP/MinIO + Factory)
 │   │   │   ├── strategies/     # 서비스 제어 전략 모듈 (agentGroup:serviceType)
 │   │   │   ├── validation.js   # 유효성 검사
 │   │   │   └── model.js        # Mongoose 모델
@@ -203,7 +207,7 @@ npm run dev
 - Log Settings UI 완료 (LogSettingsModal)
 - User Management 완료 (CRUD/필터/권한 관리/계정 상태/비밀번호 관리)
 - Per-client basePath 완료 (자동 감지 + 수동 설정 + commandLine 절대경로 변환)
-- Software Update 완료 (Source 추상화 + FTP 배포 + SSE 진행률 + UpdateSettings/Update 모달)
+- Software Update 완료 (Source 추상화(Local/FTP/MinIO) + FTP 배포 + SSE 진행률 + UpdateSettings/Update 모달)
 
 ## Security Configuration
 - **helmet**: 보안 헤더 자동 설정
