@@ -105,6 +105,96 @@ REFRESH_TOKEN_EXPIRES_IN=7d
 - `ALLOWED_ORIGINS`에 실제 접속할 IP/도메인 추가
 - MongoDB가 다른 서버에 있다면 해당 주소로 변경
 
+### 3. MongoDB 인증 환경 설정 (운영 서버)
+
+운영 환경에서는 MongoDB 인증이 활성화되어 있으므로 추가 설정이 필요합니다.
+
+#### Dual Database 구조
+
+| Database | 용도 | 비고 |
+|----------|------|------|
+| **EARS** | Akka 서버와 공유 (EQP_INFO 등) | 기존 DB, 이미 존재 |
+| **WEB_MANAGER** | WebManager 전용 (권한, 로그 등) | 첫 실행 시 자동 생성 |
+
+#### Step 1: 기존 DB 사용자 권한 확인
+
+root(또는 userAdmin) 계정으로 mongo shell 접속:
+
+```js
+mongosh "mongodb://root계정:비밀번호@호스트:포트/admin?directConnection=true"
+```
+
+`ars` 사용자의 현재 권한 확인:
+
+```js
+// ars 사용자가 어느 DB에 생성되었는지 확인
+use admin
+db.system.users.find({user: "ars"}, {db: 1, roles: 1})
+```
+
+결과 예시:
+```js
+{
+  user: "ars",
+  db: "EARS",          // ← ars가 생성된 DB (authSource로 사용)
+  roles: [
+    { role: "readWrite", db: "EARS" }
+  ]
+}
+```
+
+#### Step 2: WEB_MANAGER DB 권한 추가
+
+`ars` 사용자가 생성된 DB로 이동 후 권한 부여:
+
+```js
+// ars가 생성된 DB로 이동 (위 결과의 db 필드)
+use EARS
+db.grantRolesToUser("ars", [
+  { role: "readWrite", db: "WEB_MANAGER" }
+])
+```
+
+권한 추가 확인:
+```js
+db.getUser("ars")
+// roles에 아래 두 개가 있으면 정상:
+//   { role: "readWrite", db: "EARS" }
+//   { role: "readWrite", db: "WEB_MANAGER" }  ← 추가됨
+```
+
+> **참고**: `WEB_MANAGER` DB를 미리 생성할 필요 없음. `readWrite` 권한이 있으면 WebManager가 첫 실행 시 데이터를 쓰면서 자동 생성됨.
+
+#### Step 3: .env 파일 설정
+
+```env
+# authSource = ars 사용자가 생성된 DB
+MONGODB_URI=mongodb://ars:비밀번호@호스트:포트/EARS?directConnection=true&authSource=EARS
+WEBMANAGER_DB_URI=mongodb://ars:비밀번호@호스트:포트/WEB_MANAGER?directConnection=true&authSource=EARS
+```
+
+> `authSource`는 사용자가 **생성된 DB**를 지정해야 함 (Step 1에서 확인한 `db` 필드 값)
+
+#### 정상 동작 확인
+
+WebManager 시작 시 아래 로그가 출력되면 성공:
+```
+MongoDB EARS Connected: 호스트
+MongoDB WEBMANAGER Connected: 호스트
+Syncing permissions...
+  + Created 4 role permissions
+Permissions synced
+Server running on http://localhost:3000
+```
+
+#### 인증 관련 에러 대응
+
+| 에러 메시지 | 원인 | 해결 |
+|------------|------|------|
+| `Authentication failed` | authSource가 잘못됨 | Step 1에서 확인한 DB로 `authSource` 변경 |
+| `not authorized on WEB_MANAGER to execute command` | WEB_MANAGER DB 권한 없음 | Step 2 실행 |
+| `not authorized on EARS to execute command` | EARS DB 권한 없음 | ars 계정에 EARS readWrite 권한 확인 |
+
 ### 2. 클라이언트 API 주소 설정
 
 `client/src/shared/api/index.js` 파일에서 baseURL 확인:
@@ -198,19 +288,60 @@ node index.js
 
 ## 초기 데이터 설정
 
-### 역할 권한 시드 데이터
+프로덕션 최초 배포 시 아래 순서로 실행합니다.
+
+한 번에 실행 (역할 권한 + 관리자 계정):
+```cmd
+cd server
+npm run seed:all
+```
+
+또는 개별 실행:
+
+### Step 1: 역할 권한 시드
 
 ```cmd
 cd server
 npm run seed:roles
 ```
 
-### 기본 사용자 생성 (선택)
+역할별 메뉴/기능 권한을 초기화합니다 (Admin, User, Conductor, Manager).
+
+### Step 2: 초기 관리자 계정 생성 (필수)
 
 ```cmd
 cd server
-npm run seed:users
+npm run setup:admin
 ```
+
+| 항목 | 값 |
+|------|------|
+| ID | `admin` |
+| 비밀번호 | `admin` |
+| 역할 | Admin (authorityManager=1) |
+| 상태 | `active` + `must_change` |
+
+> 첫 로그인 시 비밀번호 변경이 강제됩니다.
+>
+> 이 스크립트를 실행하지 않으면 **아무도 로그인할 수 없습니다.**
+> 회원가입은 `pending` 상태로 생성되어 Admin 승인이 필요하고,
+> 비밀번호 초기화도 Admin 승인이 필요하기 때문입니다.
+
+### Step 3: 실제 관리자 계정 생성 후 초기 계정 삭제
+
+1. `admin`/`admin`으로 로그인 → 비밀번호 변경
+2. 실제 관리자가 회원가입 (pending 상태)
+3. `admin`으로 해당 계정 승인 + Admin 역할 부여
+4. 실제 관리자 로그인 확인
+5. 초기 admin 계정 삭제:
+
+```cmd
+npm run setup:admin -- --delete
+```
+
+> 비밀번호 분실 시 초기화: `npm run setup:admin -- --reset`
+
+### Step 4: 서버 실행 후 접속 확인
 
 ---
 
@@ -224,7 +355,7 @@ npm run seed:users
 - 프로덕션 모드: http://localhost:3000
 
 ### 3. 로그인 테스트
-기본 관리자 계정으로 로그인 시도
+초기 관리자 계정(`admin` / `admin`)으로 로그인 후 비밀번호 변경
 
 ---
 
