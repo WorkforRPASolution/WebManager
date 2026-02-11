@@ -12,6 +12,7 @@ const strategyRegistry = require('./strategies')
 const configSettingsService = require('./configSettingsService')
 const updateSettingsService = require('./updateSettingsService')
 const updateService = require('./updateService')
+const { setupSSE } = require('../../shared/utils/sseHelper')
 
 // ============================================
 // Filter & List Controllers
@@ -422,18 +423,14 @@ async function deployConfig(req, res) {
     throw ApiError.notFound(`Config file not found: ${fileId}`)
   }
 
-  // Set up SSE
-  res.setHeader('Content-Type', 'text/event-stream')
-  res.setHeader('Cache-Control', 'no-cache')
-  res.setHeader('Connection', 'keep-alive')
-  res.flushHeaders()
+  const sse = setupSSE(res)
 
   try {
     // Read source config
     const sourceContent = await ftpService.readConfigFile(sourceEqpId, config.path)
 
     const onProgress = (progress) => {
-      res.write(`data: ${JSON.stringify(progress)}\n\n`)
+      sse.send(progress)
     }
 
     let results
@@ -451,18 +448,18 @@ async function deployConfig(req, res) {
     // Send final summary
     const successCount = results.filter(r => r.success).length
     const failCount = results.filter(r => !r.success).length
-    res.write(`data: ${JSON.stringify({
+    sse.send({
       done: true,
       total: targetEqpIds.length,
       success: successCount,
       failed: failCount,
       results
-    })}\n\n`)
+    })
   } catch (error) {
-    res.write(`data: ${JSON.stringify({ done: true, error: error.message })}\n\n`)
+    sse.send({ done: true, error: error.message })
   }
 
-  res.end()
+  sse.end()
 }
 
 // ============================================
@@ -523,35 +520,21 @@ async function handleBatchActionStream(req, res) {
     throw ApiError.badRequest('eqpIds array is required')
   }
 
-  // SSE headers (same pattern as deployConfig)
-  res.setHeader('Content-Type', 'text/event-stream')
-  res.setHeader('Cache-Control', 'no-cache')
-  res.setHeader('Connection', 'keep-alive')
-  res.flushHeaders()
-
-  // Detect client disconnection via res.on('close'), NOT req.on('close').
-  // req 'close' fires when request body is consumed (immediately for small POST),
-  // res 'close' fires when the actual TCP connection drops.
-  let aborted = false
-  res.on('close', () => { aborted = true })
-
-  const onProgress = (progress) => {
-    if (!aborted) {
-      res.write(`data: ${JSON.stringify(progress)}\n\n`)
-    }
-  }
+  const sse = setupSSE(res)
 
   try {
-    await controlService.batchExecuteActionStream(eqpIds, agentGroup, action, onProgress)
-    if (!aborted) {
-      res.write(`data: ${JSON.stringify({ done: true })}\n\n`)
+    await controlService.batchExecuteActionStream(eqpIds, agentGroup, action, (progress) => {
+      sse.send(progress)
+    })
+    if (!sse.isAborted()) {
+      sse.send({ done: true })
     }
   } catch (error) {
-    if (!aborted) {
-      res.write(`data: ${JSON.stringify({ done: true, error: error.message })}\n\n`)
+    if (!sse.isAborted()) {
+      sse.send({ done: true, error: error.message })
     }
   }
-  res.end()
+  sse.end()
 }
 
 
@@ -694,32 +677,23 @@ async function handleLogTailStream(req, res) {
     throw ApiError.badRequest('targets array is required')
   }
 
-  // SSE headers (same pattern as handleBatchActionStream)
-  res.setHeader('Content-Type', 'text/event-stream')
-  res.setHeader('Cache-Control', 'no-cache')
-  res.setHeader('Connection', 'keep-alive')
-  res.flushHeaders()
-
+  const sse = setupSSE(res)
   const abortController = new AbortController()
-
-  // MUST be res.on('close'), NOT req.on('close')
-  res.on('close', () => {
-    abortController.abort()
-  })
+  res.on('close', () => { abortController.abort() })
 
   try {
     await logService.tailLogStream(targets, (data) => {
       if (!abortController.signal.aborted) {
-        res.write(`data: ${JSON.stringify(data)}\n\n`)
+        sse.send(data)
       }
     }, abortController.signal)
   } catch (error) {
     if (!abortController.signal.aborted) {
-      res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`)
+      sse.send({ error: error.message })
     }
   }
 
-  res.end()
+  sse.end()
 }
 
 /**
@@ -807,33 +781,22 @@ async function deployUpdate(req, res) {
     throw ApiError.badRequest('targetEqpIds array is required')
   }
 
-  // SSE headers
-  res.setHeader('Content-Type', 'text/event-stream')
-  res.setHeader('Cache-Control', 'no-cache')
-  res.setHeader('Connection', 'keep-alive')
-  res.flushHeaders()
-
-  let aborted = false
-  res.on('close', () => { aborted = true })
-
-  const onProgress = (progress) => {
-    if (!aborted) {
-      res.write(`data: ${JSON.stringify(progress)}\n\n`)
-    }
-  }
+  const sse = setupSSE(res)
 
   try {
-    const result = await updateService.deployUpdate(agentGroup, packageIds, targetEqpIds, onProgress)
-    if (!aborted) {
-      res.write(`data: ${JSON.stringify({ done: true, ...result })}\n\n`)
+    const result = await updateService.deployUpdate(agentGroup, packageIds, targetEqpIds, (progress) => {
+      sse.send(progress)
+    })
+    if (!sse.isAborted()) {
+      sse.send({ done: true, ...result })
     }
   } catch (error) {
-    if (!aborted) {
-      res.write(`data: ${JSON.stringify({ done: true, error: error.message })}\n\n`)
+    if (!sse.isAborted()) {
+      sse.send({ done: true, error: error.message })
     }
   }
 
-  res.end()
+  sse.end()
 }
 
 module.exports = {
