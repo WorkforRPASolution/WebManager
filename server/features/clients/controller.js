@@ -175,11 +175,6 @@ async function configureClients(req, res) {
 async function getClientStatus(req, res) {
   const { id } = req.params
 
-  const exists = await service.clientExists(id)
-  if (!exists) {
-    throw ApiError.notFound('Client not found')
-  }
-
   try {
     const status = await controlService.getClientStatus(id)
     res.json(status)
@@ -193,11 +188,6 @@ async function getClientStatus(req, res) {
  */
 async function startClient(req, res) {
   const { id } = req.params
-
-  const exists = await service.clientExists(id)
-  if (!exists) {
-    throw ApiError.notFound('Client not found')
-  }
 
   try {
     const result = await controlService.startClient(id)
@@ -213,11 +203,6 @@ async function startClient(req, res) {
 async function restartClient(req, res) {
   const { id } = req.params
 
-  const exists = await service.clientExists(id)
-  if (!exists) {
-    throw ApiError.notFound('Client not found')
-  }
-
   try {
     const result = await controlService.restartClient(id)
     res.json(result)
@@ -231,11 +216,6 @@ async function restartClient(req, res) {
  */
 async function stopClient(req, res) {
   const { id } = req.params
-
-  const exists = await service.clientExists(id)
-  if (!exists) {
-    throw ApiError.notFound('Client not found')
-  }
 
   try {
     const result = await controlService.stopClient(id)
@@ -389,11 +369,6 @@ async function getClientConfigs(req, res) {
   const { id } = req.params
   const { agentGroup } = req.query
 
-  const exists = await service.clientExists(id)
-  if (!exists) {
-    throw ApiError.notFound('Client not found')
-  }
-
   try {
     const configs = await ftpService.readAllConfigs(id, agentGroup)
     res.json(configs)
@@ -412,11 +387,6 @@ async function updateClientConfig(req, res) {
 
   if (content === undefined || content === null) {
     throw ApiError.badRequest('content is required')
-  }
-
-  const exists = await service.clientExists(id)
-  if (!exists) {
-    throw ApiError.notFound('Client not found')
   }
 
   // Find the config file path by fileId
@@ -514,9 +484,6 @@ async function handleExecuteAction(req, res) {
   const { id, action } = req.params
   const { agentGroup } = req.body
   if (!agentGroup) throw ApiError.badRequest('agentGroup is required')
-
-  const exists = await service.clientExists(id)
-  if (!exists) throw ApiError.notFound('Client not found')
 
   try {
     const result = await controlService.executeAction(id, agentGroup, action)
@@ -672,9 +639,6 @@ async function getLogFileList(req, res) {
 
   if (!agentGroup) throw ApiError.badRequest('agentGroup is required')
 
-  const exists = await service.clientExists(id)
-  if (!exists) throw ApiError.notFound('Client not found')
-
   try {
     const files = await logService.getLogFileList(id, agentGroup)
     res.json(files)
@@ -691,9 +655,6 @@ async function getLogFileContent(req, res) {
   const { path: filePath } = req.query
 
   if (!filePath) throw ApiError.badRequest('path query parameter is required')
-
-  const exists = await service.clientExists(id)
-  if (!exists) throw ApiError.notFound('Client not found')
 
   try {
     const content = await logService.getLogFileContent(id, filePath)
@@ -713,9 +674,6 @@ async function deleteLogFiles(req, res) {
   if (!paths || !Array.isArray(paths) || paths.length === 0) {
     throw ApiError.badRequest('paths array is required')
   }
-
-  const exists = await service.clientExists(id)
-  if (!exists) throw ApiError.notFound('Client not found')
 
   try {
     const results = await logService.deleteLogFiles(id, paths)
@@ -771,9 +729,6 @@ async function detectClientBasePath(req, res) {
   const { id } = req.params
   const agentGroup = req.body.agentGroup || req.query.agentGroup
   if (!agentGroup) throw ApiError.badRequest('agentGroup is required')
-
-  const exists = await service.clientExists(id)
-  if (!exists) throw ApiError.notFound('Client not found')
 
   try {
     const basePath = await controlService.detectBasePath(id, agentGroup)
