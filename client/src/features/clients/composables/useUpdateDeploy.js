@@ -1,6 +1,5 @@
 import { ref } from 'vue'
-
-const API_BASE = import.meta.env.VITE_API_URL || '/api'
+import { fetchSSEStream } from '@/shared/utils/sseStreamParser'
 
 export function useUpdateDeploy() {
   const deploying = ref(false)
@@ -18,46 +17,20 @@ export function useUpdateDeploy() {
     result.value = null
 
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_BASE}/clients/update/deploy`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ agentGroup, packageIds, targetEqpIds }),
-        signal: abortController.signal
-      })
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        if (abortController.signal.aborted) break
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop()
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6))
-              if (data.done) {
-                result.value = data
-                break
-              }
-              progress.value.push(data)
-              if (onProgress) onProgress(data)
-            } catch (e) {
-              // skip malformed JSON
-            }
-          }
+      await fetchSSEStream(
+        '/clients/update/deploy',
+        { agentGroup, packageIds, targetEqpIds },
+        {
+          onMessage: (data) => {
+            progress.value.push(data)
+            if (onProgress) onProgress(data)
+          },
+          onDone: (data) => {
+            result.value = data
+          },
+          signal: abortController.signal
         }
-      }
+      )
     } catch (err) {
       if (err.name !== 'AbortError') {
         result.value = { done: true, error: err.message }
