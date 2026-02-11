@@ -163,6 +163,5 @@ async function listSourceFiles(sourceConfig, relativePath) {
 
 module.exports = {
   deployUpdate,
-  deployPackageToClient,
   listSourceFiles
 }

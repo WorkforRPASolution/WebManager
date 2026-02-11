@@ -84,7 +84,6 @@ export function useLogSearch() {
     searchResults,
     searching,
     searchError,
-    searchAll,
-    clearSearch
+    searchAll
   }
 }
