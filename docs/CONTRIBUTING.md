@@ -232,12 +232,25 @@ const socksPort = client.agentPorts?.socks || null             // null → socks
 | FTP | `FTP_PORT` | 7181 | FTP (Config 파일) |
 | SOCKS | `SOCKS_PROXY_PORT` | 30000 | SOCKS5 프록시 (내부망 경유) |
 
+### basePath 경로 해석
+
+Strategy 모듈의 `commandLine`이 상대경로(`./bin/sc`)일 경우, Java 서비스 모드에서 CWD ≠ 설치 경로이므로 실행 실패합니다. `controlService.executeAction()`에서 자동으로 절대경로로 변환합니다.
+
+```javascript
+// 변환 패턴 (controlService.js executeAction)
+// ./bin/sc → /app/ManagerAgent/bin/sc (basePath 적용)
+// basePath 조회 우선순위: client.basePath (DB) → detectBasePath (RPC 자동감지) → fallback (상대경로 유지)
+```
+
+basePath는 `POST /api/clients/:id/detect-base-path`로 자동 감지하거나, Equipment Info Grid에서 직접 입력합니다.
+
 ### 기존 연동 패턴
 
 | 기능 | 방식 | 서비스 파일 | 상세 문서 |
 |------|------|-------------|-----------|
 | 서비스 제어 (시작/중지/재시작) | Avro RPC | `controlService.js` | - |
 | Config 파일 조회/수정/횡전개 | FTP | `ftpService.js` | `docs/CONFIG_MANAGEMENT.md` |
+| 로그 파일 조회/Tail/삭제 | FTP + RPC | `logService.js` | - |
 
 ### FTP 연동 시 주의사항
 

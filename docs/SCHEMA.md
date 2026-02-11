@@ -126,16 +126,20 @@ EARS Database의 컬렉션에 WebManager가 추가한 전용 필드는 `[WM]`으
 
 ### Multi-Process 지원
 
-- **process 필드**: 레거시 시스템과 호환되는 문자열 필드 (예: `"CVD;ETCH;PHOTO"`)
-- **processes 필드**: `[WM]` WebManager에서 사용하는 배열 필드 (예: `["CVD", "ETCH", "PHOTO"]`)
-- **동기화**: WebManager에서 저장 시 두 필드가 자동으로 동기화됨
-  - processes 변경 → process 필드에 `;` 구분자로 저장
+- **process 필드** (Source of Truth): Akka 서버와 공유하는 세미콜론 구분 문자열 (예: `"CVD;ETCH;PHOTO"`)
+- **processes 필드**: `[WM]` WebManager 편의용 배열 (예: `["CVD", "ETCH", "PHOTO"]`)
+- **동기화 규칙**:
+  - **저장 시** (WebManager → DB): `processes` 배열 → `process` 문자열로 변환 (`syncProcessFields()`)
+  - **조회 시** (DB → WebManager): `process` 문자열 → `processes` 배열로 재생성 (항상 최신 보장)
+  - **필터 쿼리**: `process` 필드에 대해 regex 매칭 (`(^|;)VALUE(;|$)`)
+
+> ⚠️ **`process`가 단일 진실 소스(Source of Truth)**입니다. Akka 시스템이 `process`를 외부에서 변경할 수 있으므로, DB의 `processes` 배열이 stale할 수 있습니다. 조회 시 항상 `process`에서 재생성합니다.
 
 ```javascript
-// 동기화 예시
+// DB 저장 형태
 {
-  process: "CVD;ETCH",         // 레거시 호환용
-  processes: ["CVD", "ETCH"]   // [WM] WebManager용
+  process: "CVD;ETCH",         // Source of Truth (Akka 공유)
+  processes: ["CVD", "ETCH"]   // [WM] 저장 시 동기화, 조회 시 재생성
 }
 ```
 

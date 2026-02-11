@@ -42,6 +42,7 @@ Akka 기반 서버-클라이언트 시스템에서 **클라이언트들을 모�
 | Clients | 클라이언트 목록 (계층적 필터링) |
 | ClientDetail | 클라이언트 상세 (상태, 리소스, 로그, 제어) |
 | EquipmentInfo | 클라이언트 기준정보 관리 (조회/추가/수정/삭제) |
+| UserManagement | 사용자 관리 (CRUD/권한/계정상태/비밀번호) |
 
 ## Menu Structure
 ```
@@ -89,13 +90,23 @@ GET    /api/clients/:id/log-files            # 로그 파일 목록 (FTP list)
 GET    /api/clients/:id/log-content          # 파일 내용 다운로드 (FTP read)
 DELETE /api/clients/:id/log-files            # 파일 삭제 (FTP delete)
 POST   /api/clients/log-tail-stream          # 실시간 Tailing (SSE)
+POST   /api/clients/:id/detect-base-path     # basePath 자동 감지 (RPC)
+
+GET    /api/users                            # 사용자 목록 (필터/페이지네이션)
+POST   /api/users                            # 사용자 다중 생성
+PUT    /api/users                            # 사용자 다중 수정
+DELETE /api/users                            # 사용자 다중 삭제
+GET    /api/users/processes                  # Process 목록 (필터용)
+GET    /api/users/lines                      # Line 목록 (필터용)
+GET    /api/users/roles                      # Role Permission 조회
+PUT    /api/users/roles/:level               # Role Permission 수정
 ```
 
 ## Project Structure
 ```
 WebManager/
 ├── client/src/
-│   ├── features/           # 기능별 모듈 (auth, dashboard, clients, equipment-info, ...)
+│   ├── features/           # 기능별 모듈 (auth, dashboard, clients, equipment-info, users, ...)
 │   ├── shared/
 │   │   ├── components/     # 공용 컴포넌트 (BaseDataGridToolbar 등)
 │   │   ├── composables/    # 공용 composables (useToast, useTheme 등)
@@ -106,17 +117,19 @@ WebManager/
 │   └── router/             # Vue Router (메뉴 구조 정의)
 ├── server/
 │   ├── features/
-│   │   └── clients/        # 서비스 레이어 구조
-│   │       ├── routes.js       # 라우트 정의
-│   │       ├── controller.js   # 요청/응답 처리
-│   │       ├── service.js      # DB 쿼리, 비즈니스 로직
-│   │       ├── controlService.js # RPC 제어 (Avro)
-│   │       ├── ftpService.js   # FTP Config 읽기/쓰기/배포
-│   │       ├── logService.js       # 로그 파일 조회/삭제/Tail
-│   │       ├── logSettingsModel.js # LOG_SETTINGS Mongoose 모델
-│   │       ├── logSettingsService.js # 로그 설정 CRUD + 초기화
-│   │       ├── validation.js   # 유효성 검사
-│   │       └── model.js        # Mongoose 모델
+│   │   ├── clients/        # 클라이언트 관리 + 서비스 제어
+│   │   │   ├── routes.js       # 라우트 정의
+│   │   │   ├── controller.js   # 요청/응답 처리
+│   │   │   ├── service.js      # DB 쿼리, 비즈니스 로직
+│   │   │   ├── controlService.js # RPC 제어 (Avro) + basePath 감지
+│   │   │   ├── ftpService.js   # FTP Config 읽기/쓰기/배포
+│   │   │   ├── logService.js       # 로그 파일 조회/삭제/Tail
+│   │   │   ├── logSettingsService.js # 로그 설정 CRUD + 초기화
+│   │   │   ├── strategies/     # 서비스 제어 전략 모듈 (agentGroup:serviceType)
+│   │   │   ├── validation.js   # 유효성 검사
+│   │   │   └── model.js        # Mongoose 모델
+│   │   ├── users/          # 사용자 관리 + 역할 권한
+│   │   └── exec-commands/  # 실행 명령어 관리
 │   └── shared/
 │       ├── middleware/     # 미들웨어 (errorHandler 등)
 │       ├── utils/          # 유틸리티 (pagination, queryBuilder, socksHelper)
@@ -165,7 +178,7 @@ cd server && npm run dev
 npm run dev
 ```
 
-## Current Status (2026-02-06)
+## Current Status (2026-02-11)
 - 메가 메뉴 + 사이드바 + 탭 바 레이아웃 완료
 - 다크/라이트 모드 지원
 - MongoDB API 연동 완료
@@ -181,6 +194,9 @@ npm run dev
 - Service Control UI 테스트 완료 (상태조회/시작/중지/재시작)
 - Config Management UI 테스트 완료 (FTP 조회/수정/저장)
 - Log Viewer 완료 (FTP 파일 목록/읽기/삭제 + RPC 실시간 Tailing + 멀티클라이언트 + 크로스 검색)
+- Log Settings UI 완료 (LogSettingsModal)
+- User Management 완료 (CRUD/필터/권한 관리/계정 상태/비밀번호 관리)
+- Per-client basePath 완료 (자동 감지 + 수동 설정 + commandLine 절대경로 변환)
 
 ## Security Configuration
 - **helmet**: 보안 헤더 자동 설정
