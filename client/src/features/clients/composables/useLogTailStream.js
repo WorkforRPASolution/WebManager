@@ -1,4 +1,5 @@
 import { ref, reactive } from 'vue'
+import { makeCompositeKey } from '@/shared/utils/compositeKey'
 import { logApi } from '../api'
 
 const MAX_TAIL_BUFFER_LINES = parseInt(import.meta.env.VITE_LOG_TAIL_BUFFER_LINES) || 1000
@@ -9,7 +10,7 @@ export function useLogTailStream() {
   let abortController = null
 
   function getBufferKey(eqpId, filePath) {
-    return `${eqpId}:${filePath}`
+    return makeCompositeKey(eqpId, filePath)
   }
 
   async function startTailing(targets) {

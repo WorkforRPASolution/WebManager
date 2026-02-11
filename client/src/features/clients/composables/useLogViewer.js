@@ -1,4 +1,5 @@
 import { ref, computed, reactive } from 'vue'
+import { makeCompositeKey, parseCompositeKey } from '@/shared/utils/compositeKey'
 import { logApi } from '../api'
 
 export function useLogViewer() {
@@ -34,12 +35,11 @@ export function useLogViewer() {
 
   // Composite key helpers
   function makeTabKey(eqpId, filePath) {
-    return `${eqpId}:${filePath}`
+    return makeCompositeKey(eqpId, filePath)
   }
 
   function parseTabKey(key) {
-    const idx = key.indexOf(':')
-    return { eqpId: key.substring(0, idx), filePath: key.substring(idx + 1) }
+    return parseCompositeKey(key)
   }
 
   // Global counters
