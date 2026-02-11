@@ -2,11 +2,10 @@
  * Authentication service
  */
 
-const bcrypt = require('bcrypt')
+const bcrypt = require('bcryptjs')
 const { generateToken, generateRefreshToken, verifyToken } = require('../../shared/utils/jwt')
 const { getUserBySingleId, getRolePermissionByLevel } = require('../users/service')
 const { User } = require('../users/model')
-const { getLoginStats } = require('../../shared/models/webmanagerLogModel')
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
 
@@ -55,11 +54,19 @@ async function login(singleid, password) {
   const token = generateToken(tokenPayload)
   const refreshToken = generateRefreshToken({ id: user._id.toString() })
 
-  // Get login stats from WEBMANAGER_LOG (before current login is recorded by controller)
-  const loginStats = await getLoginStats(user.singleid)
+  // Derive login stats from webmanagerLoginInfo (before updating)
+  const loginInfo = user.webmanagerLoginInfo || {}
+  const lastLoginAt = loginInfo.lastLoginAt || null
+  const loginCount = (loginInfo.loginCount || 0) + 1
+
+  // Update login info: set lastLoginAt, increment loginCount (fire-and-forget)
+  User.updateOne(
+    { _id: user._id },
+    { $set: { 'webmanagerLoginInfo.lastLoginAt': new Date() }, $inc: { 'webmanagerLoginInfo.loginCount': 1 } }
+  ).catch(err => console.error('Failed to update webmanagerLoginInfo:', err.message))
 
   // Return user data without password
-  const { password: _, ...userWithoutPassword } = user
+  const { password: _, webmanagerLoginInfo: __, ...userWithoutPassword } = user
 
   return {
     success: true,
@@ -68,8 +75,8 @@ async function login(singleid, password) {
     mustChangePassword: user.passwordStatus === 'must_change',
     user: {
       ...userWithoutPassword,
-      lastLoginAt: loginStats.lastLoginAt,
-      loginCount: loginStats.loginCount,
+      lastLoginAt,
+      loginCount,
       roleName: rolePermission?.roleName || 'Unknown',
       permissions
     }
@@ -129,7 +136,7 @@ async function getCurrentUser(tokenPayload) {
 
   // Get fresh user data (avoid using stale token data)
   const { User } = require('../users/model')
-  const user = await User.findById(tokenPayload.id).select('-password').lean()
+  const user = await User.findById(tokenPayload.id).select('-password -webmanagerLoginInfo').lean()
 
   if (!user) {
     return null

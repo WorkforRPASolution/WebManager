@@ -102,6 +102,10 @@ const userSchema = new Schema({
   lastExecution: {
     type: String,
     default: ''
+  },
+  webmanagerLoginInfo: {
+    lastLoginAt: { type: Date, default: null },
+    loginCount: { type: Number, default: 0 }
   }
 }, {
   collection: 'ARS_USER_INFO',

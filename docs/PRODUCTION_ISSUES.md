@@ -13,7 +13,7 @@
 | 2 | FTP 연결 누수 가능 | HIGH | 중간 | ✅ 수정 완료 |
 | 3 | SOCKS 소켓 미정리 | HIGH | 중간 | ✅ 수정 완료 |
 | 4 | DB 커넥션 풀 미설정 | HIGH | 낮음 | 🟡 권장 |
-| 5 | Graceful shutdown 없음 | HIGH | 낮음 | 🟡 권장 |
+| 5 | Graceful shutdown 없음 | HIGH | 낮음 | ✅ 수정 완료 |
 | 6 | 배치 작업 크기 제한 없음 | HIGH | 낮음 | 🟡 권장 |
 | 7 | JWT Secret 하드코딩 기본값 | CRITICAL | - | 🟡 배포 시 .env 설정으로 해결 |
 | 8 | FTP 비밀번호 평문 | CRITICAL | - | 🟡 배포 시 .env 설정으로 해결 |
@@ -82,15 +82,18 @@
 
 ---
 
-### 이슈 5: Graceful Shutdown 없음 (HIGH)
+### 이슈 5: Graceful Shutdown 없음 (HIGH) — ✅ 수정 완료
 
 **파일**: `server/index.js`
 
 **문제**: SIGTERM/SIGINT 핸들러 없음. 서버 재시작 시 진행 중인
 FTP 전송/SSE 스트림이 즉시 끊김.
 
-**영향도**: 낮음 - 횡전개 중 재시작하면 일부 클라이언트만 배포된 상태로
-남을 수 있음. 일반 API 요청은 영향 없음.
+**수정 내용**:
+- SIGTERM/SIGINT 핸들러 등록 (중복 호출 방지 플래그)
+- 종료 순서: `server.close()` → 5초 대기 → `server.closeAllConnections()` → `closeConnections()` → exit
+- SSE의 `res.on('close')` 핸들러가 자동 호출되어 AbortController abort 등 정리
+- 강제 종료 타임아웃 10초 (교착 상태 방지)
 
 ---
 

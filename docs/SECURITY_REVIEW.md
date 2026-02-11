@@ -1,6 +1,7 @@
 # 데이터 안전성 검토 보고서
 
-> 검토일: 2026-01-20
+> 최초 검토일: 2026-01-20
+> 최종 업데이트: 2026-02-11
 > 목적: 운영 시스템 적용 전 데이터 삭제/변경 버그 검토
 
 ---
@@ -10,201 +11,89 @@
 | 구분 | 상태 | 비고 |
 |------|------|------|
 | API 엔드포인트 | ✅ 안전 | 모든 DELETE에 ID 검증 있음 |
-| 스크립트 | 🔴 위험 | seedData.js 전체 삭제 가능 |
+| 스크립트 | ✅ 해결 | seedData.js 삭제됨, 남은 seed 스크립트는 `--reset` 플래그 필수 |
 | 입력 검증 | ✅ 안전 | 필수 필드, 형식, 중복 검사 |
-| 권한 검증 | 🟡 미흡 | 인증 미들웨어 없음 |
-| 감사 로깅 | 🟡 미흡 | 변경 이력 추적 불가 |
+| 권한 검증 | ✅ 해결 | authenticate + requireFeaturePermission 미들웨어 적용 |
+| 감사 로깅 | 🟡 부분 | clients(EQP_INFO)만 자동 로깅, 나머지 컬렉션 미적용 |
+| 배치 트랜잭션 | 🟡 미적용 | 배치 업데이트 중 실패 시 부분 처리 가능 |
 
 ---
 
-## 🔴 즉시 수정 필요
+## ✅ 해결된 항목
 
-### 1. seedData.js 전체 삭제 위험
+### 1. seedData.js 전체 삭제 위험 (해결)
 
-**파일**: `server/scripts/seedData.js:55`
+**원래 문제**: `seedData.js`에서 `Client.deleteMany({})`로 전체 데이터 삭제 가능
 
-```javascript
-// 현재 코드 - 위험!
-const deleteResult = await Client.deleteMany({});
-```
+**해결 방법**: `seedData.js` 파일 자체가 삭제됨
 
-**문제점**:
-- 빈 객체 `{}`는 컬렉션의 **모든 문서를 삭제**
-- 운영 환경에서 실수로 실행 시 전체 데이터 손실
-- 환경 확인이나 확인 프롬프트 없음
+**남은 seed 스크립트 안전성**:
+- `seedRolePermissions.js`: `--reset` 플래그 없이는 삭제 실행 안 함, 대상은 권한 설정 데이터만
+- `seedPermissions.js`: `--reset` 플래그 없이는 삭제 실행 안 함, 대상은 기능 권한 데이터만
 
-**수정 방안**:
-```javascript
-// 1. 환경 확인 추가
-if (process.env.NODE_ENV === 'production') {
-  console.error('❌ Cannot run seed script in production');
-  process.exit(1);
-}
+---
 
-// 2. 확인 프롬프트 추가
-const readline = require('readline');
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+### 2. 권한 검증 미들웨어 (해결)
 
-const answer = await new Promise(resolve => {
-  rl.question('⚠️  This will DELETE ALL existing data. Type "DELETE" to confirm: ', resolve);
-});
+**원래 문제**: DELETE/UPDATE API에 인증 검사 없음
 
-if (answer !== 'DELETE') {
-  console.log('Aborted.');
-  process.exit(0);
-}
+**해결 방법**: `server/shared/middleware/authMiddleware.js`에 4단계 인증/인가 구현
 
-// 3. 삭제 실행
-const deleteResult = await Client.deleteMany({});
-```
+| 미들웨어 | 역할 |
+|---------|------|
+| `authenticate()` | JWT 토큰 검증 |
+| `requireRole(level)` | 역할 레벨 기반 인가 |
+| `requireMenuPermission(menu)` | 메뉴 접근 권한 (DB 실시간 조회) |
+| `requireFeaturePermission(feature, action)` | 기능별 read/write/delete 권한 |
+
+모든 DELETE 라우트에 `authenticate` + `requireFeaturePermission(..., 'delete')` 적용:
+
+| 엔드포인트 | 인증 | 권한 |
+|-----------|------|------|
+| DELETE /api/clients/equipment-info | ✅ | requireFeaturePermission('equipmentInfo', 'delete') |
+| DELETE /api/users | ✅ | requireFeaturePermission('users', 'delete') |
+| DELETE /api/email-info | ✅ | requireFeaturePermission('emailInfo', 'delete') |
+| DELETE /api/email-recipients | ✅ | requireFeaturePermission('emailRecipients', 'delete') |
+| DELETE /api/os-version | ✅ | requireFeaturePermission('osVersion', 'delete') |
 
 ---
 
 ## 🟡 개선 권장 사항
 
-### 2. 권한 검증 미들웨어 추가
+### 3. 감사 로깅 (부분 해결)
 
-**현재 상태**: DELETE/UPDATE API에 인증 검사 없음
+**구현된 부분**:
+- `WEBMANAGER_LOG` 통합 로그 모델 (`server/shared/models/webmanagerLogModel.js`)
+- `createAuditLog()`, `calculateChanges()` 함수
+- `businessRules.js`에서 afterCreate/afterUpdate/afterDelete 훅 자동 로깅
+- 인증 로그: `createAuthLog()` (login, logout, login_failed 등)
+- 에러 로그: `createErrorLog()`
 
-**영향받는 파일**:
-- `server/features/clients/routes.js`
-- `server/features/email-template/routes.js`
-- `server/features/users/routes.js`
+**미적용 컬렉션**:
 
-**수정 방안**:
-```javascript
-// server/shared/middleware/auth.js
-const isAuthenticated = (req, res, next) => {
-  if (!req.user) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-  next();
-};
-
-const isAdmin = (req, res, next) => {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-  next();
-};
-
-module.exports = { isAuthenticated, isAdmin };
-```
-
-```javascript
-// 라우트에 적용
-const { isAuthenticated, isAdmin } = require('../../shared/middleware/auth');
-
-router.delete('/master', isAuthenticated, isAdmin, asyncHandler(deleteMasterData));
-router.put('/master', isAuthenticated, asyncHandler(updateMasterData));
-```
+| 컬렉션 | 감사 로깅 | 비고 |
+|--------|----------|------|
+| EQP_INFO (clients) | ✅ 적용 | businessRules 훅으로 자동 로깅 |
+| ARS_USER_INFO (users) | ❌ 미적용 | |
+| EMAILINFO (email-info) | ❌ 미적용 | |
+| EMAIL_RECIPIENTS | ❌ 미적용 | |
+| OS_VERSION_LIST | ❌ 미적용 | |
 
 ---
 
-### 3. 감사 로깅 추가
+### 4. 배치 작업 트랜잭션 지원 (미적용)
 
-**현재 상태**: 데이터 변경 이력 추적 불가
+**현재 상태**: 모든 배치 업데이트가 개별 `updateOne()` 루프로 처리됨. 중간 실패 시 부분만 반영.
 
-**수정 방안**:
-```javascript
-// server/shared/utils/auditLog.js
-const logAudit = async (action, collection, details, userId) => {
-  console.log(JSON.stringify({
-    timestamp: new Date().toISOString(),
-    action,      // 'CREATE', 'UPDATE', 'DELETE'
-    collection,  // 'Client', 'EmailTemplate', 'User'
-    userId,
-    details      // { ids: [...], count: N }
-  }));
-
-  // 또는 MongoDB에 저장
-  // await AuditLog.create({ ... });
-};
-
-module.exports = { logAudit };
-```
-
-```javascript
-// 삭제 시 로깅 추가
-const { logAudit } = require('../../shared/utils/auditLog');
-
-async function deleteClients(ids, userId) {
-  const result = await Client.deleteMany({ _id: { $in: ids } });
-
-  await logAudit('DELETE', 'Client', {
-    ids,
-    deletedCount: result.deletedCount
-  }, userId);
-
-  return { deleted: result.deletedCount };
-}
-```
+**영향받는 서비스**: clients, users, email-info, email-recipients, os-version
 
 ---
 
-### 4. 배치 작업 트랜잭션 지원
+### 5. 배치 업데이트 성능 최적화 (일부 개선)
 
-**현재 상태**: 배치 업데이트 중 실패 시 일부만 처리됨
+**현재 상태**: `bulkWrite`는 미사용이나, N+1 쿼리 문제는 Map 프리페치로 회피됨
 
-**영향받는 파일**:
-- `server/features/clients/service.js:255-293` (updateClients)
-
-**수정 방안**:
-```javascript
-const session = await mongoose.startSession();
-session.startTransaction();
-
-try {
-  // 배치 작업 수행
-  const bulkOps = clientsData.map(data => ({
-    updateOne: {
-      filter: { _id: data._id },
-      update: { $set: data }
-    }
-  }));
-
-  const result = await Client.bulkWrite(bulkOps, { session });
-
-  await session.commitTransaction();
-  return { updated: result.modifiedCount };
-} catch (error) {
-  await session.abortTransaction();
-  throw error;
-} finally {
-  session.endSession();
-}
-```
-
----
-
-### 5. 배치 업데이트 성능 최적화
-
-**현재 상태**: N+1 쿼리 (반복문에서 개별 updateOne 호출)
-
-**파일**: `server/features/clients/service.js:262-290`
-
-```javascript
-// 현재 코드 - 비효율적
-for (let i = 0; i < clientsData.length; i++) {
-  const result = await Client.updateOne({ _id }, { $set: updateData });
-}
-```
-
-**수정 방안**:
-```javascript
-// bulkWrite 사용
-const bulkOps = clientsData
-  .filter(data => data._id)
-  .map(data => ({
-    updateOne: {
-      filter: { _id: data._id },
-      update: { $set: data }
-    }
-  }));
-
-const result = await Client.bulkWrite(bulkOps);
-return { updated: result.modifiedCount };
-```
+**현재 구현**: 각 서비스에서 업데이트 전 전체 데이터를 Map으로 프리페치하여 검증 쿼리 최소화. 현재 데이터 규모에서는 충분한 성능.
 
 ---
 
@@ -212,55 +101,46 @@ return { updated: result.modifiedCount };
 
 ### API 삭제 엔드포인트
 
-모든 DELETE API에서 다음 검증이 구현되어 있음:
-
-```javascript
-// 예: clients/controller.js
-if (!ids || !Array.isArray(ids) || ids.length === 0) {
-  throw ApiError.badRequest('ids array is required');
-}
-
-// $in 연산자로 조건부 삭제만 수행
-await Client.deleteMany({ _id: { $in: ids } });
-```
+모든 DELETE API에서 ID 배열 검증 구현:
 
 | 엔드포인트 | 검증 | 상태 |
 |-----------|------|------|
-| DELETE /api/clients/master | ID 배열 필수, 빈 배열 거부 | ✅ |
-| DELETE /api/email-template | ID 배열 필수, 빈 배열 거부 | ✅ |
-| DELETE /api/users/:id | 단일 ID 필수 | ✅ |
+| DELETE /api/clients/equipment-info | ID 배열 필수, 빈 배열 거부 | ✅ |
 | DELETE /api/users | ID 배열 필수, 빈 배열 거부 | ✅ |
+| DELETE /api/email-info | ID 배열 필수, 빈 배열 거부 | ✅ |
+| DELETE /api/email-recipients | ID 배열 필수, 빈 배열 거부 | ✅ |
+| DELETE /api/os-version | ID 배열 필수, 빈 배열 거부 | ✅ |
 
 ### 입력 검증
 
 - **clients/validation.js**: IP 형식, 날짜 형식, 중복 검사
-- **email-template/routes.js**: 필수 필드, 길이 제한
-- **users/routes.js**: 이메일 형식, 역할 화이트리스트
+- **users/validation.js**: 이메일 형식, 역할 화이트리스트
+- **email-info, email-recipients, os-version**: 필수 필드, 길이 제한
 
 ### 보안 설정
 
 - **helmet**: 보안 헤더 자동 설정
 - **CORS**: 화이트리스트 기반 origin 관리
-- **bcrypt**: 비밀번호 해싱 (SALT_ROUNDS=12)
+- **bcryptjs**: 비밀번호 해싱 (SALT_ROUNDS=12)
 - **JSON 제한**: 10MB (DoS 방지)
+- **JWT**: 액세스 토큰 + 리프레시 토큰 이중 인증
 
 ---
 
 ## 작업 우선순위
 
-| 우선순위 | 작업 | 예상 작업량 |
-|---------|------|-----------|
-| 1 (필수) | seedData.js 환경 확인 추가 | 30분 |
-| 2 (권장) | 권한 검증 미들웨어 추가 | 2시간 |
-| 3 (권장) | 감사 로깅 추가 | 1시간 |
-| 4 (선택) | 배치 작업 트랜잭션 | 2시간 |
-| 5 (선택) | bulkWrite 최적화 | 1시간 |
+| 우선순위 | 작업 | 상태 |
+|---------|------|------|
+| ~~1 (필수)~~ | ~~seedData.js 환경 확인 추가~~ | ✅ 파일 삭제로 해결 |
+| ~~2 (권장)~~ | ~~권한 검증 미들웨어 추가~~ | ✅ 구현 완료 |
+| 3 (권장) | 감사 로깅 확대 (users, email-info 등) | 🟡 부분 완료 |
+| 4 (선택) | 배치 작업 트랜잭션 | 미적용 |
+| 5 (선택) | bulkWrite 최적화 | 미적용 (현재 규모에서 불필요) |
 
 ---
 
 ## 결론
 
-**운영 시스템 적용 전 최소 필수 작업**:
-1. seedData.js에 운영 환경 실행 차단 추가
-
-**API를 통한 전체 삭제는 현재 불가능**하므로, 일반적인 사용 시나리오에서는 안전합니다.
+최초 검토 시 필수 작업 2건(seedData.js 삭제 위험, 권한 미들웨어 부재)은 모두 해결되었다.
+감사 로깅은 clients 컬렉션에만 적용되어 있으므로, 나머지 컬렉션으로 확대 적용을 권장한다.
+배치 트랜잭션과 bulkWrite 최적화는 현재 데이터 규모에서는 선택 사항이다.

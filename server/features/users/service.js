@@ -2,11 +2,11 @@
  * User service - Database operations and business logic
  */
 
-const bcrypt = require('bcrypt')
+const bcrypt = require('bcryptjs')
 const { User, RolePermission, DEFAULT_ROLE_PERMISSIONS } = require('./model')
 const { parsePaginationParams } = require('../../shared/utils/pagination')
 const { validateBatchCreate, validateUpdate } = require('./validation')
-const { getLoginStatsBulk } = require('../../shared/models/webmanagerLogModel')
+
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
 
@@ -93,15 +93,14 @@ async function getUsers(filters = {}, paginationQuery = {}) {
     User.countDocuments(query)
   ])
 
-  // Bulk fetch login stats from WEBMANAGER_LOG
-  const singleIds = users.map(u => u.singleid)
-  const loginStatsMap = await getLoginStatsBulk(singleIds)
-
-  const usersWithStats = users.map(u => ({
-    ...u,
-    lastLoginAt: loginStatsMap[u.singleid]?.lastLoginAt || null,
-    loginCount: loginStatsMap[u.singleid]?.loginCount || 0
-  }))
+  const usersWithStats = users.map(u => {
+    const { webmanagerLoginInfo, ...rest } = u
+    return {
+      ...rest,
+      lastLoginAt: webmanagerLoginInfo?.lastLoginAt || null,
+      loginCount: webmanagerLoginInfo?.loginCount || 0
+    }
+  })
 
   return {
     data: usersWithStats,
@@ -116,7 +115,7 @@ async function getUsers(filters = {}, paginationQuery = {}) {
  * Get user by ID
  */
 async function getUserById(id) {
-  const user = await User.findById(id).select('-password').lean()
+  const user = await User.findById(id).select('-password -webmanagerLoginInfo').lean()
   return user
 }
 
