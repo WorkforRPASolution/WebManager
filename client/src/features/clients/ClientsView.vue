@@ -23,7 +23,7 @@ const route = useRoute()
 const agentGroup = computed(() => route.meta.agentGroup)
 
 // Feature permission
-const { canWrite, canDelete, isAdmin } = useFeaturePermission('arsAgent')
+const { canWrite, canDelete, isAdmin } = useFeaturePermission('clientControl')
 const showPermissionDialog = ref(false)
 
 // Config Manager
@@ -351,6 +351,7 @@ const handleUpdateSettings = () => {
       v-if="hasSearched"
       :can-write="canWrite"
       :can-delete="canDelete"
+      :is-admin="isAdmin"
       :selected-count="selectedIds.length"
       :operating="operating"
       :loading="loading"
@@ -465,7 +466,7 @@ const handleUpdateSettings = () => {
     <!-- Permission Settings Dialog -->
     <PermissionSettingsDialog
       v-model="showPermissionDialog"
-      feature="arsAgent"
+      feature="clientControl"
       @saved="showToast('Permissions saved', 'success')"
       @error="showToast($event, 'error')"
     />

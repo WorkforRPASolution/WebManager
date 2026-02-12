@@ -96,7 +96,7 @@
 
       <!-- Update Settings Button -->
       <button
-        v-if="canWrite"
+        v-if="isAdmin"
         @click="$emit('update-settings')"
         :disabled="operating"
         class="flex items-center p-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -123,7 +123,7 @@
 
       <!-- Config Settings Button -->
       <button
-        v-if="canWrite"
+        v-if="isAdmin"
         @click="$emit('config-settings')"
         :disabled="operating"
         class="flex items-center p-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -148,7 +148,7 @@
 
       <!-- Log Settings Button -->
       <button
-        v-if="canWrite"
+        v-if="isAdmin"
         @click="$emit('log-settings')"
         :disabled="operating"
         class="flex items-center p-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -241,6 +241,10 @@ defineProps({
     default: false
   },
   canDelete: {
+    type: Boolean,
+    default: false
+  },
+  isAdmin: {
     type: Boolean,
     default: false
   },
