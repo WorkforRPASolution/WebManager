@@ -34,7 +34,7 @@ module.exports = {
       start:   { commandLine: 'systemctl', args: ['start', 'ARSAgent'], timeout: 30000 },
       stop:    { commandLine: 'systemctl', args: ['stop', 'ARSAgent'], timeout: 30000 },
       restart: null, // composite: handled by controlService
-      kill:    { commandLine: 'kill', args: ['-9', '$(pgrep -f ARSAgent)'], timeout: 10000 },
+      kill:    { commandLine: 'systemctl', args: ['kill', '-s', 'SIGKILL', 'ARSAgent'], timeout: 10000 },
     }
     return commands[action] || null
   },
