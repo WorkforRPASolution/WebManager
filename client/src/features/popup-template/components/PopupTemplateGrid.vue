@@ -42,6 +42,7 @@ import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-communi
 import { useTheme } from '../../../shared/composables/useTheme'
 import { useCustomScrollbar } from '../../../shared/composables/useCustomScrollbar'
 import { useDataGridCellSelection } from '../../../shared/composables/useDataGridCellSelection'
+import { useColumnWidthExporter } from '../../../shared/composables/useColumnWidthExporter'
 import CustomHorizontalScrollbar from '../../../shared/components/CustomHorizontalScrollbar.vue'
 
 // Register AG Grid modules
@@ -147,6 +148,9 @@ const {
   onCellEdit: (rowId, field, value) => emit('cell-edit', rowId, field, value),
   onPasteCells: (updates) => emit('paste-cells', updates),
 })
+
+// Admin용: 컬럼 폭 클립보드 복사
+const { exportColumnWidths } = useColumnWidthExporter(gridApi)
 
 onMounted(() => {
   setupHeaderClickHandler()
@@ -454,5 +458,6 @@ defineExpose({
     clearSelection()
   },
   refreshCells: () => gridApi.value?.refreshCells({ force: true }),
+  exportColumnWidths,
 })
 </script>

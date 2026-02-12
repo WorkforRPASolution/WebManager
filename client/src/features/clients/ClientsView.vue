@@ -314,6 +314,11 @@ const handleUpdateSettings = () => {
   showUpdateSettings.value = true
 }
 
+const handleExportColumnWidths = () => {
+  const text = gridRef.value?.exportColumnWidths?.()
+  if (text) showToast('Column widths copied to clipboard', 'success')
+}
+
 // No auto-load on mount - user must use filters to search
 </script>
 
@@ -325,16 +330,30 @@ const handleUpdateSettings = () => {
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Clients</h1>
         <p class="text-gray-500 dark:text-gray-400 mt-1">Manage and monitor your clients</p>
       </div>
-      <button
-        v-if="isAdmin"
-        @click="showPermissionDialog = true"
-        class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-card border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        </svg>
-        Permissions
-      </button>
+      <div class="flex items-center gap-2">
+        <!-- Export Column Widths (Admin only) -->
+        <button
+          v-if="isAdmin && hasSearched && !loading"
+          @click="handleExportColumnWidths"
+          class="p-2 text-sm bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 dark:text-gray-500 rounded-lg transition-colors"
+          title="Copy column widths to clipboard"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4a2 2 0 012-2h8l6 6v12a2 2 0 01-2 2H6a2 2 0 01-2-2v-4" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 14h10m-3-3l3 3-3 3" />
+          </svg>
+        </button>
+        <button
+          v-if="isAdmin"
+          @click="showPermissionDialog = true"
+          class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-card border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+          Permissions
+        </button>
+      </div>
     </div>
 
     <!-- Filter Bar -->

@@ -5,6 +5,18 @@
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">User Management</h1>
       <!-- Settings Buttons (Admin only) -->
       <div v-if="isAdmin" class="flex items-center gap-2">
+        <!-- Export Column Widths -->
+        <button
+          v-if="hasSearched && !loading"
+          @click="handleExportColumnWidths"
+          class="p-2 text-sm bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 dark:text-gray-500 rounded-lg transition-colors"
+          title="Copy column widths to clipboard"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4a2 2 0 012-2h8l6 6v12a2 2 0 01-2 2H6a2 2 0 01-2-2v-4" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 14h10m-3-3l3 3-3 3" />
+          </svg>
+        </button>
         <button
           @click="showPermissionDialog = true"
           class="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
@@ -437,6 +449,11 @@ const handleApproveUser = async (userId) => {
   } catch (err) {
     showToast('error', err.response?.data?.error || 'Failed to approve user')
   }
+}
+
+const handleExportColumnWidths = () => {
+  const text = gridRef.value?.exportColumnWidths?.()
+  if (text) showToast('success', 'Column widths copied to clipboard')
 }
 
 const handleApprovePasswordReset = async (userId) => {

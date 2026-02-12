@@ -33,6 +33,7 @@ import { AgGridVue } from 'ag-grid-vue3'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import { useTheme } from '../../../shared/composables/useTheme'
 import { useCustomScrollbar } from '../../../shared/composables/useCustomScrollbar'
+import { useColumnWidthExporter } from '../../../shared/composables/useColumnWidthExporter'
 import CustomHorizontalScrollbar from '../../../shared/components/CustomHorizontalScrollbar.vue'
 
 // Register AG Grid modules
@@ -229,6 +230,9 @@ const getRowId = (params) => {
   return params.data.eqpId || params.data.id
 }
 
+// Admin용: 컬럼 폭 클립보드 복사
+const { exportColumnWidths } = useColumnWidthExporter(gridApi)
+
 const onGridReady = (params) => {
   gridApi.value = params.api
   handleColumnChange()
@@ -287,6 +291,7 @@ defineExpose({
       }
     })
   },
+  exportColumnWidths,
 })
 </script>
 

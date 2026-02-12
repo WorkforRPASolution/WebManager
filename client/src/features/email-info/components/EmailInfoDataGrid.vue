@@ -42,6 +42,7 @@ import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-communi
 import { useTheme } from '../../../shared/composables/useTheme'
 import { useCustomScrollbar } from '../../../shared/composables/useCustomScrollbar'
 import { useDataGridCellSelection } from '../../../shared/composables/useDataGridCellSelection'
+import { useColumnWidthExporter } from '../../../shared/composables/useColumnWidthExporter'
 import CustomHorizontalScrollbar from '../../../shared/components/CustomHorizontalScrollbar.vue'
 import AgGridTagEditor from '../../../shared/components/AgGridTagEditor.vue'
 import AgGridCategoryEditor from '../../../shared/components/AgGridCategoryEditor.vue'
@@ -159,6 +160,9 @@ const {
   onPasteCells: (updates) => emit('paste-cells', updates),
   valueTransformer: transformArrayValue,
 })
+
+// Admin용: 컬럼 폭 클립보드 복사
+const { exportColumnWidths } = useColumnWidthExporter(gridApi)
 
 onMounted(() => {
   setupHeaderClickHandler()
@@ -566,5 +570,6 @@ defineExpose({
     clearSelection()
     gridApi.value?.refreshCells({ force: true })
   },
+  exportColumnWidths,
 })
 </script>
