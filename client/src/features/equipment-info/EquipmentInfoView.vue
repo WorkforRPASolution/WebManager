@@ -4,6 +4,18 @@
     <div class="flex items-center justify-between">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Equipment Info Management</h1>
       <div class="flex items-center gap-2">
+        <!-- Export Column Widths (Admin only) -->
+        <button
+          v-if="isAdmin && hasSearched && !loading"
+          @click="handleExportColumnWidths"
+          class="p-2 text-sm bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-400 dark:text-gray-500 rounded-lg transition-colors"
+          title="Copy column widths to clipboard"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4a2 2 0 012-2h8l6 6v12a2 2 0 01-2 2H6a2 2 0 01-2-2v-4" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 14h10m-3-3l3 3-3 3" />
+          </svg>
+        </button>
         <!-- OS List Button (Admin only) -->
         <button
           v-if="isAdmin"
@@ -615,6 +627,11 @@ const handleOSVersionSaved = () => {
   showToast('success', 'OS Version List updated')
   // Refresh DataGrid's osVer dropdown options
   gridRef.value?.refreshOSVersionOptions?.()
+}
+
+const handleExportColumnWidths = () => {
+  const text = gridRef.value?.exportColumnWidths?.()
+  if (text) showToast('success', 'Column widths copied to clipboard')
 }
 
 // Initial state: no data loaded until user selects filters and clicks Search

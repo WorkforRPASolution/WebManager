@@ -14,7 +14,6 @@
       :getRowId="getRowId"
       :getRowStyle="getRowStyle"
       :alwaysShowHorizontalScroll="true"
-      :suppressSizeToFit="true"
       @grid-ready="onGridReady"
       @cell-editing-started="onCellEditingStarted"
       @cell-editing-stopped="onCellEditingStopped"
@@ -36,7 +35,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { AgGridVue } from 'ag-grid-vue3'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import { useTheme } from '../../../shared/composables/useTheme'
@@ -45,6 +44,7 @@ import { useDataGridCellSelection } from '../../../shared/composables/useDataGri
 import CustomHorizontalScrollbar from '../../../shared/components/CustomHorizontalScrollbar.vue'
 import { osVersionApi } from '../api'
 import { serviceApi } from '../../clients/api'
+import { useColumnWidthExporter } from '../../../shared/composables/useColumnWidthExporter'
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule])
@@ -199,6 +199,9 @@ async function loadOSVersionOptions() {
   }
 }
 
+// Admin용: 컬럼 폭 클립보드 복사
+const { exportColumnWidths } = useColumnWidthExporter(gridApi)
+
 onMounted(() => {
   setupHeaderClickHandler()
   loadOSVersionOptions()
@@ -221,26 +224,26 @@ const rowSelection = ref({
 
 const columnDefs = ref([
   // 체크박스 컬럼은 rowSelection.checkboxes로 자동 생성됨
-  { field: 'line', headerName: 'Line', width: 100, editable: true },
-  { field: 'lineDesc', headerName: 'Line Desc', width: 150, editable: true },
-  { field: 'process', headerName: 'Process', width: 120, editable: true },
-  { field: 'eqpModel', headerName: 'Model', width: 120, editable: true },
-  { field: 'eqpId', headerName: 'Eqp ID', width: 120, editable: true },
+  { field: 'line', headerName: 'Line', width: 84, editable: true },
+  { field: 'lineDesc', headerName: 'Line Desc', width: 143, editable: true },
+  { field: 'process', headerName: 'Process', width: 106, editable: true },
+  { field: 'eqpModel', headerName: 'Model', width: 133, editable: true },
+  { field: 'eqpId', headerName: 'Eqp ID', width: 99, editable: true },
   {
     field: 'serviceType',
     headerName: 'Service Type',
-    width: 140,
+    width: 135,
     editable: true,
     cellEditor: 'agSelectCellEditor',
     cellEditorParams: () => ({ values: [...serviceTypeOptions.value, ''] })
   },
-  { field: 'category', headerName: 'Category', width: 100, editable: true },
-  { field: 'ipAddr', headerName: 'IP Address', width: 130, editable: true },
-  { field: 'ipAddrL', headerName: 'Inner IP', width: 130, editable: true },
+  { field: 'category', headerName: 'Category', width: 113, editable: true },
+  { field: 'ipAddr', headerName: 'IP Address', width: 126, editable: true },
+  { field: 'ipAddrL', headerName: 'Inner IP', width: 104, editable: true },
   {
     field: 'agentPorts.rpc',
     headerName: 'RPC Port',
-    width: 95,
+    width: 112,
     editable: true,
     valueParser: p => p.newValue ? parseInt(p.newValue) : null,
     valueFormatter: p => p.value ?? '',
@@ -248,7 +251,7 @@ const columnDefs = ref([
   {
     field: 'agentPorts.ftp',
     headerName: 'FTP Port',
-    width: 95,
+    width: 110,
     editable: true,
     valueParser: p => p.newValue ? parseInt(p.newValue) : null,
     valueFormatter: p => p.value ?? '',
@@ -256,7 +259,7 @@ const columnDefs = ref([
   {
     field: 'agentPorts.socks',
     headerName: 'SOCKS Port',
-    width: 105,
+    width: 129,
     editable: true,
     valueParser: p => p.newValue ? parseInt(p.newValue) : null,
     valueFormatter: p => p.value ?? '',
@@ -264,20 +267,20 @@ const columnDefs = ref([
   {
     field: 'basePath',
     headerName: 'Base Path',
-    width: 200,
+    width: 118,
     editable: true,
   },
   {
     field: 'localpc',
     headerName: 'Local PC',
-    width: 90,
+    width: 110,
     editable: false,  // 서버에서 자동 결정
   },
-  { field: 'emailcategory', headerName: 'Email Cat.', width: 100, editable: true },
+  { field: 'emailcategory', headerName: 'Email Cat.', width: 118, editable: true },
   {
     field: 'osVer',
     headerName: 'OS Version',
-    width: 120,
+    width: 168,
     editable: true,
     cellEditor: 'agSelectCellEditor',
     cellEditorParams: () => ({ values: osVersionOptions.value })
@@ -285,7 +288,7 @@ const columnDefs = ref([
   {
     field: 'onoff',
     headerName: 'On/Off',
-    width: 80,
+    width: 99,
     editable: true,
     cellEditor: 'agSelectCellEditor',
     cellEditorParams: { values: [0, 1] },
@@ -293,23 +296,23 @@ const columnDefs = ref([
   {
     field: 'webmanagerUse',
     headerName: 'WebMgr',
-    width: 90,
+    width: 109,
     editable: true,
     cellEditor: 'agSelectCellEditor',
     cellEditorParams: { values: [0, 1] },
   },
-  { field: 'installdate', headerName: 'Install Date', width: 110, editable: false },
-  { field: 'scFirstExcute', headerName: 'First Exec', width: 110, editable: false },
+  { field: 'installdate', headerName: 'Install Date', width: 125, editable: false },
+  { field: 'scFirstExcute', headerName: 'First Exec', width: 116, editable: false },
   {
     field: 'snapshotTimeDiff',
     headerName: 'Time Diff',
-    width: 90,
+    width: 113,
     editable: false,
   },
   {
     field: 'usereleasemsg',
     headerName: 'Release Msg',
-    width: 100,
+    width: 133,
     editable: true,
     cellEditor: 'agSelectCellEditor',
     cellEditorParams: { values: [0, 1] },
@@ -317,7 +320,7 @@ const columnDefs = ref([
   {
     field: 'usetkincancel',
     headerName: 'TKIN Cancel',
-    width: 100,
+    width: 131,
     editable: true,
     cellEditor: 'agSelectCellEditor',
     cellEditorParams: { values: [0, 1] },
@@ -378,6 +381,7 @@ const defaultColDef = ref({
   sortable: true,
   resizable: true,
   filter: true,
+  minWidth: 80,
   cellStyle: params => getCellStyle(params),
   cellClass: params => getCellClass(params),
   tooltipValueGetter: params => {
@@ -632,6 +636,7 @@ defineExpose({
     gridApi.value?.refreshCells({ force: true })
   },
   refreshOSVersionOptions: loadOSVersionOptions,
+  exportColumnWidths,
 })
 </script>
 
