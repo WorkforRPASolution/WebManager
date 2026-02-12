@@ -22,7 +22,7 @@ const featurePermissionSchema = new Schema({
     required: true,
     unique: true,
     trim: true,
-    enum: ['equipmentInfo', 'emailTemplate', 'users', 'emailInfo', 'osVersion', 'emailRecipients', 'popupTemplate', 'emailImage', 'arsAgent']
+    enum: ['equipmentInfo', 'emailTemplate', 'users', 'emailInfo', 'osVersion', 'emailRecipients', 'popupTemplate', 'emailImage', 'clientControl']
   },
   permissions: {
     type: Map,
@@ -114,7 +114,7 @@ const DEFAULT_FEATURE_PERMISSIONS = [
     }
   },
   {
-    feature: 'arsAgent',
+    feature: 'clientControl',
     permissions: {
       0: { read: true, write: false, delete: false },  // User
       1: { read: true, write: true, delete: true },     // Admin
@@ -134,7 +134,7 @@ const FEATURE_NAMES = {
   emailRecipients: 'Email Recipients',
   popupTemplate: 'Popup Template',
   emailImage: 'Email Image',
-  arsAgent: 'ARS Agent'
+  clientControl: 'Client Control'
 }
 
 const FeaturePermission = webManagerConnection.model('FeaturePermission', featurePermissionSchema)

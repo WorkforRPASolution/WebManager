@@ -78,8 +78,6 @@ export const clientControlApi = {
     api.post('/clients/batch-status', { eqpIds }),
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api'
-
 // Strategy-based Service Control API
 export const serviceApi = {
   getServiceTypes: () => api.get('/clients/service-types'),
@@ -89,17 +87,6 @@ export const serviceApi = {
     api.post(`/clients/${eqpId}/action/${action}`, { agentGroup }, { timeout }),
   batchExecuteAction: (action, eqpIds, agentGroup, timeout = 75000) =>
     api.post(`/clients/batch-action/${action}`, { eqpIds, agentGroup }, { timeout }),
-  batchActionStream: (action, eqpIds, agentGroup) => {
-    const token = localStorage.getItem('token')
-    return fetch(`${API_BASE}/clients/batch-action-stream/${action}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ eqpIds, agentGroup })
-    })
-  },
 }
 
 // Log Viewer API
@@ -109,17 +96,6 @@ export const logApi = {
   getFileList: (eqpId, agentGroup) => api.get(`/clients/${eqpId}/log-files`, { params: { agentGroup } }),
   getFileContent: (eqpId, path) => api.get(`/clients/${eqpId}/log-content`, { params: { path }, timeout: 60000 }),
   deleteFiles: (eqpId, paths) => api.delete(`/clients/${eqpId}/log-files`, { data: { paths } }),
-  tailStream: (targets) => {
-    const token = localStorage.getItem('token')
-    return fetch(`${API_BASE}/clients/log-tail-stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ targets })
-    })
-  }
 }
 
 // Update Settings API
@@ -129,19 +105,4 @@ export const updateSettingsApi = {
     api.put(`/clients/update-settings/${agentGroup}`, { packages, source }),
   listSourceFiles: (source, relativePath) =>
     api.post('/clients/update-source/list', { source, relativePath }),
-}
-
-// Update Deploy API (SSE)
-export const updateDeployApi = {
-  deploy: (agentGroup, packageIds, targetEqpIds) => {
-    const token = localStorage.getItem('token')
-    return fetch(`${API_BASE}/clients/update/deploy`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ agentGroup, packageIds, targetEqpIds })
-    })
-  }
 }

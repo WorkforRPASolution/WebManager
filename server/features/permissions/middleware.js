@@ -43,15 +43,15 @@ function requireFeaturePermission(feature, action) {
  */
 function getActionPermission(actionName) {
   const map = {
-    status:  { feature: 'arsAgent', action: 'read' },
-    start:   { feature: 'arsAgent', action: 'write' },
-    stop:    { feature: 'arsAgent', action: 'write' },
-    restart: { feature: 'arsAgent', action: 'write' },
-    kill:    { feature: 'arsAgent', action: 'write' },
+    status:  { feature: 'clientControl', action: 'read' },
+    start:   { feature: 'clientControl', action: 'write' },
+    stop:    { feature: 'clientControl', action: 'write' },
+    restart: { feature: 'clientControl', action: 'write' },
+    kill:    { feature: 'clientControl', action: 'write' },
   }
   return map[actionName] !== undefined
     ? map[actionName]
-    : { feature: 'arsAgent', action: 'write' }  // unknown → write
+    : { feature: 'clientControl', action: 'write' }  // unknown → write
 }
 
 /**

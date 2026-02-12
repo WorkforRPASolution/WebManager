@@ -146,7 +146,7 @@ const featureNames = {
   equipmentInfo: 'Equipment Info',
   emailTemplate: 'Email Template',
   users: 'User Management',
-  arsAgent: 'ARS Agent'
+  clientControl: 'Client Control'
 }
 
 const roles = [
@@ -157,7 +157,7 @@ const roles = [
 ]
 
 const featureColumnLabels = {
-  arsAgent: { read: 'Monitoring', write: 'Operations', delete: 'Deploy' }
+  clientControl: { read: 'Monitoring', write: 'Operations', delete: 'Deploy' }
 }
 
 const columnLabels = computed(() => {

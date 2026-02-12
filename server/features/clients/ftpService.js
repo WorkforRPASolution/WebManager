@@ -1,9 +1,12 @@
 const ftp = require('basic-ftp')
-const { Readable, Writable } = require('stream')
+const path = require('path')
+const { Readable } = require('stream')
 const { createConnection, createSocksConnection } = require('../../shared/utils/socksHelper')
 const { parsePasvResponse } = require('basic-ftp/dist/transfer')
 const Client = require('./model')
 const configSettingsService = require('./configSettingsService')
+const { createBufferCollector } = require('../../shared/utils/streamCollector')
+const { runConcurrently } = require('../../shared/utils/concurrencyPool')
 
 const FTP_PORT = parseInt(process.env.FTP_PORT) || 21
 const FTP_USER = process.env.FTP_USER || 'ftpuser'
@@ -115,16 +118,9 @@ async function readConfigFile(eqpId, remotePath) {
   const { client: ftpClient } = await connectFtp(eqpId)
 
   try {
-    const chunks = []
-    const writable = new Writable({
-      write(chunk, encoding, callback) {
-        chunks.push(chunk)
-        callback()
-      }
-    })
-
-    await ftpClient.downloadTo(writable, remotePath)
-    return Buffer.concat(chunks).toString('utf-8')
+    const collector = createBufferCollector()
+    await ftpClient.downloadTo(collector.writable, remotePath)
+    return collector.toString()
   } finally {
     ftpClient.close()
   }
@@ -140,7 +136,6 @@ async function writeConfigFile(eqpId, remotePath, content) {
   const { client: ftpClient } = await connectFtp(eqpId)
 
   try {
-    const path = require('path')
     const dir = path.posix.dirname(remotePath)
     if (dir && dir !== '/' && dir !== '.') {
       await ftpClient.ensureDir(dir)
@@ -167,16 +162,9 @@ async function readAllConfigs(eqpId, agentGroup) {
 
     for (const config of configs) {
       try {
-        const chunks = []
-        const writable = new Writable({
-          write(chunk, encoding, callback) {
-            chunks.push(chunk)
-            callback()
-          }
-        })
-
-        await ftpClient.downloadTo(writable, config.path)
-        const content = Buffer.concat(chunks).toString('utf-8')
+        const collector = createBufferCollector()
+        await ftpClient.downloadTo(collector.writable, config.path)
+        const content = collector.toString()
 
         results.push({
           fileId: config.fileId,
@@ -225,44 +213,24 @@ async function readAllConfigs(eqpId, agentGroup) {
 async function deployConfig(content, targetEqpIds, remotePath, onProgress, concurrency = 5) {
   const total = targetEqpIds.length
   let completed = 0
-
-  // Simple promise pool for concurrency control
-  const pool = []
   const results = []
 
-  for (const eqpId of targetEqpIds) {
-    const task = (async () => {
-      try {
-        await writeConfigFile(eqpId, remotePath, content)
-        completed++
-        results.push({ eqpId, success: true })
-        if (onProgress) {
-          onProgress({ completed, total, current: eqpId, status: 'success', error: null })
-        }
-      } catch (err) {
-        completed++
-        results.push({ eqpId, success: false, error: err.message })
-        if (onProgress) {
-          onProgress({ completed, total, current: eqpId, status: 'error', error: err.message })
-        }
+  await runConcurrently(targetEqpIds, async (eqpId) => {
+    try {
+      await writeConfigFile(eqpId, remotePath, content)
+      completed++
+      results.push({ eqpId, success: true })
+      if (onProgress) {
+        onProgress({ completed, total, current: eqpId, status: 'success', error: null })
       }
-    })()
-
-    pool.push(task)
-
-    // Wait when pool reaches concurrency limit
-    if (pool.length >= concurrency) {
-      await Promise.race(pool)
-      // Remove settled promises
-      for (let i = pool.length - 1; i >= 0; i--) {
-        const settled = await Promise.race([pool[i].then(() => true), Promise.resolve(false)])
-        if (settled) pool.splice(i, 1)
+    } catch (err) {
+      completed++
+      results.push({ eqpId, success: false, error: err.message })
+      if (onProgress) {
+        onProgress({ completed, total, current: eqpId, status: 'error', error: err.message })
       }
     }
-  }
-
-  // Wait for remaining tasks
-  await Promise.all(pool)
+  }, concurrency)
 
   return results
 }
@@ -280,48 +248,34 @@ async function deployConfigSelective(sourceConfig, selectedKeys, targetEqpIds, r
   const total = targetEqpIds.length
   let completed = 0
   const results = []
-  const pool = []
 
-  for (const eqpId of targetEqpIds) {
-    const task = (async () => {
-      try {
-        // Read target's current config
-        const currentContent = await readConfigFile(eqpId, remotePath)
-        const currentConfig = JSON.parse(currentContent)
+  await runConcurrently(targetEqpIds, async (eqpId) => {
+    try {
+      // Read target's current config
+      const currentContent = await readConfigFile(eqpId, remotePath)
+      const currentConfig = JSON.parse(currentContent)
 
-        // Merge selected keys from source into target
-        const merged = mergeSelectedKeys(currentConfig, sourceConfig, selectedKeys)
-        const newContent = JSON.stringify(merged, null, 2)
+      // Merge selected keys from source into target
+      const merged = mergeSelectedKeys(currentConfig, sourceConfig, selectedKeys)
+      const newContent = JSON.stringify(merged, null, 2)
 
-        // Write merged config
-        await writeConfigFile(eqpId, remotePath, newContent)
+      // Write merged config
+      await writeConfigFile(eqpId, remotePath, newContent)
 
-        completed++
-        results.push({ eqpId, success: true })
-        if (onProgress) {
-          onProgress({ completed, total, current: eqpId, status: 'success', error: null })
-        }
-      } catch (err) {
-        completed++
-        results.push({ eqpId, success: false, error: err.message })
-        if (onProgress) {
-          onProgress({ completed, total, current: eqpId, status: 'error', error: err.message })
-        }
+      completed++
+      results.push({ eqpId, success: true })
+      if (onProgress) {
+        onProgress({ completed, total, current: eqpId, status: 'success', error: null })
       }
-    })()
-
-    pool.push(task)
-
-    if (pool.length >= concurrency) {
-      await Promise.race(pool)
-      for (let i = pool.length - 1; i >= 0; i--) {
-        const settled = await Promise.race([pool[i].then(() => true), Promise.resolve(false)])
-        if (settled) pool.splice(i, 1)
+    } catch (err) {
+      completed++
+      results.push({ eqpId, success: false, error: err.message })
+      if (onProgress) {
+        onProgress({ completed, total, current: eqpId, status: 'error', error: err.message })
       }
     }
-  }
+  }, concurrency)
 
-  await Promise.all(pool)
   return results
 }
 
@@ -520,16 +474,9 @@ async function readLogFile(eqpId, filePath, maxSize) {
       throw new Error(`File too large: ${fileSize} bytes (max ${maxFileSize} bytes)`)
     }
 
-    const chunks = []
-    const writable = new Writable({
-      write(chunk, encoding, callback) {
-        chunks.push(chunk)
-        callback()
-      }
-    })
-
-    await ftpClient.downloadTo(writable, filePath)
-    return Buffer.concat(chunks).toString('utf-8')
+    const collector = createBufferCollector()
+    await ftpClient.downloadTo(collector.writable, filePath)
+    return collector.toString()
   } finally {
     ftpClient.close()
   }
@@ -560,7 +507,6 @@ async function deleteLogFile(eqpId, filePath) {
 async function uploadStreamToFile(eqpId, readableStream, remotePath) {
   const { client: ftpClient } = await connectFtp(eqpId)
   try {
-    const path = require('path')
     const dir = path.posix.dirname(remotePath)
     if (dir && dir !== '/' && dir !== '.') {
       await ftpClient.ensureDir(dir)

@@ -146,6 +146,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { clientConfigApi } from '../api'
+import { fetchSSEStream } from '@/shared/utils/sseStreamParser'
 import JsonTreeSelector from './JsonTreeSelector.vue'
 import ConfigDeployProgress from './ConfigDeployProgress.vue'
 
@@ -240,61 +241,32 @@ async function executeDeploy() {
   const fileId = props.activeFile.fileId
 
   try {
-    const API_URL = import.meta.env.VITE_API_URL || '/api'
-    const token = localStorage.getItem('token')
-
-    const body = {
-      sourceEqpId,
-      fileId,
-      targetEqpIds,
-      mode: deployMode.value,
-      selectedKeys: deployMode.value === 'selective' ? Array.from(selectedKeys.value) : undefined,
-      agentGroup: props.agentGroup
-    }
-
-    const response = await fetch(`${API_URL}/clients/config/deploy`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    await fetchSSEStream(
+      '/clients/config/deploy',
+      {
+        sourceEqpId,
+        fileId,
+        targetEqpIds,
+        mode: deployMode.value,
+        selectedKeys: deployMode.value === 'selective' ? Array.from(selectedKeys.value) : undefined,
+        agentGroup: props.agentGroup
       },
-      body: JSON.stringify(body)
-    })
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-
-      // Parse SSE events
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.slice(6))
-            if (data.done) {
-              deployResult.value = data
-            } else {
-              deployProgress.value = {
-                completed: data.completed,
-                total: data.total
-              }
-              clientResults.value = [
-                ...clientResults.value,
-                { eqpId: data.current, status: data.status, error: data.error }
-              ]
-            }
-          } catch { /* ignore parse errors */ }
+      {
+        onMessage: (data) => {
+          deployProgress.value = {
+            completed: data.completed,
+            total: data.total
+          }
+          clientResults.value = [
+            ...clientResults.value,
+            { eqpId: data.current, status: data.status, error: data.error }
+          ]
+        },
+        onDone: (data) => {
+          deployResult.value = data
         }
       }
-    }
+    )
   } catch (err) {
     deployResult.value = { error: err.message, done: true, success: 0, failed: targetEqpIds.length }
   } finally {

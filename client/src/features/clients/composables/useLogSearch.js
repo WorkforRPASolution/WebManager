@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { parseCompositeKey } from '@/shared/utils/compositeKey'
 
 export function useLogSearch() {
   const searchQuery = ref('')
@@ -32,9 +33,7 @@ export function useLogSearch() {
       for (const [compositeKey, content] of Object.entries(globalContents || {})) {
         if (!content) continue
 
-        const idx = compositeKey.indexOf(':')
-        const eqpId = compositeKey.substring(0, idx)
-        const filePath = compositeKey.substring(idx + 1)
+        const { eqpId, filePath } = parseCompositeKey(compositeKey)
 
         const client = (selectedClients || []).find(c => (c.eqpId || c.id) === eqpId)
         const tab = (globalOpenTabs || []).find(t => t.eqpId === eqpId && t.filePath === filePath)
@@ -85,7 +84,6 @@ export function useLogSearch() {
     searchResults,
     searching,
     searchError,
-    searchAll,
-    clearSearch
+    searchAll
   }
 }
