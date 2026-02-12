@@ -2,7 +2,7 @@
   <Teleport to="body">
     <div
       v-if="modelValue"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4"
+      class="fixed inset-0 z-50"
     >
       <!-- Backdrop -->
       <div
@@ -13,46 +13,34 @@
       <!-- Modal -->
       <div
         ref="modalRef"
-        class="relative bg-white dark:bg-dark-card rounded-lg shadow-xl flex flex-col overflow-hidden"
+        class="fixed bg-white dark:bg-dark-card rounded-lg shadow-xl flex flex-col overflow-hidden"
         :style="modalStyle"
       >
         <!-- Header -->
-        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg shrink-0 select-none" :class="{ 'cursor-move': !isMaximized }" @mousedown="startDrag" @dblclick="toggleMaximize">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
             HTML Editor
           </h3>
           <div class="flex items-center gap-2">
-            <!-- Resize buttons -->
+            <!-- Maximize/Restore toggle -->
             <button
-              @click="setSize('small')"
-              :class="['p-1.5 rounded transition', currentSize === 'small' ? 'bg-primary-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600']"
-              title="Small"
+              @click="toggleMaximize"
+              @mousedown.stop
+              class="p-1.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+              :title="isMaximized ? 'Restore' : 'Maximize'"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <rect x="6" y="6" width="12" height="12" rx="1" stroke-width="2" />
+              <svg v-if="!isMaximized" class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="2" y="2" width="12" height="12" rx="1" />
               </svg>
-            </button>
-            <button
-              @click="setSize('medium')"
-              :class="['p-1.5 rounded transition', currentSize === 'medium' ? 'bg-primary-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600']"
-              title="Medium"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <rect x="4" y="4" width="16" height="16" rx="1" stroke-width="2" />
-              </svg>
-            </button>
-            <button
-              @click="setSize('large')"
-              :class="['p-1.5 rounded transition', currentSize === 'large' ? 'bg-primary-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600']"
-              title="Large"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <rect x="2" y="2" width="20" height="20" rx="1" stroke-width="2" />
+              <svg v-else class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="4" y="1" width="11" height="11" rx="1" />
+                <rect x="1" y="4" width="11" height="11" rx="1" />
               </svg>
             </button>
             <div class="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1"></div>
             <button
               @click="handleCancel"
+              @mousedown.stop
               class="p-1.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
               title="Close"
             >
@@ -192,7 +180,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import MonacoEditor from '../../../shared/components/MonacoEditor.vue'
 import ImageInsertModal from '../../../shared/components/ImageInsertModal.vue'
 import { useTheme } from '../../../shared/composables/useTheme'
@@ -238,12 +226,10 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'save'])
 
 const modalRef = ref(null)
-const resizeHandle = ref(null)
 
 const activeTab = ref('visual')
 const htmlContent = ref('')  // Storage format (with @HttpWebServerAddress)
 const visualContent = ref('')  // Display format (with actual API URL)
-const currentSize = ref('medium')
 
 // TinyMCE state
 const tinymceReady = ref(false)
@@ -272,27 +258,67 @@ const toStorageUrl = (html) => {
   )
 }
 
-// Modal sizes
-const sizes = {
-  small: { width: 600, height: 500 },
-  medium: { width: 900, height: 600 },
-  large: { width: 1200, height: 800 }
-}
-
-// Custom dimensions (when resized manually)
+// Modal sizing
+const isMaximized = ref(false)
+const modalPos = reactive({ x: null, y: null })
 const customWidth = ref(null)
 const customHeight = ref(null)
 
+const DEFAULT_WIDTH = 900
+const DEFAULT_HEIGHT = 600
+
 const modalStyle = computed(() => {
-  const width = customWidth.value || sizes[currentSize.value].width
-  const height = customHeight.value || sizes[currentSize.value].height
+  if (isMaximized.value) {
+    return {
+      left: '2.5vw',
+      top: '2.5vh',
+      width: '95vw',
+      height: '95vh'
+    }
+  }
+
+  const w = customWidth.value || DEFAULT_WIDTH
+  const h = customHeight.value || DEFAULT_HEIGHT
+
   return {
-    width: `${width}px`,
-    height: `${height}px`,
+    left: modalPos.x !== null ? `${modalPos.x}px` : `calc(50vw - ${w / 2}px)`,
+    top: modalPos.y !== null ? `${modalPos.y}px` : `calc(50vh - ${h / 2}px)`,
+    width: `${w}px`,
+    height: `${h}px`,
     maxWidth: '95vw',
     maxHeight: '95vh'
   }
 })
+
+const toggleMaximize = () => {
+  isMaximized.value = !isMaximized.value
+}
+
+// Drag functionality
+let isDragging = false
+let dragStartX = 0
+let dragStartY = 0
+let dragStartPosX = 0
+let dragStartPosY = 0
+
+const startDrag = (e) => {
+  if (isMaximized.value) return
+  isDragging = true
+  dragStartX = e.clientX
+  dragStartY = e.clientY
+  const rect = modalRef.value.getBoundingClientRect()
+  dragStartPosX = rect.left
+  dragStartPosY = rect.top
+  e.preventDefault()
+}
+
+const doDrag = (e) => {
+  if (!isDragging) return
+  modalPos.x = Math.max(0, Math.min(window.innerWidth - 100, dragStartPosX + (e.clientX - dragStartX)))
+  modalPos.y = Math.max(0, Math.min(window.innerHeight - 50, dragStartPosY + (e.clientY - dragStartY)))
+}
+
+const stopDrag = () => { isDragging = false }
 
 // TinyMCE configuration
 const tinymceInit = computed(() => ({
@@ -342,12 +368,6 @@ const onTinymceInit = (event) => {
   tinymceEditor.value = event.target
 }
 
-const setSize = (size) => {
-  currentSize.value = size
-  customWidth.value = null
-  customHeight.value = null
-}
-
 // Tab switching with content sync
 const switchTab = (tab) => {
   if (tab === activeTab.value) return
@@ -379,22 +399,19 @@ const startResize = (e) => {
   const rect = modalRef.value.getBoundingClientRect()
   startWidth = rect.width
   startHeight = rect.height
+  // Anchor top-left so resize doesn't shift position
+  modalPos.x = rect.left
+  modalPos.y = rect.top
   e.preventDefault()
 }
 
 const doResize = (e) => {
   if (!isResizing) return
-
-  const deltaX = e.clientX - startX
-  const deltaY = e.clientY - startY
-
-  customWidth.value = Math.max(400, Math.min(window.innerWidth * 0.95, startWidth + deltaX))
-  customHeight.value = Math.max(300, Math.min(window.innerHeight * 0.95, startHeight + deltaY))
+  customWidth.value = Math.max(400, Math.min(window.innerWidth * 0.95, startWidth + (e.clientX - startX)))
+  customHeight.value = Math.max(300, Math.min(window.innerHeight * 0.95, startHeight + (e.clientY - startY)))
 }
 
-const stopResize = () => {
-  isResizing = false
-}
+const stopResize = () => { isResizing = false }
 
 // Initialize content when modal opens
 watch(() => props.modelValue, async (newVal) => {
@@ -422,6 +439,8 @@ watch(isDark, () => {
 })
 
 const handleCancel = () => {
+  modalPos.x = null
+  modalPos.y = null
   emit('update:modelValue', false)
 }
 
@@ -449,22 +468,34 @@ const handleImageInsert = (imageData) => {
   }
 }
 
-// Handle Escape key
+// Combined mouse handlers
+const onMouseMove = (e) => {
+  doDrag(e)
+  doResize(e)
+}
+
+const onMouseUp = () => {
+  stopDrag()
+  stopResize()
+}
+
+// Keyboard shortcut
 const handleKeyDown = (e) => {
-  if (e.key === 'Escape' && props.modelValue) {
+  if (!props.modelValue) return
+  if (e.key === 'Escape') {
     handleCancel()
   }
 }
 
 onMounted(() => {
-  document.addEventListener('mousemove', doResize)
-  document.addEventListener('mouseup', stopResize)
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
   document.addEventListener('keydown', handleKeyDown)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('mousemove', doResize)
-  document.removeEventListener('mouseup', stopResize)
+  document.removeEventListener('mousemove', onMouseMove)
+  document.removeEventListener('mouseup', onMouseUp)
   document.removeEventListener('keydown', handleKeyDown)
 })
 </script>
