@@ -23,7 +23,7 @@ const route = useRoute()
 const agentGroup = computed(() => route.meta.agentGroup)
 
 // Feature permission
-const { canWrite, canDelete, isAdmin } = useFeaturePermission('clientControl')
+const { canRead, canWrite, canDelete, isAdmin } = useFeaturePermission('clientControl')
 const showPermissionDialog = ref(false)
 
 // Config Manager
@@ -349,6 +349,7 @@ const handleUpdateSettings = () => {
     <!-- Toolbar -->
     <ClientToolbar
       v-if="hasSearched"
+      :can-read="canRead"
       :can-write="canWrite"
       :can-delete="canDelete"
       :is-admin="isAdmin"
@@ -429,6 +430,7 @@ const handleUpdateSettings = () => {
 
     <!-- Config Manager Modal -->
     <ConfigManagerModal
+      :can-read="canRead"
       :can-write="canWrite"
       :is-open="configManager.isOpen.value"
       :source-client="configManager.sourceClient.value"

@@ -136,6 +136,7 @@
 
       <!-- Log Button -->
       <button
+        v-if="canRead"
         @click="$emit('log')"
         :disabled="selectedCount === 0 || operating"
         class="flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -236,6 +237,10 @@
 
 <script setup>
 defineProps({
+  canRead: {
+    type: Boolean,
+    default: false
+  },
   canWrite: {
     type: Boolean,
     default: false
