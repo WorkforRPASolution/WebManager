@@ -489,3 +489,57 @@ while (true) {
   // SSE 파싱 (data: {...}\n\n)
 }
 ```
+
+---
+
+## DataGrid 개발 주의사항
+
+### 변수 선언 순서 (Temporal Dead Zone)
+
+`useDataGridCellSelection` 등 composable에 콜백/옵션을 전달할 때, **참조하는 변수가 반드시 composable 호출 전에 선언**되어야 합니다.
+
+`<script setup>`에서 `const`로 선언한 변수는 JavaScript의 Temporal Dead Zone(TDZ) 규칙에 의해, 선언 줄 이전에 참조하면 `ReferenceError`가 발생합니다. Vue는 이 에러를 **콘솔 warning으로만 표시**하고 해당 컴포넌트를 **렌더링하지 않으므로**, 화면에 아무것도 나타나지 않아 원인을 찾기 어렵습니다.
+
+```javascript
+// ❌ 잘못된 사용 (TDZ 에러: transformArrayValue가 아래에서 선언됨)
+const { ... } = useDataGridCellSelection({
+  valueTransformer: transformArrayValue,  // ReferenceError!
+})
+
+// ... 200줄 뒤 ...
+const transformArrayValue = (field, value) => { ... }
+
+// ✅ 올바른 사용 (선언 후 참조)
+const transformArrayValue = (field, value) => { ... }
+
+const { ... } = useDataGridCellSelection({
+  valueTransformer: transformArrayValue,  // OK
+})
+
+// ✅ 인라인 화살표 함수도 안전 (별도 변수 참조 없음)
+const { ... } = useDataGridCellSelection({
+  valueTransformer: (field, value) => { ... },
+})
+```
+
+> **증상**: 데이터 fetch 성공 (Total: N rows 표시), 그러나 그리드 영역이 완전히 비어있음
+> **원인**: 컴포넌트 setup 함수에서 TDZ 에러 → Vue가 컴포넌트를 렌더링하지 않음
+> **디버그**: 브라우저 콘솔에서 `Unhandled error during execution of setup function` 확인
+
+### DataGrid 컴포넌트 구조 권장 순서
+
+```
+1. imports
+2. ModuleRegistry, theme 설정
+3. props, emits
+4. ref/reactive 선언 (gridApi, gridContainer 등)
+5. useCustomScrollbar
+6. 유틸리티 함수 (valueTransformer 등) ← composable에 전달할 함수는 여기서 선언
+7. useDataGridCellSelection ← 위의 함수를 참조
+8. useColumnWidthExporter
+9. onMounted, setupRowDataWatcher, setupSelectionWatcher
+10. columnDefs, defaultColDef
+11. 이벤트 핸들러
+12. watchers
+13. defineExpose
+```

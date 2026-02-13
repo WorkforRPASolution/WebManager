@@ -67,6 +67,7 @@ export function useEmailInfoData() {
 
       validationErrors.value = {}
     } catch (err) {
+      console.error('[EmailInfo] fetchData error:', err.message, err.response?.status, err.response?.data)
       error.value = err.response?.data?.error || 'Failed to fetch data'
       throw err
     } finally {

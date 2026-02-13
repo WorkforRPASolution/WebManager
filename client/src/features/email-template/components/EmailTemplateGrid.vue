@@ -173,14 +173,14 @@ const rowSelection = ref({
 const columnDefs = ref([
   { field: 'app', headerName: 'App', width: 80, editable: true },
   { field: 'process', headerName: 'Process', width: 120, editable: true },
-  { field: 'model', headerName: 'Model', width: 120, editable: true },
-  { field: 'code', headerName: 'Code', width: 120, editable: true },
-  { field: 'subcode', headerName: 'Subcode', width: 120, editable: true },
-  { field: 'title', headerName: 'Title', width: 200, editable: true },
+  { field: 'model', headerName: 'Model', width: 180, editable: true },
+  { field: 'code', headerName: 'Code', width: 180, editable: true },
+  { field: 'subcode', headerName: 'Subcode', width: 80, editable: true },
+  { field: 'title', headerName: 'Title', width: 250, editable: true },
   {
     field: 'html',
     headerName: 'HTML',
-    width: 300,
+    width: 500,
     editable: false,
     cellRenderer: (params) => {
       const value = params.value || ''

@@ -233,7 +233,7 @@ const rowSelection = ref({
 
 const columnDefs = computed(() => [
   { field: 'app', headerName: 'App', width: 80, editable: true },
-  { field: 'line', headerName: 'Line', width: 100, editable: true },
+  { field: 'line', headerName: 'Line', width: 85, editable: true },
   {
     field: 'process',
     headerName: 'Process',
@@ -248,7 +248,7 @@ const columnDefs = computed(() => [
   {
     field: 'model',
     headerName: 'Model',
-    width: 120,
+    width: 180,
     editable: true,
     cellEditor: AgGridProcessModelEditor,
     cellEditorParams: (params) => ({
@@ -259,11 +259,11 @@ const columnDefs = computed(() => [
     }),
     cellEditorPopup: true
   },
-  { field: 'code', headerName: 'Code', width: 100, editable: true },
+  { field: 'code', headerName: 'Code', width: 180, editable: true },
   {
     field: 'emailCategory',
     headerName: 'Email Category',
-    width: 250,
+    width: 300,
     editable: true,
     cellEditor: AgGridEmailCategoryEditor,
     cellEditorParams: {

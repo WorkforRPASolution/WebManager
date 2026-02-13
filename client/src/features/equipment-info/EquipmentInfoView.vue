@@ -567,13 +567,18 @@ const handleEmailCategoryConfirm = async () => {
       departments: []
     }))
 
-    await emailInfoApi.create(items)
-    showToast('success', `${items.length}개 Email Info 등록 완료`)
+    const result = await emailInfoApi.create(items)
+    if (result.data.created > 0) {
+      showToast('success', `${result.data.created}개 Email Info 등록 완료`)
+    } else {
+      showToast('error', 'Email Info 등록 실패: ' + (result.data.errors?.[0]?.message || 'Unknown error'))
+      return
+    }
 
     // Proceed with equipment info save
     await performSave()
   } catch (err) {
-    showToast('error', 'Email Info 등록 실패')
+    showToast('error', 'Email Info 등록 실패: ' + (err.response?.data?.errors?.[0]?.message || err.message))
   }
 }
 

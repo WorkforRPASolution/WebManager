@@ -135,6 +135,14 @@ const lastSelectedRowIndex = ref(null)
 // Editable columns (in order)
 const editableColumns = ['project', 'category', 'account', 'departments']
 
+// Array fields transformer for paste/cell-selection
+const transformArrayValue = (field, value) => {
+  if (['account', 'departments'].includes(field)) {
+    return stringToArray(value)
+  }
+  return value
+}
+
 // Cell range selection composable
 const {
   cellSelectionStart,
@@ -225,11 +233,11 @@ const fetchModelsForCategory = async (process) => {
 }
 
 const columnDefs = computed(() => [
-  { field: 'project', headerName: 'Project', width: 100, editable: true },
+  { field: 'project', headerName: 'Project', width: 80, editable: true },
   {
     field: 'category',
     headerName: 'Category',
-    width: 250,
+    width: 300,
     editable: true,
     cellEditor: AgGridCategoryEditor,
     cellEditorParams: {
@@ -242,7 +250,7 @@ const columnDefs = computed(() => [
   {
     field: 'account',
     headerName: 'Account (Emails)',
-    width: 300,
+    width: 800,
     editable: true,
     valueFormatter: arrayValueFormatter,
     valueGetter: arrayValueGetter,
@@ -256,7 +264,7 @@ const columnDefs = computed(() => [
   {
     field: 'departments',
     headerName: 'Departments',
-    width: 200,
+    width: 120,
     editable: true,
     valueFormatter: arrayValueFormatter,
     valueGetter: arrayValueGetter,
@@ -414,14 +422,6 @@ const onCellClicked = (params) => {
 
 // Column order for paste
 const pasteColumnOrder = ['project', 'category', 'account', 'departments']
-
-// Array fields transformer for paste
-const transformArrayValue = (field, value) => {
-  if (['account', 'departments'].includes(field)) {
-    return stringToArray(value)
-  }
-  return value
-}
 
 // Copy handler
 const handleCopy = (event) => {

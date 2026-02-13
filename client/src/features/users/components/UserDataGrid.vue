@@ -205,20 +205,13 @@ const rowSelection = ref({
 })
 
 const columnDefs = ref([
-  { field: 'name', headerName: 'Name', width: 150, editable: true },
-  { field: 'singleid', headerName: 'User ID', width: 120, editable: true },
-  {
-    field: 'password',
-    headerName: 'Password',
-    width: 120,
-    editable: true,
-    valueFormatter: (params) => params.value ? '********' : '',
-  },
-  { field: 'line', headerName: 'Line', width: 100, editable: true },
+  { field: 'name', headerName: 'Name', width: 100, editable: true },
+  { field: 'singleid', headerName: 'User ID', width: 150, editable: true },
+  { field: 'line', headerName: 'Line', width: 85, editable: true },
   {
     field: 'processes',
     headerName: 'Process',
-    width: 180,
+    width: 200,
     editable: true,
     // Display as tags
     cellRenderer: (params) => {
@@ -293,8 +286,15 @@ const columnDefs = ref([
     },
   },
   {
-    field: 'passwordStatus',
+    field: 'password',
     headerName: 'Password',
+    width: 120,
+    editable: true,
+    valueFormatter: (params) => params.value ? '********' : '',
+  },
+  {
+    field: 'passwordStatus',
+    headerName: 'Password Status',
     width: 120,
     editable: false,
     cellRenderer: (params) => {
@@ -311,7 +311,7 @@ const columnDefs = ref([
   {
     field: 'actions',
     headerName: 'Actions',
-    width: 150,
+    width: 120,
     editable: false,
     sortable: false,
     filter: false,

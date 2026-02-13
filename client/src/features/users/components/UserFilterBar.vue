@@ -161,7 +161,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onActivated, onUnmounted, watch } from 'vue'
 import { usersApi } from '../api'
 import { useProcessFilterStore } from '../../../shared/stores/processFilter'
 import { useAuthStore } from '../../../shared/stores/auth'
@@ -315,6 +315,11 @@ const refreshFilters = async () => {
 }
 
 onMounted(async () => {
+  await refreshFilters()
+})
+
+// keep-alive 재활성화 시 필터 옵션 갱신
+onActivated(async () => {
   await refreshFilters()
 })
 

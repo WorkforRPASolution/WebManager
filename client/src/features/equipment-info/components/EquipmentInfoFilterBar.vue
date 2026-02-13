@@ -58,7 +58,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onActivated } from 'vue'
 import { equipmentInfoApi } from '../api'
 import MultiSelect from '../../../shared/components/MultiSelect.vue'
 import BaseFilterBar from '../../../shared/components/BaseFilterBar.vue'
@@ -178,6 +178,11 @@ const refreshFilters = async () => {
 }
 
 onMounted(async () => {
+  await refreshFilters()
+})
+
+// keep-alive 재활성화 시 필터 옵션 갱신
+onActivated(async () => {
   await refreshFilters()
 })
 
