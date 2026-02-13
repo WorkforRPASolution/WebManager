@@ -115,6 +115,7 @@ const formatPermissionName = (key) => {
     popupTemplate: 'Popup Template',
     emailRecipients: 'Email Recipients',
     emailInfo: 'Email Info',
+    emailImage: 'Email Image',
     alerts: 'Alerts',
     settings: 'Settings',
     users: 'Users'
@@ -129,7 +130,7 @@ const permissionGroups = [
   },
   {
     label: '기준정보 관리',
-    keys: ['equipmentInfo', 'emailTemplate', 'popupTemplate', 'emailRecipients', 'emailInfo']
+    keys: ['equipmentInfo', 'emailTemplate', 'popupTemplate', 'emailRecipients', 'emailInfo', 'emailImage']
   },
   {
     label: 'System',

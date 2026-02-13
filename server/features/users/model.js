@@ -151,6 +151,7 @@ const rolePermissionSchema = new Schema({
     popupTemplate: { type: Boolean, default: false },
     emailRecipients: { type: Boolean, default: false },
     emailInfo: { type: Boolean, default: false },
+    emailImage: { type: Boolean, default: false },
     alerts: { type: Boolean, default: true },
     settings: { type: Boolean, default: false },
     users: { type: Boolean, default: false }
@@ -177,6 +178,7 @@ const DEFAULT_ROLE_PERMISSIONS = [
       popupTemplate: false,
       emailRecipients: false,
       emailInfo: false,
+      emailImage: false,
       alerts: false,
       settings: false,
       users: false
@@ -195,6 +197,7 @@ const DEFAULT_ROLE_PERMISSIONS = [
       popupTemplate: true,
       emailRecipients: true,
       emailInfo: true,
+      emailImage: true,
       alerts: true,
       settings: true,
       users: true
@@ -213,6 +216,7 @@ const DEFAULT_ROLE_PERMISSIONS = [
       popupTemplate: false,
       emailRecipients: false,
       emailInfo: false,
+      emailImage: false,
       alerts: false,
       settings: false,
       users: false
@@ -231,6 +235,7 @@ const DEFAULT_ROLE_PERMISSIONS = [
       popupTemplate: false,
       emailRecipients: false,
       emailInfo: false,
+      emailImage: false,
       alerts: false,
       settings: false,
       users: false
