@@ -33,7 +33,8 @@
                 :class="isDragging
                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                   : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'"
-                @dragover.prevent="isDragging = true"
+                @dragenter.prevent="isDragging = true"
+                @dragover.prevent
                 @dragleave.prevent="isDragging = false"
                 @drop.prevent="handleDrop"
                 @click="openFileDialog"
@@ -286,6 +287,11 @@ const handleDrop = async (event) => {
 }
 
 const upload = async (file) => {
+  const maxSize = 5 * 1024 * 1024 // 5MB (matches backend validation)
+  if (file.size > maxSize) {
+    uploadError.value = `파일 크기가 5MB를 초과합니다. (${(file.size / 1024 / 1024).toFixed(1)}MB)`
+    return
+  }
   try {
     // templateContext에서 개별 필드 추출하여 context 객체로 전달
     const context = props.templateContext || {}

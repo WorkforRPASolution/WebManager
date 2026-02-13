@@ -70,7 +70,8 @@
           <!-- Dropzone -->
           <div
             ref="dropzoneRef"
-            @dragover.prevent="isDragging = true"
+            @dragenter.prevent="isDragging = true"
+            @dragover.prevent
             @dragleave.prevent="isDragging = false"
             @drop.prevent="handleDrop"
             @click="openFileDialog"
