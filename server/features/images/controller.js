@@ -1,5 +1,5 @@
 const service = require('./service');
-const { validateFile } = require('./validation');
+const { validateFile, getConfig } = require('./validation');
 
 // 파일명 UTF-8 디코딩 (multer는 Latin1로 전달)
 function decodeFilename(filename) {
@@ -362,6 +362,11 @@ async function updateMultipleImages(req, res) {
   }
 }
 
+// 이미지 설정 조회 (파일 크기 제한, 허용 포맷 등)
+function getImageConfig(req, res) {
+  res.json(getConfig());
+}
+
 module.exports = {
   uploadImage,
   getImage,
@@ -369,6 +374,7 @@ module.exports = {
   deleteImage,
   deleteImageById,
   listImages,
+  getImageConfig,
   // New functions for Email Image page
   getProcesses,
   getModels,

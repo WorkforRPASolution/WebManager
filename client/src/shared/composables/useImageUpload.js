@@ -1,19 +1,36 @@
-import { ref } from 'vue'
+import { ref, reactive } from 'vue'
 import { imagesApi } from '@/shared/api'
+
+// 모듈 레벨 싱글톤 캐시 (모든 컴포넌트에서 공유)
+const DEFAULT_CONFIG = { maxFileSizeMB: 5, maxFileSize: 5 * 1024 * 1024, allowedExtensions: ['JPG', 'PNG', 'GIF', 'WebP'] }
+const imageConfig = reactive({ ...DEFAULT_CONFIG })
+let configLoaded = false
+let configPromise = null
+
+async function loadImageConfig() {
+  if (configLoaded) return
+  if (configPromise) return configPromise
+  configPromise = imagesApi.getConfig()
+    .then(res => {
+      Object.assign(imageConfig, res.data)
+      configLoaded = true
+    })
+    .catch(() => { /* 실패 시 기본값 유지 */ })
+    .finally(() => { configPromise = null })
+  return configPromise
+}
+
+// 모듈 레벨 export (composable 없이 직접 사용 가능)
+export { imageConfig, loadImageConfig }
 
 export function useImageUpload() {
   const isUploading = ref(false)
-  // uploadProgress: 현재는 0 또는 100만 설정 (실제 진행률 미구현)
-  // TODO: axios onUploadProgress 콜백으로 실제 진행률 구현 가능
   const uploadProgress = ref(0)
   const uploadError = ref(null)
 
-  /**
-   * Upload image with optional context for filtering
-   * @param {File} file - Image file to upload
-   * @param {string} prefix - Image prefix for URL
-   * @param {Object} context - Filter context { process, model, code, subcode }
-   */
+  // config 로드 (이미 로드됐으면 즉시 반환)
+  loadImageConfig()
+
   const uploadImage = async (file, prefix, context = {}) => {
     isUploading.value = true
     uploadProgress.value = 0
@@ -55,6 +72,7 @@ export function useImageUpload() {
     isUploading,
     uploadProgress,
     uploadError,
+    imageConfig,
     uploadImage,
     fetchImages,
     deleteImage

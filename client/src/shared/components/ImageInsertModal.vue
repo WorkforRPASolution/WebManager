@@ -58,7 +58,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                   <span class="text-sm text-gray-600 dark:text-gray-400">이미지를 드래그하거나 클릭하여 선택</span>
-                  <span class="text-xs text-gray-500 dark:text-gray-500 mt-1">(최대 5MB, JPG/PNG/GIF/WebP)</span>
+                  <span class="text-xs text-gray-500 dark:text-gray-500 mt-1">(최대 {{ imageConfig.maxFileSizeMB }}MB, {{ imageConfig.allowedExtensions.join('/') }})</span>
                 </div>
               </div>
               <p v-if="uploadError" class="mt-2 text-sm text-red-500">{{ uploadError }}</p>
@@ -227,7 +227,7 @@ const prefix = computed(() => {
   return parts.join('_')
 })
 
-const { isUploading, uploadError, uploadImage, fetchImages, deleteImage } = useImageUpload()
+const { isUploading, uploadError, imageConfig, uploadImage, fetchImages, deleteImage } = useImageUpload()
 
 const fileInput = ref(null)
 const isDragging = ref(false)
@@ -287,9 +287,8 @@ const handleDrop = async (event) => {
 }
 
 const upload = async (file) => {
-  const maxSize = 5 * 1024 * 1024 // 5MB (matches backend validation)
-  if (file.size > maxSize) {
-    uploadError.value = `파일 크기가 5MB를 초과합니다. (${(file.size / 1024 / 1024).toFixed(1)}MB)`
+  if (file.size > imageConfig.maxFileSize) {
+    uploadError.value = `파일 크기가 ${imageConfig.maxFileSizeMB}MB를 초과합니다. (${(file.size / 1024 / 1024).toFixed(1)}MB)`
     return
   }
   try {

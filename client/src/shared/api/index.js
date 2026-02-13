@@ -101,6 +101,7 @@ export const permissionsApi = {
 
 // Images API
 export const imagesApi = {
+  getConfig: () => api.get('/images/config'),
   /**
    * Upload image with optional context for filtering
    * @param {File} file - Image file to upload

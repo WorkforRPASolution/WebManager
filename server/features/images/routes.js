@@ -4,6 +4,11 @@ const controller = require('./controller');
 const { upload } = require('./validation');
 const { authenticate } = require('../../shared/middleware/authMiddleware');
 
+// === Image Config API ===
+
+// 이미지 설정 조회 (GET /api/images/config) - 인증 없이 접근 가능
+router.get('/config', controller.getImageConfig);
+
 // === Email Image Page API (must be before parameterized routes) ===
 
 // Process 목록 조회 (GET /api/images/processes)
