@@ -118,7 +118,7 @@ const formatPermissionName = (key) => {
     emailImage: 'Email Image',
     alerts: 'Alerts',
     settings: 'Settings',
-    users: 'Users'
+    users: 'User Management'
   }
   return names[key] || key
 }
@@ -130,11 +130,11 @@ const permissionGroups = [
   },
   {
     label: '기준정보 관리',
-    keys: ['equipmentInfo', 'emailTemplate', 'popupTemplate', 'emailRecipients', 'emailInfo', 'emailImage']
+    keys: ['equipmentInfo', 'emailTemplate', 'popupTemplate', 'emailRecipients', 'emailInfo', 'emailImage', 'users']
   },
   {
     label: 'System',
-    keys: ['dashboard', 'alerts', 'settings', 'users']
+    keys: ['dashboard', 'alerts', 'settings']
   }
 ]
 
