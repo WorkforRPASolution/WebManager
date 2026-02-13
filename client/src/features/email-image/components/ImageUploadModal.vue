@@ -95,7 +95,7 @@
             <p class="text-gray-600 dark:text-gray-400 mb-2">
               <span class="font-medium text-primary-500">Click to upload</span> or drag and drop
             </p>
-            <p class="text-sm text-gray-500 dark:text-gray-500">PNG, JPG, GIF up to 10MB</p>
+            <p class="text-sm text-gray-500 dark:text-gray-500">PNG, JPG, GIF, WebP up to 5MB</p>
           </div>
 
           <!-- Selected Files List -->
@@ -219,11 +219,11 @@ const handleDrop = (event) => {
 
 const addFiles = (files) => {
   const imageFiles = files.filter(f => f.type.startsWith('image/'))
-  const maxSize = 10 * 1024 * 1024 // 10MB
+  const maxSize = 5 * 1024 * 1024 // 5MB (matches backend validation)
 
   for (const file of imageFiles) {
     if (file.size > maxSize) {
-      console.warn(`File ${file.name} exceeds 10MB limit`)
+      console.warn(`File ${file.name} exceeds 5MB limit`)
       continue
     }
     // Avoid duplicates

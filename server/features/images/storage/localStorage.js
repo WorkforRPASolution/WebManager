@@ -38,8 +38,8 @@ async function initialize() {
   console.log('  + Local image storage initialized:', UPLOAD_DIR);
 }
 
-// 이미지 업로드
-async function uploadImage(file) {
+// 이미지 업로드 (prefix, context 지원)
+async function uploadImage(file, prefix, context = {}) {
   const id = uuidv4();
   const ext = path.extname(file.originalname).toLowerCase();
   const filename = `${id}${ext}`;
@@ -47,18 +47,29 @@ async function uploadImage(file) {
 
   await fs.writeFile(filepath, file.buffer);
 
-  // 메타데이터 저장 (원본 파일명 보존)
+  // 메타데이터 저장 (prefix + context 포함)
   const metadata = await readMetadata();
   metadata[id] = {
     originalName: file.originalname,
     mimetype: file.mimetype,
     size: file.size,
+    prefix: prefix || 'DEFAULT',
+    process: context.process || '',
+    model: context.model || '',
+    code: context.code || '',
+    subcode: context.subcode || '',
     createdAt: new Date().toISOString()
   };
   await writeMetadata(metadata);
 
   return {
     id,
+    name: id,
+    prefix: prefix || 'DEFAULT',
+    process: context.process || '',
+    model: context.model || '',
+    code: context.code || '',
+    subcode: context.subcode || '',
     filename: file.originalname,
     mimetype: file.mimetype,
     size: file.size,
@@ -121,8 +132,8 @@ async function deleteImage(id) {
   }
 }
 
-// 이미지 목록
-async function listImages() {
+// 이미지 목록 (prefix 필터링 지원)
+async function listImages(prefix) {
   try {
     const files = await fs.readdir(UPLOAD_DIR);
     const metadata = await readMetadata();
@@ -140,8 +151,17 @@ async function listImages() {
       // 메타데이터에서 원본 파일명 가져오기
       const meta = metadata[id] || {};
 
+      // prefix 필터링 (메타데이터에 prefix가 있는 경우만)
+      if (prefix && meta.prefix && meta.prefix !== prefix) continue;
+
       images.push({
         id,
+        name: id,
+        prefix: meta.prefix || 'DEFAULT',
+        process: meta.process || '',
+        model: meta.model || '',
+        code: meta.code || '',
+        subcode: meta.subcode || '',
         filename: meta.originalName || file,
         mimetype: meta.mimetype || MIME_TYPES[ext] || 'application/octet-stream',
         size: meta.size || stat.size,
@@ -157,4 +177,38 @@ async function listImages() {
   }
 }
 
-module.exports = { initialize, uploadImage, getImage, deleteImage, listImages };
+// 이미지 메타데이터 업데이트
+async function updateImageMetadata(id, updates) {
+  try {
+    const metadata = await readMetadata();
+    if (!metadata[id]) return null;
+
+    const meta = metadata[id];
+    const newProcess = updates.process !== undefined ? updates.process : (meta.process || '');
+    const newModel = updates.model !== undefined ? updates.model : (meta.model || '');
+    const newCode = updates.code !== undefined ? updates.code : (meta.code || '');
+    const newSubcode = updates.subcode !== undefined ? updates.subcode : (meta.subcode || '');
+
+    meta.process = newProcess;
+    meta.model = newModel;
+    meta.code = newCode;
+    meta.subcode = newSubcode;
+    meta.prefix = `ARS_${newProcess}_${newModel}_${newCode}_${newSubcode}`;
+
+    await writeMetadata(metadata);
+
+    return {
+      prefix: meta.prefix,
+      name: id,
+      process: newProcess,
+      model: newModel,
+      code: newCode,
+      subcode: newSubcode
+    };
+  } catch (error) {
+    console.error('updateImageMetadata error:', error);
+    return null;
+  }
+}
+
+module.exports = { initialize, uploadImage, getImage, deleteImage, listImages, updateImageMetadata };
