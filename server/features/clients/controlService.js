@@ -192,7 +192,14 @@ async function executeAction(eqpId, agentGroup, action) {
     }
   }
 
-  const rpcResult = await executeRaw(eqpId, commandLine, cmd.args, cmd.timeout)
+  let rpcResult
+  try {
+    rpcResult = await executeRaw(eqpId, commandLine, cmd.args, cmd.timeout)
+  } catch (err) {
+    console.error(`[DEBUG] ${eqpId} ${action} executeRaw THREW:`, err.message)
+    throw err
+  }
+  console.log(`[DEBUG] ${eqpId} ${action} rpcResult:`, JSON.stringify(rpcResult))
   const parsed = strategy.parseResponse(action, rpcResult)
 
   return {
