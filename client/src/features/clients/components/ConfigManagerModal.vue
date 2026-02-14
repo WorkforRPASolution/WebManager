@@ -97,9 +97,35 @@
 
           <!-- Action Buttons -->
           <div class="flex items-center gap-2 pl-4">
+            <!-- Form/JSON Toggle (only for recognized config files) -->
+            <div v-if="isFormSupported" class="flex items-center bg-gray-200 dark:bg-gray-700 rounded-md p-0.5 mr-1">
+              <button
+                @click="toggleViewMode()"
+                :class="[
+                  'px-2.5 py-1 text-xs font-medium rounded transition',
+                  isFormMode
+                    ? 'bg-white dark:bg-dark-card text-primary-600 dark:text-primary-400 shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                ]"
+              >
+                Form
+              </button>
+              <button
+                @click="isFormMode ? toggleViewMode() : null"
+                :class="[
+                  'px-2.5 py-1 text-xs font-medium rounded transition',
+                  !isFormMode
+                    ? 'bg-white dark:bg-dark-card text-primary-600 dark:text-primary-400 shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                ]"
+              >
+                JSON
+              </button>
+            </div>
+
             <button
               @click="toggleDiff()"
-              :disabled="!activeFile || !!activeFile.error"
+              :disabled="!activeFile || !!activeFile.error || isFormMode"
               :class="[
                 'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded transition',
                 showDiff
@@ -116,7 +142,7 @@
             </button>
 
             <button
-              v-if="canWrite"
+              v-if="canWrite && !isFormMode"
               @click="formatJson"
               :disabled="!activeFile || !!activeFile.error || !!jsonError"
               class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -259,6 +285,27 @@
               </div>
             </div>
 
+            <!-- Form View -->
+            <div v-else-if="isFormMode && activeFile && !activeFile.error" class="h-full flex flex-col">
+              <!-- Missing file banner -->
+              <div v-if="activeFile.missing" class="px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm flex items-center gap-2 shrink-0">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>File not found on server. Save to create a new file.</span>
+              </div>
+              <ConfigFormView
+                class="flex-1"
+                :content="activeContent"
+                :fileName="activeFile.name"
+                :filePath="activeFile.path"
+                :readOnly="!canWrite"
+                :allContents="editedContents"
+                :configFiles="configFiles"
+                @update:content="updateContent"
+              />
+            </div>
+
             <!-- Editor View -->
             <div v-else-if="activeFile && !activeFile.error" class="h-full flex flex-col">
               <!-- Missing file banner -->
@@ -327,7 +374,13 @@
           <div class="flex items-center gap-4">
             <span v-if="error" class="text-red-500">{{ error }}</span>
             <span>{{ sourceClient?.eqpModel }}</span>
-            <span v-if="jsonError" class="flex items-center gap-1 text-red-500" :title="jsonError.message">
+            <span v-if="isFormMode" class="flex items-center gap-1 text-primary-500">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Form View
+            </span>
+            <span v-else-if="jsonError" class="flex items-center gap-1 text-red-500" :title="jsonError.message">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -361,6 +414,8 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import MonacoEditor from '../../../shared/components/MonacoEditor.vue'
 import MonacoDiffEditor from '../../../shared/components/MonacoDiffEditor.vue'
 import ConfigRolloutPanel from './ConfigRolloutPanel.vue'
+import ConfigFormView from './config-form/ConfigFormView.vue'
+import { detectConfigFileType } from './config-form/configSchemas'
 import { useTheme } from '../../../shared/composables/useTheme'
 
 const { isDark } = useTheme()
@@ -377,6 +432,7 @@ const props = defineProps({
   saving: Boolean,
   showDiff: Boolean,
   showRollout: { type: Boolean, default: false },
+  viewMode: { type: String, default: 'json' },
   error: String,
   activeFile: Object,
   activeContent: String,
@@ -400,6 +456,7 @@ const emit = defineEmits([
   'discard',
   'toggle-diff',
   'toggle-rollout',
+  'toggle-view-mode',
   'switch-client'
 ])
 
@@ -470,6 +527,16 @@ const updateContent = (content) => emit('update-content', content)
 const handleSave = () => emit('save')
 const toggleDiff = () => emit('toggle-diff')
 const toggleRollout = () => emit('toggle-rollout')
+const toggleViewMode = () => emit('toggle-view-mode')
+
+// Form View 지원 여부 판별
+const isFormSupported = computed(() => {
+  return props.activeFile ? !!detectConfigFileType(props.activeFile.name, props.activeFile.path) : false
+})
+
+const isFormMode = computed(() => {
+  return props.viewMode === 'form' && isFormSupported.value
+})
 
 // JSON validation
 const jsonError = computed(() => {

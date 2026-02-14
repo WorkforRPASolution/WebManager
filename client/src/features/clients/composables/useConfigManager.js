@@ -14,6 +14,7 @@ export function useConfigManager() {
   const saving = ref(false)
   const showDiff = ref(false)
   const showRollout = ref(false)
+  const viewMode = ref('json') // 'json' | 'form'
   const currentAgentGroup = ref(null)
 
   // Derived from cache for active client
@@ -217,6 +218,7 @@ export function useConfigManager() {
     activeFileId.value = null
     showDiff.value = false
     showRollout.value = false
+    viewMode.value = 'json'
     saving.value = false
   }
 
@@ -322,6 +324,7 @@ export function useConfigManager() {
     saving,
     showDiff,
     showRollout,
+    viewMode,
     error,
     currentAgentGroup,
 
