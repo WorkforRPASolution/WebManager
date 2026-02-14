@@ -273,8 +273,14 @@ function toggleExpand(idx) {
 function emitUpdate(newTriggers) {
   const obj = {}
   for (const trig of newTriggers) {
-    const name = trig.name || 'Unnamed_Trigger'
-    obj[name] = {
+    let name = trig.name || 'Unnamed_Trigger'
+    // 중복 key 방지: 같은 이름이 이미 있으면 suffix 추가
+    let uniqueName = name
+    let counter = 2
+    while (Object.prototype.hasOwnProperty.call(obj, uniqueName)) {
+      uniqueName = `${name}_${counter++}`
+    }
+    obj[uniqueName] = {
       source: trig.source,
       recipe: trig.recipe.map(step => {
         const s = {
@@ -334,7 +340,15 @@ function updateLimitation(ti, field, value) {
 
 function addTrigger() {
   const updated = cloneTriggers()
-  updated.push(createDefaultTrigger())
+  const existingNames = new Set(updated.map(t => t.name))
+  let newName = 'New_Trigger'
+  let counter = 1
+  while (existingNames.has(newName)) {
+    newName = `New_Trigger_${++counter}`
+  }
+  const newTrig = createDefaultTrigger()
+  newTrig.name = newName
+  updated.push(newTrig)
   expanded[updated.length - 1] = true
   emitUpdate(updated)
 }

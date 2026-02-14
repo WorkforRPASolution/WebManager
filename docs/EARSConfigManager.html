@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EARS Config Manager</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', -apple-system, sans-serif; background: #f0f2f5; color: #333; }
+
+  .app-container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  .app-header { background: #1a237e; color: #fff; padding: 20px 28px; border-radius: 12px 12px 0 0; }
+  .app-header h1 { font-size: 22px; font-weight: 600; }
+  .app-header p { font-size: 13px; opacity: 0.8; margin-top: 4px; }
+
+  .tab-bar { display: flex; background: #283593; border-radius: 0 0 12px 12px; overflow: hidden; }
+  .tab-btn { flex: 1; padding: 14px; text-align: center; color: rgba(255,255,255,0.7);
+    cursor: pointer; font-size: 14px; font-weight: 500; border: none; background: none;
+    transition: all 0.2s; border-bottom: 3px solid transparent; }
+  .tab-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+  .tab-btn.active { color: #fff; border-bottom-color: #7c4dff; background: rgba(255,255,255,0.05); }
+
+  .content-area { margin-top: 20px; display: flex; gap: 20px; }
+  .form-panel { flex: 1; background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .preview-panel { width: 420px; background: #1e1e2e; border-radius: 12px; padding: 20px;
+    color: #cdd6f4; font-family: 'Consolas','Courier New', monospace; font-size: 13px;
+    max-height: 80vh; overflow-y: auto; position: sticky; top: 24px; }
+  .preview-panel pre { white-space: pre-wrap; word-break: break-all; }
+  .preview-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .preview-header h3 { color: #cba6f7; font-size: 14px; }
+  .preview-tabs { display: flex; gap: 6px; }
+  .preview-tab { padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    background: rgba(255,255,255,0.05); color: #bac2de; border: none; }
+  .preview-tab.active { background: #7c4dff; color: #fff; }
+
+  .section-title { font-size: 16px; font-weight: 600; color: #1a237e; margin-bottom: 16px;
+    padding-bottom: 8px; border-bottom: 2px solid #e8eaf6; }
+
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 13px; font-weight: 500; color: #555;
+    margin-bottom: 5px; }
+  .form-group label .hint { font-weight: 400; color: #999; font-size: 12px; margin-left: 4px; }
+  .form-row { display: flex; gap: 12px; }
+  .form-row .form-group { flex: 1; }
+
+  input[type="text"], input[type="number"], select, textarea {
+    width: 100%; padding: 9px 12px; border: 1.5px solid #ddd; border-radius: 8px;
+    font-size: 14px; transition: border-color 0.2s; outline: none; background: #fafafa; }
+  input:focus, select:focus, textarea:focus { border-color: #7c4dff; background: #fff; }
+  textarea { resize: vertical; min-height: 60px; font-family: 'Consolas', monospace; }
+
+  .checkbox-group { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; accent-color: #7c4dff; }
+
+  .btn { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    cursor: pointer; border: none; transition: all 0.15s; }
+  .btn-primary { background: #7c4dff; color: #fff; }
+  .btn-primary:hover { background: #651fff; }
+  .btn-danger { background: #ff5252; color: #fff; }
+  .btn-danger:hover { background: #d32f2f; }
+  .btn-outline { background: #fff; color: #7c4dff; border: 1.5px solid #7c4dff; }
+  .btn-outline:hover { background: #f3e8ff; }
+  .btn-success { background: #4caf50; color: #fff; }
+  .btn-success:hover { background: #388e3c; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  .step-card { background: #f8f9ff; border: 1.5px solid #e0e3ff; border-radius: 10px;
+    padding: 16px; margin-bottom: 12px; position: relative; }
+  .step-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .step-number { background: #7c4dff; color: #fff; width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; }
+  .step-arrow { text-align: center; color: #7c4dff; font-size: 20px; margin: 4px 0; }
+
+  .tag-input-area { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1.5px solid #ddd;
+    border-radius: 8px; background: #fafafa; min-height: 40px; cursor: text; }
+  .tag-input-area:focus-within { border-color: #7c4dff; background: #fff; }
+  .tag { background: #e8eaf6; color: #1a237e; padding: 3px 8px; border-radius: 6px; font-size: 13px;
+    display: flex; align-items: center; gap: 4px; }
+  .tag button { background: none; border: none; color: #999; cursor: pointer; font-size: 14px; line-height: 1; }
+  .tag button:hover { color: #d32f2f; }
+  .tag-input-area input { border: none; outline: none; background: none; flex: 1; min-width: 80px;
+    font-size: 13px; padding: 2px; }
+
+  .item-list { list-style: none; }
+  .item-list li { display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px; background: #f8f9ff; border-radius: 8px; margin-bottom: 6px;
+    border: 1px solid #e8eaf6; }
+  .item-list li .item-name { font-weight: 500; color: #1a237e; }
+  .item-list li .item-detail { font-size: 12px; color: #888; }
+
+  .script-section { background: #fff8e1; border: 1.5px solid #ffe082; border-radius: 8px;
+    padding: 14px; margin-top: 10px; }
+  .script-section h4 { color: #f57f17; font-size: 13px; margin-bottom: 10px; }
+
+  .limitation-section { background: #e8f5e9; border: 1.5px solid #a5d6a7; border-radius: 8px;
+    padding: 14px; margin-top: 16px; }
+  .limitation-section h4 { color: #2e7d32; font-size: 14px; margin-bottom: 10px; }
+
+  .empty-state { text-align: center; padding: 40px; color: #999; }
+  .empty-state p { margin-top: 8px; font-size: 14px; }
+
+  .action-bar { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
+
+  .copy-btn { padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;
+    background: #4caf50; color: #fff; border: none; }
+  .copy-btn:hover { background: #388e3c; }
+
+  .modal-overlay { position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center; z-index: 1000; }
+  .modal { background: #fff; border-radius: 12px; padding: 24px; max-width: 500px; width: 90%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .modal h3 { margin-bottom: 16px; color: #1a237e; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  .source-badge { display: inline-block; background: #e8eaf6; color: #3949ab; padding: 2px 8px;
+    border-radius: 4px; font-size: 12px; font-weight: 500; }
+
+  @media (max-width: 900px) {
+    .content-area { flex-direction: column; }
+    .preview-panel { width: 100%; position: static; max-height: 400px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="app-container">
+    <div class="app-header">
+      <h1>EARS Config Manager</h1>
+      <p>로그 소스, 트리거 규칙, 에이전트 설정을 간편하게 관리합니다</p>
+    </div>
+    <div class="tab-bar">
+      <button class="tab-btn" :class="{active: activeTab==='accesslog'}" @click="activeTab='accesslog'">
+        📂 로그 소스 (AccessLog)
+      </button>
+      <button class="tab-btn" :class="{active: activeTab==='trigger'}" @click="activeTab='trigger'">
+        ⚡ 트리거 (Trigger)
+      </button>
+      <button class="tab-btn" :class="{active: activeTab==='agent'}" @click="activeTab='agent'">
+        🔗 에이전트 (ARSAgent)
+      </button>
+    </div>
+
+    <div class="content-area">
+      <!-- FORM PANEL -->
+      <div class="form-panel">
+
+        <!-- ========== ACCESS LOG TAB ========== -->
+        <div v-if="activeTab==='accesslog'">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h2 class="section-title" style="margin-bottom:0; border:none; padding:0;">로그 소스 관리</h2>
+            <button class="btn btn-primary" @click="addAccessLog">+ 소스 추가</button>
+          </div>
+
+          <div v-if="accessLogs.length === 0" class="empty-state">
+            <p>📂</p>
+            <p>등록된 로그 소스가 없습니다. 소스를 추가해주세요.</p>
+          </div>
+
+          <div v-for="(log, idx) in accessLogs" :key="idx" class="step-card">
+            <div class="step-card-header">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span class="source-badge">{{ log.name }}</span>
+              </div>
+              <div style="display:flex;gap:6px;">
+                <button class="btn btn-outline btn-sm" @click="toggleExpand('log', idx)">
+                  {{ expandedLogs[idx] ? '접기' : '펼치기' }}
+                </button>
+                <button class="btn btn-danger btn-sm" @click="removeAccessLog(idx)">삭제</button>
+              </div>
+            </div>
+
+            <div v-show="expandedLogs[idx]">
+              <div class="form-group">
+                <label>소스 이름 <span class="hint">(고유 식별자, 예: __LogReadInfo__)</span></label>
+                <input type="text" v-model="log.name" placeholder="__LogReadInfo__">
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>디렉토리 경로</label>
+                  <input type="text" v-model="log.directory" placeholder="C:/EARS/TestFile">
+                </div>
+                <div class="form-group">
+                  <label>로그 타입</label>
+                  <select v-model="log.log_type">
+                    <option value="date_single">date_single</option>
+                    <option value="date_multi">date_multi</option>
+                    <option value="rolling">rolling</option>
+                    <option value="static">static</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>접두사 (prefix)</label>
+                  <input type="text" v-model="log.prefix" placeholder="log_">
+                </div>
+                <div class="form-group">
+                  <label>와일드카드 (wildcard)</label>
+                  <input type="text" v-model="log.wildcard" placeholder="">
+                </div>
+                <div class="form-group">
+                  <label>접미사 (suffix)</label>
+                  <input type="text" v-model="log.suffix" placeholder=".txt">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>날짜 하위 디렉토리 포맷</label>
+                  <input type="text" v-model="log.date_subdir_format" placeholder="'\\'yyyy'\\'MM'\\'dd">
+                </div>
+                <div class="form-group">
+                  <label>문자 인코딩</label>
+                  <select v-model="log.charset">
+                    <option value="UTF-8">UTF-8</option>
+                    <option value="EUC-KR">EUC-KR</option>
+                    <option value="MS949">MS949</option>
+                    <option value="ISO-8859-1">ISO-8859-1</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>접근 주기</label>
+                  <input type="text" v-model="log.access_interval" placeholder="10 seconds">
+                </div>
+                <div class="form-group">
+                  <label>배치 수</label>
+                  <input type="number" v-model.number="log.batch_count" placeholder="1000">
+                </div>
+                <div class="form-group">
+                  <label>배치 타임아웃</label>
+                  <input type="text" v-model="log.batch_timeout" placeholder="30 seconds">
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <div class="checkbox-group">
+                    <input type="checkbox" :id="'reopen'+idx" v-model="log.reopen">
+                    <label :for="'reopen'+idx" style="margin:0;">파일 재열기 (reopen)</label>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <div class="checkbox-group">
+                    <input type="checkbox" :id="'back'+idx" v-model="log.back">
+                    <label :for="'back'+idx" style="margin:0;">이전 로그 읽기 (back)</label>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <div class="checkbox-group">
+                    <input type="checkbox" :id="'end'+idx" v-model="log.end">
+                    <label :for="'end'+idx" style="margin:0;">끝부터 읽기 (end)</label>
+                  </div>
+                </div>
+              </div>
+              <div class="form-group">
+                <label>제외 접미사 <span class="hint">(Enter로 추가)</span></label>
+                <div class="tag-input-area" @click="$refs['exTag'+idx]?.[0]?.focus()">
+                  <span class="tag" v-for="(tag, ti) in log.exclude_suffix" :key="ti">
+                    {{ tag }}
+                    <button @click="log.exclude_suffix.splice(ti,1)">&times;</button>
+                  </span>
+                  <input :ref="'exTag'+idx" @keydown.enter.prevent="addTag(log.exclude_suffix, $event)"
+                    placeholder="예: .bak" style="flex:1;">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== TRIGGER TAB ========== -->
+        <div v-if="activeTab==='trigger'">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h2 class="section-title" style="margin-bottom:0; border:none; padding:0;">트리거 규칙 관리</h2>
+            <button class="btn btn-primary" @click="addTrigger">+ 트리거 추가</button>
+          </div>
+
+          <div v-if="triggers.length === 0" class="empty-state">
+            <p>⚡</p>
+            <p>등록된 트리거가 없습니다. 트리거를 추가해주세요.</p>
+          </div>
+
+          <div v-for="(trig, ti) in triggers" :key="ti" style="margin-bottom:20px;">
+            <div class="step-card" style="background:#fff;">
+              <div class="step-card-header">
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <strong style="color:#1a237e;">{{ trig.name || '새 트리거' }}</strong>
+                  <span class="source-badge" v-if="trig.source">{{ trig.source }}</span>
+                </div>
+                <div style="display:flex;gap:6px;">
+                  <button class="btn btn-outline btn-sm" @click="toggleExpand('trig', ti)">
+                    {{ expandedTrigs[ti] ? '접기' : '펼치기' }}
+                  </button>
+                  <button class="btn btn-danger btn-sm" @click="removeTrigger(ti)">삭제</button>
+                </div>
+              </div>
+
+              <div v-show="expandedTrigs[ti]">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>트리거 이름</label>
+                    <input type="text" v-model="trig.name" placeholder="LIMITATION_TEST">
+                  </div>
+                  <div class="form-group">
+                    <label>로그 소스</label>
+                    <select v-model="trig.source">
+                      <option value="">-- 선택 --</option>
+                      <option v-for="log in accessLogs" :key="log.name" :value="log.name">{{ log.name }}</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Recipe Steps -->
+                <h3 style="font-size:14px; color:#555; margin: 16px 0 10px;">레시피 스텝</h3>
+
+                <div v-for="(step, si) in trig.recipe" :key="si">
+                  <div class="step-card">
+                    <div class="step-card-header">
+                      <div style="display:flex; align-items:center; gap:8px;">
+                        <span class="step-number">{{ si+1 }}</span>
+                        <span style="font-weight:500;">{{ step.name || 'Step '+(si+1) }}</span>
+                      </div>
+                      <button class="btn btn-danger btn-sm" @click="trig.recipe.splice(si,1)">스텝 삭제</button>
+                    </div>
+
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>스텝 이름</label>
+                        <input type="text" v-model="step.name" :placeholder="'Step_'+(si+1)">
+                      </div>
+                      <div class="form-group">
+                        <label>타입</label>
+                        <select v-model="step.type">
+                          <option value="regex">regex</option>
+                          <option value="keyword">keyword</option>
+                          <option value="exact">exact</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div class="form-group">
+                      <label>트리거 패턴 <span class="hint">(Enter로 추가)</span></label>
+                      <div class="tag-input-area">
+                        <span class="tag" v-for="(pat, pi) in step.triggers" :key="pi">
+                          {{ pat.syntax }}
+                          <button @click="step.triggers.splice(pi,1)">&times;</button>
+                        </span>
+                        <input @keydown.enter.prevent="addPattern(step, $event)" placeholder="예: .*S3F216.*">
+                      </div>
+                    </div>
+
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>지속 시간 (duration) <span class="hint">비워두면 무제한</span></label>
+                        <input type="text" v-model="step.duration" placeholder="예: 10 minutes">
+                      </div>
+                      <div class="form-group">
+                        <label>감지 횟수 (times)</label>
+                        <input type="number" v-model.number="step.times" min="1" placeholder="1">
+                      </div>
+                    </div>
+
+                    <div class="form-group">
+                      <label>다음 동작 (next)</label>
+                      <select v-model="step.next">
+                        <option value="">-- 선택 --</option>
+                        <template v-for="(s, ssi) in trig.recipe" :key="ssi">
+                          <option v-if="ssi !== si && s.name" :value="s.name">{{ s.name }} (다음 스텝)</option>
+                        </template>
+                        <option value="@script">@script (스크립트 실행)</option>
+                      </select>
+                    </div>
+
+                    <!-- Script section -->
+                    <div v-if="step.next === '@script'" class="script-section">
+                      <h4>📜 스크립트 설정</h4>
+                      <div class="form-row">
+                        <div class="form-group">
+                          <label>스크립트 파일명</label>
+                          <input type="text" v-model="step.script.name" placeholder="Test.scala">
+                        </div>
+                        <div class="form-group">
+                          <label>인자 (세미콜론 구분)</label>
+                          <input type="text" v-model="step.script.arg" placeholder="arg1;arg2">
+                        </div>
+                      </div>
+                      <div class="form-row">
+                        <div class="form-group">
+                          <label>이메일 비발송 조건</label>
+                          <input type="text" v-model="step.script['no-email']" placeholder="success;fail">
+                        </div>
+                        <div class="form-group">
+                          <label>키 (key)</label>
+                          <input type="number" v-model.number="step.script.key" placeholder="1">
+                        </div>
+                      </div>
+                      <div class="form-row">
+                        <div class="form-group">
+                          <label>타임아웃</label>
+                          <input type="text" v-model="step.script.timeout" placeholder="30 seconds">
+                        </div>
+                        <div class="form-group">
+                          <label>재시도 간격</label>
+                          <input type="text" v-model="step.script.retry" placeholder="3 minutes">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="step-arrow" v-if="si < trig.recipe.length - 1">↓</div>
+                </div>
+
+                <button class="btn btn-outline" @click="addStep(trig)" style="width:100%; margin-top:8px;">
+                  + 스텝 추가
+                </button>
+
+                <!-- Limitation -->
+                <div class="limitation-section">
+                  <h4>🛡 제한 설정 (Limitation)</h4>
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>최대 트리거 횟수</label>
+                      <input type="number" v-model.number="trig.limitation.times" min="1" placeholder="1">
+                    </div>
+                    <div class="form-group">
+                      <label>제한 기간</label>
+                      <input type="text" v-model="trig.limitation.duration" placeholder="1 minutes">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== AGENT TAB ========== -->
+        <div v-if="activeTab==='agent'">
+          <h2 class="section-title">에이전트 설정 (ARSAgent)</h2>
+
+          <div class="form-group">
+            <label>ErrorTrigger <span class="hint">(사용할 트리거 선택)</span></label>
+            <div v-if="triggers.length === 0" style="color:#999; font-size:13px; padding:8px;">
+              등록된 트리거가 없습니다. 먼저 트리거 탭에서 추가해주세요.
+            </div>
+            <div v-else>
+              <div v-for="trig in triggers" :key="trig.name" class="checkbox-group" style="margin-bottom:6px;">
+                <input type="checkbox" :id="'et_'+trig.name" :value="trig.name"
+                  v-model="agent.errorTriggers">
+                <label :for="'et_'+trig.name" style="margin:0;">{{ trig.name }}</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top:20px;">
+            <label>AccessLogLists <span class="hint">(사용할 로그 소스 선택)</span></label>
+            <div v-if="accessLogs.length === 0" style="color:#999; font-size:13px; padding:8px;">
+              등록된 로그 소스가 없습니다. 먼저 로그 소스 탭에서 추가해주세요.
+            </div>
+            <div v-else>
+              <div v-for="log in accessLogs" :key="log.name" class="checkbox-group" style="margin-bottom:6px;">
+                <input type="checkbox" :id="'al_'+log.name" :value="log.name"
+                  v-model="agent.accessLogLists">
+                <label :for="'al_'+log.name" style="margin:0;">{{ log.name }}</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PREVIEW PANEL -->
+      <div class="preview-panel">
+        <div class="preview-header">
+          <h3>JSON 미리보기</h3>
+          <div class="preview-tabs">
+            <button class="preview-tab" :class="{active: previewFile==='accesslog'}"
+              @click="previewFile='accesslog'">AccessLog</button>
+            <button class="preview-tab" :class="{active: previewFile==='trigger'}"
+              @click="previewFile='trigger'">Trigger</button>
+            <button class="preview-tab" :class="{active: previewFile==='agent'}"
+              @click="previewFile='agent'">ARSAgent</button>
+          </div>
+        </div>
+        <div style="position:relative;">
+          <button class="copy-btn" style="position:absolute; top:0; right:0;"
+            @click="copyJson">{{ copyLabel }}</button>
+          <pre>{{ currentPreviewJson }}</pre>
+        </div>
+        <div class="action-bar" style="margin-top:16px;">
+          <button class="btn btn-success" @click="downloadAll">📥 전체 다운로드</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import Modal -->
+  <div class="modal-overlay" v-if="showImportModal" @click.self="showImportModal=false">
+    <div class="modal">
+      <h3>JSON 가져오기</h3>
+      <div class="form-group">
+        <label>JSON 내용을 붙여넣기</label>
+        <textarea v-model="importJson" rows="10" placeholder='{"key": "value"}'></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" @click="showImportModal=false">취소</button>
+        <button class="btn btn-primary" @click="doImport">가져오기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const { createApp, ref, reactive, computed, watch } = Vue;
+
+createApp({
+  setup() {
+    const activeTab = ref('accesslog');
+    const previewFile = ref('accesslog');
+    const showImportModal = ref(false);
+    const importJson = ref('');
+    const copyLabel = ref('복사');
+
+    // --- Access Logs ---
+    const accessLogs = reactive([]);
+    const expandedLogs = reactive({});
+
+    function createAccessLog() {
+      return {
+        name: '__LogReadInfo__',
+        directory: '',
+        prefix: '',
+        wildcard: '',
+        suffix: '.txt',
+        log_type: 'date_single',
+        date_subdir_format: '',
+        reopen: true,
+        access_interval: '10 seconds',
+        exclude_suffix: [],
+        charset: 'EUC-KR',
+        back: true,
+        end: false,
+        batch_count: 1000,
+        batch_timeout: '30 seconds'
+      };
+    }
+
+    function addAccessLog() {
+      const idx = accessLogs.length;
+      const log = createAccessLog();
+      if (idx > 0) log.name = '__LogReadInfo_' + (idx + 1) + '__';
+      accessLogs.push(log);
+      expandedLogs[idx] = true;
+    }
+
+    function removeAccessLog(idx) {
+      accessLogs.splice(idx, 1);
+      delete expandedLogs[idx];
+    }
+
+    // --- Triggers ---
+    const triggers = reactive([]);
+    const expandedTrigs = reactive({});
+
+    function createStep(index) {
+      return {
+        name: 'Step_' + (index + 1),
+        type: 'regex',
+        triggers: [],
+        duration: '',
+        times: 1,
+        next: '',
+        script: { name: '', arg: '', 'no-email': '', key: 1, timeout: '30 seconds', retry: '3 minutes' }
+      };
+    }
+
+    function createTrigger() {
+      return {
+        name: '',
+        source: '',
+        recipe: [createStep(0)],
+        limitation: { times: 1, duration: '1 minutes' }
+      };
+    }
+
+    function addTrigger() {
+      const idx = triggers.length;
+      triggers.push(createTrigger());
+      expandedTrigs[idx] = true;
+    }
+
+    function removeTrigger(idx) {
+      triggers.splice(idx, 1);
+      delete expandedTrigs[idx];
+    }
+
+    function addStep(trig) {
+      trig.recipe.push(createStep(trig.recipe.length));
+    }
+
+    function addPattern(step, event) {
+      const val = event.target.value.trim();
+      if (val) {
+        step.triggers.push({ syntax: val });
+        event.target.value = '';
+      }
+    }
+
+    function addTag(arr, event) {
+      const val = event.target.value.trim();
+      if (val && !arr.includes(val)) {
+        arr.push(val);
+        event.target.value = '';
+      }
+    }
+
+    // --- Agent ---
+    const agent = reactive({
+      errorTriggers: [],
+      accessLogLists: []
+    });
+
+    // --- Toggle expand ---
+    function toggleExpand(type, idx) {
+      if (type === 'log') expandedLogs[idx] = !expandedLogs[idx];
+      else expandedTrigs[idx] = !expandedTrigs[idx];
+    }
+
+    // --- Generate JSON ---
+    function generateAccessLogJson() {
+      const obj = {};
+      accessLogs.forEach(log => {
+        const name = log.name || '__Unnamed__';
+        obj[name] = {
+          directory: log.directory,
+          prefix: log.prefix,
+          wildcard: log.wildcard,
+          suffix: log.suffix,
+          log_type: log.log_type,
+          date_subdir_format: log.date_subdir_format,
+          reopen: log.reopen,
+          access_interval: log.access_interval,
+          exclude_suffix: [...log.exclude_suffix],
+          charset: log.charset,
+          back: log.back,
+          end: log.end,
+          batch_count: log.batch_count,
+          batch_timeout: log.batch_timeout
+        };
+      });
+      return obj;
+    }
+
+    function generateTriggerJson() {
+      const obj = {};
+      triggers.forEach(trig => {
+        const name = trig.name || 'Unnamed_Trigger';
+        const recipe = trig.recipe.map((step, si) => {
+          const s = {
+            name: step.name,
+            type: step.type,
+            trigger: step.triggers.map(t => ({ syntax: t.syntax })),
+            duration: step.duration,
+            times: step.times,
+            next: step.next
+          };
+          if (step.next === '@script') {
+            s.script = {
+              name: step.script.name,
+              arg: step.script.arg,
+              'no-email': step.script['no-email'],
+              key: step.script.key,
+              timeout: step.script.timeout,
+              retry: step.script.retry
+            };
+          }
+          return s;
+        });
+        obj[name] = {
+          source: trig.source,
+          recipe: recipe,
+          limitation: {
+            times: trig.limitation.times,
+            durtaion: trig.limitation.duration
+          }
+        };
+      });
+      return obj;
+    }
+
+    function generateAgentJson() {
+      return {
+        ErrorTrigger: agent.errorTriggers.map(name => ({ alid: name })),
+        AccessLogLists: [...agent.accessLogLists]
+      };
+    }
+
+    const currentPreviewJson = computed(() => {
+      let obj;
+      if (previewFile.value === 'accesslog') obj = generateAccessLogJson();
+      else if (previewFile.value === 'trigger') obj = generateTriggerJson();
+      else obj = generateAgentJson();
+      return JSON.stringify(obj, null, 2);
+    });
+
+    // --- Copy ---
+    function copyJson() {
+      navigator.clipboard.writeText(currentPreviewJson.value).then(() => {
+        copyLabel.value = '✓ 복사됨';
+        setTimeout(() => copyLabel.value = '복사', 2000);
+      });
+    }
+
+    // --- Download ---
+    function downloadFile(filename, content) {
+      const blob = new Blob([content], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadAll() {
+      downloadFile('AccessLog.json', JSON.stringify(generateAccessLogJson(), null, 2));
+      setTimeout(() => downloadFile('trigger.json', JSON.stringify(generateTriggerJson(), null, 2)), 200);
+      setTimeout(() => downloadFile('ARSAgent.json', JSON.stringify(generateAgentJson(), null, 2)), 400);
+    }
+
+    // --- Import ---
+    function doImport() {
+      try {
+        const data = JSON.parse(importJson.value);
+        // Try to detect which file type
+        if (data.ErrorTrigger || data.AccessLogLists) {
+          // ARSAgent
+          if (data.ErrorTrigger) agent.errorTriggers = data.ErrorTrigger.map(e => e.alid);
+          if (data.AccessLogLists) agent.accessLogLists = [...data.AccessLogLists];
+        } else {
+          // Check if it's accesslog or trigger
+          const firstVal = Object.values(data)[0];
+          if (firstVal && firstVal.directory !== undefined) {
+            // AccessLog
+            accessLogs.length = 0;
+            Object.entries(data).forEach(([name, val]) => {
+              accessLogs.push({ name, ...val, exclude_suffix: val.exclude_suffix || [] });
+            });
+          } else if (firstVal && firstVal.recipe !== undefined) {
+            // Trigger
+            triggers.length = 0;
+            Object.entries(data).forEach(([name, val]) => {
+              const t = {
+                name,
+                source: val.source || '',
+                recipe: (val.recipe || []).map((r, i) => ({
+                  name: r.name || 'Step_' + (i+1),
+                  type: r.type || 'regex',
+                  triggers: (r.trigger || []).map(t => ({ syntax: t.syntax })),
+                  duration: r.duration || '',
+                  times: r.times || 1,
+                  next: r.next || '',
+                  script: r.script || { name:'', arg:'', 'no-email':'', key:1, timeout:'30 seconds', retry:'3 minutes' }
+                })),
+                limitation: {
+                  times: val.limitation?.times || 1,
+                  duration: val.limitation?.durtaion || val.limitation?.duration || '1 minutes'
+                }
+              };
+              triggers.push(t);
+            });
+          }
+        }
+        showImportModal.value = false;
+        importJson.value = '';
+      } catch(e) {
+        alert('JSON 파싱 오류: ' + e.message);
+      }
+    }
+
+    // Sync previewFile with activeTab
+    watch(activeTab, (v) => { previewFile.value = v === 'agent' ? 'agent' : v; });
+
+    return {
+      activeTab, previewFile, showImportModal, importJson, copyLabel,
+      accessLogs, expandedLogs, triggers, expandedTrigs, agent,
+      addAccessLog, removeAccessLog, addTrigger, removeTrigger, addStep,
+      addPattern, addTag, toggleExpand,
+      currentPreviewJson, copyJson, downloadAll, doImport,
+      createAccessLog, createTrigger
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>

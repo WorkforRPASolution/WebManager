@@ -482,7 +482,7 @@ const handleExportColumnWidths = () => {
       @discard="configManager.discardCurrentFile"
       @toggle-diff="configManager.toggleDiff()"
       @toggle-rollout="configManager.toggleRollout()"
-      @toggle-view-mode="configManager.viewMode.value = configManager.viewMode.value === 'json' ? 'form' : 'json'"
+      @toggle-view-mode="() => { const toForm = configManager.viewMode.value === 'json'; configManager.viewMode.value = toForm ? 'form' : 'json'; if (toForm) configManager.showDiff.value = false }"
       @switch-client="handleSwitchClient"
     />
 

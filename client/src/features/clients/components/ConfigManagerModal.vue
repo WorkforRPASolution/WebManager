@@ -294,16 +294,52 @@
                 </svg>
                 <span>File not found on server. Save to create a new file.</span>
               </div>
-              <ConfigFormView
-                class="flex-1"
-                :content="activeContent"
-                :fileName="activeFile.name"
-                :filePath="activeFile.path"
-                :readOnly="!canWrite"
-                :allContents="editedContents"
-                :configFiles="configFiles"
-                @update:content="updateContent"
-              />
+              <!-- Form + Preview split -->
+              <div class="flex-1 flex overflow-hidden">
+                <ConfigFormView
+                  class="flex-1 overflow-hidden"
+                  :content="activeContent"
+                  :fileName="activeFile.name"
+                  :filePath="activeFile.path"
+                  :readOnly="!canWrite"
+                  :allContents="editedContents"
+                  :configFiles="configFiles"
+                  @update:content="updateContent"
+                />
+                <!-- JSON Preview Panel (Monaco 테마 색상 매칭) -->
+                <div v-if="showFormPreview" class="w-[360px] shrink-0 border-l border-gray-200 dark:border-gray-700/30 flex flex-col bg-white dark:bg-[#1e1e1e]">
+                  <div class="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700/50">
+                    <span class="text-xs font-medium text-gray-500 dark:text-gray-400">JSON Preview</span>
+                    <div class="flex items-center gap-2">
+                      <button
+                        @click="copyPreviewJson"
+                        class="px-2 py-0.5 text-xs rounded bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600/50 transition"
+                      >{{ previewCopyLabel }}</button>
+                      <button
+                        @click="showFormPreview = false"
+                        class="p-0.5 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition"
+                        title="Hide preview"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <pre class="flex-1 overflow-auto p-3 text-xs leading-5 font-mono select-text text-gray-800 dark:text-[#d4d4d4]" v-html="highlightedPreviewJson"></pre>
+                </div>
+                <!-- Preview toggle (when hidden) -->
+                <button
+                  v-else
+                  @click="showFormPreview = true"
+                  class="w-8 shrink-0 border-l border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-hover transition"
+                  title="Show JSON Preview"
+                >
+                  <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             <!-- Editor View -->
@@ -562,6 +598,47 @@ const otherSelectedClientIds = computed(() => {
   if (!props.isMultiMode) return []
   const sourceId = props.sourceClient?.eqpId || props.sourceClient?.id
   return props.selectedClients.map(c => c.eqpId || c.id).filter(id => id !== sourceId)
+})
+
+// Form preview
+const showFormPreview = ref(true)
+const previewCopyLabel = ref('Copy')
+
+const copyPreviewJson = () => {
+  navigator.clipboard.writeText(props.activeContent || '').then(() => {
+    previewCopyLabel.value = 'Copied!'
+    setTimeout(() => previewCopyLabel.value = 'Copy', 2000)
+  })
+}
+
+// Monaco VS / VS-Dark 테마 색상 매칭
+const monacoColors = computed(() => isDark.value
+  ? { key: '#9cdcfe', string: '#ce9178', number: '#b5cea8', keyword: '#569cd6' }
+  : { key: '#0451a5', string: '#a31515', number: '#098658', keyword: '#0000ff' }
+)
+
+const highlightedPreviewJson = computed(() => {
+  if (!props.activeContent || !props.activeContent.trim()) return ''
+  const c = monacoColors.value
+  try {
+    const formatted = JSON.stringify(JSON.parse(props.activeContent), null, 2)
+    return formatted
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(
+        /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+        (match) => {
+          let color = c.number
+          if (/^"/.test(match)) {
+            color = /:$/.test(match) ? c.key : c.string
+          } else if (/true|false|null/.test(match)) {
+            color = c.keyword
+          }
+          return `<span style="color:${color}">${match}</span>`
+        }
+      )
+  } catch {
+    return (props.activeContent || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  }
 })
 
 const formatJson = () => {
