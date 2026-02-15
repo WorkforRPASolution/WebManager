@@ -115,6 +115,24 @@ describe('testAccessLogPath', () => {
     expect(r1.matched).toBe(true)
     expect(r2.matched).toBe(true)
   })
+
+  it('12. Double backslash normalization', () => {
+    const source = { directory: 'D:\\\\Testlog', prefix: 'TestLog', suffix: '.log' }
+    const result = testAccessLogPath(source, 'D:\\\\Testlog\\TestLog.log')
+    expect(result.matched).toBe(true)
+  })
+
+  it('13. Double forward slash normalization', () => {
+    const source = { directory: 'D://Testlog', prefix: 'TestLog', suffix: '.log' }
+    const result = testAccessLogPath(source, 'D://Testlog//TestLog.log')
+    expect(result.matched).toBe(true)
+  })
+
+  it('14. Mixed separators normalization', () => {
+    const source = { directory: 'D:\\Testlog', prefix: 'TestLog', suffix: '.log' }
+    const result = testAccessLogPath(source, 'D://Testlog/TestLog.log')
+    expect(result.matched).toBe(true)
+  })
 })
 
 

@@ -22,8 +22,8 @@ export function testAccessLogPath(source, filePath) {
   const src = source || {}
 
   // Normalize separators
-  const normPath = (filePath || '').replace(/\\/g, '/')
-  let normDir = (src.directory || '').replace(/\\/g, '/')
+  const normPath = (filePath || '').replace(/[\\/]+/g, '/')
+  let normDir = (src.directory || '').replace(/[\\/]+/g, '/')
   // Ensure directory ends with /
   if (normDir && !normDir.endsWith('/')) {
     normDir += '/'

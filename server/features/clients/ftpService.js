@@ -532,7 +532,7 @@ async function listAccessLogFiles(eqpId, sourceConfig, agentGroup) {
   try {
     const directory = sourceConfig.directory || '/'
     // Normalize directory path for FTP (use forward slashes)
-    const ftpDir = directory.replace(/\\/g, '/')
+    const ftpDir = directory.replace(/[\\/]+/g, '/')
 
     // List all files in the directory
     let listing
