@@ -16,6 +16,8 @@
         v-if="fileType === 'accesslog'"
         :modelValue="formData"
         :readOnly="readOnly"
+        :eqpId="eqpId"
+        :agentGroup="agentGroup"
         @update:modelValue="handleFormChange"
       />
       <TriggerForm
@@ -50,7 +52,9 @@ const props = defineProps({
   filePath: { type: String, default: '' },
   readOnly: { type: Boolean, default: false },
   allContents: { type: Object, default: () => ({}) },
-  configFiles: { type: Array, default: () => [] }
+  configFiles: { type: Array, default: () => [] },
+  eqpId: { type: String, default: '' },
+  agentGroup: { type: String, default: '' }
 })
 
 const emit = defineEmits(['update:content'])

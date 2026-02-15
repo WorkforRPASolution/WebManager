@@ -57,6 +57,11 @@
 
       <!-- Card Body -->
       <div v-show="expanded[idx]" class="px-4 py-4 space-y-4 border-t border-gray-200 dark:border-dark-border">
+        <!-- Description -->
+        <div v-if="describeSource(source)" class="mb-4 px-3 py-2.5 text-xs leading-relaxed text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-lg whitespace-pre-line">
+          📋 {{ describeSource(source) }}
+        </div>
+
         <!-- Source Name -->
         <FormField :schema="schema.fields.directory" label="소스 이름" description="고유 식별자입니다. 트리거에서 이 이름으로 참조합니다. 예: __LogReadInfo__">
           <input type="text" :value="source.name" @input="updateField(idx, 'name', $event.target.value)" :disabled="readOnly" :placeholder="'__LogReadInfo__'" class="form-input" />
@@ -131,6 +136,9 @@
           />
         </FormField>
       </div>
+
+      <!-- Test Panel -->
+      <AccessLogTestPanel v-if="expanded[idx]" :source="source" :eqpId="eqpId" :agentGroup="agentGroup" />
     </div>
   </div>
 </template>
@@ -138,13 +146,17 @@
 <script setup>
 import { computed, reactive } from 'vue'
 import { ACCESS_LOG_SCHEMA, createDefaultAccessLog } from './configSchemas'
+import { describeAccessLog } from './configDescription'
 import FormTagInput from './FormTagInput.vue'
 import FormField from './FormField.vue'
 import FormCheckbox from './FormCheckbox.vue'
+import AccessLogTestPanel from './AccessLogTestPanel.vue'
 
 const props = defineProps({
   modelValue: { type: Object, default: () => ({}) },
-  readOnly: { type: Boolean, default: false }
+  readOnly: { type: Boolean, default: false },
+  eqpId: { type: String, default: '' },
+  agentGroup: { type: String, default: '' }
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -162,6 +174,10 @@ const sources = computed(() => {
 
 function toggleExpand(idx) {
   expanded[idx] = !expanded[idx]
+}
+
+function describeSource(source) {
+  return describeAccessLog(source)
 }
 
 function emitUpdate(newSources) {

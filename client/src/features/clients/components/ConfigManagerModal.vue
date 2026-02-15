@@ -304,6 +304,8 @@
                   :readOnly="!canWrite"
                   :allContents="editedContents"
                   :configFiles="configFiles"
+                  :eqpId="activeClientId"
+                  :agentGroup="currentAgentGroup"
                   @update:content="updateContent"
                 />
                 <!-- JSON Preview Panel (Monaco 테마 색상 매칭) -->

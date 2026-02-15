@@ -57,6 +57,11 @@
 
       <!-- Trigger Body -->
       <div v-show="expanded[ti]" class="px-4 py-4 space-y-4 border-t border-gray-200 dark:border-dark-border">
+        <!-- Description -->
+        <div v-if="describeTrig(trig)" class="mb-4 px-3 py-2.5 text-xs leading-relaxed text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-lg whitespace-pre-line">
+          📋 {{ describeTrig(trig) }}
+        </div>
+
         <!-- Trigger Name + Source -->
         <div class="grid grid-cols-2 gap-3">
           <FormField label="트리거 이름" :description="'이 트리거의 고유 이름입니다. ARSAgent.json에서 참조됩니다.'" :required="true">
@@ -222,6 +227,9 @@
           </div>
         </div>
       </div>
+
+      <!-- Test Panel -->
+      <TriggerTestPanel v-if="expanded[ti]" :trigger="trig" />
     </div>
   </div>
 </template>
@@ -229,8 +237,10 @@
 <script setup>
 import { computed, reactive } from 'vue'
 import { TRIGGER_SCHEMA, TRIGGER_STEP_SCHEMA, TRIGGER_SCRIPT_SCHEMA, createDefaultTrigger, createDefaultTriggerStep } from './configSchemas'
+import { describeTrigger } from './configDescription'
 import FormTagInput from './FormTagInput.vue'
 import FormField from './FormField.vue'
+import TriggerTestPanel from './TriggerTestPanel.vue'
 
 const props = defineProps({
   modelValue: { type: Object, default: () => ({}) },
@@ -268,6 +278,10 @@ const triggers = computed(() => {
 
 function toggleExpand(idx) {
   expanded[idx] = !expanded[idx]
+}
+
+function describeTrig(trig) {
+  return describeTrigger(trig)
 }
 
 function emitUpdate(newTriggers) {
