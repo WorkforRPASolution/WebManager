@@ -122,16 +122,10 @@
           합성 결과: <span class="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 font-mono">{{ source.log_type || 'normal_single' }}</span>
         </div>
 
-        <!-- Date Subdir Format (conditional) -->
+        <!-- Date Subdir Format (required when date axis is date/date_prefix) -->
         <div v-if="getAxis(source, 'dateAxis') !== 'normal'" class="grid grid-cols-2 gap-3">
           <FormField :schema="schema.fields.date_subdir_format">
-            <div class="flex items-center gap-2">
-              <label class="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap">
-                <input type="checkbox" :checked="!source._omit_date_subdir_format" @change="updateField(idx, '_omit_date_subdir_format', !$event.target.checked)" :disabled="readOnly" class="rounded" />
-                설정
-              </label>
-              <input type="text" :value="source.date_subdir_format" @input="updateField(idx, 'date_subdir_format', $event.target.value)" :disabled="readOnly || source._omit_date_subdir_format" :placeholder="schema.fields.date_subdir_format.placeholder" class="form-input" :class="{ 'opacity-40': source._omit_date_subdir_format }" />
-            </div>
+            <input type="text" :value="source.date_subdir_format" @input="updateField(idx, 'date_subdir_format', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.date_subdir_format.placeholder" class="form-input" />
           </FormField>
         </div>
 
@@ -141,7 +135,7 @@
             <div class="space-y-1">
               <div class="flex items-center gap-2">
                 <label class="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap">
-                  <input type="checkbox" :checked="!source._omit_charset" @change="updateField(idx, '_omit_charset', !$event.target.checked)" :disabled="readOnly" class="rounded" />
+                  <input type="checkbox" :checked="!source._omit_charset" @change="handleCharsetToggle(idx, $event.target.checked)" :disabled="readOnly" class="rounded" />
                   설정
                 </label>
                 <select :value="source.charset" @change="updateField(idx, 'charset', $event.target.value)" :disabled="readOnly || source._omit_charset" class="form-input" :class="{ 'opacity-40': source._omit_charset }">
@@ -171,13 +165,13 @@
           <FormCheckbox :schema="schema.fields.reopen" :checked="source.reopen" @change="updateField(idx, 'reopen', $event)" :disabled="readOnly" />
           <div class="flex items-center gap-2">
             <label class="flex items-center gap-1 text-xs text-gray-500">
-              <input type="checkbox" :checked="!source._omit_back" @change="updateField(idx, '_omit_back', !$event.target.checked)" :disabled="readOnly" class="rounded" />
+              <input type="checkbox" :checked="!source._omit_back" @change="handleBoolToggle(idx, 'back', $event.target.checked)" :disabled="readOnly" class="rounded" />
             </label>
             <FormCheckbox :schema="schema.fields.back" :checked="source.back" @change="updateField(idx, 'back', $event)" :disabled="readOnly || source._omit_back" />
           </div>
           <div class="flex items-center gap-2">
             <label class="flex items-center gap-1 text-xs text-gray-500">
-              <input type="checkbox" :checked="!source._omit_end" @change="updateField(idx, '_omit_end', !$event.target.checked)" :disabled="readOnly" class="rounded" />
+              <input type="checkbox" :checked="!source._omit_end" @change="handleBoolToggle(idx, 'end', $event.target.checked)" :disabled="readOnly" class="rounded" />
             </label>
             <FormCheckbox :schema="schema.fields.end" :checked="source.end" @change="updateField(idx, 'end', $event)" :disabled="readOnly || source._omit_end" />
           </div>
@@ -312,13 +306,46 @@ function updateAxis(idx, axis, value) {
   const current = decomposeLogType(source.log_type)
   current[axis] = value
   const newLogType = composeLogType(current)
-  updateField(idx, 'log_type', newLogType)
+  // When switching to/from date modes, auto-manage _omit_date_subdir_format
+  if (axis === 'dateAxis') {
+    const updated = sources.value.map((s, i) => i === idx
+      ? { ...s, log_type: newLogType, _omit_date_subdir_format: value === 'normal' }
+      : { ...s })
+    emitUpdate(updated)
+  } else {
+    updateField(idx, 'log_type', newLogType)
+  }
 }
 
 function handlePurposeChange(idx, newPurpose) {
   const source = sources.value[idx]
   const newName = formatSourceName(source.baseName || 'LogReadInfo', newPurpose)
   const updated = sources.value.map((s, i) => i === idx ? { ...s, purpose: newPurpose, name: newName } : { ...s })
+  emitUpdate(updated)
+}
+
+function handleCharsetToggle(idx, checked) {
+  // checked = true means user wants to enable charset
+  const omit = !checked
+  const source = sources.value[idx]
+  const updates = { _omit_charset: omit }
+  // When enabling and no charset value is set, default to UTF-8
+  if (!omit && !source.charset) {
+    updates.charset = 'UTF-8'
+  }
+  const updated = sources.value.map((s, i) => i === idx ? { ...s, ...updates } : { ...s })
+  emitUpdate(updated)
+}
+
+function handleBoolToggle(idx, field, checked) {
+  const omit = !checked
+  const source = sources.value[idx]
+  const updates = { [`_omit_${field}`]: omit }
+  // When enabling and value is null/undefined, default to false
+  if (!omit && (source[field] === null || source[field] === undefined)) {
+    updates[field] = false
+  }
+  const updated = sources.value.map((s, i) => i === idx ? { ...s, ...updates } : { ...s })
   emitUpdate(updated)
 }
 

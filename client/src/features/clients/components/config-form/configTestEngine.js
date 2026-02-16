@@ -7,6 +7,111 @@
  */
 
 // ---------------------------------------------------------------------------
+// 0. jodaSubdirFormat
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a Joda DateTime format string, returning a regex for matching
+ * and a formatter function that produces the actual string for a given Date.
+ *
+ * Joda rules:
+ *  - Text inside single quotes is literal ('\\' → \)
+ *  - '' inside a quoted section = literal single quote
+ *  - Tokens: yyyy, MM, dd, HH, mm, ss
+ *
+ * @param {string} format - e.g. "'\\'yyyy'\\'MM'\\'dd"
+ * @returns {{ regex: RegExp, format: (date: Date) => string }}
+ */
+export function jodaSubdirFormat(format) {
+  if (!format) return { regex: null, format: () => '' }
+
+  let regexStr = ''
+  let i = 0
+
+  const TOKENS = [
+    { token: 'yyyy', regex: '\\d{4}', fmt: (d) => String(d.getFullYear()) },
+    { token: 'MM', regex: '\\d{2}', fmt: (d) => String(d.getMonth() + 1).padStart(2, '0') },
+    { token: 'dd', regex: '\\d{2}', fmt: (d) => String(d.getDate()).padStart(2, '0') },
+    { token: 'HH', regex: '\\d{2}', fmt: (d) => String(d.getHours()).padStart(2, '0') },
+    { token: 'mm', regex: '\\d{2}', fmt: (d) => String(d.getMinutes()).padStart(2, '0') },
+    { token: 'ss', regex: '\\d{2}', fmt: (d) => String(d.getSeconds()).padStart(2, '0') },
+  ]
+
+  // For the format function, build an array of segments
+  const segments = [] // { type: 'literal', value } or { type: 'token', fmt }
+
+  while (i < format.length) {
+    // Quoted literal
+    if (format[i] === "'") {
+      i++ // skip opening quote
+      let literal = ''
+      while (i < format.length) {
+        if (format[i] === "'" && i + 1 < format.length && format[i + 1] === "'") {
+          literal += "'"
+          i += 2
+        } else if (format[i] === "'") {
+          i++ // skip closing quote
+          break
+        } else {
+          literal += format[i]
+          i++
+        }
+      }
+      // Escape for regex
+      regexStr += literal.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&')
+      segments.push({ type: 'literal', value: literal })
+      continue
+    }
+
+    // Try tokens
+    let matched = false
+    for (const t of TOKENS) {
+      if (format.substring(i, i + t.token.length) === t.token) {
+        regexStr += t.regex
+        segments.push({ type: 'token', fmt: t.fmt })
+        i += t.token.length
+        matched = true
+        break
+      }
+    }
+
+    if (!matched) {
+      // literal character
+      regexStr += format[i].replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&')
+      segments.push({ type: 'literal', value: format[i] })
+      i++
+    }
+  }
+
+  const regex = new RegExp('^' + regexStr + '$')
+
+  const formatFn = (date) => {
+    return segments.map(seg => seg.type === 'literal' ? seg.value : seg.fmt(date)).join('')
+  }
+
+  return { regex, format: formatFn }
+}
+
+
+// ---------------------------------------------------------------------------
+// 0-1. resolveJodaTokens
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if a string contains Joda DateTime tokens and resolve them to current date.
+ * Returns the original string if no tokens found.
+ */
+function resolveJodaTokens(str) {
+  if (!str) return str
+  const JODA_TOKENS = ['yyyy', 'MM', 'dd', 'HH', 'mm', 'ss']
+  const hasTokens = JODA_TOKENS.some(t => str.includes(t))
+  if (!hasTokens) return str
+  const { format: fmt } = jodaSubdirFormat(str)
+  return fmt(new Date())
+}
+
+
+// ---------------------------------------------------------------------------
 // 1. testAccessLogPath
 // ---------------------------------------------------------------------------
 
@@ -31,7 +136,8 @@ export function testAccessLogPath(source, filePath) {
 
   // --- Step: Directory ---
   if (normDir) {
-    const dirPassed = normPath.startsWith(normDir)
+    // Match when path starts with dir/ OR path is exactly the directory itself
+    const dirPassed = normPath.startsWith(normDir) || (normPath + '/') === normDir
     steps.push({
       label: '디렉토리',
       passed: dirPassed,
@@ -44,30 +150,102 @@ export function testAccessLogPath(source, filePath) {
     }
   }
 
+  // --- Step: Filename filter check (at least one of prefix/suffix/wildcard required) ---
+  if (!src.prefix && !src.suffix && !src.wildcard) {
+    steps.push({
+      label: '파일명 필터',
+      passed: false,
+      detail: 'prefix, suffix, wildcard 중 최소 1개 항목을 설정해야 합니다'
+    })
+    return { matched: false, steps }
+  }
+
   // Extract the remaining part after directory
   const remaining = normDir ? normPath.slice(normDir.length) : normPath
 
-  // Extract filename: if date_subdir_format exists the remaining may include
-  // date subdirectories, so always take the last segment after the final /
+  // Extract filename and optionally validate date subdirectory
   let fileName
   if (src.date_subdir_format) {
+    const { format: formatDate } = jodaSubdirFormat(src.date_subdir_format)
+    const expected = formatDate(new Date())
+    // Normalize the expected value to use / separators (same as normPath)
+    const normExpected = expected.replace(/[\\/]+/g, '/')
+    // Strip leading / from expected if present
+    const expectedClean = normExpected.startsWith('/') ? normExpected.slice(1) : normExpected
+
     const lastSlash = remaining.lastIndexOf('/')
-    fileName = lastSlash >= 0 ? remaining.slice(lastSlash + 1) : remaining
+    let subdirPart
+    if (lastSlash >= 0) {
+      subdirPart = remaining.slice(0, lastSlash)
+      fileName = remaining.slice(lastSlash + 1)
+
+      const subdirPassed = subdirPart === expectedClean
+      steps.push({
+        label: '날짜 서브디렉토리',
+        passed: subdirPassed,
+        detail: subdirPassed
+          ? `"${subdirPart}" 매칭 (원본: "${src.date_subdir_format}")`
+          : `"${subdirPart}" 불일치 (현재 날짜 기준 예상: "${expectedClean}")`
+      })
+      if (!subdirPassed) {
+        return { matched: false, steps }
+      }
+    } else if (remaining) {
+      // No slash — try matching entire remaining as subdirectory only (no filename)
+      if (remaining === expectedClean) {
+        subdirPart = remaining
+        fileName = ''
+        steps.push({
+          label: '날짜 서브디렉토리',
+          passed: true,
+          detail: `"${remaining}" 매칭 (원본: "${src.date_subdir_format}")`
+        })
+      } else {
+        // Doesn't match date format — file is directly in directory without subdirectory
+        steps.push({
+          label: '날짜 서브디렉토리',
+          passed: false,
+          detail: `서브디렉토리 없음 (예상 경로: "${src.directory}${expected}/...")`
+        })
+        return { matched: false, steps }
+      }
+    } else {
+      // Empty remaining — no subdirectory at all
+      steps.push({
+        label: '날짜 서브디렉토리',
+        passed: false,
+        detail: `서브디렉토리 없음 (예상 경로: "${src.directory}${expected}")`
+      })
+      return { matched: false, steps }
+    }
   } else {
-    // Still grab the final segment in case the remaining includes extra path parts
-    const lastSlash = remaining.lastIndexOf('/')
-    fileName = lastSlash >= 0 ? remaining.slice(lastSlash + 1) : remaining
+    // No date_subdir_format — file should be directly in the directory
+    if (remaining.includes('/')) {
+      const lastSlash = remaining.lastIndexOf('/')
+      const unexpectedSubdir = remaining.slice(0, lastSlash)
+      steps.push({
+        label: '서브디렉토리',
+        passed: false,
+        detail: `예상하지 않은 서브디렉토리 "${unexpectedSubdir}" (date_subdir_format 미설정)`
+      })
+      return { matched: false, steps }
+    }
+    fileName = remaining
   }
 
   // --- Step: Prefix ---
   if (src.prefix) {
-    const prefixPassed = fileName.startsWith(src.prefix)
+    const resolvedPrefix = resolveJodaTokens(src.prefix)
+    const prefixPassed = fileName.startsWith(resolvedPrefix)
+    const isResolved = resolvedPrefix !== src.prefix
     steps.push({
       label: 'Prefix',
       passed: prefixPassed,
       detail: prefixPassed
-        ? `"${src.prefix}" 매칭`
-        : `"${src.prefix}" 불일치 (파일명: "${fileName}")`
+        ? `"${resolvedPrefix}" 매칭${isResolved ? ` (원본: "${src.prefix}")` : ''}`
+        : isResolved
+          ? `파일명 "${fileName}" 불일치 (현재 날짜 기준 예상 접두사: "${resolvedPrefix}", 원본: "${src.prefix}")`
+          : `"${src.prefix}" 불일치 (파일명: "${fileName}")`
     })
     if (!prefixPassed) {
       return { matched: false, steps }
@@ -76,13 +254,17 @@ export function testAccessLogPath(source, filePath) {
 
   // --- Step: Suffix ---
   if (src.suffix) {
-    const suffixPassed = fileName.endsWith(src.suffix)
+    const resolvedSuffix = resolveJodaTokens(src.suffix)
+    const suffixPassed = fileName.endsWith(resolvedSuffix)
+    const isResolved = resolvedSuffix !== src.suffix
     steps.push({
       label: 'Suffix',
       passed: suffixPassed,
       detail: suffixPassed
-        ? `"${src.suffix}" 매칭`
-        : `"${src.suffix}" 불일치 (파일명: "${fileName}")`
+        ? `"${resolvedSuffix}" 매칭${isResolved ? ` (원본: "${src.suffix}")` : ''}`
+        : isResolved
+          ? `파일명 "${fileName}" 불일치 (현재 날짜 기준 예상 접미사: "${resolvedSuffix}", 원본: "${src.suffix}")`
+          : `"${src.suffix}" 불일치 (파일명: "${fileName}")`
     })
     if (!suffixPassed) {
       return { matched: false, steps }
@@ -90,27 +272,21 @@ export function testAccessLogPath(source, filePath) {
   }
 
   // --- Step: Wildcard ---
-  if (src.prefix && src.suffix) {
-    const middle = fileName.slice(src.prefix.length, fileName.length - src.suffix.length)
-    if (src.wildcard) {
-      const wcPassed = middle.includes(src.wildcard)
-      steps.push({
-        label: 'Wildcard',
-        passed: wcPassed,
-        detail: wcPassed
-          ? `"${src.wildcard}" 매칭 (중간부: "${middle}")`
-          : `"${src.wildcard}" 불일치 (중간부: "${middle}")`
-      })
-      if (!wcPassed) {
-        return { matched: false, steps }
-      }
-    } else {
-      // wildcard empty/undefined -> any middle part is OK
-      steps.push({
-        label: 'Wildcard',
-        passed: true,
-        detail: `와일드카드 없음 - 중간부 "${middle}" 허용`
-      })
+  if (src.wildcard) {
+    const resolvedWildcard = resolveJodaTokens(src.wildcard)
+    const wcPassed = fileName.includes(resolvedWildcard)
+    const isResolved = resolvedWildcard !== src.wildcard
+    steps.push({
+      label: 'Wildcard',
+      passed: wcPassed,
+      detail: wcPassed
+        ? `"${resolvedWildcard}" 매칭 (파일명: "${fileName}")${isResolved ? ` (원본: "${src.wildcard}")` : ''}`
+        : isResolved
+          ? `파일명 "${fileName}" 불일치 (현재 날짜 기준 예상: "${resolvedWildcard}", 원본: "${src.wildcard}")`
+          : `"${src.wildcard}" 불일치 (파일명: "${fileName}")`
+    })
+    if (!wcPassed) {
+      return { matched: false, steps }
     }
   }
 

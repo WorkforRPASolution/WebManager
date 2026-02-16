@@ -54,108 +54,147 @@ function formatNumber(num) {
 }
 
 /**
+ * Build a glob-like file pattern string from AccessLog source fields.
+ * @param {Object} source - AccessLog source configuration
+ * @returns {string} glob-like pattern (e.g. "D:\EARS\Log\Log_yyyyMMdd*system*.txt")
+ */
+function buildFilePattern(source) {
+  const dir = source.directory || ''
+  let pattern = dir
+
+  // Date subdir format
+  if (source.date_subdir_format) {
+    const sep = dir.includes('/') ? '/' : '\\'
+    pattern += sep + '<' + source.date_subdir_format + '>'
+  }
+
+  // Separator before filename
+  if (pattern && !pattern.endsWith('/') && !pattern.endsWith('\\')) {
+    const sep = pattern.includes('/') ? '/' : '\\'
+    pattern += sep
+  }
+
+  // Filename pattern: prefix + wildcard + suffix
+  const prefix = source.prefix || ''
+  const suffix = source.suffix || ''
+  const wildcard = source.wildcard || ''
+
+  if (prefix || suffix || wildcard) {
+    pattern += prefix
+    if (wildcard) {
+      pattern += '*' + wildcard + '*'
+      if (suffix) pattern += suffix
+    } else {
+      if (suffix) {
+        pattern += '*' + suffix
+      } else {
+        pattern += '*'
+      }
+    }
+  } else {
+    pattern += '*'
+  }
+
+  return pattern
+}
+
+/**
  * Describe an AccessLog source object in Korean.
+ * Produces a compact, user-friendly description.
  * @param {Object} source - AccessLog source configuration
  * @returns {string} Korean description
  */
 function describeAccessLog(source) {
   const lines = [];
 
-  // --- Purpose tag ---
+  // --- Line 1: Purpose tag ---
   if (source.name) {
     const isUpload = !source.name.match(/^__.*__$/)
     lines.push(isUpload ? '[Log Upload 용]' : '[Log Trigger 용]')
   }
 
-  // --- Line 1: directory + file pattern ---
-  const dir = source.directory || '';
-  let patternParts = [];
+  // --- Line 2: 감시 파일 — glob-like pattern ---
+  let fileLine = '감시 파일: ' + buildFilePattern(source)
 
-  if (source.prefix) {
-    patternParts.push(`"${source.prefix}"로 시작하고`);
-  }
-  if (source.suffix) {
-    patternParts.push(`"${source.suffix}"로 끝나는`);
+  // Exclude suffix
+  if (source.exclude_suffix && source.exclude_suffix.length > 0) {
+    fileLine += '  (제외: ' + source.exclude_suffix.join(', ') + ')'
   }
 
-  let wildcardNote = '';
-  if (source.wildcard) {
-    wildcardNote = ` (와일드카드: "${source.wildcard}")`;
+  lines.push(fileLine)
+
+  // --- Line 3: 읽기 설정 — compact pipe-separated ---
+  const readParts = []
+  if (source.charset) readParts.push(source.charset)
+  const interval = parseDuration(source.access_interval)
+  if (interval) readParts.push(interval + ' 간격')
+  else if (source.access_interval) readParts.push(source.access_interval + ' 간격')
+  if (source.reopen) readParts.push('파일 재열기')
+  // Only show batch_count/batch_timeout for upload type
+  if (source.batch_count) readParts.push('배치 ' + formatNumber(source.batch_count) + '줄')
+  if (source.batch_timeout) {
+    const bt = parseDuration(source.batch_timeout)
+    if (bt) readParts.push('배치 타임아웃 ' + bt)
   }
 
-  let fileDesc;
-  if (patternParts.length > 0) {
-    fileDesc = `${patternParts.join(' ')} 파일을${wildcardNote}`;
-  } else {
-    fileDesc = `모든 파일을${wildcardNote}`;
+  if (readParts.length > 0) {
+    lines.push('읽기: ' + readParts.join(' | '))
   }
 
-  lines.push(`${dir} 디렉토리에서 ${fileDesc}`);
+  // --- Line 4: 시작 동작 ---
+  const startParts = []
+  if (source.back === true) startParts.push('마지막 위치부터 이어 읽기')
+  else if (source.back === false) startParts.push('처음부터 읽기')
+  if (source.end === true) startParts.push('파일 끝부터 시작')
 
-  // --- Line 2: log type ---
-  const logTypeLabel = LOG_TYPE_MAP[source.log_type] || source.log_type || '알 수 없는 방식';
-  let logTypeLine = `${logTypeLabel}(${source.log_type}) 방식으로 감시합니다.`;
-
-  if (source.date_subdir_format) {
-    logTypeLine += ` (날짜 하위 디렉토리: ${source.date_subdir_format})`;
+  if (startParts.length > 0) {
+    lines.push('시작: ' + startParts.join(' | '))
   }
 
-  lines.push(logTypeLine);
-
-  // --- Line 3: reading settings ---
-  const charset = source.charset || 'UTF-8';
-  const intervalKorean = parseDuration(source.access_interval);
-  const intervalText = intervalKorean || source.access_interval || '?';
-  const batchCount = formatNumber(source.batch_count);
-
-  lines.push(`${charset} 인코딩, ${intervalText} 간격으로 최대 ${batchCount}줄씩 읽습니다.`);
-
-  // --- Line 4: behavior options ---
-  const behaviors = [];
-
-  if (source.back === true) {
-    behaviors.push('재시작 시 마지막 위치부터 이어 읽습니다.');
-  } else if (source.back === false) {
-    behaviors.push('재시작 시 처음부터 다시 읽습니다.');
+  // --- Blank line before advanced sections ---
+  const hasMultiline = source.startPattern || source.endPattern || source.count
+  const hasExtract = !!source.extractPattern
+  if (hasMultiline || hasExtract) {
+    lines.push('')
   }
 
-  if (source.end === true) {
-    behaviors.push('최초 접근 시 파일 끝부터 읽기 시작합니다.');
-  }
+  // --- Line 5 (optional): 다중 라인 ---
+  if (hasMultiline) {
+    let mlText = '다중 라인: '
 
-  if (source.reopen === true) {
-    behaviors.push('매 주기마다 파일을 다시 엽니다.');
-  }
-
-  if (behaviors.length > 0) {
-    let behaviorLine = behaviors.join(' ');
-
-    // Exclude suffix
-    if (source.exclude_suffix && source.exclude_suffix.length > 0) {
-      behaviorLine += ` (${source.exclude_suffix.join(', ')} 파일은 제외)`;
+    // Block pattern description
+    if (source.startPattern && source.endPattern) {
+      mlText += `"${source.startPattern}" ~ "${source.endPattern}" 블록 수집`
+    } else if (source.startPattern) {
+      mlText += `"${source.startPattern}"부터 블록 수집`
+    } else if (source.endPattern) {
+      mlText += `"${source.endPattern}"까지 블록 수집`
     }
 
-    lines.push(behaviorLine);
-  } else if (source.exclude_suffix && source.exclude_suffix.length > 0) {
-    lines.push(`(${source.exclude_suffix.join(', ')} 파일은 제외)`);
+    // Count and priority
+    if (source.count != null) {
+      const priorityLabel = source.priority
+        ? (source.priority === 'count' ? '라인 수' : '패턴') + ' 우선'
+        : ''
+      const countParts = [`최대 ${source.count}줄`]
+      if (priorityLabel) countParts.push(priorityLabel)
+      mlText += ' (' + countParts.join(', ') + ')'
+    }
+
+    lines.push(mlText)
   }
 
-  // --- Multiline settings ---
-  if (source.startPattern || source.endPattern || source.count) {
-    const mlParts = []
-    if (source.startPattern) mlParts.push(`시작: "${source.startPattern}"`)
-    if (source.endPattern) mlParts.push(`종료: "${source.endPattern}"`)
-    if (source.count != null) mlParts.push(`수집 라인: ${source.count}줄`)
-    if (source.priority) mlParts.push(`우선순위: ${source.priority === 'count' ? '라인 수' : '패턴'}`)
-    lines.push(`멀티라인 설정: ${mlParts.join(', ')}`)
-  }
-
-  // --- Extract-append settings ---
-  if (source.extractPattern) {
-    const eaParts = [`추출: "${source.extractPattern}"`]
-    if (source.appendFormat) eaParts.push(`포맷: "${source.appendFormat}"`)
-    if (source.appendPos != null) eaParts.push(`위치: ${source.appendPos === 0 ? '로그 앞' : source.appendPos}`)
-    lines.push(`추출-삽입 설정: ${eaParts.join(', ')}`)
+  // --- Line 6 (optional): 추출-삽입 ---
+  if (hasExtract) {
+    let eaText = `추출-삽입: "${source.extractPattern}"`
+    if (source.appendFormat) {
+      eaText += ` → "${source.appendFormat}"`
+    }
+    if (source.appendPos != null) {
+      const posLabel = source.appendPos === 0 ? '로그 앞' : `위치: ${source.appendPos}`
+      eaText += ` (${posLabel})`
+    }
+    lines.push(eaText)
   }
 
   return lines.join('\n');

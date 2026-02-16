@@ -260,7 +260,7 @@ export function buildAccessLogOutput(source) {
   // Always included fields
   result.directory = s.directory || ''
   result.prefix = s.prefix || ''
-  if (s.wildcard) result.wildcard = s.wildcard
+  result.wildcard = s.wildcard || ''
   result.suffix = s.suffix || ''
   result.log_type = s.log_type || 'normal_single'
 

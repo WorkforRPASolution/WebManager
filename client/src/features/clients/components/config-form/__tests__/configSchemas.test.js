@@ -302,6 +302,20 @@ describe('buildAccessLogOutput', () => {
     expect(out.batch_count).toBeUndefined()
     expect(out.batch_timeout).toBeUndefined()
   })
+
+  it('wildcard is always present in output even when empty/undefined', () => {
+    const source = {
+      name: '__TestLog__',
+      directory: 'C:/logs',
+      prefix: 'app',
+      suffix: '.log',
+      log_type: 'normal_single'
+      // wildcard not set
+    }
+    const out = buildAccessLogOutput(source)
+    expect(out).toHaveProperty('wildcard')
+    expect(out.wildcard).toBe('')
+  })
 })
 
 // ===========================================================================

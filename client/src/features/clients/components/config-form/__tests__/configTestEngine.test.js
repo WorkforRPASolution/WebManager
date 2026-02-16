@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  jodaSubdirFormat,
   testAccessLogPath,
   timestampFormatToRegex,
   testTriggerPattern,
@@ -88,20 +89,25 @@ describe('testAccessLogPath', () => {
     expect(wcStep.passed).toBe(false)
   })
 
-  it('9. No prefix/suffix - matches any file in directory', () => {
+  it('9. No prefix/suffix/wildcard - fails with filename filter validation', () => {
     const source = { directory: 'D:\\Testlog\\', prefix: '', suffix: '' }
     const result = testAccessLogPath(source, 'D:\\Testlog\\anything.xyz')
-    expect(result.matched).toBe(true)
+    expect(result.matched).toBe(false)
+    const filterStep = result.steps.find((s) => s.label === '파일명 필터')
+    expect(filterStep).toBeDefined()
+    expect(filterStep.passed).toBe(false)
   })
 
   it('10. Date subdir format - filePath includes subdirectory', () => {
+    const now = new Date()
+    const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`
     const source = {
       directory: 'D:\\Testlog\\',
       prefix: 'TestLog',
       suffix: '.log',
       date_subdir_format: 'yyyyMMdd'
     }
-    const result = testAccessLogPath(source, 'D:\\Testlog\\20260214\\TestLog_001.log')
+    const result = testAccessLogPath(source, `D:\\Testlog\\${dateStr}\\TestLog_001.log`)
     expect(result.matched).toBe(true)
   })
 
@@ -132,6 +138,383 @@ describe('testAccessLogPath', () => {
     const source = { directory: 'D:\\Testlog', prefix: 'TestLog', suffix: '.log' }
     const result = testAccessLogPath(source, 'D://Testlog/TestLog.log')
     expect(result.matched).toBe(true)
+  })
+
+  it('15. Directory-only path without trailing slash - directory step passes', () => {
+    const source = { directory: 'D:\\EARS\\Log', prefix: 'TestLog', suffix: '.log' }
+    const result = testAccessLogPath(source, 'D:\\EARS\\Log')
+    // Directory step should pass (path matches the directory itself)
+    const dirStep = result.steps.find((s) => s.label === '디렉토리')
+    expect(dirStep).toBeDefined()
+    expect(dirStep.passed).toBe(true)
+    // Overall match is false because there's no filename for prefix/suffix
+    expect(result.matched).toBe(false)
+  })
+
+  it('16. Directory-only path with trailing slash - directory step passes', () => {
+    const source = { directory: 'D:\\EARS\\Log', prefix: 'TestLog', suffix: '.log' }
+    const result = testAccessLogPath(source, 'D:\\EARS\\Log\\')
+    // Directory step should pass
+    const dirStep = result.steps.find((s) => s.label === '디렉토리')
+    expect(dirStep).toBeDefined()
+    expect(dirStep.passed).toBe(true)
+    // Overall match is false because there's no filename for prefix/suffix
+    expect(result.matched).toBe(false)
+  })
+
+  it('17. Wildcard with no suffix - should fail when wildcard not in filename', () => {
+    const source = {
+      directory: 'D:\\EARS\\Log\\',
+      prefix: 'Log_',
+      wildcard: '_20',
+      suffix: ''
+    }
+    const result = testAccessLogPath(source, 'D:\\EARS\\Log\\Log_.txt')
+    expect(result.matched).toBe(false)
+    const wcStep = result.steps.find((s) => s.label === 'Wildcard')
+    expect(wcStep).toBeDefined()
+    expect(wcStep.passed).toBe(false)
+  })
+
+  it('18. Wildcard with no suffix - should pass when wildcard is in filename', () => {
+    const source = {
+      directory: 'D:\\EARS\\Log\\',
+      prefix: 'Log_',
+      wildcard: '_20',
+      suffix: ''
+    }
+    const result = testAccessLogPath(source, 'D:\\EARS\\Log\\Log_abc_20.txt')
+    expect(result.matched).toBe(true)
+    const wcStep = result.steps.find((s) => s.label === 'Wildcard')
+    expect(wcStep).toBeDefined()
+    expect(wcStep.passed).toBe(true)
+  })
+
+  it('19. Wildcard searches entire filename - prefix overlap case', () => {
+    const source = {
+      directory: 'D:\\EARS\\Log\\',
+      prefix: 'Log_',
+      wildcard: '_',
+      suffix: ''
+    }
+    const result = testAccessLogPath(source, 'D:\\EARS\\Log\\Log_.txt')
+    expect(result.matched).toBe(true)
+    const wcStep = result.steps.find((s) => s.label === 'Wildcard')
+    expect(wcStep).toBeDefined()
+    expect(wcStep.passed).toBe(true)
+  })
+
+  it('20. Filename filter - no prefix/suffix/wildcard returns false with 파일명 필터 step', () => {
+    const source = {
+      directory: 'D:\\EARS\\Log',
+      prefix: '',
+      suffix: '',
+      wildcard: ''
+    }
+    const result = testAccessLogPath(source, 'D:\\EARS\\Log\\test.txt')
+    expect(result.matched).toBe(false)
+    const filterStep = result.steps.find((s) => s.label === '파일명 필터')
+    expect(filterStep).toBeDefined()
+    expect(filterStep.passed).toBe(false)
+  })
+
+  it('28. Prefix with Joda tokens - resolves to current date and matches', () => {
+    const now = new Date()
+    const y = String(now.getFullYear())
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const d = String(now.getDate()).padStart(2, '0')
+    const dateStr = y + m + d
+    const source = {
+      directory: 'D:\\EARS\\Log',
+      prefix: 'Log_yyyyMMdd',
+      suffix: '.txt'
+    }
+    const result = testAccessLogPath(source, `D:\\EARS\\Log\\Log_${dateStr}.txt`)
+    expect(result.matched).toBe(true)
+    const prefixStep = result.steps.find((s) => s.label === 'Prefix')
+    expect(prefixStep).toBeDefined()
+    expect(prefixStep.passed).toBe(true)
+    expect(prefixStep.detail).toContain(`Log_${dateStr}`)
+    expect(prefixStep.detail).toContain('원본: "Log_yyyyMMdd"')
+  })
+
+  it('29. Prefix with Joda tokens - does NOT match wrong date', () => {
+    const now = new Date()
+    const yesterday = new Date(now.getTime() - 86400000)
+    const y = String(yesterday.getFullYear())
+    const m = String(yesterday.getMonth() + 1).padStart(2, '0')
+    const d = String(yesterday.getDate()).padStart(2, '0')
+    const dateStr = y + m + d
+    const source = {
+      directory: 'D:\\EARS\\Log',
+      prefix: 'Log_yyyyMMdd',
+      suffix: '.txt'
+    }
+    const result = testAccessLogPath(source, `D:\\EARS\\Log\\Log_${dateStr}.txt`)
+    expect(result.matched).toBe(false)
+    const prefixStep = result.steps.find((s) => s.label === 'Prefix')
+    expect(prefixStep).toBeDefined()
+    expect(prefixStep.passed).toBe(false)
+    expect(prefixStep.detail).toContain('파일명')
+    expect(prefixStep.detail).toContain('현재 날짜 기준 예상 접두사')
+  })
+
+  it('30. Suffix with Joda tokens - resolves to current date and matches', () => {
+    const now = new Date()
+    const y = String(now.getFullYear())
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const d = String(now.getDate()).padStart(2, '0')
+    const dateStr = y + m + d
+    const source = {
+      directory: 'D:\\EARS\\Log',
+      prefix: 'Log',
+      suffix: '_yyyyMMdd.txt'
+    }
+    const result = testAccessLogPath(source, `D:\\EARS\\Log\\Log_${dateStr}.txt`)
+    expect(result.matched).toBe(true)
+    const suffixStep = result.steps.find((s) => s.label === 'Suffix')
+    expect(suffixStep).toBeDefined()
+    expect(suffixStep.passed).toBe(true)
+    expect(suffixStep.detail).toContain(`_${dateStr}.txt`)
+    expect(suffixStep.detail).toContain('원본: "_yyyyMMdd.txt"')
+  })
+
+  it('31. Plain prefix (no Joda tokens) - no 원본 annotation', () => {
+    const source = {
+      directory: 'D:\\EARS\\Log',
+      prefix: 'TestLog',
+      suffix: '.log'
+    }
+    const result = testAccessLogPath(source, 'D:\\EARS\\Log\\TestLog_001.log')
+    expect(result.matched).toBe(true)
+    const prefixStep = result.steps.find((s) => s.label === 'Prefix')
+    expect(prefixStep).toBeDefined()
+    expect(prefixStep.passed).toBe(true)
+    expect(prefixStep.detail).not.toContain('원본')
+  })
+})
+
+
+// ===========================================================================
+// jodaSubdirFormat
+// ===========================================================================
+
+describe('jodaSubdirFormat', () => {
+  it('1. Basic Joda format with backslash-separated date', () => {
+    // format: '\' yyyy '\' MM '\' dd  →  \2025\12\25
+    const { regex, format: formatDate } = jodaSubdirFormat("'\\'yyyy'\\'MM'\\'dd")
+    expect(regex).toBeInstanceOf(RegExp)
+
+    // Should match \2025\12\25
+    expect(regex.test('\\2025\\12\\25')).toBe(true)
+
+    // Format function should produce same output
+    const date = new Date(2025, 11, 25) // Dec 25, 2025
+    expect(formatDate(date)).toBe('\\2025\\12\\25')
+  })
+
+  it('2. Simple concatenated format yyyyMMdd', () => {
+    const { regex, format: formatDate } = jodaSubdirFormat('yyyyMMdd')
+    expect(regex).toBeInstanceOf(RegExp)
+
+    expect(regex.test('20251225')).toBe(true)
+    expect(regex.test('abc12345')).toBe(false)
+
+    const date = new Date(2025, 11, 25)
+    expect(formatDate(date)).toBe('20251225')
+  })
+
+  it('3. Null/empty format returns null regex', () => {
+    const { regex, format: formatDate } = jodaSubdirFormat(null)
+    expect(regex).toBeNull()
+    expect(formatDate(new Date())).toBe('')
+
+    const r2 = jodaSubdirFormat('')
+    expect(r2.regex).toBeNull()
+  })
+
+  it('4. Format with hours/minutes/seconds', () => {
+    const { regex, format: formatDate } = jodaSubdirFormat('yyyy-MM-dd_HH-mm-ss')
+    expect(regex).toBeInstanceOf(RegExp)
+    expect(regex.test('2025-12-25_13-41-55')).toBe(true)
+    expect(regex.test('2025-12-25_99-99-99')).toBe(true) // regex only validates digit count
+    expect(regex.test('abcd-ef-gh_ij-kl-mn')).toBe(false)
+  })
+
+  it('5. Quoted literal single quote (double single-quote inside quotes)', () => {
+    // format: 'hello''world'  →  hello'world
+    const { regex, format: formatDate } = jodaSubdirFormat("'hello''world'")
+    expect(formatDate(new Date())).toBe("hello'world")
+    expect(regex.test("hello'world")).toBe(true)
+  })
+})
+
+
+// ===========================================================================
+// testAccessLogPath - date_subdir_format
+// ===========================================================================
+
+describe('testAccessLogPath - date_subdir_format validation', () => {
+  it('21. Path with date_subdir_format matching', () => {
+    const now = new Date()
+    const y = String(now.getFullYear())
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const d = String(now.getDate()).padStart(2, '0')
+    const source = {
+      directory: 'D:\\EARS\\Log',
+      prefix: 'Log_',
+      suffix: '.txt',
+      date_subdir_format: "'\\\\'yyyy'\\\\'MM'\\\\'dd"
+    }
+    const input = `D:\\EARS\\Log\\${y}\\${m}\\${d}\\Log_test.txt`
+    const result = testAccessLogPath(source, input)
+    expect(result.matched).toBe(true)
+    const subdirStep = result.steps.find((s) => s.label === '날짜 서브디렉토리')
+    expect(subdirStep).toBeDefined()
+    expect(subdirStep.passed).toBe(true)
+  })
+
+  it('22. Path with date_subdir_format NOT matching', () => {
+    const source = {
+      directory: 'D:\\EARS\\Log',
+      prefix: 'Log_',
+      suffix: '.txt',
+      date_subdir_format: "'\\'yyyy'\\'MM'\\'dd"
+    }
+    const result = testAccessLogPath(source, 'D:\\EARS\\Log\\abc\\def\\ghi\\Log_test.txt')
+    expect(result.matched).toBe(false)
+    const subdirStep = result.steps.find((s) => s.label === '날짜 서브디렉토리')
+    expect(subdirStep).toBeDefined()
+    expect(subdirStep.passed).toBe(false)
+  })
+
+  it('23. Path with date_subdir_format but no subdirectory (remaining treated as subdir)', () => {
+    const source = {
+      directory: 'D:\\EARS\\Log',
+      prefix: 'Log_',
+      suffix: '.txt',
+      date_subdir_format: "'\\\\'yyyy'\\\\'MM'\\\\'dd"
+    }
+    // remaining = 'Log_test.txt' — no slash, treated as subdirectory part, won't match date format
+    const result = testAccessLogPath(source, 'D:\\EARS\\Log\\Log_test.txt')
+    expect(result.matched).toBe(false)
+    const subdirStep = result.steps.find((s) => s.label === '날짜 서브디렉토리')
+    expect(subdirStep).toBeDefined()
+    expect(subdirStep.passed).toBe(false)
+    expect(subdirStep.detail).toContain('서브디렉토리 없음')
+  })
+
+  it('24. Simple date_subdir_format yyyyMMdd matching', () => {
+    const now = new Date()
+    const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`
+    const source = {
+      directory: 'D:\\Testlog\\',
+      prefix: 'TestLog',
+      suffix: '.log',
+      date_subdir_format: 'yyyyMMdd'
+    }
+    const result = testAccessLogPath(source, `D:\\Testlog\\${dateStr}\\TestLog_001.log`)
+    expect(result.matched).toBe(true)
+    const subdirStep = result.steps.find((s) => s.label === '날짜 서브디렉토리')
+    expect(subdirStep).toBeDefined()
+    expect(subdirStep.passed).toBe(true)
+  })
+
+  it('25. Simple date_subdir_format yyyyMMdd NOT matching', () => {
+    const source = {
+      directory: 'D:\\Testlog\\',
+      prefix: 'TestLog',
+      suffix: '.log',
+      date_subdir_format: 'yyyyMMdd'
+    }
+    const result = testAccessLogPath(source, 'D:\\Testlog\\baddate\\TestLog_001.log')
+    expect(result.matched).toBe(false)
+    const subdirStep = result.steps.find((s) => s.label === '날짜 서브디렉토리')
+    expect(subdirStep).toBeDefined()
+    expect(subdirStep.passed).toBe(false)
+  })
+
+  it('26. Date subdir only (no filename) - remaining has no slash, matches date format', () => {
+    const y = String(new Date().getFullYear())
+    const source = {
+      directory: 'D:\\EARS\\Log',
+      date_subdir_format: 'yyyy',
+      prefix: 'Log_',
+      suffix: '.txt'
+    }
+    const result = testAccessLogPath(source, `D:\\EARS\\Log\\${y}`)
+    expect(result.matched).toBe(false) // fails at prefix (fileName is empty)
+    const subdirStep = result.steps.find((s) => s.label === '날짜 서브디렉토리')
+    expect(subdirStep).toBeDefined()
+    expect(subdirStep.passed).toBe(true) // date subdir matches current year
+    const prefixStep = result.steps.find((s) => s.label === 'Prefix')
+    expect(prefixStep).toBeDefined()
+    expect(prefixStep.passed).toBe(false) // empty fileName doesn't start with 'Log_'
+  })
+
+  it('27. Empty remaining with date_subdir_format - shows 서브디렉토리 없음', () => {
+    // input equals directory exactly -> remaining is empty -> '서브디렉토리 없음'
+    const source = {
+      directory: 'D:\\EARS\\Log',
+      date_subdir_format: 'yyyy',
+      prefix: 'Log_',
+      suffix: '.txt'
+    }
+    const result = testAccessLogPath(source, 'D:\\EARS\\Log')
+    expect(result.matched).toBe(false)
+    const subdirStep = result.steps.find((s) => s.label === '날짜 서브디렉토리')
+    expect(subdirStep).toBeDefined()
+    expect(subdirStep.passed).toBe(false)
+    expect(subdirStep.detail).toContain('서브디렉토리 없음')
+  })
+
+  it('32. No date_subdir_format - unexpected subdirectory should fail', () => {
+    const source = {
+      directory: 'D:\\EARS\\Log',
+      prefix: 'Log_',
+      suffix: '.txt',
+      date_subdir_format: ''
+    }
+    const result = testAccessLogPath(source, 'D:\\EARS\\Log\\subdir\\Log_test.txt')
+    expect(result.matched).toBe(false)
+    const subdirStep = result.steps.find((s) => s.label === '서브디렉토리')
+    expect(subdirStep).toBeDefined()
+    expect(subdirStep.passed).toBe(false)
+    expect(subdirStep.detail).toContain('subdir')
+  })
+
+  it('33. No date_subdir_format (undefined) - unexpected subdirectory should fail', () => {
+    const source = {
+      directory: 'D:\\EARS\\Log',
+      prefix: 'Log_',
+      suffix: '.txt'
+    }
+    const result = testAccessLogPath(source, 'D:\\EARS\\Log\\subdir\\Log_test.txt')
+    expect(result.matched).toBe(false)
+    const subdirStep = result.steps.find((s) => s.label === '서브디렉토리')
+    expect(subdirStep).toBeDefined()
+    expect(subdirStep.passed).toBe(false)
+  })
+
+  it('34. date_subdir_format set but file directly in directory (no subdir) - shows 서브디렉토리 없음', () => {
+    const now = new Date()
+    const y = String(now.getFullYear())
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const d = String(now.getDate()).padStart(2, '0')
+    const dateStr = y + m + d
+    const source = {
+      directory: 'D:\\EARS\\Log',
+      prefix: `Log_${dateStr}`,
+      suffix: '.txt',
+      date_subdir_format: "'\\\\'yyyy"
+    }
+    // File is directly in directory — no year subdirectory
+    const result = testAccessLogPath(source, `D:\\EARS\\Log\\Log_${dateStr}.txt`)
+    expect(result.matched).toBe(false)
+    const subdirStep = result.steps.find((s) => s.label === '날짜 서브디렉토리')
+    expect(subdirStep).toBeDefined()
+    expect(subdirStep.passed).toBe(false)
+    expect(subdirStep.detail).toContain('서브디렉토리 없음')
   })
 })
 

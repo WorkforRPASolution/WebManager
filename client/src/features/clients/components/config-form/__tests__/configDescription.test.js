@@ -24,182 +24,156 @@ describe('describeAccessLog', () => {
 
     const result = describeAccessLog(source)
 
-    // directory
-    expect(result).toContain('/var/log/app 디렉토리')
-    // prefix + suffix pattern
-    expect(result).toContain('"access"로 시작하고')
-    expect(result).toContain('".log"로 끝나는')
-    // wildcard
-    expect(result).toContain('(와일드카드: "*.log.*")')
-    // log type Korean + raw key
-    expect(result).toContain('날짜별 단일 라인')
-    expect(result).toContain('(date_single)')
-    // date_subdir_format
-    expect(result).toContain('날짜 하위 디렉토리: yyyyMMdd')
-    // charset
-    expect(result).toContain('EUC-KR 인코딩')
-    // interval parsed to Korean
-    expect(result).toContain('10초 간격')
-    // batch count with locale comma
-    expect(result).toContain('5,000줄')
-    // back=true
-    expect(result).toContain('마지막 위치부터 이어')
-    // end=true
-    expect(result).toContain('끝부터 읽기')
-    // reopen=true
-    expect(result).toContain('다시 엽니다')
+    // glob-like file pattern
+    expect(result).toContain('감시 파일: /var/log/app/<yyyyMMdd>/access**.log.**.log')
     // exclude suffix
-    expect(result).toContain('.bak, .tmp 파일은 제외')
+    expect(result).toContain('(제외: .bak, .tmp)')
+    // reading settings pipe-separated
+    expect(result).toContain('읽기:')
+    expect(result).toContain('EUC-KR')
+    expect(result).toContain('10초 간격')
+    expect(result).toContain('파일 재열기')
+    // batch count for upload-like
+    expect(result).toContain('배치 5,000줄')
+    // start behavior
+    expect(result).toContain('시작:')
+    expect(result).toContain('마지막 위치부터 이어 읽기')
+    expect(result).toContain('파일 끝부터 시작')
   })
 
   it('minimal config — only directory', () => {
     const source = { directory: '/logs' }
     const result = describeAccessLog(source)
 
-    // should produce valid multi-line description
-    expect(result).toContain('/logs 디렉토리')
-    expect(result).toContain('모든 파일을')
-    // charset defaults to UTF-8
-    expect(result).toContain('UTF-8 인코딩')
-    // batch_count defaults to 0
-    expect(result).toContain('0줄')
-    // unknown log type
-    expect(result).toContain('알 수 없는 방식')
+    // glob pattern: directory + wildcard
+    expect(result).toContain('감시 파일: /logs/*')
+    // no 읽기 line if no settings
+    expect(result).not.toContain('읽기:')
+    // no 시작 line if no back/end
+    expect(result).not.toContain('시작:')
   })
 
   // --- File pattern combinations ---
   describe('file pattern combinations', () => {
-    it('prefix only → "로 시작하는"', () => {
+    it('prefix + suffix → prefix*suffix', () => {
+      const result = describeAccessLog({ directory: '/d', prefix: 'app', suffix: '.log' })
+      expect(result).toContain('감시 파일: /d/app*.log')
+    })
+
+    it('prefix only → prefix*', () => {
       const result = describeAccessLog({ directory: '/d', prefix: 'app' })
-      expect(result).toContain('"app"로 시작하고')
-      expect(result).not.toContain('로 끝나는')
+      expect(result).toContain('감시 파일: /d/app*')
     })
 
-    it('suffix only → "로 끝나는"', () => {
+    it('suffix only → *.suffix', () => {
       const result = describeAccessLog({ directory: '/d', suffix: '.txt' })
-      expect(result).toContain('".txt"로 끝나는')
-      expect(result).not.toContain('로 시작하고')
+      expect(result).toContain('감시 파일: /d/*.txt')
     })
 
-    it('neither prefix nor suffix → "모든 파일"', () => {
+    it('neither prefix nor suffix → *', () => {
       const result = describeAccessLog({ directory: '/d' })
-      expect(result).toContain('모든 파일을')
+      expect(result).toContain('감시 파일: /d/*')
     })
 
-    it('wildcard present → "(와일드카드: ...)"', () => {
-      const result = describeAccessLog({ directory: '/d', wildcard: '*.csv' })
-      expect(result).toContain('(와일드카드: "*.csv")')
+    it('wildcard + suffix → *wildcard*suffix', () => {
+      const result = describeAccessLog({ directory: '/d', wildcard: 'system', suffix: '.txt' })
+      expect(result).toContain('감시 파일: /d/*system*.txt')
     })
 
-    it('no wildcard → no wildcard note', () => {
-      const result = describeAccessLog({ directory: '/d', prefix: 'x' })
+    it('wildcard only → *wildcard*', () => {
+      const result = describeAccessLog({ directory: '/d', wildcard: 'system' })
+      expect(result).toContain('감시 파일: /d/*system*')
+    })
+
+    it('prefix + wildcard + suffix → prefix*wildcard*suffix', () => {
+      const result = describeAccessLog({ directory: '/d', prefix: 'Log_', wildcard: 'sys', suffix: '.txt' })
+      expect(result).toContain('감시 파일: /d/Log_*sys*.txt')
+    })
+
+    it('no wildcard, no suffix, no prefix → no wildcard note', () => {
+      const result = describeAccessLog({ directory: '/d' })
       expect(result).not.toContain('와일드카드')
-    })
-  })
-
-  // --- Log types ---
-  describe('log types', () => {
-    const cases = [
-      ['normal_single', '일반 단일 라인'],
-      ['date_single', '날짜별 단일 라인'],
-      ['date_prefix_single', '날짜접두사 단일 라인'],
-      ['normal_single_extract_append', '일반 단일 라인 + 추출-삽입'],
-      ['date_single_extract_append', '날짜별 단일 라인 + 추출-삽입'],
-      ['date_prefix_single_extract_append', '날짜접두사 단일 라인 + 추출-삽입'],
-      ['normal_multiline', '일반 다중 라인'],
-      ['date_multiline', '날짜별 다중 라인'],
-      ['normal_multiline_extract_append', '일반 다중 라인 + 추출-삽입'],
-      ['date_multiline_extract_append', '날짜별 다중 라인 + 추출-삽입'],
-    ]
-
-    it.each(cases)('%s → %s', (type, label) => {
-      const result = describeAccessLog({ directory: '/d', log_type: type })
-      expect(result).toContain(label)
-      expect(result).toContain(`(${type})`)
-    })
-
-    it('unknown log type falls back to raw value', () => {
-      const result = describeAccessLog({ directory: '/d', log_type: 'custom_type' })
-      expect(result).toContain('custom_type')
-      expect(result).toContain('(custom_type) 방식')
-    })
-
-    it('missing log type → "알 수 없는 방식"', () => {
-      const result = describeAccessLog({ directory: '/d' })
-      expect(result).toContain('알 수 없는 방식')
     })
   })
 
   // --- date_subdir_format ---
   describe('date_subdir_format', () => {
-    it('when present, appears in description', () => {
+    it('when present, appears in glob pattern', () => {
       const result = describeAccessLog({
         directory: '/d',
-        log_type: 'date_single',
         date_subdir_format: 'yyyy/MM/dd',
+        prefix: 'app',
       })
-      expect(result).toContain('날짜 하위 디렉토리: yyyy/MM/dd')
+      expect(result).toContain('감시 파일: /d/<yyyy/MM/dd>/app*')
     })
 
-    it('when absent, no subdir text', () => {
-      const result = describeAccessLog({ directory: '/d', log_type: 'normal_single' })
-      expect(result).not.toContain('날짜 하위 디렉토리')
+    it('when absent, no subdir in pattern', () => {
+      const result = describeAccessLog({ directory: '/d', prefix: 'app' })
+      expect(result).toContain('감시 파일: /d/app*')
+      expect(result).not.toContain('<')
+    })
+
+    it('windows path with date_subdir_format', () => {
+      const result = describeAccessLog({
+        directory: 'D:\\EARS\\Log',
+        date_subdir_format: "'\\\\'yyyy",
+        prefix: 'Log_',
+        suffix: '.txt',
+      })
+      expect(result).toContain("감시 파일: D:\\EARS\\Log\\<'\\\\'yyyy>\\Log_*.txt")
     })
   })
 
-  // --- Behavior options ---
+  // --- Behavior options (now under 시작:) ---
   describe('behavior options', () => {
-    it('back=true → "마지막 위치부터 이어"', () => {
+    it('back=true → "마지막 위치부터 이어 읽기"', () => {
       const result = describeAccessLog({ directory: '/d', back: true })
-      expect(result).toContain('마지막 위치부터 이어 읽습니다')
+      expect(result).toContain('시작: 마지막 위치부터 이어 읽기')
     })
 
-    it('back=false → "처음부터 다시"', () => {
+    it('back=false → "처음부터 읽기"', () => {
       const result = describeAccessLog({ directory: '/d', back: false })
-      expect(result).toContain('처음부터 다시 읽습니다')
+      expect(result).toContain('시작: 처음부터 읽기')
     })
 
-    it('end=true → "끝부터 읽기"', () => {
+    it('end=true → "파일 끝부터 시작"', () => {
       const result = describeAccessLog({ directory: '/d', end: true })
-      expect(result).toContain('끝부터 읽기 시작합니다')
+      expect(result).toContain('파일 끝부터 시작')
     })
 
-    it('reopen=true → "다시 엽니다"', () => {
+    it('reopen=true → "파일 재열기" in 읽기 line', () => {
       const result = describeAccessLog({ directory: '/d', reopen: true })
-      expect(result).toContain('매 주기마다 파일을 다시 엽니다')
+      expect(result).toContain('읽기:')
+      expect(result).toContain('파일 재열기')
     })
 
-    it('no behavior flags → no behavior line', () => {
+    it('no behavior flags → no 시작 line', () => {
       const result = describeAccessLog({ directory: '/d' })
-      expect(result).not.toContain('재시작')
-      expect(result).not.toContain('다시 엽니다')
+      expect(result).not.toContain('시작:')
+      expect(result).not.toContain('마지막')
+      expect(result).not.toContain('처음부터')
       expect(result).not.toContain('끝부터')
+    })
+
+    it('back + end combined → pipe-separated', () => {
+      const result = describeAccessLog({ directory: '/d', back: true, end: true })
+      expect(result).toContain('시작: 마지막 위치부터 이어 읽기 | 파일 끝부터 시작')
     })
   })
 
   // --- Exclude suffix ---
   describe('exclude suffix', () => {
-    it('[".bak", ".tmp"] appears in description', () => {
+    it('[".bak", ".tmp"] appears after file pattern', () => {
       const result = describeAccessLog({
         directory: '/d',
-        back: true,
         exclude_suffix: ['.bak', '.tmp'],
       })
-      expect(result).toContain('.bak, .tmp 파일은 제외')
-    })
-
-    it('exclude suffix without behavior flags — standalone line', () => {
-      const result = describeAccessLog({
-        directory: '/d',
-        exclude_suffix: ['.old'],
-      })
-      expect(result).toContain('.old 파일은 제외')
+      expect(result).toContain('(제외: .bak, .tmp)')
     })
 
     it('empty exclude_suffix array → no exclude text', () => {
       const result = describeAccessLog({
         directory: '/d',
-        back: true,
         exclude_suffix: [],
       })
       expect(result).not.toContain('제외')
@@ -233,9 +207,9 @@ describe('describeAccessLog', () => {
       expect(result).toContain('fast 간격')
     })
 
-    it('missing interval → "?"', () => {
+    it('missing interval → no interval in output', () => {
       const result = describeAccessLog({ directory: '/d' })
-      expect(result).toContain('? 간격')
+      expect(result).not.toContain('간격')
     })
   })
 
@@ -250,22 +224,59 @@ describe('describeAccessLog', () => {
         count: 10,
         priority: 'pattern'
       })
-      expect(result).toContain('멀티라인 설정')
-      expect(result).toContain('".*START.*"')
-      expect(result).toContain('".*END.*"')
-      expect(result).toContain('10줄')
-      expect(result).toContain('패턴')
+      expect(result).toContain('다중 라인:')
+      expect(result).toContain('".*START.*" ~ ".*END.*" 블록 수집')
+      expect(result).toContain('최대 10줄')
+      expect(result).toContain('패턴 우선')
+    })
+
+    it('startPattern only → "부터 블록 수집"', () => {
+      const result = describeAccessLog({
+        directory: '/d',
+        startPattern: '.*BEGIN.*',
+      })
+      expect(result).toContain('".*BEGIN.*"부터 블록 수집')
+    })
+
+    it('endPattern only → "까지 블록 수집"', () => {
+      const result = describeAccessLog({
+        directory: '/d',
+        endPattern: '.*FINISH.*',
+      })
+      expect(result).toContain('".*FINISH.*"까지 블록 수집')
+    })
+
+    it('count with priority=count → "라인 수 우선"', () => {
+      const result = describeAccessLog({
+        directory: '/d',
+        startPattern: 'S',
+        count: 5,
+        priority: 'count'
+      })
+      expect(result).toContain('최대 5줄, 라인 수 우선')
     })
 
     it('no multiline fields → no multiline line', () => {
       const result = describeAccessLog({ directory: '/d', log_type: 'normal_single' })
-      expect(result).not.toContain('멀티라인')
+      expect(result).not.toContain('다중 라인')
+    })
+
+    it('blank line before multiline section', () => {
+      const result = describeAccessLog({
+        directory: '/d',
+        startPattern: 'S',
+        endPattern: 'E',
+      })
+      const lines = result.split('\n')
+      const mlIndex = lines.findIndex(l => l.startsWith('다중 라인:'))
+      expect(mlIndex).toBeGreaterThan(0)
+      expect(lines[mlIndex - 1]).toBe('')
     })
   })
 
   // --- Extract-append description ---
   describe('extract-append settings', () => {
-    it('extractPattern + appendFormat + appendPos', () => {
+    it('extractPattern + appendFormat + appendPos=0', () => {
       const result = describeAccessLog({
         directory: '/d',
         log_type: 'normal_single_extract_append',
@@ -273,15 +284,37 @@ describe('describeAccessLog', () => {
         appendFormat: '@1-@2 ',
         appendPos: 0
       })
-      expect(result).toContain('추출-삽입 설정')
-      expect(result).toContain('".*Log\\([0-9]+).*"')
-      expect(result).toContain('"@1-@2 "')
-      expect(result).toContain('로그 앞')
+      expect(result).toContain('추출-삽입:')
+      expect(result).toContain('".*Log\\([0-9]+).*" → "@1-@2 "')
+      expect(result).toContain('(로그 앞)')
+    })
+
+    it('appendPos non-zero → "위치: N"', () => {
+      const result = describeAccessLog({
+        directory: '/d',
+        extractPattern: 'pat',
+        appendFormat: 'fmt',
+        appendPos: 5
+      })
+      expect(result).toContain('(위치: 5)')
     })
 
     it('no extractPattern → no extract line', () => {
       const result = describeAccessLog({ directory: '/d', log_type: 'normal_single' })
       expect(result).not.toContain('추출-삽입')
+    })
+
+    it('blank line before extract-append section', () => {
+      const result = describeAccessLog({
+        directory: '/d',
+        extractPattern: 'pat',
+        appendFormat: 'fmt',
+        appendPos: 0
+      })
+      const lines = result.split('\n')
+      const eaIndex = lines.findIndex(l => l.startsWith('추출-삽입:'))
+      expect(eaIndex).toBeGreaterThan(0)
+      expect(lines[eaIndex - 1]).toBe('')
     })
   })
 
@@ -300,6 +333,34 @@ describe('describeAccessLog', () => {
     it('no name → no purpose tag', () => {
       const result = describeAccessLog({ directory: '/d' })
       expect(result).not.toContain('[Log')
+    })
+  })
+
+  // --- Reading settings line ---
+  describe('reading settings', () => {
+    it('charset + interval + reopen → pipe-separated', () => {
+      const result = describeAccessLog({
+        directory: '/d',
+        charset: 'UTF-8',
+        access_interval: '15 seconds',
+        reopen: true,
+      })
+      expect(result).toContain('읽기: UTF-8 | 15초 간격 | 파일 재열기')
+    })
+
+    it('charset only', () => {
+      const result = describeAccessLog({ directory: '/d', charset: 'EUC-KR' })
+      expect(result).toContain('읽기: EUC-KR')
+    })
+
+    it('batch_count and batch_timeout shown', () => {
+      const result = describeAccessLog({
+        directory: '/d',
+        batch_count: 1000,
+        batch_timeout: '30 seconds',
+      })
+      expect(result).toContain('배치 1,000줄')
+      expect(result).toContain('배치 타임아웃 30초')
     })
   })
 })
