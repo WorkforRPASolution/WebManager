@@ -307,18 +307,19 @@ function matchLine(line, syntax, type) {
 
   switch (type) {
     case 'regex':
+    case 'delay':
       try {
         return new RegExp(syntax).test(line)
       } catch {
         return false
       }
-    case 'keyword':
-      return line.toLowerCase().includes(syntax.toLowerCase())
-    case 'exact':
-      return line === syntax
     default:
-      // Default to keyword matching
-      return line.toLowerCase().includes(syntax.toLowerCase())
+      // Default to regex matching
+      try {
+        return new RegExp(syntax).test(line)
+      } catch {
+        return false
+      }
   }
 }
 
@@ -362,6 +363,7 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
   const stepResults = []
   let currentStepIndex = 0
   let lineOffset = 0
+  let resetCount = 0
 
   while (currentStepIndex < recipe.length && lineOffset <= lines.length) {
     const step = recipe[currentStepIndex]
@@ -379,8 +381,16 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
 
     // Determine next action label
     let nextAction = ''
-    if (step.next === '@script' || step.next === '@Script') {
+    if (step.type === 'delay') {
+      nextAction = '→ 체인 리셋'
+    } else if (step.next === '@script' || step.next === '@Script') {
       nextAction = step.script?.name ? `→ ${step.script.name} 실행` : '→ 스크립트 실행'
+    } else if (step.next === '@recovery') {
+      nextAction = '→ 복구 실행'
+    } else if (step.next === '@notify') {
+      nextAction = '→ 알림 전송'
+    } else if (step.next === '@popup') {
+      nextAction = '→ 팝업 표시'
     } else if (step.next) {
       nextAction = `→ ${step.next}로 이동`
     } else {
@@ -486,13 +496,45 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
     })
 
     if (!fired) {
-      // Step did not fire -> chain stops here
+      // Step did not fire -> for delay type this means timeout, proceed to next
+      if (step.type === 'delay' && step.next) {
+        // Delay timeout: proceed to next step (delay didn't cancel the chain)
+        const nextStepIdx = recipe.findIndex((s) => s.name === step.next)
+        if (nextStepIdx >= 0) {
+          currentStepIndex = nextStepIdx
+          continue
+        }
+      }
+      // Chain stops here for non-delay steps, or when next step not found
       break
     }
 
-    // Determine next step
-    if (step.next === '@script' || step.next === '@Script' || !step.next) {
-      // Chain ends (script or empty)
+    // Step fired
+    if (step.type === 'delay') {
+      // Delay step fired -> cancellation condition met
+      if (step.next) {
+        // Has a pending action to cancel -> reset chain to step 0
+        stepResults[stepResults.length - 1].resetChain = true
+        stepResults[stepResults.length - 1].nextAction = '→ 체인 리셋'
+
+        // Guard against infinite loops
+        resetCount = (resetCount || 0) + 1
+        if (resetCount > 100) {
+          break
+        }
+        currentStepIndex = 0
+        lineOffset = stepResults[stepResults.length - 1].matches.length > 0
+          ? lineOffset  // continue from where we were
+          : lineOffset
+        continue
+      }
+      // No pending action -> delay fired as simple pattern match, chain ends
+      break
+    }
+
+    // Determine next step (non-delay)
+    if (step.next === '@script' || step.next === '@Script' || step.next === '@recovery' || step.next === '@notify' || step.next === '@popup' || !step.next) {
+      // Chain ends (action or empty)
       break
     }
 
@@ -507,15 +549,19 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
   }
 
   // Build final result
-  const allFired = stepResults.length > 0 && stepResults.every((s) => s.fired)
+  // For delay steps that didn't fire (timeout), the chain correctly proceeds past them
+  // so they count as "passed through" rather than "failed to match"
+  const allCompleted = stepResults.length > 0 && stepResults.every((s) => s.fired || (s.type === 'delay' && !s.fired))
   const lastStep = stepResults.length > 0 ? stepResults[stepResults.length - 1] : null
+  // The chain is triggered only if the last step actually fired (or timed-out delay was intermediate)
+  const allFired = allCompleted && lastStep && lastStep.fired
   let message = ''
 
   if (stepResults.length === 0) {
     message = '레시피에 스텝이 없습니다'
   } else if (allFired) {
     const lastRecipeStep = recipe.find((s) => s.name === lastStep.name)
-    if (lastRecipeStep && (lastRecipeStep.next === '@script' || lastRecipeStep.next === '@Script')) {
+    if (lastRecipeStep && ['@script', '@Script', '@recovery', '@notify', '@popup'].includes(lastRecipeStep.next)) {
       message = `모든 스텝 완료 - ${lastStep.nextAction}`
     } else {
       message = '모든 스텝 매칭 완료'

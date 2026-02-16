@@ -33,10 +33,87 @@ export function detectConfigFileType(fileName, filePath) {
   return null
 }
 
+// ── log_type 3축 모델 ──
+
+export const DATE_AXIS_OPTIONS = [
+  { value: 'normal', label: '일반' },
+  { value: 'date', label: '날짜별' },
+  { value: 'date_prefix', label: '날짜접두사' }
+]
+
+export const LINE_AXIS_OPTIONS = [
+  { value: 'single', label: '단일 라인' },
+  { value: 'multiline', label: '다중 라인' }
+]
+
+export const POST_PROC_OPTIONS = [
+  { value: 'none', label: '없음' },
+  { value: 'extract_append', label: '추출-삽입' }
+]
+
+// Valid 10 combinations lookup
+const VALID_LOG_TYPES = new Set([
+  'normal_single',
+  'date_single',
+  'date_prefix_single',
+  'normal_single_extract_append',
+  'date_single_extract_append',
+  'date_prefix_single_extract_append',
+  'normal_multiline',
+  'date_multiline',
+  'normal_multiline_extract_append',
+  'date_multiline_extract_append'
+])
+
+export function decomposeLogType(logType) {
+  if (!logType || !VALID_LOG_TYPES.has(logType)) {
+    return { dateAxis: 'normal', lineAxis: 'single', postProc: 'none' }
+  }
+
+  let dateAxis = 'normal'
+  if (logType.startsWith('date_prefix_')) dateAxis = 'date_prefix'
+  else if (logType.startsWith('date_')) dateAxis = 'date'
+
+  const lineAxis = logType.includes('multiline') ? 'multiline' : 'single'
+  const postProc = logType.includes('extract_append') ? 'extract_append' : 'none'
+
+  return { dateAxis, lineAxis, postProc }
+}
+
+export function composeLogType({ dateAxis = 'normal', lineAxis = 'single', postProc = 'none' } = {}) {
+  const parts = [dateAxis, lineAxis]
+  if (postProc && postProc !== 'none') parts.push(postProc)
+  const result = parts.join('_')
+  return VALID_LOG_TYPES.has(result) ? result : 'normal_single'
+}
+
+// ── 소스 네이밍 ──
+
+export function formatSourceName(baseName, purpose) {
+  if (!baseName) return ''
+  if (purpose === 'trigger') return `__${baseName}__`
+  return baseName // upload
+}
+
+export function parseSourceName(key) {
+  if (!key) return { baseName: '', purpose: 'trigger' }
+  const match = key.match(/^__(.+)__$/)
+  if (match) return { baseName: match[1], purpose: 'trigger' }
+  return { baseName: key, purpose: 'upload' }
+}
+
 // ── AccessLog.json 스키마 ──
 
 export const ACCESS_LOG_SCHEMA = {
   fields: {
+    purpose: {
+      type: 'select', label: '용도',
+      description: 'Trigger용 소스는 이름 양쪽에 __가 자동 추가됩니다. Upload용 소스는 이름 그대로 사용됩니다.',
+      options: [
+        { value: 'trigger', label: 'Log Trigger 용' },
+        { value: 'upload', label: 'Log Upload 용' }
+      ]
+    },
     directory: {
       type: 'text', label: '디렉토리 경로', required: true,
       description: '로그 파일이 위치한 클라이언트 머신의 디렉토리 경로입니다. 예: C:/EARS/TestFile',
@@ -49,23 +126,13 @@ export const ACCESS_LOG_SCHEMA = {
     },
     wildcard: {
       type: 'text', label: '와일드카드 (Wildcard)',
-      description: '파일명 중간 부분의 와일드카드 패턴입니다. 비워두면 모든 파일을 매칭합니다.',
+      description: '파일명 중간 부분의 와일드카드 패턴입니다. 비워두면 와일드카드를 사용하지 않습니다.',
       placeholder: ''
     },
     suffix: {
       type: 'text', label: '접미사 (Suffix)',
       description: '로그 파일의 확장자입니다. 예: ".txt", ".log"',
       placeholder: '.txt'
-    },
-    log_type: {
-      type: 'select', label: '로그 타입',
-      description: '로그 파일의 구성 방식을 지정합니다. date_single: 날짜별 단일 파일, date_multi: 날짜별 다중 파일, rolling: 롤링 파일, static: 고정 파일',
-      options: [
-        { value: 'date_single', label: 'date_single (날짜별 단일 파일)' },
-        { value: 'date_multi', label: 'date_multi (날짜별 다중 파일)' },
-        { value: 'rolling', label: 'rolling (롤링 파일)' },
-        { value: 'static', label: 'static (고정 파일)' }
-      ]
     },
     date_subdir_format: {
       type: 'text', label: '날짜 하위 디렉토리 포맷',
@@ -79,7 +146,8 @@ export const ACCESS_LOG_SCHEMA = {
         { value: 'UTF-8', label: 'UTF-8' },
         { value: 'EUC-KR', label: 'EUC-KR' },
         { value: 'MS949', label: 'MS949' },
-        { value: 'ISO-8859-1', label: 'ISO-8859-1' }
+        { value: 'UCS-2 LE BOM', label: 'UCS-2 LE BOM' },
+        { value: '__custom__', label: '직접 입력' }
       ]
     },
     access_interval: {
@@ -89,12 +157,12 @@ export const ACCESS_LOG_SCHEMA = {
     },
     batch_count: {
       type: 'number', label: '배치 수',
-      description: '한 번에 읽는 최대 로그 줄 수입니다. 로그 양이 많은 환경에서는 값을 높이세요.',
+      description: '한 번에 시스템에 보내는 로그 batch 크기 (로그 라인 수)입니다.',
       placeholder: '1000'
     },
     batch_timeout: {
       type: 'text', label: '배치 타임아웃',
-      description: '배치 읽기 최대 대기 시간입니다. 이 시간 내에 batch_count에 도달하지 않으면 읽은 만큼만 처리합니다.',
+      description: 'batch send timeout 시간입니다. 로그가 batch_count만큼 수집되지 않아도 시스템에 보내는 대기 시간입니다.',
       placeholder: '30 seconds'
     },
     reopen: {
@@ -103,7 +171,7 @@ export const ACCESS_LOG_SCHEMA = {
     },
     back: {
       type: 'boolean', label: '이전 위치부터 읽기 (Back)',
-      description: '에이전트 재시작 시 마지막으로 읽었던 위치부터 이어서 읽을지 여부입니다. false면 처음부터 다시 읽습니다.'
+      description: '파일 크기가 줄어들 경우 파일을 처음부터 읽을지 여부입니다. true일 경우 파일 크기가 줄어들면 처음부터 EOF까지 읽습니다.'
     },
     end: {
       type: 'boolean', label: '끝부터 읽기 (End)',
@@ -113,6 +181,46 @@ export const ACCESS_LOG_SCHEMA = {
       type: 'tags', label: '제외 접미사',
       description: '모니터링에서 제외할 파일 확장자 목록입니다. 예: .bak, .tmp',
       placeholder: '예: .bak'
+    },
+    // Multiline fields (visible when lineAxis === 'multiline')
+    startPattern: {
+      type: 'text', label: '시작 패턴 (startPattern)',
+      description: '멀티라인 로그 수집을 시작하는 정규표현식 패턴입니다.',
+      placeholder: '.* WARN Alarm Occured.*'
+    },
+    endPattern: {
+      type: 'text', label: '종료 패턴 (endPattern)',
+      description: '멀티라인 로그 수집을 완료하는 정규표현식 패턴입니다. 이 패턴의 로그까지 한 라인으로 모아서 전달합니다.',
+      placeholder: '.* WARN Alarm Reset.*'
+    },
+    count: {
+      type: 'number', label: '수집 라인 수 (count)',
+      description: '멀티라인 로그를 모으기 완료하는 라인 수입니다.',
+      placeholder: ''
+    },
+    priority: {
+      type: 'select', label: '우선순위 (priority)',
+      description: '멀티라인 완료의 우선순위 설정입니다. 설정된 항목을 우선으로 처리합니다.',
+      options: [
+        { value: 'count', label: 'count (라인 수 우선)' },
+        { value: 'pattern', label: 'pattern (패턴 우선)' }
+      ]
+    },
+    // Extract-append fields (visible when postProc === 'extract_append')
+    extractPattern: {
+      type: 'text', label: '추출 패턴 (extractPattern)',
+      description: '파일 절대 경로에서 로그에 붙일 데이터를 추출하는 정규표현식입니다. ()그룹으로 추출하며 최대 5개까지 지원합니다.',
+      placeholder: '.*Log\\\\([0-9]+)\\\\([0-9]+)\\\\([0-9]+)\\\\app_log.*'
+    },
+    appendPos: {
+      type: 'number', label: '삽입 위치 (appendPos)',
+      description: '추출한 데이터를 로그에 붙일 위치입니다. 0은 로그 앞(왼쪽)입니다.',
+      placeholder: '0'
+    },
+    appendFormat: {
+      type: 'text', label: '삽입 포맷 (appendFormat)',
+      description: '추출 데이터의 포맷입니다. @1, @2, @3으로 추출 그룹을 참조합니다.',
+      placeholder: '@1-@2-@3 '
     }
   },
   defaults: {
@@ -120,16 +228,107 @@ export const ACCESS_LOG_SCHEMA = {
     prefix: '',
     wildcard: '',
     suffix: '.txt',
-    log_type: 'date_single',
+    log_type: 'normal_single',
     date_subdir_format: '',
     reopen: true,
     access_interval: '10 seconds',
     exclude_suffix: [],
-    charset: 'EUC-KR',
-    back: true,
-    end: false,
+    charset: '',
+    back: null,
+    end: null,
     batch_count: 1000,
-    batch_timeout: '30 seconds'
+    batch_timeout: '30 seconds',
+    // multiline
+    startPattern: '',
+    endPattern: '',
+    count: null,
+    priority: 'count',
+    // extract_append
+    extractPattern: '',
+    appendPos: 0,
+    appendFormat: ''
+  }
+}
+
+// ── JSON 변환 함수 ──
+
+export function buildAccessLogOutput(source) {
+  const s = source || {}
+  const axes = decomposeLogType(s.log_type)
+  const result = {}
+
+  // Always included fields
+  result.directory = s.directory || ''
+  result.prefix = s.prefix || ''
+  if (s.wildcard) result.wildcard = s.wildcard
+  result.suffix = s.suffix || ''
+  result.log_type = s.log_type || 'normal_single'
+
+  // date_subdir_format: only when date axis is date or date_prefix AND not _omit
+  if ((axes.dateAxis === 'date' || axes.dateAxis === 'date_prefix') && s.date_subdir_format !== undefined && s._omit_date_subdir_format !== true) {
+    result.date_subdir_format = s.date_subdir_format
+  }
+
+  // charset: only when not _omit
+  if (s.charset && s._omit_charset !== true) {
+    result.charset = s.charset
+  }
+
+  result.access_interval = s.access_interval || '10 seconds'
+  result.reopen = s.reopen !== undefined ? s.reopen : true
+
+  // back/end: only when not _omit
+  if (s._omit_back !== true && s.back !== null && s.back !== undefined) {
+    result.back = s.back
+  }
+  if (s._omit_end !== true && s.end !== null && s.end !== undefined) {
+    result.end = s.end
+  }
+
+  if (s.exclude_suffix && s.exclude_suffix.length > 0) {
+    result.exclude_suffix = s.exclude_suffix
+  }
+
+  // batch fields: only for upload purpose
+  const { purpose } = parseSourceName(source?.name || '')
+  if (purpose === 'upload') {
+    result.batch_count = s.batch_count ?? 1000
+    result.batch_timeout = s.batch_timeout || '30 seconds'
+  }
+
+  // Multiline fields: only when lineAxis === 'multiline'
+  if (axes.lineAxis === 'multiline') {
+    if (s.startPattern) result.startPattern = s.startPattern
+    if (s.endPattern) result.endPattern = s.endPattern
+    if (s.count != null) result.count = s.count
+    if (s.priority) result.priority = s.priority
+  }
+
+  // Extract-append fields: only when postProc === 'extract_append'
+  if (axes.postProc === 'extract_append') {
+    if (s.extractPattern) result.extractPattern = s.extractPattern
+    result.appendPos = s.appendPos ?? 0
+    if (s.appendFormat) result.appendFormat = s.appendFormat
+  }
+
+  return result
+}
+
+export function parseAccessLogInput(key, config) {
+  const { baseName, purpose } = parseSourceName(key)
+  const axes = decomposeLogType(config?.log_type)
+
+  return {
+    name: key,
+    baseName,
+    purpose,
+    ...ACCESS_LOG_SCHEMA.defaults,
+    ...config,
+    // Ensure _omit flags
+    _omit_charset: !config?.charset,
+    _omit_back: config?.back === undefined || config?.back === null,
+    _omit_end: config?.end === undefined || config?.end === null,
+    _omit_date_subdir_format: config?.date_subdir_format === undefined
   }
 }
 
@@ -138,8 +337,8 @@ export const ACCESS_LOG_SCHEMA = {
 export const TRIGGER_SCHEMA = {
   fields: {
     source: {
-      type: 'select-source', label: '로그 소스',
-      description: '이 트리거가 모니터링할 로그 소스입니다. AccessLog.json에서 정의한 소스 중 하나를 선택하세요.',
+      type: 'multi-select-source', label: '로그 소스',
+      description: '이 트리거가 모니터링할 로그 소스입니다. 복수 선택 가능하며, 콤마로 구분되어 저장됩니다.',
       required: true
     }
   },
@@ -166,11 +365,10 @@ export const TRIGGER_STEP_SCHEMA = {
     },
     type: {
       type: 'select', label: '매칭 타입',
-      description: '로그 라인 매칭 방식입니다. regex: 정규식 패턴, keyword: 키워드 포함 여부, exact: 정확한 문자열 일치',
+      description: '로그 라인 매칭 방식입니다. regex: 정규식 패턴, delay: 조건 매칭 시 체인을 리셋하는 지연(취소) 스텝',
       options: [
         { value: 'regex', label: 'regex (정규식)' },
-        { value: 'keyword', label: 'keyword (키워드)' },
-        { value: 'exact', label: 'exact (정확 일치)' }
+        { value: 'delay', label: 'delay (지연/취소)' }
       ]
     },
     trigger: {
@@ -190,7 +388,11 @@ export const TRIGGER_STEP_SCHEMA = {
     },
     next: {
       type: 'select-next', label: '다음 동작',
-      description: '이 스텝 발동 후 실행할 동작입니다. 다른 스텝으로 연결하거나, @script를 선택하면 스크립트를 실행합니다.'
+      description: '이 스텝 발동 후 실행할 동작입니다. 다른 스텝으로 연결하거나, @recovery(복구), @script(스크립트), @notify(알림), @popup(팝업)을 선택합니다.'
+    },
+    detail: {
+      type: 'object', label: '상세 설정 (detail)',
+      description: '@popup next에서 사용하는 추가 설정입니다.'
     }
   }
 }
@@ -267,7 +469,8 @@ export function createDefaultTriggerStep(index = 0) {
     duration: '',
     times: 1,
     next: '',
-    script: { ...TRIGGER_SCRIPT_SCHEMA.defaults }
+    script: { ...TRIGGER_SCRIPT_SCHEMA.defaults },
+    detail: {}
   }
 }
 

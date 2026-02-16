@@ -5,16 +5,21 @@
  */
 
 const LOG_TYPE_MAP = {
-  date_single: '날짜별 단일 파일',
-  date_multi: '날짜별 다중 파일',
-  rolling: '롤링 파일',
-  static: '고정 파일',
+  normal_single: '일반 단일 라인',
+  date_single: '날짜별 단일 라인',
+  date_prefix_single: '날짜접두사 단일 라인',
+  normal_single_extract_append: '일반 단일 라인 + 추출-삽입',
+  date_single_extract_append: '날짜별 단일 라인 + 추출-삽입',
+  date_prefix_single_extract_append: '날짜접두사 단일 라인 + 추출-삽입',
+  normal_multiline: '일반 다중 라인',
+  date_multiline: '날짜별 다중 라인',
+  normal_multiline_extract_append: '일반 다중 라인 + 추출-삽입',
+  date_multiline_extract_append: '날짜별 다중 라인 + 추출-삽입',
 };
 
 const TRIGGER_TYPE_MAP = {
   regex: '정규식',
-  keyword: '키워드',
-  exact: '정확 일치',
+  delay: '지연(취소)',
 };
 
 /**
@@ -55,6 +60,12 @@ function formatNumber(num) {
  */
 function describeAccessLog(source) {
   const lines = [];
+
+  // --- Purpose tag ---
+  if (source.name) {
+    const isUpload = !source.name.match(/^__.*__$/)
+    lines.push(isUpload ? '[Log Upload 용]' : '[Log Trigger 용]')
+  }
 
   // --- Line 1: directory + file pattern ---
   const dir = source.directory || '';
@@ -129,6 +140,24 @@ function describeAccessLog(source) {
     lines.push(`(${source.exclude_suffix.join(', ')} 파일은 제외)`);
   }
 
+  // --- Multiline settings ---
+  if (source.startPattern || source.endPattern || source.count) {
+    const mlParts = []
+    if (source.startPattern) mlParts.push(`시작: "${source.startPattern}"`)
+    if (source.endPattern) mlParts.push(`종료: "${source.endPattern}"`)
+    if (source.count != null) mlParts.push(`수집 라인: ${source.count}줄`)
+    if (source.priority) mlParts.push(`우선순위: ${source.priority === 'count' ? '라인 수' : '패턴'}`)
+    lines.push(`멀티라인 설정: ${mlParts.join(', ')}`)
+  }
+
+  // --- Extract-append settings ---
+  if (source.extractPattern) {
+    const eaParts = [`추출: "${source.extractPattern}"`]
+    if (source.appendFormat) eaParts.push(`포맷: "${source.appendFormat}"`)
+    if (source.appendPos != null) eaParts.push(`위치: ${source.appendPos === 0 ? '로그 앞' : source.appendPos}`)
+    lines.push(`추출-삽입 설정: ${eaParts.join(', ')}`)
+  }
+
   return lines.join('\n');
 }
 
@@ -152,8 +181,13 @@ function getTriggerPattern(item) {
 function describeTrigger(trigger) {
   const lines = [];
 
-  // --- Line 1: source ---
-  lines.push(`"${trigger.source}" 로그 소스를 감시합니다.`);
+  // --- Line 1: source (may be comma-separated) ---
+  const sources = (trigger.source || '').split(',').map(s => s.trim()).filter(Boolean)
+  if (sources.length > 1) {
+    lines.push(`${sources.length}개 로그 소스를 감시합니다: ${sources.join(', ')}`)
+  } else {
+    lines.push(`"${trigger.source || ''}" 로그 소스를 감시합니다.`)
+  }
 
   // --- Recipe steps ---
   if (trigger.recipe && trigger.recipe.length > 0) {
@@ -186,7 +220,9 @@ function describeTrigger(trigger) {
 
       // Next action
       let nextText;
-      if (step.next === '@script' && step.script) {
+      if (step.type === 'delay') {
+        nextText = '체인 리셋'
+      } else if (step.next === '@script' && step.script) {
         nextText = `${step.script.name} 실행`;
 
         const details = [];
@@ -201,6 +237,18 @@ function describeTrigger(trigger) {
         if (details.length > 0) {
           const padding = `  ${''.padStart(`Step ${stepNum}: `.length)}`;
           nextText += `\n${padding}(${details.join(', ')})`;
+        }
+      } else if (step.next === '@script' || step.next === '@Script') {
+        nextText = '스크립트 실행'
+      } else if (step.next === '@recovery') {
+        nextText = '복구 실행'
+      } else if (step.next === '@notify') {
+        nextText = '알림 전송'
+      } else if (step.next === '@popup') {
+        nextText = '팝업 표시'
+        // Show detail.no-email if present
+        if (step.detail && step.detail['no-email']) {
+          nextText += ` (no-email: ${step.detail['no-email']})`
         }
       } else if (step.next) {
         nextText = `${step.next}로 이동`;

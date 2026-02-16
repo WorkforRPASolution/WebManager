@@ -250,31 +250,76 @@ describe('testTriggerPattern', () => {
     expect(result.finalResult.triggered).toBe(false)
   })
 
-  it('3. Keyword type (case-insensitive)', () => {
+  it('3. Delay type matches like regex', () => {
     const trigger = {
-      recipe: [{ type: 'keyword', trigger: ['error'], times: 1, next: '' }]
+      recipe: [{ type: 'delay', trigger: [{ syntax: '.*CANCEL.*' }], times: 1, next: '' }]
     }
-    const logText = 'This has an ERROR message'
+    const logText = 'CANCEL the operation'
     const result = testTriggerPattern(trigger, logText, null)
 
     expect(result.steps[0].fired).toBe(true)
     expect(result.finalResult.triggered).toBe(true)
   })
 
-  it('4. Exact type (case-sensitive)', () => {
+  it('4. Delay step fired → chain resets to step 0', () => {
     const trigger = {
-      recipe: [{ type: 'exact', trigger: ['EXACT_MATCH'], times: 1, next: '' }]
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: 'Step_2' },
+        { name: 'Step_2', type: 'delay', trigger: [{ syntax: '.*CANCEL.*' }], times: 1, duration: '10 minutes', next: '@script', script: { name: 'alert.sh' } }
+      ]
     }
+    // ERROR fires step 1, then CANCEL fires step 2 (delay) → chain resets
+    const logText = 'ERROR occurred\nCANCEL the alert'
+    const result = testTriggerPattern(trigger, logText, null)
 
-    // Exact match
-    const r1 = testTriggerPattern(trigger, 'EXACT_MATCH', null)
-    expect(r1.steps[0].fired).toBe(true)
-    expect(r1.finalResult.triggered).toBe(true)
+    // Step 2 should have resetChain = true
+    const delayStep = result.steps.find(s => s.type === 'delay')
+    expect(delayStep).toBeDefined()
+    expect(delayStep.fired).toBe(true)
+    expect(delayStep.resetChain).toBe(true)
+    expect(delayStep.nextAction).toContain('체인 리셋')
+  })
 
-    // Case mismatch - should NOT fire
-    const r2 = testTriggerPattern(trigger, 'exact_match', null)
-    expect(r2.steps[0].fired).toBe(false)
-    expect(r2.finalResult.triggered).toBe(false)
+  it('4b. Delay step not fired (timeout) → proceeds to next step', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: 'Step_2' },
+        { name: 'Step_2', type: 'delay', trigger: [{ syntax: '.*CANCEL.*' }], times: 1, next: 'Step_3' },
+        { name: 'Step_3', type: 'regex', trigger: [{ syntax: '.*CRITICAL.*' }], times: 1, next: '@script', script: { name: 'alert.sh' } }
+      ]
+    }
+    // ERROR fires step 1, no CANCEL → delay times out → proceeds to step 3, CRITICAL fires
+    const logText = 'ERROR occurred\nCRITICAL failure'
+    const result = testTriggerPattern(trigger, logText, null)
+
+    expect(result.steps.length).toBeGreaterThanOrEqual(2)
+    // The delay step should not have fired
+    const delayStep = result.steps.find(s => s.type === 'delay')
+    expect(delayStep).toBeDefined()
+    expect(delayStep.fired).toBe(false)
+    // Step 3 should have fired
+    const step3 = result.steps.find(s => s.name === 'Step_3')
+    expect(step3).toBeDefined()
+    expect(step3.fired).toBe(true)
+    expect(result.finalResult.triggered).toBe(true)
+  })
+
+  it('4c. Delay chain reset — infinite loop guard (max 100)', () => {
+    // This trigger would loop forever: ERROR → delay(always matches) → reset
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*' }], times: 1, next: 'Step_2' },
+        { name: 'Step_2', type: 'delay', trigger: [{ syntax: '.*' }], times: 1, next: '' }
+      ]
+    }
+    // Many lines that always match → should stop after max resets
+    const logText = Array.from({ length: 300 }, (_, i) => `line ${i}`).join('\n')
+    
+    expect(() => {
+      const result = testTriggerPattern(trigger, logText, null)
+      // Should terminate without hanging
+      expect(result.steps.length).toBeGreaterThan(0)
+    }).not.toThrow()
   })
 
   it('5. Multi-step chain - both steps fire', () => {
@@ -427,6 +472,49 @@ describe('testTriggerPattern', () => {
     const result = testTriggerPattern(trigger, 'some log text', null)
     expect(result.steps).toHaveLength(0)
     expect(result.finalResult.triggered).toBe(false)
+  })
+
+  it('15. @recovery next action label', () => {
+    const trigger = {
+      recipe: [{
+        type: 'regex',
+        trigger: [{ syntax: '.*ERROR.*' }],
+        times: 1,
+        next: '@recovery'
+      }]
+    }
+    const result = testTriggerPattern(trigger, 'ERROR', null)
+    expect(result.steps[0].fired).toBe(true)
+    expect(result.steps[0].nextAction).toContain('복구 실행')
+    expect(result.finalResult.triggered).toBe(true)
+  })
+
+  it('16. @notify next action label', () => {
+    const trigger = {
+      recipe: [{
+        type: 'regex',
+        trigger: [{ syntax: '.*ERROR.*' }],
+        times: 1,
+        next: '@notify'
+      }]
+    }
+    const result = testTriggerPattern(trigger, 'ERROR', null)
+    expect(result.steps[0].nextAction).toContain('알림 전송')
+    expect(result.finalResult.triggered).toBe(true)
+  })
+
+  it('17. @popup next action label', () => {
+    const trigger = {
+      recipe: [{
+        type: 'regex',
+        trigger: [{ syntax: '.*ERROR.*' }],
+        times: 1,
+        next: '@popup'
+      }]
+    }
+    const result = testTriggerPattern(trigger, 'ERROR', null)
+    expect(result.steps[0].nextAction).toContain('팝업 표시')
+    expect(result.finalResult.triggered).toBe(true)
   })
 })
 

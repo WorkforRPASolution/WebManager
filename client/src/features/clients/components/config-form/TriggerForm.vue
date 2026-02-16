@@ -59,7 +59,7 @@
       <div v-show="expanded[ti]" class="px-4 py-4 space-y-4 border-t border-gray-200 dark:border-dark-border">
         <!-- Description -->
         <div v-if="describeTrig(trig)" class="mb-4 px-3 py-2.5 text-xs leading-relaxed text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-lg whitespace-pre-line">
-          📋 {{ describeTrig(trig) }}
+          {{ describeTrig(trig) }}
         </div>
 
         <!-- Trigger Name + Source -->
@@ -67,11 +67,15 @@
           <FormField label="트리거 이름" :description="'이 트리거의 고유 이름입니다. ARSAgent.json에서 참조됩니다.'" :required="true">
             <input type="text" :value="trig.name" @input="updateTriggerField(ti, 'name', $event.target.value)" :disabled="readOnly" placeholder="LIMITATION_TEST" class="form-input" />
           </FormField>
-          <FormField :label="triggerSchema.fields.source.label" :description="triggerSchema.fields.source.description" :required="true">
-            <select :value="trig.source" @change="updateTriggerField(ti, 'source', $event.target.value)" :disabled="readOnly" class="form-input">
-              <option value="">-- 로그 소스 선택 --</option>
-              <option v-for="src in accessLogSources" :key="src" :value="src">{{ src }}</option>
-            </select>
+          <FormField label="multi-select-source" description="감시할 로그 소스를 선택하세요 (복수 선택 가능)" :required="true">
+            <div class="flex flex-wrap gap-2">
+              <label v-for="src in accessLogSources" :key="src" class="flex items-center gap-1.5 px-2 py-1 text-xs border rounded-md cursor-pointer transition"
+                :class="isSourceSelected(trig, src) ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300' : 'border-gray-200 dark:border-dark-border text-gray-500 dark:text-gray-400'"
+              >
+                <input type="checkbox" :checked="isSourceSelected(trig, src)" @change="toggleSource(ti, src)" :disabled="readOnly" class="rounded text-primary-500" />
+                {{ src }}
+              </label>
+            </div>
           </FormField>
         </div>
 
@@ -125,6 +129,11 @@
                 </FormField>
               </div>
 
+              <!-- Delay type hint -->
+              <p v-if="step.type === 'delay'" class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                delay 스텝: 패턴이 매칭되면 체인이 step 1로 리셋됩니다 (취소 동작).
+              </p>
+
               <!-- Trigger Patterns -->
               <FormField :label="stepSchema.fields.trigger.label" :description="stepSchema.fields.trigger.description">
                 <FormTagInput
@@ -134,6 +143,7 @@
                   :placeholder="stepSchema.fields.trigger.placeholder"
                   :readOnly="readOnly"
                 />
+                <p class="text-xs text-gray-400 mt-1">팁: &lt;&lt;변수명&gt;&gt; 문법으로 로그에서 값을 추출합니다. 예: .*ERROR.*&lt;&lt;code&gt;&gt;.*</p>
               </FormField>
 
               <!-- Duration + Times -->
@@ -153,7 +163,10 @@
                   <template v-for="(s, ssi) in trig.recipe" :key="ssi">
                     <option v-if="ssi !== si && s.name" :value="s.name">{{ s.name }} (다음 스텝)</option>
                   </template>
+                  <option value="@recovery">@recovery (복구 실행)</option>
                   <option value="@script">@script (스크립트 실행)</option>
+                  <option value="@notify">@notify (알림 전송)</option>
+                  <option value="@popup">@popup (팝업 표시)</option>
                 </select>
               </FormField>
 
@@ -189,6 +202,14 @@
                     <input type="text" :value="step.script?.retry" @input="updateScriptField(ti, si, 'retry', $event.target.value)" :disabled="readOnly" :placeholder="scriptSchema.fields.retry.placeholder" class="form-input" />
                   </FormField>
                 </div>
+              </div>
+
+              <!-- Popup Detail Section (conditional) -->
+              <div v-if="step.next === '@popup'" class="border border-violet-200 dark:border-violet-800/50 rounded-lg bg-violet-50/50 dark:bg-violet-900/10 p-3 space-y-3">
+                <h5 class="text-xs font-semibold text-violet-700 dark:text-violet-400">팝업 상세 설정</h5>
+                <FormField label="이메일 비발송 조건 (no-email)" description="이 값과 일치하는 결과일 때 이메일을 발송하지 않습니다.">
+                  <input type="text" :value="step.detail?.['no-email'] || ''" @input="updateDetailField(ti, si, 'no-email', $event.target.value)" :disabled="readOnly" placeholder="예: success" class="form-input" />
+                </FormField>
               </div>
             </div>
 
@@ -267,7 +288,8 @@ const triggers = computed(() => {
       duration: r.duration || '',
       times: r.times || 1,
       next: r.next || '',
-      script: r.script || { ...TRIGGER_SCRIPT_SCHEMA.defaults }
+      script: r.script || { ...TRIGGER_SCRIPT_SCHEMA.defaults },
+      detail: r.detail || {}
     })),
     limitation: {
       times: config.limitation?.times || 1,
@@ -282,6 +304,20 @@ function toggleExpand(idx) {
 
 function describeTrig(trig) {
   return describeTrigger(trig)
+}
+
+// Source multi-select helpers
+function isSourceSelected(trig, src) {
+  return (trig.source || '').split(',').map(s => s.trim()).filter(Boolean).includes(src)
+}
+
+function toggleSource(ti, src) {
+  const trig = triggers.value[ti]
+  const current = (trig.source || '').split(',').map(s => s.trim()).filter(Boolean)
+  const idx = current.indexOf(src)
+  if (idx >= 0) current.splice(idx, 1)
+  else current.push(src)
+  updateTriggerField(ti, 'source', current.join(','))
 }
 
 function emitUpdate(newTriggers) {
@@ -308,6 +344,9 @@ function emitUpdate(newTriggers) {
         if (step.next === '@script') {
           s.script = { ...step.script }
         }
+        if (step.next === '@popup') {
+          s.detail = { ...step.detail }
+        }
         return s
       }),
       limitation: {
@@ -323,7 +362,7 @@ function emitUpdate(newTriggers) {
 function cloneTriggers() {
   return triggers.value.map(t => ({
     ...t,
-    recipe: t.recipe.map(r => ({ ...r, trigger: [...r.trigger], script: { ...r.script } })),
+    recipe: t.recipe.map(r => ({ ...r, trigger: [...r.trigger], script: { ...r.script }, detail: { ...(r.detail || {}) } })),
     limitation: { ...t.limitation }
   }))
 }
@@ -343,6 +382,12 @@ function updateStepField(ti, si, field, value) {
 function updateScriptField(ti, si, field, value) {
   const updated = cloneTriggers()
   updated[ti].recipe[si].script = { ...updated[ti].recipe[si].script, [field]: value }
+  emitUpdate(updated)
+}
+
+function updateDetailField(ti, si, field, value) {
+  const updated = cloneTriggers()
+  updated[ti].recipe[si].detail = { ...updated[ti].recipe[si].detail, [field]: value }
   emitUpdate(updated)
 }
 

@@ -110,7 +110,7 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
     "wildcard": "string",
     "suffix": "string",
     "log_type": "string (enum)",
-    "date_subdir_format": "string",
+    "date_subdir_format": "string (joda datetime format)",
     "charset": "string (enum)",
     "access_interval": "duration string",
     "batch_count": number,
@@ -118,7 +118,14 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
     "reopen": boolean,
     "back": boolean,
     "end": boolean,
-    "exclude_suffix": ["string"]
+    "exclude_suffix": ["string"],
+    "date_subdir_format": "string (joda datetime format)",
+    "startPattern": "string",
+    "endPattern": "string",
+    "count": number,
+    "priority": "string",
+    "extractPattern": "string",
+    "appendPos": "string"
   }
 }
 ```
@@ -135,6 +142,16 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 예시 | `__LogReadInfo__`, `__LogReadInfo_2__`, `__ErrorLog__` |
 | 참조처 | trigger.json의 `source` 필드, ARSAgent.json의 `AccessLogLists` 배열 |
 
+---
+추가 설명
+1 소스 이름의 경우 용도( Log Trigger 용, Log Upload 용 두가지)에 따라 Naming rule 이 달라진다.
+ - Log Trigger 용은, 설정에 의해 선정한 Log 파일의 Log 내용을 trigger.json 의 trigger 에 전달한다.
+ - Log Upload 용은, 설정에 의해 선정한 Log 파일의 Log 내용을 시스템에 Upload 한다.
+ - Log Trigger 용의 경우 Name 양쪽에 더블 언더스코어를 붙이여, Log Upload 용은 Name 양쪽에 더블 언더스코어가 없다.
+ - 따라서, AccessLog 설정시 사용자가 먼저 용도를 선택한 이후, SourceName 에 이름을 입력하면 JSON Preview 에 용도에 따라 자동으로 더블 언더 스코어를 붙인다.
+  
+---
+
 ### 4.3 필드 상세
 
 #### `directory` (필수)
@@ -145,6 +162,12 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 예시 | `"C:/EARS/TestFile"`, `"/var/log/app"` |
 | 비고 | Windows 경로 구분자 `/` 또는 `\` 모두 가능 |
 
+---
+추가 설명
+1. 경로는 `/`, `\` 외에 `//`, `\\` 의 구분자 입력도 가능하다
+  
+---
+
 #### `prefix`
 | 속성 | 값 |
 |------|-----|
@@ -153,6 +176,13 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 설명 | 로그 파일명의 접두사. 파일명 매칭에 사용 |
 | 예시 | `"log_"` → `log_20240101.txt` 매칭 |
 
+---
+추가 설명
+1. prefix 는, log_type 이 date_prefix_single 일 경우 joda date timeformat 으로 string 을 입력할 수 있다.
+ - 따라서 경로 매칭 Test 시 log_type : date_prefix 일 경우 현재 시간에 따라 date time 을 값으로 변경하여 Test 해야 한다. 
+  
+---
+
 #### `wildcard`
 | 속성 | 값 |
 |------|-----|
@@ -160,12 +190,17 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 기본값 | `""` |
 | 설명 | 파일명 중간 부분의 와일드카드 패턴. 비워두면 모든 파일 매칭 |
 
+---
+추가 설명
+1. wildcard 값을 비워두면 모든 파일 매칭을 하는 것이 아니라, wildcard 자체를 사용하지 않는다
+---
+
 #### `suffix`
 | 속성 | 값 |
 |------|-----|
 | 타입 | `string` |
-| 기본값 | `".txt"` |
-| 설명 | 로그 파일의 확장자 |
+| 기본값 | `""` |
+| 설명 | 로그 파일의 확장자 혹은 접미사 |
 | 예시 | `".txt"`, `".log"`, `".csv"` |
 
 > **파일명 매칭 공식**: `{prefix}{wildcard}{날짜 등}{suffix}`
@@ -175,34 +210,83 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 속성 | 값 |
 |------|-----|
 | 타입 | `string` |
-| 기본값 | `"date_single"` |
-| 허용값 | `"date_single"`, `"date_multi"`, `"rolling"`, `"static"` |
+| 기본값 | `"normal_single"` |
+| 허용값 | `"normal_single"`, `"date_single"`, `"date_prefix_single"`, `"normal_single_extract_append"`, `"date_single_extract_append"`, `"date_prefix_single_extract_append"`, `"normal_multiline"`, `"date_multiline"`, `"normal_multiline_extract_append"`, `"date_multiline_extract_append"` |
 
-| 값 | 설명 | 예시 |
-|----|------|------|
-| `date_single` | 날짜별 단일 파일. 하루에 하나의 로그 파일 생성 | `log_20240101.txt` |
-| `date_multi` | 날짜별 다중 파일. 같은 날짜에 여러 파일 존재 가능 | `log_20240101_001.txt` |
-| `rolling` | 롤링 파일. 파일 크기 초과 시 새 파일 생성 | `app.log`, `app.log.1` |
-| `static` | 고정 파일. 항상 같은 파일에 기록 | `output.log` |
+---
+추가 설명
+* 위의 기존 ㅣog_type 설명은 무시하고 하기의 내용에 따라 재정리
+1. 현재 log_type 값을 3가지 독립적인 기능 축이 합쳐져 있음 
+| 축       | 가능한 값                          |
+|----------|------------------------------------|
+| date 모드 | `normal` / `date` / `date_prefix` |
+| line 모드 | `single` / `multiline`            |
+| 후처리    | (없음) / `extract_append`          |
+
+2. 위의 조합에 따라 가능한 log_type 의 기능 축 조합은 다음과 같으며, 일부 조합 case 에서 빠져 있는 항목은, ARSAgent 에서 기능 제공이 안되어 빠져 있는 항목임
+| log_type                             | date        | line      | 후처리          |
+|--------------------------------------|-------------|-----------|-----------------|
+| `normal_single`                      | normal      | single    | -               |
+| `date_single`                        | date        | single    | -               |
+| `date_prefix_single`                | date_prefix | single    | -               |
+| `normal_single_extract_append`       | normal      | single    | extract_append  |
+| `date_single_extract_append`         | date        | single    | extract_append  |
+| `date_prefix_single_extract_append`  | date_prefix | single    | extract_append  |
+| `normal_multiline`                   | normal      | multiline | -               |
+| `date_multiline`                     | date        | multiline | -               |
+| `normal_multiline_extract_append`    | normal      | multiline | extract_append  |
+| `date_multiline_extract_append`      | date        | multiline | extract_append  |
+
+3. 각 기능축에 대한 설명
+- normal : 일반적인 항목
+- date : AccesssLog 파일의 대상 경로를 directory + date_subdir_format 의 조합으로 결정
+- date_prefix : AccesssLog 파일의 대상 경로를 directory + date_subdir_format 의 조합으로 결정.
+                대상 파일의 접두어를 joda date time format 을 사용하여 결정
+- single : 1개 라인 단위로 trigger 에 전달
+- multiline : 여러 라인을 group 으로 모아 trigger 에 전달
+- extract_append : Full Path 의 파일 경로에서 `extractPattern` 에서 지정한 추출 값을 `appendPos` 항목에서 지정한 위치에 따라 trigger 에 전달하기전 log 에 붙임
+ 예시) 파일의 경로가 `D:\EARS\Log\2025\08\05\app_log.txt` 이고,
+      log 가 `05:46:49 INFO  DummyAgentMain:71 -    GET /health - Health check`  인 상황에서 
+      `"extractPattern": ".*Log\\([0-9]+)\\([0-9]+)\\([0-9]+)\\app_log.*"`
+      `"appendPos": 0`
+      `"appendFormat": "@1-@2-@3 "`
+      와 같이 설정되어 있다면 trigger 에 전달되는 최종 log 는 다음과 같음
+      `202-08-05 05:46:49 INFO  DummyAgentMain:71 -    GET /health - Health check`
+      즉, extractPattern 에서 정규표현식의 group 으로 추출지정된 값을 추출하여 appendPos 에서 지정한 위치(로그 앞) 에, appendFormat 으로  지정한 양식(@0, @01 과 같이 @[숫자] 로 추출된 값 매칭.
+      나머지는 텍스트 처리)에 따라 log 에 추가하여 trigger에 전달
+
+4. log_type 은 상기 3개 축에 대해 list 에서 선택하여, 최종적으로 2번의 가능한 List 내에서 조합되어 결정되도록 기능 구현 필요
+---
 
 #### `date_subdir_format`
 | 속성 | 값 |
 |------|-----|
 | 타입 | `string` |
-| 기본값 | `""` |
-| 설명 | 날짜 기반 하위 디렉토리 패턴 (Java SimpleDateFormat) |
+| 기본값 | `` |
+| 설명 | 날짜 기반 하위 디렉토리 패턴 (Joda DateTime Format) |
 | 예시 | `"'\\'yyyy'\\'MM'\\'dd"` → `\2024\01\15` |
 | 비고 | Windows 경로 구분자 `\`를 리터럴로 쓰려면 작은따옴표로 감쌈. 비워두면 하위 디렉토리 없이 `directory` 경로에서 직접 읽음 |
 
 > **주의**: JSON 문자열 내 백슬래시는 이중 이스케이프 필요. 실제 JSON 값: `"'\\\\'yyyy'\\\\'MM'\\\\'dd"`
 
+---
+추가 설명
+1. date_subdir_format, 은 log_type 에 `date` 혹은 `date_prefix` 가 포함되어 있어야만 입력 활성화
+2. date_subdir_format 항목에 대해 설정하지 않음 옵션이 필요. 설정하지 않을 경우 JSON preview 에 표시 하지 않음(JSON 에 항목을 추가 하지 않음)
+---
+
 #### `charset` (enum)
 | 속성 | 값 |
 |------|-----|
 | 타입 | `string` |
-| 기본값 | `"EUC-KR"` |
-| 허용값 | `"UTF-8"`, `"EUC-KR"`, `"MS949"`, `"ISO-8859-1"` |
-| 설명 | 로그 파일의 문자 인코딩. 한글 환경은 `EUC-KR` 또는 `UTF-8` |
+| 기본값 | `` |
+| 허용값 | `"UTF-8"`, `"EUC-KR"`, `"MS949"`, `"UCS-2 LE BOM"`, 직접 입력 |
+| 설명 | 로그 파일의 문자 인코딩. 한글 환경은 `EUC-KR` 또는 `UTF-8` 을 주로 사용 |
+
+---
+추가 설명
+1. charset 항목에 대해 설정하지 않음 옵션이 필요. 설정하지 않을 경우 JSON preview 에 표시 하지 않음(JSON 에 항목을 추가 하지 않음)
+---
 
 #### `access_interval` (duration)
 | 속성 | 값 |
@@ -217,15 +301,25 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 |------|-----|
 | 타입 | `number` (정수) |
 | 기본값 | `1000` |
-| 설명 | 한 번의 폴링에서 읽는 최대 로그 라인 수 |
-| 비고 | 로그 양이 많은 환경에서는 값을 높여 처리량 증가 |
+| 설명 | 한 번의 System 에 보내는 로그 batch 크기 (로그 라인 수) |
+| 비고 | 로그 양이 많은 환경에서는 값을 높여 처리 효율화 |
+
+---
+추가 설명
+1. Access Log 의 용도가 `Log Upload 용` 일때만 입력 활성화
+---
 
 #### `batch_timeout` (duration)
 | 속성 | 값 |
 |------|-----|
 | 타입 | `string` (duration) |
 | 기본값 | `"30 seconds"` |
-| 설명 | 배치 읽기 최대 대기 시간. `batch_count`에 도달하지 않아도 이 시간이 지나면 읽은 만큼만 처리 |
+| 설명 | batch send timeout 시간. log가 batch_count 만큼 수집 되지 않아도 System 보내는 대기 시간  |
+
+---
+추가 설명
+1. Access Log 의 용도가 `Log Upload 용` 일때만 입력 활성화
+---
 
 #### `reopen`
 | 속성 | 값 |
@@ -233,15 +327,21 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 타입 | `boolean` |
 | 기본값 | `true` |
 | 설명 | 매 접근 주기마다 파일 핸들을 다시 열지 여부 |
-| 비고 | 로그 로테이션(파일이 새 파일로 교체)이 발생하는 환경에서는 반드시 `true` |
+| 비고 | log 를 다른 해당 프로세스에서 점유하고 있지 않도록 일반적으로  `true` |
+
 
 #### `back`
 | 속성 | 값 |
 |------|-----|
 | 타입 | `boolean` |
-| 기본값 | `true` |
-| 설명 | 에이전트 재시작 시 마지막으로 읽었던 위치부터 이어서 읽을지 여부 |
-| 비고 | `false`면 매 재시작 시 파일 처음부터 다시 읽어 중복 트리거 가능 |
+| 기본값 | `` |
+| 설명 | Access 파일의 크기가 줄어들 경우 파일을 처음부터 읽는지에 대한 설정 |
+| 비고 | `true` 일 경우 파일 크기가 줄어들 경우 file을 처음부터 EOF 까지 한번에 읽음 |
+
+---
+추가 설명
+1. back 항목에 대해 설정하지 않음 옵션이 필요. 설정하지 않을 경우 JSON preview 에 표시 하지 않음(JSON 에 항목을 추가 하지 않음)
+---
 
 #### `end`
 | 속성 | 값 |
@@ -251,6 +351,11 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 설명 | 최초 접근 시 파일 끝부터 읽기 시작할지 여부 |
 | 비고 | `true`면 에이전트 시작 시점 이전 로그는 모두 건너뜀. 기존 로그를 분석하려면 `false` |
 
+---
+추가 설명
+1. back 항목에 대해 설정하지 않음 옵션이 필요. 설정하지 않을 경우 JSON preview 에 표시 하지 않음(JSON 에 항목을 추가 하지 않음)
+---
+
 #### `exclude_suffix`
 | 속성 | 값 |
 |------|-----|
@@ -259,6 +364,96 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 설명 | 모니터링에서 제외할 파일 확장자 목록 |
 | 예시 | `[".bak", ".tmp", ".gz"]` |
 
+#### `startPattern`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `""` |
+| 설명 | 로그를 Muliline 으로 모으기 시작하는 정규표현식 패턴 |
+| 예시 | `".* WARN Alarm Occured.*"` |
+
+---
+추가 설명
+1. startPattern 은 log_type 에 `multiline` 이 포함되어 있어야만 입력 활성화
+---
+
+#### `endPattern`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `""` |
+| 설명 | 로그를 Muliline 으로 모으기 완료하는 정규표현식 패턴. 해당 Pattern 의 로그까지 한 라인으로 모아서 trigger 에 전달 |
+| 예시 | `".* WARN Alarm Reset.*"` |
+
+---
+추가 설명
+1. endPattern 은 log_type 에 `multiline` 이 포함되어 있어야만 입력 활성화
+---
+
+#### `count`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `number` |
+| 기본값 | `` |
+
+| 설명 | 로그를 모으기 완료하는 라인 수. 해당 수량의 로그까지 한 라인으로 모아서 trigger 에 전달 |
+
+---
+추가 설명
+1. count 는 log_type 에 `multiline` 이 포함되어 있어야만 입력 활성화
+---
+
+#### `priority`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `"count"` |
+| 허용값 | `"count"`, `"pattern"` |
+| 설명 | multiline 완료의 우선 순위 설정. 설정된 항목을 우선으로 처리함 |
+
+---
+추가 설명
+1. count 는 log_type 에 `multiline` 이 포함되어 있어야만 입력 활성화
+---
+
+#### `extractPattern`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `""` |
+| 설명 | Access 파일의 절대 경로(Full Path) 에서 로그에 붙일 Data 를 추출하는 패턴 설정 |
+| 예시 | `".*Log\\([0-9]+)\\([0-9]+)\\([0-9]+)\\app_log.*"` |
+| 비고 | 정규 표현식 `()` 을 사용한 Data 추출은 5개 까지로 제한 |
+
+---
+추가 설명
+1. extractPattern 은 log_type 에 `extract_append` 이 포함되어 있어야만 입력 활성화
+---
+
+#### `appendPos`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `number` |
+| 기본값 | `"0"` |
+| 설명 | extractPattern 를 사용하여 경로에서 추출한 Data 를 로그에 붙일 위치 설정. `0` 은 로그 앞(왼쪽) |
+| 예시 | `"0"` |
+
+---
+추가 설명
+1. appendPos 는 log_type 에 `extract_append` 이 포함되어 있어야만 입력 활성화
+---
+
+#### `appendFormat`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `""` |
+| 설명 | extractPattern 를 사용하여 경로에서 추출한 Data 의 포멧 설정. 추출한 data 는 왼쪽부터 순서대로 @1, @2, @3 .. 에 대응 |
+| 예시 | `"@1-@2-@3 "` |
+
+---
+추가 설명
+1. appendFormat 은 log_type 에 `extract_append` 이 포함되어 있어야만 입력 활성화
 ---
 
 ## 5. trigger.json
@@ -277,12 +472,13 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
         "duration": "duration string",
         "times": number,
         "next": "string",
-        "script": { ... }  // next가 "@script"일 때만
+        "script": { ... },  // next가 "@script"일 때만
+        "detail": { ... }  // next가 "@popup"일 때만 선택적 입력
       }
     ],
     "limitation": {
       "times": number,
-      "durtaion": "duration string"   // ⚠️ 오타 주의 (duration 아님)
+      "duration": "duration string" 
     }
   }
 }
@@ -293,7 +489,7 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 속성 | 값 |
 |------|-----|
 | 타입 | string (Object key) |
-| 관례 | 대문자 + 언더스코어 (예: `LIMITATION_TEST`) |
+| 관례 | 대소문자 + 숫자 + 언더스코어 (예: `LIMITATION_Test_1`) |
 | 참조처 | ARSAgent.json의 `ErrorTrigger[].alid` |
 
 ### 5.3 최상위 필드
@@ -306,6 +502,13 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 값 | AccessLog.json에 정의된 소스 key 중 하나 |
 | 예시 | `"__LogReadInfo__"` |
 
+--- 
+추가 설명
+- source 는 ,(콤마) 를 구분자로 하여 여러개 설정가능. ,(콤마) 사이에는 공백이 없게 설정
+예시) "__LogReadInfo1__,__LogReadInfo2__"
+- 따라서 source 선택시 복수개 선택이 가능하도록 UI 구성 필요
+---
+
 #### `recipe` (필수)
 | 속성 | 값 |
 |------|-----|
@@ -317,7 +520,7 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 속성 | 값 |
 |------|-----|
 | 타입 | `object` |
-| 설명 | 트리거 발동 횟수 제한 (알림 폭주 방지) |
+| 설명 | 트리거 발동 횟수 제한 (실행 폭주 방지) |
 
 ### 5.4 Recipe Step 필드 상세
 
@@ -336,13 +539,14 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 |------|-----|
 | 타입 | `string` |
 | 기본값 | `"regex"` |
-| 허용값 | `"regex"`, `"keyword"`, `"exact"` |
+| 허용값 | `"regex"`, `"delay"` |
 
 | 값 | 설명 | trigger 패턴 예시 |
 |----|------|-------------------|
-| `regex` | 정규식 패턴 매칭 (Java regex) | `".*S3F216.*"` |
-| `keyword` | 키워드 포함 여부 (대소문자 무시 가능) | `"ERROR"` |
-| `exact` | 정확한 문자열 일치 | `"Connection refused"` |
+| `regex` | trigger 의 syntax 조건이 만족하면 next 를 실행하는 일반 step | `".*S3F216.*"` |
+| `delay` | trigger 의 syntax 조건을 만족하면 step 초기 step 으로 되돌리는 step  | `"ERROR"` |
+| 비고 | `delay` 는 일반적으로 regex step 이후 바로 next 를 실행하는 것이 아니라 조건을 추가하여, duration 내에 time 만큰 로그가 발생할때 대기하다 timeout 시 next 를 실행하는 지연실행 (혹은 실행 취소)의 용도로 사용 |
+
 
 #### `trigger` (패턴 목록)
 | 속성 | 값 |
@@ -359,6 +563,13 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 ```
 
 > **중요**: 배열 내 각 항목은 plain string이 아닌 **`{syntax: string}` 객체**입니다.
+
+---
+추가 설명
+1. `syntax` 에서는 정규 표현식을 사용하는데, 정규 표현식에서 `()` 을 사용하여 group 을 하면 추출을 의미한다. 
+ - 이때 추출된 값은 trigger 에서 변수로 사용되는데 변수면은 `()` 내부에 추출되는 정규표현식에 `<<[변수명>>` 와 같이 접두사로 표현한다.
+   예시) `"syntax": ".*ERROR.*TIMEOUT: (<<duration>>[0-9]+).*"` -> [0-9]+ 로 추출된 값을 duration 에 저장
+---
 
 #### `duration` (duration)
 | 속성 | 값 |
@@ -377,19 +588,26 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 설명 | 이 스텝이 발동하기 위해 필요한 패턴 매칭 횟수 |
 | 예시 | `times: 3` → 동일 패턴이 3번 감지되어야 발동 |
 
-#### `next`
+#### `next` (필수)
 | 속성 | 값 |
 |------|-----|
 | 타입 | `string` |
 | 기본값 | `""` |
-| 허용값 | (1) 같은 트리거 내 다른 스텝의 `name`, (2) `"@script"`, (3) `""` (비어있으면 체인 종료) |
+| 허용값 | (1) 같은 트리거 내 다른 스텝의 `name`, (2) `"@recovery"`, `"@script"`, `"@notify"`, `"@popup"` |
 | 설명 | 이 스텝 발동 후 실행할 동작 |
 
 | next 값 | 동작 |
 |---------|------|
-| `"Step_2"` | 다음 스텝으로 진행 (스텝 체이닝) |
-| `"@script"` | 스크립트 실행 → `script` 객체 필수 |
-| `""` | 트리거 체인 종료 (단순 감지만) |
+| `"[다음 Step명]"` | 다음 스텝으로 진행 (스텝 체이닝) |
+| `"@recovery"` | 트리거 이름 (key) 과 동일한 이름의 시나리오 실행 |
+| `"@script"` | Code 기반 시나리오 실행 → `script` 객체 필수 |
+| `"@notify"` | 이메일 발송 실행|
+| `"@popup"` | PopUp 실행 → `detail` 객체 선택 |
+
+---
+추가 설명
+1. `detail` 객체는 `"@popup"` 에서만 사용하는 추가 설정값으로 설정을 Skip 할 수 있다
+---
 
 ### 5.5 Script 객체 필드 상세
 
@@ -410,8 +628,8 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 속성 | 값 |
 |------|-----|
 | 타입 | `string` |
-| 설명 | 실행할 스크립트 파일명. 에이전트의 스크립트 디렉토리에 위치해야 함 |
-| 예시 | `"Test.scala"`, `"alert.py"` |
+| 설명 | 실행할 스크립트 파일명. 에이전트의 scripts 디렉토리에 위치해야 함 |
+| 예시 | `"Test.scala"`, `"alert.bat"` |
 
 #### `arg`
 | 속성 | 값 |
@@ -452,24 +670,43 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 기본값 | `"3 minutes"` |
 | 설명 | 스크립트 실행 실패 시 재시도까지 대기 시간 |
 
-### 5.6 Limitation 필드 상세
+### 5.6 detail 객체 필드 상세
 
-트리거 전체의 발동 빈도를 제한하여 알림 폭주를 방지합니다.
+`next`가 `"@popup"`일 때만 존재합니다. 실행 옵션을 정의합니다. 설정을 Skip 할 수 있습니다.
+
+```json
+"detail": {
+  "no-email": "success;fail"
+}
+```
+
+#### `no-email`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `""` |
+| 설명 | 이메일 알림을 보내지 않을 popup 결과값 목록. **세미콜론(`;`)으로 구분** |
+| 예시 | `"success;fail"` → popup 결과가 "success" 또는 "fail"이면 이메일 미발송 |
+| 비고 | JSON key에 하이픈 포함 (`no-email`). JavaScript에서 `obj['no-email']`로 접근 |
+
+
+### 5.7 Limitation 필드 상세
+
+트리거 전체의 발동 빈도를 제한하여 실행 폭주를 방지합니다.
 
 #### `times`
 | 속성 | 값 |
 |------|-----|
 | 타입 | `number` (정수) |
 | 기본값 | `1` |
-| 설명 | `durtaion` 기간 내 최대 트리거 발동 횟수 |
+| 설명 | `duration` 기간 내 최대 트리거 발동 횟수 |
 
-#### `durtaion` (⚠️ 오타 주의)
+#### `duration`
 | 속성 | 값 |
 |------|-----|
 | 타입 | `string` (duration) |
 | 기본값 | `"1 minutes"` |
 | 설명 | 트리거 발동 횟수 제한이 적용되는 기간 |
-| ⚠️ | **필드명이 `durtaion`** (duration이 아님). EARS 시스템의 기존 오타이며 호환성을 위해 그대로 유지 |
 
 ---
 
@@ -488,7 +725,9 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 }
 ```
 
-ARSAgent.json은 다른 두 파일과 다르게 **key가 고정**됩니다. 항상 `ErrorTrigger`와 `AccessLogLists` 두 섹션으로 구성됩니다.
+ARSAgent.json 에 상기 두가지 key 이외에도 여러 항목이 있지만, trigger.json, AccessLog.json 과 연관된 항목은 위 `ErrorTrigger`와 `AccessLogLists` 두가지로 고정됩니다. 
+나머지 항목에 대해서는 Form 에서는 다루지 않습니다.
+
 
 ### 6.2 `ErrorTrigger`
 
@@ -505,7 +744,7 @@ ARSAgent.json은 다른 두 파일과 다르게 **key가 고정**됩니다. 항�
 ]
 ```
 
-> **중요**: 배열 항목은 plain string이 아닌 **`{alid: string}` 객체**입니다. `alid`는 "alert id"의 약어입니다.
+> **중요**: 배열 항목은 plain string이 아닌 **`{alid: string}` 객체**입니다. `alid`는 "alarm id"의 약어입니다.
 
 ### 6.3 `AccessLogLists`
 
@@ -534,27 +773,23 @@ ARSAgent.json은 다른 두 파일과 다르게 **key가 고정**됩니다. 항�
 
 ## 7. 알려진 특이사항
 
-### 7.1 `durtaion` 오타
-
-trigger.json의 `limitation.durtaion`은 `duration`의 오타이지만, EARS Akka 서버가 이 필드명으로 파싱하므로 **반드시 오타 그대로 유지**해야 합니다. Form View에서는 UI 레이블을 "제한 기간"으로 표시하되, JSON 직렬화 시 `durtaion`으로 출력합니다.
-
-### 7.2 Duration 단위 복수형
+### 7.1 Duration 단위 복수형
 
 `"1 minutes"`, `"1 seconds"` 처럼 숫자가 1이어도 복수형을 사용합니다. EARS 시스템이 복수형만 파싱할 수 있는지는 미확인이나, 기존 config들은 모두 복수형을 사용합니다.
 
-### 7.3 trigger 패턴의 객체 래핑
+### 7.2 trigger 패턴의 객체 래핑
 
 trigger.json의 `recipe[].trigger` 배열 항목은 `{syntax: "패턴"}` 형태의 객체입니다. Plain string `"패턴"`이 아닙니다. Form View의 FormTagInput에서 이 변환을 처리합니다 (`objectKey="syntax"` prop).
 
-### 7.4 ErrorTrigger 항목의 객체 래핑
+### 7.3 ErrorTrigger 항목의 객체 래핑
 
 ARSAgent.json의 `ErrorTrigger` 배열 항목은 `{alid: "이름"}` 형태의 객체입니다. `AccessLogLists`는 plain string 배열과 비대칭적 구조입니다.
 
-### 7.5 no-email 하이픈 키
+### 7.4 no-email 하이픈 키
 
 trigger.json script의 `no-email` 필드는 키에 하이픈을 포함합니다. JavaScript에서 dot notation으로 접근 불가하므로 `obj['no-email']`을 사용해야 합니다.
 
-### 7.6 date_subdir_format 이스케이프
+### 7.5 date_subdir_format 이스케이프
 
 `date_subdir_format`은 Java SimpleDateFormat 기반이며, Windows 경로 구분자 `\`를 리터럴로 쓰기 위해 작은따옴표로 감싸는 관례를 따릅니다. JSON 문자열 내에서는 백슬래시 이중 이스케이프가 필요합니다:
 - 실제 패턴: `'\' yyyy '\' MM '\' dd`
@@ -625,7 +860,7 @@ trigger.json script의 `no-email` 필드는 키에 하이픈을 포함합니다.
     ],
     "limitation": {
       "times": 1,
-      "durtaion": "1 minutes"
+      "duration": "1 minutes"
     }
   }
 }

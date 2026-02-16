@@ -32,7 +32,7 @@ describe('describeAccessLog', () => {
     // wildcard
     expect(result).toContain('(와일드카드: "*.log.*")')
     // log type Korean + raw key
-    expect(result).toContain('날짜별 단일 파일')
+    expect(result).toContain('날짜별 단일 라인')
     expect(result).toContain('(date_single)')
     // date_subdir_format
     expect(result).toContain('날짜 하위 디렉토리: yyyyMMdd')
@@ -100,10 +100,16 @@ describe('describeAccessLog', () => {
   // --- Log types ---
   describe('log types', () => {
     const cases = [
-      ['date_single', '날짜별 단일 파일'],
-      ['date_multi', '날짜별 다중 파일'],
-      ['rolling', '롤링 파일'],
-      ['static', '고정 파일'],
+      ['normal_single', '일반 단일 라인'],
+      ['date_single', '날짜별 단일 라인'],
+      ['date_prefix_single', '날짜접두사 단일 라인'],
+      ['normal_single_extract_append', '일반 단일 라인 + 추출-삽입'],
+      ['date_single_extract_append', '날짜별 단일 라인 + 추출-삽입'],
+      ['date_prefix_single_extract_append', '날짜접두사 단일 라인 + 추출-삽입'],
+      ['normal_multiline', '일반 다중 라인'],
+      ['date_multiline', '날짜별 다중 라인'],
+      ['normal_multiline_extract_append', '일반 다중 라인 + 추출-삽입'],
+      ['date_multiline_extract_append', '날짜별 다중 라인 + 추출-삽입'],
     ]
 
     it.each(cases)('%s → %s', (type, label) => {
@@ -129,14 +135,14 @@ describe('describeAccessLog', () => {
     it('when present, appears in description', () => {
       const result = describeAccessLog({
         directory: '/d',
-        log_type: 'date_multi',
+        log_type: 'date_single',
         date_subdir_format: 'yyyy/MM/dd',
       })
       expect(result).toContain('날짜 하위 디렉토리: yyyy/MM/dd')
     })
 
     it('when absent, no subdir text', () => {
-      const result = describeAccessLog({ directory: '/d', log_type: 'rolling' })
+      const result = describeAccessLog({ directory: '/d', log_type: 'normal_single' })
       expect(result).not.toContain('날짜 하위 디렉토리')
     })
   })
@@ -232,6 +238,70 @@ describe('describeAccessLog', () => {
       expect(result).toContain('? 간격')
     })
   })
+
+  // --- Multiline description ---
+  describe('multiline settings', () => {
+    it('startPattern + endPattern + count + priority', () => {
+      const result = describeAccessLog({
+        directory: '/d',
+        log_type: 'normal_multiline',
+        startPattern: '.*START.*',
+        endPattern: '.*END.*',
+        count: 10,
+        priority: 'pattern'
+      })
+      expect(result).toContain('멀티라인 설정')
+      expect(result).toContain('".*START.*"')
+      expect(result).toContain('".*END.*"')
+      expect(result).toContain('10줄')
+      expect(result).toContain('패턴')
+    })
+
+    it('no multiline fields → no multiline line', () => {
+      const result = describeAccessLog({ directory: '/d', log_type: 'normal_single' })
+      expect(result).not.toContain('멀티라인')
+    })
+  })
+
+  // --- Extract-append description ---
+  describe('extract-append settings', () => {
+    it('extractPattern + appendFormat + appendPos', () => {
+      const result = describeAccessLog({
+        directory: '/d',
+        log_type: 'normal_single_extract_append',
+        extractPattern: '.*Log\\([0-9]+).*',
+        appendFormat: '@1-@2 ',
+        appendPos: 0
+      })
+      expect(result).toContain('추출-삽입 설정')
+      expect(result).toContain('".*Log\\([0-9]+).*"')
+      expect(result).toContain('"@1-@2 "')
+      expect(result).toContain('로그 앞')
+    })
+
+    it('no extractPattern → no extract line', () => {
+      const result = describeAccessLog({ directory: '/d', log_type: 'normal_single' })
+      expect(result).not.toContain('추출-삽입')
+    })
+  })
+
+  // --- Purpose display ---
+  describe('purpose display', () => {
+    it('trigger source name shows [Log Trigger 용]', () => {
+      const result = describeAccessLog({ name: '__LogReadInfo__', directory: '/d' })
+      expect(result).toContain('[Log Trigger 용]')
+    })
+
+    it('upload source name shows [Log Upload 용]', () => {
+      const result = describeAccessLog({ name: 'UploadLog', directory: '/d' })
+      expect(result).toContain('[Log Upload 용]')
+    })
+
+    it('no name → no purpose tag', () => {
+      const result = describeAccessLog({ directory: '/d' })
+      expect(result).not.toContain('[Log')
+    })
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -289,12 +359,12 @@ describe('describeTrigger', () => {
     expect(result).toContain('제한: 1분 내 최대 1회만 발동')
   })
 
-  it('single step trigger — keyword type, no duration, chain end', () => {
+  it('single step trigger — delay type resets chain', () => {
     const trigger = {
       source: 'SysLog',
       recipe: [
         {
-          type: 'keyword',
+          type: 'delay',
           trigger: ['WARN'],
           times: 3,
           next: '',
@@ -305,18 +375,17 @@ describe('describeTrigger', () => {
     const result = describeTrigger(trigger)
 
     expect(result).toContain('"SysLog"')
-    expect(result).toContain('키워드')
+    expect(result).toContain('지연(취소)')
     expect(result).toContain('"WARN"')
     expect(result).toContain('3회 매칭되면')
-    expect(result).toContain('체인 종료')
+    expect(result).toContain('체인 리셋')
   })
 
   // --- Step types ---
   describe('step types', () => {
     const types = [
       ['regex', '정규식'],
-      ['keyword', '키워드'],
-      ['exact', '정확 일치'],
+      ['delay', '지연(취소)'],
     ]
 
     it.each(types)('%s → %s', (type, label) => {
@@ -554,12 +623,81 @@ describe('describeTrigger', () => {
   })
 
   // --- Edge case: trigger with no source ---
-  it('trigger with no source → "undefined" in source line', () => {
+  it('trigger with no source → empty string in source line', () => {
     const trigger = {
       recipe: [{ type: 'regex', trigger: ['x'], next: '' }],
     }
     const result = describeTrigger(trigger)
-    // source is undefined → template literal produces "undefined"
-    expect(result).toContain('"undefined" 로그 소스')
+    // source is undefined → split produces empty → single source path with ""
+    expect(result).toContain('"" 로그 소스')
+  })
+
+  // --- Multi-source ---
+  describe('multi-source', () => {
+    it('comma-separated sources → N개 소스 감시', () => {
+      const trigger = {
+        source: '__LogA__,__LogB__,__LogC__',
+        recipe: [{ type: 'regex', trigger: ['x'], next: '' }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('3개 로그 소스')
+      expect(result).toContain('__LogA__')
+      expect(result).toContain('__LogB__')
+      expect(result).toContain('__LogC__')
+    })
+
+    it('single source → normal display', () => {
+      const trigger = {
+        source: '__Log__',
+        recipe: [{ type: 'regex', trigger: ['x'], next: '' }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('"__Log__" 로그 소스를 감시합니다.')
+    })
+  })
+
+  // --- New next actions ---
+  describe('new next actions', () => {
+    it('@recovery → "복구 실행"', () => {
+      const trigger = {
+        source: 'src',
+        recipe: [{ type: 'regex', trigger: ['x'], next: '@recovery' }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('복구 실행')
+    })
+
+    it('@notify → "알림 전송"', () => {
+      const trigger = {
+        source: 'src',
+        recipe: [{ type: 'regex', trigger: ['x'], next: '@notify' }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('알림 전송')
+    })
+
+    it('@popup → "팝업 표시"', () => {
+      const trigger = {
+        source: 'src',
+        recipe: [{ type: 'regex', trigger: ['x'], next: '@popup' }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('팝업 표시')
+    })
+
+    it('@popup with detail.no-email → shows no-email value', () => {
+      const trigger = {
+        source: 'src',
+        recipe: [{
+          type: 'regex',
+          trigger: ['x'],
+          next: '@popup',
+          detail: { 'no-email': 'success;fail' }
+        }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('팝업 표시')
+      expect(result).toContain('no-email: success;fail')
+    })
   })
 })
