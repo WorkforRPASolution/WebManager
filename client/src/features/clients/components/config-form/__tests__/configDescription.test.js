@@ -731,31 +731,31 @@ describe('describeTrigger', () => {
 
   // --- New next actions ---
   describe('new next actions', () => {
-    it('@recovery → "복구 실행"', () => {
+    it('@recovery → "시나리오 실행"', () => {
       const trigger = {
         source: 'src',
         recipe: [{ type: 'regex', trigger: ['x'], next: '@recovery' }],
       }
       const result = describeTrigger(trigger)
-      expect(result).toContain('복구 실행')
+      expect(result).toContain('시나리오 실행')
     })
 
-    it('@notify → "알림 전송"', () => {
+    it('@notify → "메일 발송"', () => {
       const trigger = {
         source: 'src',
         recipe: [{ type: 'regex', trigger: ['x'], next: '@notify' }],
       }
       const result = describeTrigger(trigger)
-      expect(result).toContain('알림 전송')
+      expect(result).toContain('메일 발송')
     })
 
-    it('@popup → "팝업 표시"', () => {
+    it('@popup → "PopUp 실행"', () => {
       const trigger = {
         source: 'src',
         recipe: [{ type: 'regex', trigger: ['x'], next: '@popup' }],
       }
       const result = describeTrigger(trigger)
-      expect(result).toContain('팝업 표시')
+      expect(result).toContain('PopUp 실행')
     })
 
     it('@popup with detail.no-email → shows no-email value', () => {
@@ -769,7 +769,7 @@ describe('describeTrigger', () => {
         }],
       }
       const result = describeTrigger(trigger)
-      expect(result).toContain('팝업 표시')
+      expect(result).toContain('PopUp 실행')
       expect(result).toContain('no-email: success;fail')
     })
   })

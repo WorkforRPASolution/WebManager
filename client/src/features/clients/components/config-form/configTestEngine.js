@@ -560,13 +560,13 @@ function executeOneChain(recipe, lines, startLineOffset, tsParser, parseTimestam
     let delayTimeoutAction = ''  // what happens on delay timeout (actual next action)
 
     if (step.next === '@script' || step.next === '@Script') {
-      nextAction = step.script?.name ? `→ ${step.script.name} 실행` : '→ 스크립트 실행'
+      nextAction = step.script?.name ? `→ ${step.script.name} 실행` : '→ 코드 기반 시나리오 실행'
     } else if (step.next === '@recovery') {
-      nextAction = '→ 복구 실행'
+      nextAction = '→ 시나리오 실행'
     } else if (step.next === '@notify') {
-      nextAction = '→ 알림 전송'
+      nextAction = '→ 메일 발송'
     } else if (step.next === '@popup') {
-      nextAction = '→ 팝업 표시'
+      nextAction = '→ PopUp 실행'
     } else if (step.next) {
       nextAction = `→ ${step.next}로 이동`
     } else {

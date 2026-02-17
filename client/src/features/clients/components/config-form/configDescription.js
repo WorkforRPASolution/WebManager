@@ -279,13 +279,13 @@ function describeTrigger(trigger) {
           nextText += `\n${padding}(${details.join(', ')})`;
         }
       } else if (step.next === '@script' || step.next === '@Script') {
-        nextText = '스크립트 실행'
+        nextText = '코드 기반 시나리오 실행'
       } else if (step.next === '@recovery') {
-        nextText = '복구 실행'
+        nextText = '시나리오 실행'
       } else if (step.next === '@notify') {
-        nextText = '알림 전송'
+        nextText = '메일 발송'
       } else if (step.next === '@popup') {
-        nextText = '팝업 표시'
+        nextText = 'PopUp 실행'
         // Show detail.no-email if present
         if (step.detail && step.detail['no-email']) {
           nextText += ` (no-email: ${step.detail['no-email']})`

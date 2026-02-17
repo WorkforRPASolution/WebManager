@@ -868,7 +868,7 @@ describe('testTriggerPattern', () => {
     }
     const result = testTriggerPattern(trigger, 'ERROR', null)
     expect(result.steps[0].fired).toBe(true)
-    expect(result.steps[0].nextAction).toContain('복구 실행')
+    expect(result.steps[0].nextAction).toContain('시나리오 실행')
     expect(result.finalResult.triggered).toBe(true)
   })
 
@@ -882,7 +882,7 @@ describe('testTriggerPattern', () => {
       }]
     }
     const result = testTriggerPattern(trigger, 'ERROR', null)
-    expect(result.steps[0].nextAction).toContain('알림 전송')
+    expect(result.steps[0].nextAction).toContain('메일 발송')
     expect(result.finalResult.triggered).toBe(true)
   })
 
@@ -896,7 +896,7 @@ describe('testTriggerPattern', () => {
       }]
     }
     const result = testTriggerPattern(trigger, 'ERROR', null)
-    expect(result.steps[0].nextAction).toContain('팝업 표시')
+    expect(result.steps[0].nextAction).toContain('PopUp 실행')
     expect(result.finalResult.triggered).toBe(true)
   })
 })
@@ -1229,7 +1229,7 @@ describe('testTriggerPattern - delay step with timestamps', () => {
     expect(delayStep.fired).toBe(false)
     expect(delayStep.cancelled).toBe(false)
     expect(delayStep.timedOut).toBe(true)
-    expect(delayStep.nextAction).toBe('→ 알림 전송')
+    expect(delayStep.nextAction).toBe('→ 메일 발송')
     expect(result.finalResult.triggered).toBe(true) // timeout means proceed = triggered
   })
 
@@ -1249,7 +1249,7 @@ describe('testTriggerPattern - delay step with timestamps', () => {
     expect(delayStep.fired).toBe(false)
     expect(delayStep.cancelled).toBe(false)
     expect(delayStep.timedOut).toBe(true)
-    expect(delayStep.nextAction).toBe('→ 알림 전송')
+    expect(delayStep.nextAction).toBe('→ 메일 발송')
     // Chain proceeds through timeout -> @notify
     expect(result.finalResult.triggered).toBe(true)
   })
@@ -1270,7 +1270,7 @@ describe('testTriggerPattern - delay step with timestamps', () => {
     expect(delayStep.fired).toBe(false)  // pattern matched but AFTER duration
     expect(delayStep.cancelled).toBe(false)
     expect(delayStep.timedOut).toBe(true)
-    expect(delayStep.nextAction).toBe('→ 알림 전송')
+    expect(delayStep.nextAction).toBe('→ 메일 발송')
     expect(result.finalResult.triggered).toBe(true)
   })
 

@@ -152,7 +152,7 @@
                   <input type="text" :value="step.duration" @input="updateStepField(ti, si, 'duration', $event.target.value)" :disabled="readOnly" :placeholder="stepSchema.fields.duration.placeholder" class="form-input" />
                 </FormField>
                 <FormField :label="stepSchema.fields.times.label" :description="stepSchema.fields.times.description">
-                  <input type="number" :value="step.times" @input="updateStepField(ti, si, 'times', Number($event.target.value))" :disabled="readOnly" min="1" placeholder="1" class="form-input" />
+                  <input type="number" :value="step.times" @input="updateStepField(ti, si, 'times', $event.target.value === '' ? null : Number($event.target.value))" :disabled="readOnly" min="1" placeholder="1" class="form-input" />
                 </FormField>
               </div>
 
@@ -163,10 +163,10 @@
                   <template v-for="(s, ssi) in trig.recipe" :key="ssi">
                     <option v-if="ssi !== si && s.name" :value="s.name">{{ s.name }} (다음 스텝)</option>
                   </template>
-                  <option value="@recovery">@recovery (복구 실행)</option>
-                  <option value="@script">@script (스크립트 실행)</option>
-                  <option value="@notify">@notify (알림 전송)</option>
-                  <option value="@popup">@popup (팝업 표시)</option>
+                  <option value="@recovery">@recovery (시나리오 실행)</option>
+                  <option value="@script">@script (코드 기반 시나리오 실행)</option>
+                  <option value="@notify">@notify (메일 발송)</option>
+                  <option value="@popup">@popup (PopUp 실행)</option>
                 </select>
               </FormField>
 
@@ -191,7 +191,7 @@
                     <input type="text" :value="step.script?.['no-email']" @input="updateScriptField(ti, si, 'no-email', $event.target.value)" :disabled="readOnly" :placeholder="scriptSchema.fields['no-email'].placeholder" class="form-input" />
                   </FormField>
                   <FormField :label="scriptSchema.fields.key.label" :description="scriptSchema.fields.key.description">
-                    <input type="number" :value="step.script?.key" @input="updateScriptField(ti, si, 'key', Number($event.target.value))" :disabled="readOnly" :placeholder="scriptSchema.fields.key.placeholder" class="form-input" />
+                    <input type="number" :value="step.script?.key" @input="updateScriptField(ti, si, 'key', $event.target.value === '' ? null : Number($event.target.value))" :disabled="readOnly" :placeholder="scriptSchema.fields.key.placeholder" class="form-input" />
                   </FormField>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
@@ -240,7 +240,7 @@
           </h4>
           <div class="grid grid-cols-2 gap-3">
             <FormField :label="triggerSchema.limitation.times.label" :description="triggerSchema.limitation.times.description">
-              <input type="number" :value="trig.limitation?.times" @input="updateLimitation(ti, 'times', Number($event.target.value))" :disabled="readOnly" min="1" placeholder="1" class="form-input" />
+              <input type="number" :value="trig.limitation?.times" @input="updateLimitation(ti, 'times', $event.target.value === '' ? null : Number($event.target.value))" :disabled="readOnly" min="1" placeholder="1" class="form-input" />
             </FormField>
             <FormField :label="triggerSchema.limitation.duration.label" :description="triggerSchema.limitation.duration.description">
               <input type="text" :value="trig.limitation?.duration" @input="updateLimitation(ti, 'duration', $event.target.value)" :disabled="readOnly" placeholder="1 minutes" class="form-input" />
@@ -342,10 +342,18 @@ function emitUpdate(newTriggers) {
           next: step.next
         }
         if (step.next === '@script') {
-          s.script = { ...step.script }
+          const script = {}
+          for (const [k, v] of Object.entries(step.script || {})) {
+            if (k === 'name' || (v !== '' && v !== null && v !== undefined)) script[k] = v
+          }
+          if (Object.keys(script).length > 0) s.script = script
         }
         if (step.next === '@popup') {
-          s.detail = { ...step.detail }
+          const detail = {}
+          for (const [k, v] of Object.entries(step.detail || {})) {
+            if (v !== '' && v !== null && v !== undefined) detail[k] = v
+          }
+          if (Object.keys(detail).length > 0) s.detail = detail
         }
         return s
       }),

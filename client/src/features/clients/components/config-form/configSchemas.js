@@ -388,7 +388,7 @@ export const TRIGGER_STEP_SCHEMA = {
     },
     next: {
       type: 'select-next', label: '다음 동작',
-      description: '이 스텝 발동 후 실행할 동작입니다. 다른 스텝으로 연결하거나, @recovery(복구), @script(스크립트), @notify(알림), @popup(팝업)을 선택합니다.'
+      description: '이 스텝 발동 후 실행할 동작입니다. 다른 스텝으로 연결하거나, @recovery(시나리오), @script(코드 기반 시나리오), @notify(메일 발송), @popup(PopUp)을 선택합니다.'
     },
     detail: {
       type: 'object', label: '상세 설정 (detail)',
