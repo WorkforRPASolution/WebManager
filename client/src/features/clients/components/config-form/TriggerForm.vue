@@ -293,7 +293,7 @@ const triggers = computed(() => {
     })),
     limitation: {
       times: config.limitation?.times || 1,
-      duration: config.limitation?.durtaion || config.limitation?.duration || '1 minutes'
+      duration: config.limitation?.duration || config.limitation?.durtaion || '1 minutes'
     }
   }))
 })
@@ -351,8 +351,7 @@ function emitUpdate(newTriggers) {
       }),
       limitation: {
         times: trig.limitation.times,
-        // 원본 typo 유지: "durtaion"
-        durtaion: trig.limitation.duration
+        duration: trig.limitation.duration
       }
     }
   }

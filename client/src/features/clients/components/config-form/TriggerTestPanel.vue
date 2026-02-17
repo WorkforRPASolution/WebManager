@@ -117,16 +117,16 @@
         </div>
 
         <!-- Step results -->
-        <div v-for="(step, si) in testResult.steps" :key="si" class="rounded-lg p-3 text-xs border" :class="step.fired ? 'bg-green-50/50 dark:bg-green-900/10 border-green-200 dark:border-green-800/50' : 'bg-gray-50 dark:bg-dark-bg border-gray-200 dark:border-dark-border'">
+        <div v-for="(step, si) in testResult.steps" :key="si" class="rounded-lg p-3 text-xs border" :class="stepClass(step)">
           <div class="flex items-center gap-2 mb-2">
             <span class="font-medium text-gray-700 dark:text-gray-300">
               {{ step.name }} ({{ step.type }}{{ step.required.duration ? ', ' + step.required.duration : '' }}):
             </span>
-            <span class="font-medium" :class="step.fired ? 'text-green-600 dark:text-green-400' : 'text-yellow-600 dark:text-yellow-400'">
+            <span class="font-medium" :class="stepStatusClass(step)">
               {{ step.matchCount }}/{{ step.required.times }}회 매칭
-              {{ step.fired ? '→ 발동 ✅' : '→ 미발동 ⏳' }}
+              {{ stepStatusLabel(step) }}
             </span>
-            <span v-if="step.fired && step.nextAction" class="text-primary-600 dark:text-primary-400">{{ step.nextAction }}</span>
+            <span v-if="showNextAction(step)" class="text-primary-600 dark:text-primary-400">{{ step.nextAction }}</span>
           </div>
 
           <!-- Duration check -->
@@ -154,6 +154,31 @@
         <!-- Final result -->
         <div class="rounded-lg p-3 text-sm font-medium" :class="testResult.finalResult.triggered ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'">
           {{ testResult.finalResult.triggered ? '✅' : '⏳' }} {{ testResult.finalResult.message }}
+        </div>
+
+        <!-- Limitation summary -->
+        <div v-if="testResult.limitation" class="rounded-lg p-3 text-sm border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-dark-bg">
+          <div class="font-medium mb-1 text-gray-700 dark:text-gray-300">발동 제한 (Limitation)</div>
+          <div class="text-gray-600 dark:text-gray-400">
+            {{ testResult.limitation.durationFormatted || testResult.limitation.duration }} 내 최대 {{ testResult.limitation.times }}회
+            · {{ testResult.limitation.totalFirings }}회 감지,
+            <span class="text-green-600 dark:text-green-400 font-medium">{{ testResult.limitation.allowedFirings }}회 발동</span>
+            <template v-if="testResult.limitation.suppressedFirings > 0">
+              , <span class="text-orange-600 dark:text-orange-400 font-medium">{{ testResult.limitation.suppressedFirings }}회 억제</span>
+            </template>
+          </div>
+          <!-- Per-firing breakdown when multiple firings -->
+          <div v-if="testResult.firings && testResult.firings.length > 1" class="mt-2 space-y-0.5">
+            <div v-for="(f, fi) in testResult.firings" :key="fi" class="text-xs flex items-center gap-1.5">
+              <span class="text-gray-400">#{{ fi + 1 }}</span>
+              <span v-if="f.fired && !f.suppressed" class="text-green-600 dark:text-green-400">발동</span>
+              <span v-else-if="f.fired && f.suppressed" class="text-orange-600 dark:text-orange-400">억제</span>
+              <span v-else class="text-gray-400">미완료</span>
+              <span v-if="f.firingTimestamp" class="text-gray-400">
+                @ {{ formatTimestamp(f.firingTimestamp) }}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -193,6 +218,31 @@ function onPresetChange() {
   if (tsPreset.value !== 'custom') {
     customTsFormat.value = ''
   }
+}
+
+function stepClass(step) {
+  if (step.cancelled) return 'bg-orange-50/50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800/50'
+  if (step.fired) return 'bg-green-50/50 dark:bg-green-900/10 border-green-200 dark:border-green-800/50'
+  if (step.timedOut) return 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800/50'
+  return 'bg-gray-50 dark:bg-dark-bg border-gray-200 dark:border-dark-border'
+}
+
+function stepStatusClass(step) {
+  if (step.cancelled) return 'text-orange-600 dark:text-orange-400'
+  if (step.fired) return 'text-green-600 dark:text-green-400'
+  if (step.timedOut) return 'text-blue-600 dark:text-blue-400'
+  return 'text-yellow-600 dark:text-yellow-400'
+}
+
+function stepStatusLabel(step) {
+  if (step.cancelled) return '→ 취소 🔄'
+  if (step.fired) return '→ 발동 ✅'
+  if (step.timedOut) return '→ 타임아웃 ⏱️'
+  return '→ 미발동 ⏳'
+}
+
+function showNextAction(step) {
+  return (step.fired || step.timedOut) && step.nextAction
 }
 
 function runTextTest() {
@@ -255,6 +305,12 @@ async function runFileTest() {
   } finally {
     fileProcessing.value = false
   }
+}
+
+function formatTimestamp(ts) {
+  if (!ts || !(ts instanceof Date)) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${ts.getFullYear()}-${pad(ts.getMonth() + 1)}-${pad(ts.getDate())} ${pad(ts.getHours())}:${pad(ts.getMinutes())}:${pad(ts.getSeconds())}`
 }
 </script>
 

@@ -2,8 +2,23 @@
  * configTestEngine.js
  *
  * Pure JavaScript utility providing testing/matching engines for:
- *  - AccessLog path matching
- *  - Trigger pattern matching
+ *  - AccessLog path matching (testAccessLogPath)
+ *  - Trigger pattern matching (testTriggerPattern, testTriggerWithFiles)
+ *
+ * ## Trigger Step Outcome Model
+ *
+ *  regex step:
+ *    fired=true  → 발동 (패턴 매칭됨, 체인 진행)
+ *    fired=false → 미발동 (체인 미완료)
+ *
+ *  delay step:
+ *    fired=true,  cancelled=true  → 취소 (패턴 매칭됨 = 체인 리셋)
+ *    fired=false, timedOut=true   → 타임아웃 (= 실제 발동, 체인 진행)
+ *
+ *  Duration reference: prevStepLastTimestamp (이전 step 완료 시점)
+ *  Firing timestamp (delay timeout): prevStepTimestamp + delay.duration
+ *
+ *  상세 설계: docs/TRIGGER_TEST_ENGINE.md
  */
 
 // ---------------------------------------------------------------------------
@@ -501,45 +516,26 @@ function matchLine(line, syntax, type) {
 
 
 // ---------------------------------------------------------------------------
-// 3. testTriggerPattern
+// 3. executeOneChain (internal helper)
 // ---------------------------------------------------------------------------
 
 /**
- * Tests trigger pattern matching against input log text.
+ * Execute one chain run from the given line offset.
+ * Returns { stepResults, allFired, lineOffset, firingTimestamp }.
  *
- * @param {Object} trigger - { recipe: [...steps], limitation }
- * @param {string} logText - multi-line log text
- * @param {string|null} timestampFormat - e.g. "yyyy-MM-dd HH:mm:ss"
- * @returns {Object} result with steps[] and finalResult
+ * @param {Array} recipe - recipe steps
+ * @param {Array} lines - all log lines
+ * @param {number} startLineOffset - line index to start scanning from
+ * @param {Object|null} tsParser - timestamp parser { regex, parse }
+ * @param {Function} parseTimestamp - function(line) => Date|null
+ * @returns {Object} { stepResults, allFired, lineOffset, firingTimestamp }
  */
-export function testTriggerPattern(trigger, logText, timestampFormat) {
-  const trig = trigger || {}
-  const recipe = Array.isArray(trig.recipe) ? trig.recipe : []
-  const lines = (logText || '').split('\n')
-
-  // Timestamp parsing setup
-  let tsParser = null
-  if (timestampFormat) {
-    tsParser = timestampFormatToRegex(timestampFormat)
-  }
-
-  function parseTimestamp(line) {
-    if (!tsParser || !tsParser.regex) return null
-    const m = line.match(tsParser.regex)
-    return m ? tsParser.parse(m) : null
-  }
-
-  // Build step lookup by name
-  const stepByName = {}
-  for (const step of recipe) {
-    if (step.name) stepByName[step.name] = step
-  }
-
-  // Process steps
+function executeOneChain(recipe, lines, startLineOffset, tsParser, parseTimestamp) {
   const stepResults = []
   let currentStepIndex = 0
-  let lineOffset = 0
+  let lineOffset = startLineOffset
   let resetCount = 0
+  let prevStepLastTimestamp = null
 
   while (currentStepIndex < recipe.length && lineOffset <= lines.length) {
     const step = recipe[currentStepIndex]
@@ -555,11 +551,15 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
     let fired = false
     let durationCheck = null
 
-    // Determine next action label
+    // For delay steps: check if pattern matches within duration from previous step
+    const isDelay = step.type === 'delay'
+    let delayTimedOut = false
+
+    // Determine next action labels
     let nextAction = ''
-    if (step.type === 'delay') {
-      nextAction = '→ 체인 리셋'
-    } else if (step.next === '@script' || step.next === '@Script') {
+    let delayTimeoutAction = ''  // what happens on delay timeout (actual next action)
+
+    if (step.next === '@script' || step.next === '@Script') {
       nextAction = step.script?.name ? `→ ${step.script.name} 실행` : '→ 스크립트 실행'
     } else if (step.next === '@recovery') {
       nextAction = '→ 복구 실행'
@@ -573,10 +573,32 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
       nextAction = '→ 종료'
     }
 
+    if (isDelay) {
+      delayTimeoutAction = nextAction  // save actual next action for timeout case
+      nextAction = '→ 체인 리셋'       // default label = reset (when fired)
+    }
+
     // Scan lines from lineOffset
     for (let li = lineOffset; li < lines.length; li++) {
       const line = lines[li]
       const timestamp = parseTimestamp(line)
+
+      // For delay steps with duration: check if we've exceeded the time window
+      if (isDelay && durationMs && prevStepLastTimestamp && timestamp) {
+        const elapsed = timestamp.getTime() - prevStepLastTimestamp.getTime()
+        if (elapsed > durationMs) {
+          // Past duration window → timeout (delay didn't fire = normal path)
+          delayTimedOut = true
+          durationCheck = {
+            elapsed: formatElapsedKorean(elapsed),
+            limit: formatDurationKorean(durationStr),
+            passed: false,
+            message: `${formatDurationKorean(durationStr)} 초과 → 타임아웃 (정상 진행)`
+          }
+          lineOffset = li  // don't consume this line, next step starts here
+          break
+        }
+      }
 
       // Try each pattern
       let matchedPattern = null
@@ -598,14 +620,38 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
         // Check if step should fire
         if (matches.length >= requiredTimes) {
           if (durationMs && tsParser && tsParser.regex) {
-            // Duration check: time between first relevant match and last match
             const windowStart = matches.length - requiredTimes
             const firstTs = matches[windowStart].timestamp
             const lastTs = matches[matches.length - 1].timestamp
+            const refTs = prevStepLastTimestamp || firstTs
 
-            if (firstTs && lastTs) {
-              const elapsed = lastTs.getTime() - firstTs.getTime()
-              if (elapsed <= durationMs) {
+            if (refTs && lastTs) {
+              const elapsed = lastTs.getTime() - refTs.getTime()
+              if (isDelay) {
+                // For delay: elapsed is measured from prevStepLastTimestamp
+                if (elapsed <= durationMs) {
+                  fired = true
+                  durationCheck = {
+                    elapsed: formatElapsedKorean(elapsed),
+                    limit: formatDurationKorean(durationStr),
+                    passed: true,
+                    message: `${formatDurationKorean(durationStr)} 내 매칭 → 체인 리셋`
+                  }
+                  lineOffset = li + 1
+                  break
+                } else {
+                  // Pattern matched but AFTER duration → timeout
+                  delayTimedOut = true
+                  durationCheck = {
+                    elapsed: formatElapsedKorean(elapsed),
+                    limit: formatDurationKorean(durationStr),
+                    passed: false,
+                    message: `${formatDurationKorean(durationStr)} 초과 → 타임아웃 (정상 진행)`
+                  }
+                  lineOffset = li  // don't consume, next step starts here
+                  break
+                }
+              } else if (elapsed <= durationMs) {
                 fired = true
                 durationCheck = {
                   elapsed: formatElapsedKorean(elapsed),
@@ -615,7 +661,6 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
                 lineOffset = li + 1
                 break
               } else {
-                // Sliding window: drop the earliest match and continue
                 matches.splice(0, 1)
                 durationCheck = {
                   elapsed: formatElapsedKorean(elapsed),
@@ -625,7 +670,6 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
                 }
               }
             } else {
-              // No timestamps available on matches - fire without duration check
               fired = true
               durationCheck = {
                 elapsed: null,
@@ -637,7 +681,6 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
               break
             }
           } else {
-            // No duration requirement -> fire immediately
             fired = true
             lineOffset = li + 1
             break
@@ -646,7 +689,6 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
       }
     }
 
-    // If we didn't fire and exhausted lines, update durationCheck for reporting
     if (!fired && durationMs && matches.length > 0 && !durationCheck) {
       durationCheck = {
         elapsed: null,
@@ -655,6 +697,25 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
         message: `${formatDurationKorean(durationStr)} 내 ${requiredTimes}회 매칭 필요`
       }
     }
+
+    // After scan loop - handle delay timeout for non-timestamp case
+    if (isDelay && !fired && !delayTimedOut) {
+      // No more lines, no timestamp-based timeout → treat as timeout
+      durationCheck = durationCheck || {
+        elapsed: null,
+        limit: durationStr ? formatDurationKorean(durationStr) : null,
+        passed: false,
+        message: '로그 끝 → 타임아웃 (정상 진행)'
+      }
+    }
+
+    // For delay timeout: show actual next action instead of "체인 리셋"
+    if (isDelay && !fired) {
+      nextAction = delayTimeoutAction || nextAction
+    }
+
+    // For delay steps: pattern match = cancellation, not a real firing
+    const cancelled = isDelay && fired
 
     stepResults.push({
       name: stepName,
@@ -665,6 +726,8 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
         duration: durationStr || null
       },
       fired,
+      cancelled,
+      timedOut: isDelay && !fired,
       matchCount: matches.length,
       matches,
       nextAction,
@@ -672,85 +735,263 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
     })
 
     if (!fired) {
-      // Step did not fire -> for delay type this means timeout, proceed to next
       if (step.type === 'delay' && step.next) {
-        // Delay timeout: proceed to next step (delay didn't cancel the chain)
+        // Delay timeout: check if next is a terminal action
+        const terminalActions = ['@script', '@Script', '@recovery', '@notify', '@popup']
+        if (terminalActions.includes(step.next)) {
+          // Terminal action reached via timeout → chain is complete
+          break
+        }
         const nextStepIdx = recipe.findIndex((s) => s.name === step.next)
         if (nextStepIdx >= 0) {
           currentStepIndex = nextStepIdx
           continue
         }
       }
-      // Chain stops here for non-delay steps, or when next step not found
       break
     }
 
-    // Step fired
     if (step.type === 'delay') {
-      // Delay step fired -> cancellation condition met
       if (step.next) {
-        // Has a pending action to cancel -> reset chain to step 0
         stepResults[stepResults.length - 1].resetChain = true
         stepResults[stepResults.length - 1].nextAction = '→ 체인 리셋'
 
-        // Guard against infinite loops
         resetCount = (resetCount || 0) + 1
         if (resetCount > 100) {
           break
         }
         currentStepIndex = 0
+        prevStepLastTimestamp = null
         lineOffset = stepResults[stepResults.length - 1].matches.length > 0
-          ? lineOffset  // continue from where we were
+          ? lineOffset
           : lineOffset
         continue
       }
-      // No pending action -> delay fired as simple pattern match, chain ends
       break
     }
 
-    // Determine next step (non-delay)
     if (step.next === '@script' || step.next === '@Script' || step.next === '@recovery' || step.next === '@notify' || step.next === '@popup' || !step.next) {
-      // Chain ends (action or empty)
       break
     }
 
-    // Find next step by name
     const nextStepIdx = recipe.findIndex((s) => s.name === step.next)
     if (nextStepIdx >= 0) {
+      const stepMatches = stepResults[stepResults.length - 1].matches
+      if (stepMatches.length > 0 && stepMatches[stepMatches.length - 1].timestamp) {
+        prevStepLastTimestamp = stepMatches[stepMatches.length - 1].timestamp
+      }
       currentStepIndex = nextStepIdx
     } else {
-      // Next step not found -> chain ends
+      break
+    }
+  }
+
+  const allCompleted = stepResults.length > 0 && stepResults.every((s) => s.fired || (s.type === 'delay' && !s.fired))
+  const lastStep = stepResults.length > 0 ? stepResults[stepResults.length - 1] : null
+  // For delay timeout with terminal action: chain is triggered even though delay didn't fire
+  const lastStepIsDelayTimeout = lastStep && lastStep.type === 'delay' && !lastStep.fired
+  const terminalActions = ['@script', '@Script', '@recovery', '@notify', '@popup']
+  const lastStepHasTerminalNext = lastStep && lastStep.name && (() => {
+    const recipeStep = recipe.find(s => s.name === lastStep.name)
+    return recipeStep && terminalActions.includes(recipeStep.next)
+  })()
+  const allFired = allCompleted && lastStep && (lastStep.fired || (lastStepIsDelayTimeout && lastStepHasTerminalNext))
+
+  let firingTimestamp = null
+  if (allFired && lastStep) {
+    if (lastStep.fired && lastStep.matches.length > 0) {
+      // Regex step: timestamp of last match
+      firingTimestamp = lastStep.matches[lastStep.matches.length - 1].timestamp || null
+    } else if (lastStepIsDelayTimeout && stepResults.length > 1) {
+      // Delay timeout: compute timeout moment = prevStep timestamp + delay duration
+      const prevStep = stepResults[stepResults.length - 2]
+      const delayRecipeStep = recipe.find(s => s.name === lastStep.name)
+      const delayDurationMs = parseDurationMs(delayRecipeStep?.duration)
+
+      if (prevStep.matches.length > 0 && prevStep.matches[prevStep.matches.length - 1].timestamp) {
+        const prevTs = prevStep.matches[prevStep.matches.length - 1].timestamp
+        if (delayDurationMs) {
+          // Timeout moment = previous step completion + delay duration
+          firingTimestamp = new Date(prevTs.getTime() + delayDurationMs)
+        } else {
+          firingTimestamp = prevTs
+        }
+      }
+    }
+  }
+
+  return { stepResults, allFired, lineOffset, firingTimestamp }
+}
+
+
+// ---------------------------------------------------------------------------
+// 3b. testTriggerPattern
+// ---------------------------------------------------------------------------
+
+/**
+ * Tests trigger pattern matching against input log text.
+ *
+ * @param {Object} trigger - { recipe: [...steps], limitation }
+ * @param {string} logText - multi-line log text
+ * @param {string|null} timestampFormat - e.g. "yyyy-MM-dd HH:mm:ss"
+ * @returns {Object} result with steps[], finalResult, firings[], and limitation
+ */
+export function testTriggerPattern(trigger, logText, timestampFormat) {
+  const trig = trigger || {}
+  const recipe = Array.isArray(trig.recipe) ? trig.recipe : []
+  const lines = (logText || '').split('\n')
+
+  // Timestamp parsing setup
+  let tsParser = null
+  if (timestampFormat) {
+    tsParser = timestampFormatToRegex(timestampFormat)
+  }
+
+  function parseTimestamp(line) {
+    if (!tsParser || !tsParser.regex) return null
+    const m = line.match(tsParser.regex)
+    return m ? tsParser.parse(m) : null
+  }
+
+  // Limitation config
+  const hasLimitation = !!(trig.limitation && trig.limitation.duration)
+  const limitTimes = (trig.limitation?.times != null) ? trig.limitation.times : Infinity
+  const limitDurationStr = trig.limitation?.duration || null
+  const limitDurationMs = parseDurationMs(limitDurationStr)
+
+  // If no limitation configured, run chain once (existing behavior)
+  if (!hasLimitation) {
+    const chainResult = executeOneChain(recipe, lines, 0, tsParser, parseTimestamp)
+
+    let message = ''
+    const lastStep = chainResult.stepResults.length > 0
+      ? chainResult.stepResults[chainResult.stepResults.length - 1]
+      : null
+
+    if (chainResult.stepResults.length === 0) {
+      message = '레시피에 스텝이 없습니다'
+    } else if (chainResult.allFired) {
+      const lastRecipeStep = recipe.find((s) => s.name === lastStep.name)
+      if (lastRecipeStep && ['@script', '@Script', '@recovery', '@notify', '@popup'].includes(lastRecipeStep.next)) {
+        message = `모든 스텝 완료 - ${lastStep.nextAction}`
+      } else {
+        message = '모든 스텝 매칭 완료'
+      }
+    } else if (lastStep && !lastStep.fired) {
+      message = `${lastStep.name}에서 대기 중 (${lastStep.matchCount}/${lastStep.required.times}회)`
+    }
+
+    return {
+      steps: chainResult.stepResults,
+      finalResult: {
+        triggered: chainResult.allFired,
+        message
+      },
+      firings: chainResult.allFired
+        ? [{ steps: chainResult.stepResults, fired: true, suppressed: false, firingTimestamp: chainResult.firingTimestamp }]
+        : [],
+      limitation: null
+    }
+  }
+
+  // With limitation: run chain repeatedly and apply limitation logic
+  const firings = []
+  let globalLineOffset = 0
+  const MAX_FIRINGS = 100
+
+  while (globalLineOffset < lines.length && firings.length < MAX_FIRINGS) {
+    const chainResult = executeOneChain(recipe, lines, globalLineOffset, tsParser, parseTimestamp)
+
+    if (chainResult.allFired) {
+      const firingTs = chainResult.firingTimestamp
+
+      // Check limitation
+      let suppressed = false
+      if (limitDurationMs && firingTs) {
+        const recentFirings = firings.filter(f =>
+          !f.suppressed && f.firingTimestamp &&
+          (firingTs.getTime() - f.firingTimestamp.getTime()) <= limitDurationMs
+        )
+        if (recentFirings.length >= limitTimes) {
+          suppressed = true
+        }
+      }
+
+      firings.push({
+        steps: chainResult.stepResults,
+        fired: true,
+        suppressed,
+        firingTimestamp: firingTs,
+        incomplete: false
+      })
+
+      if (chainResult.lineOffset > globalLineOffset) {
+        globalLineOffset = chainResult.lineOffset
+      } else {
+        globalLineOffset++
+      }
+    } else {
+      firings.push({
+        steps: chainResult.stepResults,
+        fired: false,
+        suppressed: false,
+        firingTimestamp: null,
+        incomplete: true
+      })
       break
     }
   }
 
   // Build final result
-  // For delay steps that didn't fire (timeout), the chain correctly proceeds past them
-  // so they count as "passed through" rather than "failed to match"
-  const allCompleted = stepResults.length > 0 && stepResults.every((s) => s.fired || (s.type === 'delay' && !s.fired))
-  const lastStep = stepResults.length > 0 ? stepResults[stepResults.length - 1] : null
-  // The chain is triggered only if the last step actually fired (or timed-out delay was intermediate)
-  const allFired = allCompleted && lastStep && lastStep.fired
-  let message = ''
+  const completedFirings = firings.filter(f => !f.incomplete)
+  const allowedFirings = completedFirings.filter(f => !f.suppressed)
+  const suppressedFirings = completedFirings.filter(f => f.suppressed)
+  const triggered = allowedFirings.length > 0
 
-  if (stepResults.length === 0) {
+  let message = ''
+  if (firings.length === 0) {
     message = '레시피에 스텝이 없습니다'
-  } else if (allFired) {
-    const lastRecipeStep = recipe.find((s) => s.name === lastStep.name)
-    if (lastRecipeStep && ['@script', '@Script', '@recovery', '@notify', '@popup'].includes(lastRecipeStep.next)) {
-      message = `모든 스텝 완료 - ${lastStep.nextAction}`
-    } else {
-      message = '모든 스텝 매칭 완료'
+  } else if (completedFirings.length === 0) {
+    const lastFiring = firings[firings.length - 1]
+    const lastStep = lastFiring.steps.length > 0 ? lastFiring.steps[lastFiring.steps.length - 1] : null
+    if (lastStep && !lastStep.fired) {
+      message = `${lastStep.name}에서 대기 중 (${lastStep.matchCount}/${lastStep.required.times}회)`
     }
-  } else if (lastStep && !lastStep.fired) {
-    message = `${lastStep.name}에서 대기 중 (${lastStep.matchCount}/${lastStep.required.times}회)`
+  } else {
+    const firstFiring = firings[0]
+    const lastStep = firstFiring.steps[firstFiring.steps.length - 1]
+    const lastRecipeStep = recipe.find((s) => s.name === lastStep.name)
+    const actionSuffix = lastRecipeStep && ['@script', '@Script', '@recovery', '@notify', '@popup'].includes(lastRecipeStep.next)
+      ? ` - ${lastStep.nextAction}`
+      : ''
+
+    if (suppressedFirings.length === 0) {
+      message = `모든 스텝 완료${actionSuffix} (${completedFirings.length}회 발동, 제한 내)`
+    } else {
+      const limitLabel = formatDurationKorean(limitDurationStr) || limitDurationStr
+      message = `모든 스텝 완료${actionSuffix} (${completedFirings.length}회 감지, ${allowedFirings.length}회 발동, ${suppressedFirings.length}회 억제 — ${limitLabel} 내 최대 ${limitTimes}회)`
+    }
   }
 
   return {
-    steps: stepResults,
+    steps: firings.length > 0 ? firings[0].steps : [],
     finalResult: {
-      triggered: allFired,
+      triggered,
       message
+    },
+    firings: firings.map(f => ({
+      steps: f.steps,
+      fired: f.fired,
+      suppressed: f.suppressed,
+      firingTimestamp: f.firingTimestamp
+    })),
+    limitation: {
+      times: limitTimes === Infinity ? null : limitTimes,
+      duration: limitDurationStr,
+      durationFormatted: formatDurationKorean(limitDurationStr),
+      totalFirings: completedFirings.length,
+      allowedFirings: allowedFirings.length,
+      suppressedFirings: suppressedFirings.length
     }
   }
 }

@@ -7,6 +7,7 @@ import { describeAccessLog, describeTrigger } from '../configDescription'
 describe('describeAccessLog', () => {
   it('full config — all fields populated', () => {
     const source = {
+      name: 'LogReadInfo',
       directory: '/var/log/app',
       prefix: 'access',
       suffix: '.log',
@@ -353,14 +354,25 @@ describe('describeAccessLog', () => {
       expect(result).toContain('읽기: EUC-KR')
     })
 
-    it('batch_count and batch_timeout shown', () => {
+    it('batch_count and batch_timeout shown for upload source', () => {
       const result = describeAccessLog({
+        name: 'LogReadInfo',
         directory: '/d',
         batch_count: 1000,
         batch_timeout: '30 seconds',
       })
       expect(result).toContain('배치 1,000줄')
       expect(result).toContain('배치 타임아웃 30초')
+    })
+
+    it('batch_count and batch_timeout hidden for trigger source', () => {
+      const result = describeAccessLog({
+        name: '__LogReadInfo__',
+        directory: '/d',
+        batch_count: 1000,
+        batch_timeout: '30 seconds',
+      })
+      expect(result).not.toContain('배치')
     })
   })
 })

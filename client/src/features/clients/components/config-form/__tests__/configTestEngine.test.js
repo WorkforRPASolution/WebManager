@@ -660,7 +660,7 @@ describe('testTriggerPattern', () => {
     expect(delayStep).toBeDefined()
     expect(delayStep.fired).toBe(true)
     expect(delayStep.resetChain).toBe(true)
-    expect(delayStep.nextAction).toContain('체인 리셋')
+    expect(delayStep.nextAction).toBe('→ 체인 리셋')
   })
 
   it('4b. Delay step not fired (timeout) → proceeds to next step', () => {
@@ -956,5 +956,360 @@ describe('testTriggerWithFiles', () => {
     expect(result.steps[0].matches[1].fileName).toBe('b.log')
     expect(result.steps[0].matches[1].lineNum).toBe(2)
     expect(result.steps[0].matches[1].globalLineNum).toBe(4)
+  })
+})
+
+
+// ===========================================================================
+// testTriggerPattern - multi-step duration (chained step)
+// ===========================================================================
+
+describe('testTriggerPattern - multi-step duration', () => {
+  it('multi-step duration measures from previous step completion', () => {
+    const trigger = {
+      source: '',
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*Start Log.*' }], duration: '1 minutes', times: 2, next: 'Step_2' },
+        { name: 'Step_2', type: 'regex', trigger: [{ syntax: 'Start2 Log' }], duration: '10 seconds', times: 1, next: '@notify' }
+      ],
+      limitation: { times: 1, duration: '1 minutes' }
+    }
+    const logText = `2026-02-11 05:46:49 INFO  Step1 Start Log
+2026-02-11 05:47:48 INFO  Start2 Log
+2026-02-11 05:47:49 INFO  Start Log
+2026-02-11 05:48:50 INFO  Start2 Log`
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    // Step_1 should fire (2 matches within 1 minute)
+    expect(result.steps[0].fired).toBe(true)
+    // Step_2 should NOT fire (61 seconds from Step_1 completion exceeds 10 seconds)
+    expect(result.steps[1].fired).toBe(false)
+    expect(result.steps[1].durationCheck.passed).toBe(false)
+  })
+
+  it('multi-step duration passes when within limit', () => {
+    const trigger = {
+      source: '',
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*Start Log.*' }], duration: '1 minutes', times: 1, next: 'Step_2' },
+        { name: 'Step_2', type: 'regex', trigger: [{ syntax: 'Start2 Log' }], duration: '30 seconds', times: 1, next: '@notify' }
+      ],
+      limitation: { times: 1, duration: '5 minutes' }
+    }
+    const logText = `2026-02-11 05:46:49 INFO  Start Log
+2026-02-11 05:47:00 INFO  Start2 Log`
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    expect(result.steps[0].fired).toBe(true)
+    expect(result.steps[1].fired).toBe(true)
+    expect(result.steps[1].durationCheck.passed).toBe(true)
+  })
+})
+
+
+// ===========================================================================
+// testTriggerPattern - limitation validation
+// ===========================================================================
+
+describe('testTriggerPattern - limitation', () => {
+  it('allows firings within limitation', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '@notify' }
+      ],
+      limitation: { times: 3, duration: '5 minutes' }
+    }
+    const logText = [
+      '2026-02-11 10:00:00 ERROR one',
+      '2026-02-11 10:01:00 ERROR two',
+      '2026-02-11 10:02:00 ERROR three',
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    expect(result.limitation).toBeTruthy()
+    expect(result.limitation.totalFirings).toBe(3)
+    expect(result.limitation.allowedFirings).toBe(3)
+    expect(result.limitation.suppressedFirings).toBe(0)
+    expect(result.finalResult.triggered).toBe(true)
+    expect(result.firings).toHaveLength(3)
+    expect(result.firings.every(f => !f.suppressed)).toBe(true)
+  })
+
+  it('suppresses firings exceeding limitation.times', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '@notify' }
+      ],
+      limitation: { times: 1, duration: '1 minutes' }
+    }
+    const logText = [
+      '2026-02-11 10:00:00 ERROR one',
+      '2026-02-11 10:00:30 ERROR two',   // within 1 min of first -> suppressed
+      '2026-02-11 10:01:30 ERROR three',  // >1 min from first -> allowed again
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    expect(result.limitation.totalFirings).toBe(3)
+    expect(result.limitation.allowedFirings).toBe(2)  // first + third
+    expect(result.limitation.suppressedFirings).toBe(1) // second
+    expect(result.finalResult.triggered).toBe(true)
+    // Check individual firings
+    expect(result.firings[0].suppressed).toBe(false)
+    expect(result.firings[1].suppressed).toBe(true)
+    expect(result.firings[2].suppressed).toBe(false)
+  })
+
+  it('no limitation when not configured', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '@notify' }
+      ]
+    }
+    const logText = '2026-02-11 10:00:00 ERROR one'
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    expect(result.limitation).toBeNull()
+  })
+
+  it('limitation with multi-step chain', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*START.*' }], times: 1, next: 'Step_2' },
+        { name: 'Step_2', type: 'regex', trigger: [{ syntax: '.*END.*' }], times: 1, duration: '30 seconds', next: '@notify' }
+      ],
+      limitation: { times: 1, duration: '2 minutes' }
+    }
+    const logText = [
+      '2026-02-11 10:00:00 START a',
+      '2026-02-11 10:00:05 END a',
+      '2026-02-11 10:00:30 START b',
+      '2026-02-11 10:00:35 END b',  // within 2 min of first -> suppressed
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    expect(result.limitation.totalFirings).toBe(2)
+    expect(result.limitation.allowedFirings).toBe(1)
+    expect(result.limitation.suppressedFirings).toBe(1)
+    expect(result.firings[0].suppressed).toBe(false)
+    expect(result.firings[1].suppressed).toBe(true)
+  })
+
+  it('backward compatibility: steps field shows first firing steps', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '@notify' }
+      ],
+      limitation: { times: 2, duration: '5 minutes' }
+    }
+    const logText = [
+      '2026-02-11 10:00:00 ERROR one',
+      '2026-02-11 10:01:00 ERROR two',
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    // steps should be first firing's steps
+    expect(result.steps).toHaveLength(1)
+    expect(result.steps[0].name).toBe('Step_1')
+    expect(result.steps[0].fired).toBe(true)
+  })
+
+  it('limitation.durationFormatted returns Korean formatted string', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '@notify' }
+      ],
+      limitation: { times: 1, duration: '5 minutes' }
+    }
+    const logText = '2026-02-11 10:00:00 ERROR one'
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    expect(result.limitation.durationFormatted).toBe('5분')
+    expect(result.limitation.times).toBe(1)
+    expect(result.limitation.duration).toBe('5 minutes')
+  })
+
+  it('all suppressed: triggered is false', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '@notify' }
+      ],
+      limitation: { times: 0, duration: '10 minutes' }
+    }
+    const logText = '2026-02-11 10:00:00 ERROR one'
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    // times=0 means all firings are suppressed
+    expect(result.limitation.totalFirings).toBe(1)
+    expect(result.limitation.suppressedFirings).toBe(1)
+    expect(result.limitation.allowedFirings).toBe(0)
+    expect(result.finalResult.triggered).toBe(false)
+  })
+
+  it('limitation with no matches - incomplete firing', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*CRITICAL.*' }], times: 1, next: '@notify' }
+      ],
+      limitation: { times: 1, duration: '5 minutes' }
+    }
+    const logText = '2026-02-11 10:00:00 INFO nothing here'
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    expect(result.limitation.totalFirings).toBe(0)
+    expect(result.limitation.allowedFirings).toBe(0)
+    expect(result.limitation.suppressedFirings).toBe(0)
+    expect(result.finalResult.triggered).toBe(false)
+  })
+
+  it('limitation message includes suppression info', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '@notify' }
+      ],
+      limitation: { times: 1, duration: '1 minutes' }
+    }
+    const logText = [
+      '2026-02-11 10:00:00 ERROR one',
+      '2026-02-11 10:00:30 ERROR two',
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    expect(result.finalResult.message).toContain('감지')
+    expect(result.finalResult.message).toContain('발동')
+    expect(result.finalResult.message).toContain('억제')
+    expect(result.finalResult.message).toContain('1분')
+    expect(result.finalResult.message).toContain('최대 1회')
+  })
+
+  it('limitation message shows "제한 내" when no suppressions', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '@notify' }
+      ],
+      limitation: { times: 5, duration: '10 minutes' }
+    }
+    const logText = '2026-02-11 10:00:00 ERROR one'
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    expect(result.finalResult.message).toContain('제한 내')
+  })
+})
+
+
+
+// ===========================================================================
+// testTriggerPattern - delay step with timestamps
+// ===========================================================================
+
+describe('testTriggerPattern - delay step with timestamps', () => {
+  it('delay resets chain when pattern matches within duration', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: 'Delay_1' },
+        { name: 'Delay_1', type: 'delay', trigger: [{ syntax: '.*RECOVERY.*' }], duration: '30 seconds', times: 1, next: '@notify' },
+      ],
+      limitation: null
+    }
+    const logText = [
+      '2026-02-11 10:00:00 ERROR occurred',
+      '2026-02-11 10:00:10 RECOVERY done',  // within 30s -> reset
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    const delayStep = result.steps.find(s => s.name === 'Delay_1')
+    expect(delayStep.fired).toBe(true)
+    expect(delayStep.cancelled).toBe(true)
+    expect(delayStep.resetChain).toBe(true)
+    expect(delayStep.nextAction).toBe('→ 체인 리셋')
+    expect(delayStep.durationCheck.passed).toBe(true)
+  })
+
+  it('delay times out when pattern matches AFTER duration', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: 'Delay_1' },
+        { name: 'Delay_1', type: 'delay', trigger: [{ syntax: '.*RECOVERY.*' }], duration: '30 seconds', times: 1, next: '@notify' },
+      ]
+    }
+    const logText = [
+      '2026-02-11 10:00:00 ERROR occurred',
+      '2026-02-11 10:00:40 some other log',   // 40s > 30s, no pattern match but time exceeded
+      '2026-02-11 10:01:00 RECOVERY done',     // 60s, pattern matches but too late
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    // Delay should timeout (not fired), and chain should proceed to @notify
+    const delayStep = result.steps.find(s => s.name === 'Delay_1')
+    expect(delayStep.fired).toBe(false)
+    expect(delayStep.cancelled).toBe(false)
+    expect(delayStep.timedOut).toBe(true)
+    expect(delayStep.nextAction).toBe('→ 알림 전송')
+    expect(result.finalResult.triggered).toBe(true) // timeout means proceed = triggered
+  })
+
+  it('delay times out when no more log lines (no timestamps)', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: 'Delay_1' },
+        { name: 'Delay_1', type: 'delay', trigger: [{ syntax: '.*RECOVERY.*' }], duration: '30 seconds', times: 1, next: '@notify' },
+      ]
+    }
+    const logText = [
+      '2026-02-11 10:00:00 ERROR occurred',
+      '2026-02-11 10:00:05 nothing relevant',  // no match, within duration, no more lines
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    const delayStep = result.steps.find(s => s.name === 'Delay_1')
+    expect(delayStep.fired).toBe(false)
+    expect(delayStep.cancelled).toBe(false)
+    expect(delayStep.timedOut).toBe(true)
+    expect(delayStep.nextAction).toBe('→ 알림 전송')
+    // Chain proceeds through timeout -> @notify
+    expect(result.finalResult.triggered).toBe(true)
+  })
+
+  it('delay duration check uses previous step timestamp as reference', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: 'Delay_1' },
+        { name: 'Delay_1', type: 'delay', trigger: [{ syntax: '.*CANCEL.*' }], duration: '10 seconds', times: 1, next: '@notify' },
+      ]
+    }
+    const logText = [
+      '2026-02-11 10:00:00 ERROR occurred',
+      '2026-02-11 10:00:15 CANCEL request',  // 15s > 10s from Step_1 -> timeout, not reset
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    const delayStep = result.steps.find(s => s.name === 'Delay_1')
+    expect(delayStep.fired).toBe(false)  // pattern matched but AFTER duration
+    expect(delayStep.cancelled).toBe(false)
+    expect(delayStep.timedOut).toBe(true)
+    expect(delayStep.nextAction).toBe('→ 알림 전송')
+    expect(result.finalResult.triggered).toBe(true)
+  })
+
+  it('delay timeout firingTimestamp is prevStep + duration', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: 'Delay_1' },
+        { name: 'Delay_1', type: 'delay', trigger: [{ syntax: '.*CANCEL.*' }], duration: '10 seconds', times: 1, next: '@notify' },
+      ]
+    }
+    const logText = [
+      '2026-02-11 10:00:00 ERROR occurred',
+      '2026-02-11 10:00:05 nothing relevant',
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    expect(result.finalResult.triggered).toBe(true)
+    // Firing timestamp should be 10:00:00 + 10s = 10:00:10 (not 10:00:00)
+    const ts = result.firings[0]?.firingTimestamp
+    expect(ts).toBeTruthy()
+    expect(ts.getMinutes()).toBe(0)
+    expect(ts.getSeconds()).toBe(10)  // 00 + 10 seconds
+  })
+
+  it('delay cancellation has cancelled=true and fired=true', () => {
+    const trigger = {
+      recipe: [
+        { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: 'Delay_1' },
+        { name: 'Delay_1', type: 'delay', trigger: [{ syntax: '.*RECOVERY.*' }], duration: '30 seconds', times: 1, next: '@notify' },
+      ]
+    }
+    const logText = [
+      '2026-02-11 10:00:00 ERROR occurred',
+      '2026-02-11 10:00:10 RECOVERY done',
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+    const delayStep = result.steps.find(s => s.name === 'Delay_1')
+    expect(delayStep.fired).toBe(true)
+    expect(delayStep.cancelled).toBe(true)
+    expect(delayStep.timedOut).toBe(false)
+    expect(delayStep.nextAction).toBe('→ 체인 리셋')
   })
 })

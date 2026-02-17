@@ -130,9 +130,10 @@ function describeAccessLog(source) {
   if (interval) readParts.push(interval + ' 간격')
   else if (source.access_interval) readParts.push(source.access_interval + ' 간격')
   if (source.reopen) readParts.push('파일 재열기')
-  // Only show batch_count/batch_timeout for upload type
-  if (source.batch_count) readParts.push('배치 ' + formatNumber(source.batch_count) + '줄')
-  if (source.batch_timeout) {
+  // batch_count/batch_timeout: upload purpose only
+  const isUpload = source.purpose === 'upload' || (source.name && !/^__.+__$/.test(source.name))
+  if (isUpload && source.batch_count) readParts.push('배치 ' + formatNumber(source.batch_count) + '줄')
+  if (isUpload && source.batch_timeout) {
     const bt = parseDuration(source.batch_timeout)
     if (bt) readParts.push('배치 타임아웃 ' + bt)
   }
