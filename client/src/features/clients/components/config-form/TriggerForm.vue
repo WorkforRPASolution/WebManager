@@ -188,7 +188,17 @@
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                   <FormField :label="scriptSchema.fields['no-email'].label" :description="scriptSchema.fields['no-email'].description">
-                    <input type="text" :value="step.script?.['no-email']" @input="updateScriptField(ti, si, 'no-email', $event.target.value)" :disabled="readOnly" :placeholder="scriptSchema.fields['no-email'].placeholder" class="form-input" />
+                    <div class="flex items-center gap-4 py-1.5">
+                      <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                        <input type="checkbox" :checked="isNoEmailChecked(step.script?.['no-email'], 'success')" @change="toggleNoEmail(ti, si, 'script', 'success')" :disabled="readOnly" class="rounded text-primary-500" />
+                        success
+                      </label>
+                      <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                        <input type="checkbox" :checked="isNoEmailChecked(step.script?.['no-email'], 'fail')" @change="toggleNoEmail(ti, si, 'script', 'fail')" :disabled="readOnly" class="rounded text-primary-500" />
+                        fail
+                      </label>
+                      <span v-if="step.script?.['no-email']" class="text-xs text-gray-400 ml-auto">{{ step.script['no-email'] }}</span>
+                    </div>
                   </FormField>
                   <FormField :label="scriptSchema.fields.key.label" :description="scriptSchema.fields.key.description">
                     <input type="number" :value="step.script?.key" @input="updateScriptField(ti, si, 'key', $event.target.value === '' ? null : Number($event.target.value))" :disabled="readOnly" :placeholder="scriptSchema.fields.key.placeholder" class="form-input" />
@@ -208,7 +218,17 @@
               <div v-if="step.next === '@popup'" class="border border-violet-200 dark:border-violet-800/50 rounded-lg bg-violet-50/50 dark:bg-violet-900/10 p-3 space-y-3">
                 <h5 class="text-xs font-semibold text-violet-700 dark:text-violet-400">팝업 상세 설정</h5>
                 <FormField label="이메일 비발송 조건 (no-email)" description="이 값과 일치하는 결과일 때 이메일을 발송하지 않습니다.">
-                  <input type="text" :value="step.detail?.['no-email'] || ''" @input="updateDetailField(ti, si, 'no-email', $event.target.value)" :disabled="readOnly" placeholder="예: success" class="form-input" />
+                  <div class="flex items-center gap-4 py-1.5">
+                    <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                      <input type="checkbox" :checked="isNoEmailChecked(step.detail?.['no-email'], 'success')" @change="toggleNoEmail(ti, si, 'detail', 'success')" :disabled="readOnly" class="rounded text-primary-500" />
+                      success
+                    </label>
+                    <label class="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                      <input type="checkbox" :checked="isNoEmailChecked(step.detail?.['no-email'], 'fail')" @change="toggleNoEmail(ti, si, 'detail', 'fail')" :disabled="readOnly" class="rounded text-primary-500" />
+                      fail
+                    </label>
+                    <span v-if="step.detail?.['no-email']" class="text-xs text-gray-400 ml-auto">{{ step.detail['no-email'] }}</span>
+                  </div>
                 </FormField>
               </div>
             </div>
@@ -223,7 +243,7 @@
         </div>
 
         <!-- Limitation Section -->
-        <div class="border border-green-200 dark:border-green-800/50 rounded-lg bg-green-50/50 dark:bg-green-900/10 p-3 space-y-3">
+        <div v-if="trig.limitation" class="border border-green-200 dark:border-green-800/50 rounded-lg bg-green-50/50 dark:bg-green-900/10 p-3 space-y-3">
           <h4 class="text-xs font-semibold text-green-700 dark:text-green-400 flex items-center gap-1">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -237,6 +257,17 @@
                 트리거가 과도하게 발동되는 것을 방지합니다. 지정된 기간 내 최대 횟수만큼만 발동됩니다.
               </span>
             </span>
+            <button
+              v-if="!readOnly && isScriptTerminal(trig)"
+              type="button"
+              class="ml-auto p-0.5 text-green-400 hover:text-red-500 transition-colors"
+              title="Limitation 삭제"
+              @click="deleteLimitation(ti)"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </h4>
           <div class="grid grid-cols-2 gap-3">
             <FormField :label="triggerSchema.limitation.times.label" :description="triggerSchema.limitation.times.description">
@@ -247,6 +278,18 @@
             </FormField>
           </div>
         </div>
+        <!-- Add Limitation button (for @script without limitation) -->
+        <button
+          v-else-if="isScriptTerminal(trig) && !readOnly"
+          type="button"
+          class="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-green-600 dark:text-green-400 border border-dashed border-green-300 dark:border-green-700 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 transition"
+          @click="addLimitation(ti)"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Limitation 추가 (선택)
+        </button>
       </div>
 
       <!-- Test Panel -->
@@ -256,7 +299,7 @@
 </template>
 
 <script setup>
-import { computed, reactive } from 'vue'
+import { computed, reactive, onMounted } from 'vue'
 import { TRIGGER_SCHEMA, TRIGGER_STEP_SCHEMA, TRIGGER_SCRIPT_SCHEMA, createDefaultTrigger, createDefaultTriggerStep } from './configSchemas'
 import { describeTrigger } from './configDescription'
 import FormTagInput from './FormTagInput.vue'
@@ -291,10 +334,18 @@ const triggers = computed(() => {
       script: r.script || { ...TRIGGER_SCRIPT_SCHEMA.defaults },
       detail: r.detail || {}
     })),
-    limitation: {
-      times: config.limitation?.times || 1,
-      duration: config.limitation?.duration || config.limitation?.durtaion || '1 minutes'
-    }
+    limitation: (() => {
+      const lastStep = (config.recipe || []).slice(-1)[0]
+      const isScript = lastStep && (lastStep.next === '@script' || lastStep.next === '@Script')
+      if (config.limitation) {
+        return {
+          times: config.limitation.times || 1,
+          duration: config.limitation.duration || config.limitation.durtaion || '1 minutes'
+        }
+      }
+      if (isScript) return null
+      return { times: 1, duration: '1 minutes' }
+    })()
   }))
 })
 
@@ -320,17 +371,16 @@ function toggleSource(ti, src) {
   updateTriggerField(ti, 'source', current.join(','))
 }
 
-function emitUpdate(newTriggers) {
+function buildOutput(triggersList) {
   const obj = {}
-  for (const trig of newTriggers) {
+  for (const trig of triggersList) {
     let name = trig.name || 'Unnamed_Trigger'
-    // 중복 key 방지: 같은 이름이 이미 있으면 suffix 추가
     let uniqueName = name
     let counter = 2
     while (Object.prototype.hasOwnProperty.call(obj, uniqueName)) {
       uniqueName = `${name}_${counter++}`
     }
-    obj[uniqueName] = {
+    const triggerObj = {
       source: trig.source,
       recipe: trig.recipe.map(step => {
         const s = {
@@ -356,21 +406,40 @@ function emitUpdate(newTriggers) {
           if (Object.keys(detail).length > 0) s.detail = detail
         }
         return s
-      }),
-      limitation: {
+      })
+    }
+    const lastRecipeStep = trig.recipe[trig.recipe.length - 1]
+    const isScriptTerm = lastRecipeStep && (lastRecipeStep.next === '@script' || lastRecipeStep.next === '@Script')
+    if (trig.limitation) {
+      triggerObj.limitation = {
         times: trig.limitation.times,
         duration: trig.limitation.duration
       }
+    } else if (!isScriptTerm) {
+      triggerObj.limitation = { times: 1, duration: '1 minutes' }
     }
+    obj[uniqueName] = triggerObj
   }
-  emit('update:modelValue', obj)
+  return obj
 }
+
+function emitUpdate(newTriggers) {
+  emit('update:modelValue', buildOutput(newTriggers))
+}
+
+// Form 모드 진입 시 정규화된 데이터 동기화 (limitation 자동추가 등)
+onMounted(() => {
+  const normalized = buildOutput(triggers.value)
+  if (JSON.stringify(normalized) !== JSON.stringify(props.modelValue)) {
+    emit('update:modelValue', normalized)
+  }
+})
 
 function cloneTriggers() {
   return triggers.value.map(t => ({
     ...t,
     recipe: t.recipe.map(r => ({ ...r, trigger: [...r.trigger], script: { ...r.script }, detail: { ...(r.detail || {}) } })),
-    limitation: { ...t.limitation }
+    limitation: t.limitation ? { ...t.limitation } : null
   }))
 }
 
@@ -398,9 +467,50 @@ function updateDetailField(ti, si, field, value) {
   emitUpdate(updated)
 }
 
+function isNoEmailChecked(value, option) {
+  if (!value) return false
+  return value.split(';').map(s => s.trim()).includes(option)
+}
+
+function toggleNoEmail(ti, si, target, option) {
+  const updated = cloneTriggers()
+  const obj = target === 'script' ? updated[ti].recipe[si].script : updated[ti].recipe[si].detail
+  const current = (obj['no-email'] || '').split(';').map(s => s.trim()).filter(Boolean)
+  const idx = current.indexOf(option)
+  if (idx >= 0) current.splice(idx, 1)
+  else current.push(option)
+  // 순서 보장: success가 항상 먼저
+  const ordered = []
+  if (current.includes('success')) ordered.push('success')
+  if (current.includes('fail')) ordered.push('fail')
+  if (target === 'script') {
+    updated[ti].recipe[si].script = { ...obj, 'no-email': ordered.join(';') }
+  } else {
+    updated[ti].recipe[si].detail = { ...obj, 'no-email': ordered.join(';') }
+  }
+  emitUpdate(updated)
+}
+
 function updateLimitation(ti, field, value) {
   const updated = cloneTriggers()
   updated[ti].limitation[field] = value
+  emitUpdate(updated)
+}
+
+function isScriptTerminal(trig) {
+  const lastStep = trig.recipe[trig.recipe.length - 1]
+  return lastStep && (lastStep.next === '@script' || lastStep.next === '@Script')
+}
+
+function deleteLimitation(ti) {
+  const updated = cloneTriggers()
+  updated[ti].limitation = null
+  emitUpdate(updated)
+}
+
+function addLimitation(ti) {
+  const updated = cloneTriggers()
+  updated[ti].limitation = { times: 1, duration: '1 minutes' }
   emitUpdate(updated)
 }
 
