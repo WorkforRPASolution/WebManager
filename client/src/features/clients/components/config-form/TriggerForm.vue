@@ -167,7 +167,10 @@
                       <option value="lte">&#8804; (이하)</option>
                     </select>
                     <span class="text-xs text-gray-400">@</span>
-                    <input type="text" :value="cond.varName" @input="updateParamsCondition(ti, si, ci, 'varName', $event.target.value)" :disabled="readOnly" class="w-24 form-input text-xs" placeholder="변수명" />
+                    <select :value="cond.varName" @change="updateParamsCondition(ti, si, ci, 'varName', $event.target.value)" :disabled="readOnly" class="w-28 form-input text-xs">
+                      <option value="" disabled>변수 선택</option>
+                      <option v-for="vn in extractVarNames(ti, si)" :key="vn" :value="vn">{{ vn }}</option>
+                    </select>
                     <button v-if="!readOnly" type="button" class="text-gray-400 hover:text-red-500 transition text-sm leading-none" @click="removeParamsCondition(ti, si, ci)">&times;</button>
                   </div>
                 </div>
@@ -557,6 +560,23 @@ function removeParamsCondition(ti, si, ci) {
   updateTriggerItemParams(ti, si, serializeParams(current))
 }
 
+
+function extractVarNames(ti, si) {
+  const idx = selectedPatternIdx[`${ti}_${si}`]
+  if (idx == null || idx < 0) return []
+  const trig = triggers.value[ti]
+  if (!trig) return []
+  const step = trig.recipe[si]
+  if (!step || !step.trigger || !step.trigger[idx]) return []
+  const syntax = step.trigger[idx].syntax || ''
+  const names = []
+  const re = /<<(\w+)>/g
+  let m
+  while ((m = re.exec(syntax)) !== null) {
+    if (!names.includes(m[1])) names.push(m[1])
+  }
+  return names
+}
 function updateParamsCondition(ti, si, ci, field, value) {
   const current = getParamsConditions(ti, si)
   if (!current[ci]) return
