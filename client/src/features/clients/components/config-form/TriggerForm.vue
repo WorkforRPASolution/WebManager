@@ -27,13 +27,33 @@
     </div>
 
     <!-- Trigger Cards -->
-    <div v-for="(trig, ti) in triggers" :key="ti" class="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+    <div
+      v-for="(trig, ti) in triggers" :key="ti"
+      class="border rounded-lg overflow-hidden transition-colors"
+      :class="draggingIdx === ti ? 'opacity-50 border-gray-300 dark:border-dark-border' : dragOverIdx === ti && draggingIdx >= 0 && draggingIdx !== ti ? 'border-primary-400 dark:border-primary-500 bg-primary-50/30 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-border'"
+      @dragover.prevent="draggingIdx >= 0 && (dragOverIdx = ti)"
+      @drop="onDrop(ti)"
+    >
       <!-- Trigger Header -->
       <div
         class="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-dark-bg cursor-pointer select-none"
         @click="toggleExpand(ti)"
       >
         <div class="flex items-center gap-2">
+          <span
+            v-if="!readOnly"
+            draggable="true"
+            class="cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 hover:text-gray-400 dark:hover:text-gray-500"
+            @dragstart="onDragStart(ti, $event)"
+            @dragend="onDragEnd"
+            @click.stop
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/>
+              <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
+              <circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/>
+            </svg>
+          </span>
           <svg class="w-4 h-4 text-gray-400 transition-transform" :class="{ 'rotate-90': expanded[ti] }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
@@ -42,17 +62,42 @@
             {{ trig.source }}
           </span>
         </div>
-        <button
-          v-if="!readOnly"
-          type="button"
-          class="p-1 text-gray-400 hover:text-red-500 transition-colors"
-          title="트리거 삭제"
-          @click.stop="removeTrigger(ti)"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        </button>
+        <div v-if="!readOnly" class="flex items-center gap-0.5">
+          <button
+            type="button"
+            class="p-1 transition-colors"
+            :class="ti === 0 ? 'text-gray-200 dark:text-gray-700 cursor-not-allowed' : 'text-gray-400 hover:text-primary-500'"
+            title="위로 이동"
+            :disabled="ti === 0"
+            @click.stop="moveTrigger(ti, -1)"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="p-1 transition-colors"
+            :class="ti === triggers.length - 1 ? 'text-gray-200 dark:text-gray-700 cursor-not-allowed' : 'text-gray-400 hover:text-primary-500'"
+            title="아래로 이동"
+            :disabled="ti === triggers.length - 1"
+            @click.stop="moveTrigger(ti, 1)"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="p-1 text-gray-400 hover:text-red-500 transition-colors"
+            title="트리거 삭제"
+            @click.stop="removeTrigger(ti)"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- Trigger Body -->
@@ -329,7 +374,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, onMounted } from 'vue'
+import { computed, reactive, ref, onMounted } from 'vue'
 import { TRIGGER_SCHEMA, TRIGGER_STEP_SCHEMA, TRIGGER_SCRIPT_SCHEMA, createDefaultTrigger, createDefaultTriggerStep } from './configSchemas'
 import { describeTrigger } from './configDescription'
 import FormTagInput from './FormTagInput.vue'
@@ -349,6 +394,8 @@ const stepSchema = TRIGGER_STEP_SCHEMA
 const scriptSchema = TRIGGER_SCRIPT_SCHEMA
 const expanded = reactive({})
 const selectedPatternIdx = reactive({})
+const draggingIdx = ref(-1)
+const dragOverIdx = ref(-1)
 
 // Object → Array 변환
 const triggers = computed(() => {
@@ -649,6 +696,46 @@ function addTrigger() {
   updated.push(newTrig)
   expanded[updated.length - 1] = true
   emitUpdate(updated)
+}
+
+function moveTrigger(ti, direction) {
+  const newIdx = ti + direction
+  if (newIdx < 0 || newIdx >= triggers.value.length) return
+  const updated = cloneTriggers()
+  const temp = updated[ti]
+  updated[ti] = updated[newIdx]
+  updated[newIdx] = temp
+  const tempExp = expanded[ti]
+  expanded[ti] = expanded[newIdx]
+  expanded[newIdx] = tempExp
+  emitUpdate(updated)
+}
+
+function onDragStart(idx, event) {
+  draggingIdx.value = idx
+  event.dataTransfer.effectAllowed = 'move'
+}
+
+function onDrop(targetIdx) {
+  const fromIdx = draggingIdx.value
+  dragOverIdx.value = -1
+  draggingIdx.value = -1
+  if (fromIdx < 0 || fromIdx === targetIdx) return
+  const updated = cloneTriggers()
+  const oldExp = {}
+  for (let i = 0; i < updated.length; i++) oldExp[i] = !!expanded[i]
+  const [item] = updated.splice(fromIdx, 1)
+  updated.splice(targetIdx, 0, item)
+  const indices = triggers.value.map((_, i) => i)
+  const [movedOrig] = indices.splice(fromIdx, 1)
+  indices.splice(targetIdx, 0, movedOrig)
+  for (let i = 0; i < indices.length; i++) expanded[i] = oldExp[indices[i]]
+  emitUpdate(updated)
+}
+
+function onDragEnd() {
+  draggingIdx.value = -1
+  dragOverIdx.value = -1
 }
 
 function removeTrigger(ti) {

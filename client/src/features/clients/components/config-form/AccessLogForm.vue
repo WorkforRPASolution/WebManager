@@ -27,13 +27,33 @@
     </div>
 
     <!-- Source Cards -->
-    <div v-for="(source, idx) in sources" :key="idx" class="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+    <div
+      v-for="(source, idx) in sources" :key="idx"
+      class="border rounded-lg overflow-hidden transition-colors"
+      :class="draggingIdx === idx ? 'opacity-50 border-gray-300 dark:border-dark-border' : dragOverIdx === idx && draggingIdx >= 0 && draggingIdx !== idx ? 'border-primary-400 dark:border-primary-500 bg-primary-50/30 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-border'"
+      @dragover.prevent="draggingIdx >= 0 && (dragOverIdx = idx)"
+      @drop="onDrop(idx)"
+    >
       <!-- Card Header -->
       <div
         class="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-dark-bg cursor-pointer select-none"
         @click="toggleExpand(idx)"
       >
         <div class="flex items-center gap-2">
+          <span
+            v-if="!readOnly"
+            draggable="true"
+            class="cursor-grab active:cursor-grabbing text-gray-300 dark:text-gray-600 hover:text-gray-400 dark:hover:text-gray-500"
+            @dragstart="onDragStart(idx, $event)"
+            @dragend="onDragEnd"
+            @click.stop
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/>
+              <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
+              <circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/>
+            </svg>
+          </span>
           <svg class="w-4 h-4 text-gray-400 transition-transform" :class="{ 'rotate-90': expanded[idx] }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
           </svg>
@@ -43,17 +63,42 @@
           <span v-if="source.purpose === 'upload'" class="px-1.5 py-0.5 text-xs rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">Upload</span>
           <span class="text-xs text-gray-400 dark:text-gray-500">{{ source.directory || '' }}</span>
         </div>
-        <button
-          v-if="!readOnly"
-          type="button"
-          class="p-1 text-gray-400 hover:text-red-500 transition-colors"
-          title="소스 삭제"
-          @click.stop="removeSource(idx)"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-        </button>
+        <div v-if="!readOnly" class="flex items-center gap-0.5">
+          <button
+            type="button"
+            class="p-1 transition-colors"
+            :class="idx === 0 ? 'text-gray-200 dark:text-gray-700 cursor-not-allowed' : 'text-gray-400 hover:text-primary-500'"
+            title="위로 이동"
+            :disabled="idx === 0"
+            @click.stop="moveSource(idx, -1)"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="p-1 transition-colors"
+            :class="idx === sources.length - 1 ? 'text-gray-200 dark:text-gray-700 cursor-not-allowed' : 'text-gray-400 hover:text-primary-500'"
+            title="아래로 이동"
+            :disabled="idx === sources.length - 1"
+            @click.stop="moveSource(idx, 1)"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="p-1 text-gray-400 hover:text-red-500 transition-colors"
+            title="소스 삭제"
+            @click.stop="removeSource(idx)"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- Card Body -->
@@ -234,7 +279,7 @@
 </template>
 
 <script setup>
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import {
   ACCESS_LOG_SCHEMA,
   createDefaultAccessLog,
@@ -264,6 +309,8 @@ const emit = defineEmits(['update:modelValue'])
 
 const schema = ACCESS_LOG_SCHEMA
 const expanded = reactive({})
+const draggingIdx = ref(-1)
+const dragOverIdx = ref(-1)
 
 const dateAxisOptions = DATE_AXIS_OPTIONS
 const lineAxisOptions = LINE_AXIS_OPTIONS
@@ -390,6 +437,46 @@ function addSource() {
   const updated = [...sources.value.map(s => ({ ...s })), newSource]
   expanded[updated.length - 1] = true
   emitUpdate(updated)
+}
+
+function moveSource(idx, direction) {
+  const newIdx = idx + direction
+  if (newIdx < 0 || newIdx >= sources.value.length) return
+  const updated = sources.value.map(s => ({ ...s }))
+  const temp = updated[idx]
+  updated[idx] = updated[newIdx]
+  updated[newIdx] = temp
+  const tempExp = expanded[idx]
+  expanded[idx] = expanded[newIdx]
+  expanded[newIdx] = tempExp
+  emitUpdate(updated)
+}
+
+function onDragStart(idx, event) {
+  draggingIdx.value = idx
+  event.dataTransfer.effectAllowed = 'move'
+}
+
+function onDrop(targetIdx) {
+  const fromIdx = draggingIdx.value
+  dragOverIdx.value = -1
+  draggingIdx.value = -1
+  if (fromIdx < 0 || fromIdx === targetIdx) return
+  const updated = sources.value.map(s => ({ ...s }))
+  const oldExp = {}
+  for (let i = 0; i < updated.length; i++) oldExp[i] = !!expanded[i]
+  const [item] = updated.splice(fromIdx, 1)
+  updated.splice(targetIdx, 0, item)
+  const indices = sources.value.map((_, i) => i)
+  const [movedOrig] = indices.splice(fromIdx, 1)
+  indices.splice(targetIdx, 0, movedOrig)
+  for (let i = 0; i < indices.length; i++) expanded[i] = oldExp[indices[i]]
+  emitUpdate(updated)
+}
+
+function onDragEnd() {
+  draggingIdx.value = -1
+  dragOverIdx.value = -1
 }
 
 function removeSource(idx) {
