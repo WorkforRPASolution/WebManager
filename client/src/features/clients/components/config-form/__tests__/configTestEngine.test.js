@@ -5,7 +5,10 @@ import {
   timestampFormatToRegex,
   testTriggerPattern,
   parseDurationMs,
-  testTriggerWithFiles
+  testTriggerWithFiles,
+  convertSyntaxToRegex,
+  parseParams,
+  evaluateParams
 } from '../configTestEngine'
 
 // ===========================================================================
@@ -1311,5 +1314,245 @@ describe('testTriggerPattern - delay step with timestamps', () => {
     expect(delayStep.cancelled).toBe(true)
     expect(delayStep.timedOut).toBe(false)
     expect(delayStep.nextAction).toBe('→ 체인 리셋')
+  })
+})
+
+// ===========================================================================
+// convertSyntaxToRegex
+// ===========================================================================
+
+describe('convertSyntaxToRegex', () => {
+  it('converts <<name>> to named capture group', () => {
+    expect(convertSyntaxToRegex('.*ERROR.*<<code>>')).toBe('.*ERROR.*(?<code>[^\\s]+)')
+  })
+
+  it('converts (<<name>pattern) to named capture group with pattern', () => {
+    expect(convertSyntaxToRegex('.*value: (<<val>[\\d.]+)')).toBe('.*value: (?<val>[\\d.]+)')
+  })
+
+  it('handles multiple named captures', () => {
+    const result = convertSyntaxToRegex('<<host>> <<code>> <<msg>>')
+    expect(result).toBe('(?<host>[^\\s]+) (?<code>[^\\s]+) (?<msg>[^\\s]+)')
+  })
+
+  it('returns syntax unchanged when no <<>> patterns', () => {
+    expect(convertSyntaxToRegex('.*ERROR.*')).toBe('.*ERROR.*')
+  })
+
+  it('handles null/empty input', () => {
+    expect(convertSyntaxToRegex(null)).toBe(null)
+    expect(convertSyntaxToRegex('')).toBe('')
+  })
+})
+
+// ===========================================================================
+// parseParams
+// ===========================================================================
+
+describe('parseParams', () => {
+  it('parses single condition', () => {
+    const result = parseParams('ParameterMatcher1:9.5gte@value')
+    expect(result).toEqual([{ compareValue: 9.5, op: 'gte', varName: 'value' }])
+  })
+
+  it('parses multiple conditions', () => {
+    const result = parseParams('ParameterMatcher2:100gt@count,50lte@rate')
+    expect(result).toEqual([
+      { compareValue: 100, op: 'gt', varName: 'count' },
+      { compareValue: 50, op: 'lte', varName: 'rate' }
+    ])
+  })
+
+  it('returns null for null/empty input', () => {
+    expect(parseParams(null)).toBe(null)
+    expect(parseParams('')).toBe(null)
+    expect(parseParams(undefined)).toBe(null)
+  })
+
+  it('returns null for invalid format', () => {
+    expect(parseParams('InvalidFormat')).toBe(null)
+    expect(parseParams('Matcher1:9.5gte@value')).toBe(null)
+  })
+
+  it('parses integer compare values', () => {
+    const result = parseParams('ParameterMatcher1:100eq@code')
+    expect(result).toEqual([{ compareValue: 100, op: 'eq', varName: 'code' }])
+  })
+})
+
+// ===========================================================================
+// evaluateParams
+// ===========================================================================
+
+describe('evaluateParams', () => {
+  it('returns true for null/empty conditions', () => {
+    expect(evaluateParams(null, {})).toBe(true)
+    expect(evaluateParams([], {})).toBe(true)
+  })
+
+  it('eq: passes when equal', () => {
+    const cond = [{ compareValue: 10, op: 'eq', varName: 'x' }]
+    expect(evaluateParams(cond, { x: '10' })).toBe(true)
+    expect(evaluateParams(cond, { x: '11' })).toBe(false)
+  })
+
+  it('neq: passes when not equal', () => {
+    const cond = [{ compareValue: 10, op: 'neq', varName: 'x' }]
+    expect(evaluateParams(cond, { x: '11' })).toBe(true)
+    expect(evaluateParams(cond, { x: '10' })).toBe(false)
+  })
+
+  it('gt: passes when greater', () => {
+    const cond = [{ compareValue: 9.5, op: 'gt', varName: 'val' }]
+    expect(evaluateParams(cond, { val: '10' })).toBe(true)
+    expect(evaluateParams(cond, { val: '9.5' })).toBe(false)
+    expect(evaluateParams(cond, { val: '9' })).toBe(false)
+  })
+
+  it('gte: passes when greater or equal', () => {
+    const cond = [{ compareValue: 9.5, op: 'gte', varName: 'val' }]
+    expect(evaluateParams(cond, { val: '9.5' })).toBe(true)
+    expect(evaluateParams(cond, { val: '10' })).toBe(true)
+    expect(evaluateParams(cond, { val: '9' })).toBe(false)
+  })
+
+  it('lt: passes when less', () => {
+    const cond = [{ compareValue: 5, op: 'lt', varName: 'val' }]
+    expect(evaluateParams(cond, { val: '4' })).toBe(true)
+    expect(evaluateParams(cond, { val: '5' })).toBe(false)
+  })
+
+  it('lte: passes when less or equal', () => {
+    const cond = [{ compareValue: 5, op: 'lte', varName: 'val' }]
+    expect(evaluateParams(cond, { val: '5' })).toBe(true)
+    expect(evaluateParams(cond, { val: '4' })).toBe(true)
+    expect(evaluateParams(cond, { val: '6' })).toBe(false)
+  })
+
+  it('fails when variable not in groups', () => {
+    const cond = [{ compareValue: 10, op: 'eq', varName: 'missing' }]
+    expect(evaluateParams(cond, { x: '10' })).toBe(false)
+  })
+
+  it('fails when variable is not a number', () => {
+    const cond = [{ compareValue: 10, op: 'eq', varName: 'x' }]
+    expect(evaluateParams(cond, { x: 'abc' })).toBe(false)
+  })
+
+  it('ALL conditions must pass (AND logic)', () => {
+    const cond = [
+      { compareValue: 10, op: 'gte', varName: 'a' },
+      { compareValue: 5, op: 'lt', varName: 'b' }
+    ]
+    expect(evaluateParams(cond, { a: '10', b: '3' })).toBe(true)
+    expect(evaluateParams(cond, { a: '10', b: '5' })).toBe(false)
+    expect(evaluateParams(cond, { a: '9', b: '3' })).toBe(false)
+  })
+})
+
+// ===========================================================================
+// testTriggerPattern with params
+// ===========================================================================
+
+describe('testTriggerPattern - params conditions', () => {
+  it('matches when params condition passes', () => {
+    const trigger = {
+      source: 'test',
+      recipe: [{
+        name: 'Step_1', type: 'regex',
+        trigger: [{ syntax: '.*Warning value: (<<value>[\\d.]+)', params: 'ParameterMatcher1:9.5gte@value' }],
+        times: 1, next: '@recovery'
+      }]
+    }
+    const logText = '2026-01-01 10:00:00 Warning value: 10.0'
+    const result = testTriggerPattern(trigger, logText)
+    expect(result.steps[0].fired).toBe(true)
+    expect(result.steps[0].matches[0].groups.value).toBe('10.0')
+    expect(result.steps[0].matches[0].paramsResult.passed).toBe(true)
+  })
+
+  it('does NOT match when params condition fails', () => {
+    const trigger = {
+      source: 'test',
+      recipe: [{
+        name: 'Step_1', type: 'regex',
+        trigger: [{ syntax: '.*Warning value: (<<value>[\\d.]+)', params: 'ParameterMatcher1:9.5gte@value' }],
+        times: 1, next: '@recovery'
+      }]
+    }
+    const logText = '2026-01-01 10:00:00 Warning value: 5.0'
+    const result = testTriggerPattern(trigger, logText)
+    expect(result.steps[0].fired).toBe(false)
+    expect(result.steps[0].matchCount).toBe(0)
+  })
+
+  it('works with <<name>> standalone syntax', () => {
+    const trigger = {
+      source: 'test',
+      recipe: [{
+        name: 'Step_1', type: 'regex',
+        trigger: [{ syntax: '.*ERROR <<code>>', params: 'ParameterMatcher1:500gte@code' }],
+        times: 1, next: '@recovery'
+      }]
+    }
+    const logText = 'ERROR 503'
+    const result = testTriggerPattern(trigger, logText)
+    expect(result.steps[0].fired).toBe(true)
+    expect(result.steps[0].matches[0].groups.code).toBe('503')
+  })
+
+  it('trigger without params still works (backward compatibility)', () => {
+    const trigger = {
+      source: 'test',
+      recipe: [{
+        name: 'Step_1', type: 'regex',
+        trigger: [{ syntax: '.*ERROR.*' }],
+        times: 1, next: '@recovery'
+      }]
+    }
+    const logText = 'ERROR something'
+    const result = testTriggerPattern(trigger, logText)
+    expect(result.steps[0].fired).toBe(true)
+    expect(result.steps[0].matches[0].paramsResult).toBe(null)
+  })
+
+  it('params condition failure does not increment match count for times requirement', () => {
+    const trigger = {
+      source: 'test',
+      recipe: [{
+        name: 'Step_1', type: 'regex',
+        trigger: [{ syntax: '.*value=(<<val>[\\d.]+)', params: 'ParameterMatcher1:100gte@val' }],
+        times: 2, next: '@recovery'
+      }]
+    }
+    // Only 1 line passes params (200 >= 100), the other doesn't (50 < 100)
+    const logText = 'value=50\nvalue=200\nvalue=150'
+    const result = testTriggerPattern(trigger, logText)
+    expect(result.steps[0].fired).toBe(true)
+    expect(result.steps[0].matchCount).toBe(2)
+    // The matched values should be 200 and 150 (both >= 100)
+    expect(result.steps[0].matches[0].groups.val).toBe('200')
+    expect(result.steps[0].matches[1].groups.val).toBe('150')
+  })
+
+  it('paramsResult contains detailed evaluation info', () => {
+    const trigger = {
+      source: 'test',
+      recipe: [{
+        name: 'Step_1', type: 'regex',
+        trigger: [{ syntax: '.*val=(<<val>[\\d.]+)', params: 'ParameterMatcher1:10gte@val' }],
+        times: 1, next: '@recovery'
+      }]
+    }
+    const logText = 'val=15.5'
+    const result = testTriggerPattern(trigger, logText)
+    const pr = result.steps[0].matches[0].paramsResult
+    expect(pr.passed).toBe(true)
+    expect(pr.details).toHaveLength(1)
+    expect(pr.details[0].varName).toBe('val')
+    expect(pr.details[0].extractedValue).toBe(15.5)
+    expect(pr.details[0].op).toBe('gte')
+    expect(pr.details[0].compareValue).toBe(10)
+    expect(pr.details[0].passed).toBe(true)
   })
 })

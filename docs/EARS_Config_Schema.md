@@ -470,7 +470,12 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
       {
         "name": "string",
         "type": "string (enum)",
-        "trigger": [{"syntax": "string"}],
+        "trigger": [
+          {
+            "syntax": "string",
+            "params": "string" // 선택 항목
+          }
+        ],
         "duration": "duration string",
         "times": number,
         "next": "string",
@@ -572,6 +577,39 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
  - 이때 추출된 값은 trigger 에서 변수로 사용되는데 변수면은 `()` 내부에 추출되는 정규표현식에 `<<[변수명>>` 와 같이 접두사로 표현한다.
    예시) `"syntax": ".*ERROR.*TIMEOUT: (<<duration>>[0-9]+).*"` -> [0-9]+ 로 추출된 값을 duration 에 저장
 ---
+
+
+#### `params`
+1. params 역할: syntax 의 정규 표현식에서 추출된 값을 크기비교하는 추가 발동 조건
+2. params 구조: params 의 추가는 사용자가 선택에 따라 추가가 가능하다
+```json
+"trigger": [
+  {
+    "syntax": "string",
+    "params": "string" // 선택 항목
+  }
+]
+```
+3. params string 구조 : `"ParameterMatcher[count]:[compare_value][op]@[extract_value_name]"`
+ : syntax 에서 추출되는 값(extract_value_name)과 비교값(compare_value)을 Operation(op) 에 따라 비교하여 참일 경우 trigger 가 매칭되었다고 판단
+  * 최종 발동은 duration, times, type 에 따라 달라지면, params 는 syntax 로 매칭된 log 에 대해 추가로 매칭 여부를 최종 판단하는 항목이다.
+ - ParameterMatcher: 고정 값
+ - count: 비교 항목 갯수. [compare_value][op]@[extract_value_name] 1개 set 이 비교 항목 한개, 2개 이상일 경우 ,(콤마) 를 구분자로 나열
+          [compare_value][op]@[extract_value_name],[compare_value2][op2]@[extract_value_name2]
+ - compare_value: 비교값 (number)
+ - op : eq (같은), neq (같지 않음), gt (큼), gte (크거나 같음), lt (작음), lte (작거나 같음)
+ - extract_value_name : syntax 의 정규 표현식에 의해 추출된 값의 변수명
+ - 비교 방법 : extract_value_name  op compare_value  참이면 매칭. 예시) 1.0gte@value  : value 가 1.0 보다 크거나 같으면 참(최종 매칭)
+ 4. 설정 예시
+ ```json
+"trigger": [
+  {
+    "syntax": ".*Warning value: (<<value>[\\.0-9]+)",
+    "params": "ParameterMatcher1:9.5gte@value" // 선택 항목
+  }
+]
+
+
 
 #### `duration` (duration)
 | 속성 | 값 |

@@ -490,27 +490,105 @@ function getTriggerSyntax(item) {
 
 
 // ---------------------------------------------------------------------------
-// Helper: try matching a single line against a pattern
+// Helper: convert <<name>> syntax in trigger patterns to named capture groups
 // ---------------------------------------------------------------------------
 
-function matchLine(line, syntax, type) {
-  if (!syntax) return false
+function convertSyntaxToRegex(syntax) {
+  if (!syntax) return syntax
+  let result = syntax
+  // Rule 1: (<<name>>pattern) → (?<name>pattern) — named capture with custom pattern in parentheses
+  result = result.replace(/\(<<(\w+)>>([^)]*)\)/g, '(?<$1>$2)')
+  // Rule 2: <<name>> → (?<name>[^\s]+) — standalone named capture (default pattern)
+  result = result.replace(/<<(\w+)>>/g, '(?<$1>[^\\s]+)')
+  // Rule 3: (<<name>pattern) → (?<name>pattern) — alternate single-bracket syntax
+  result = result.replace(/\(<<(\w+)>/g, '(?<$1>')
+  return result
+}
 
-  switch (type) {
-    case 'regex':
-    case 'delay':
-      try {
-        return new RegExp(syntax).test(line)
-      } catch {
-        return false
+// ---------------------------------------------------------------------------
+// Helper: parse params string → array of conditions
+// Format: "ParameterMatcher[N]:[compareValue][op]@[varName],..."
+// ---------------------------------------------------------------------------
+
+function parseParams(paramsStr) {
+  if (!paramsStr) return null
+  const match = paramsStr.match(/^ParameterMatcher(\d+):(.+)$/)
+  if (!match) return null
+  return match[2].split(',').map(c => {
+    const m = c.match(/^([\d.]+)(eq|neq|gt|gte|lt|lte)@(\w+)$/)
+    if (!m) return null
+    return { compareValue: parseFloat(m[1]), op: m[2], varName: m[3] }
+  }).filter(Boolean)
+}
+
+// ---------------------------------------------------------------------------
+// Helper: evaluate params conditions against extracted named groups
+// ---------------------------------------------------------------------------
+
+function evaluateParams(conditions, groups) {
+  if (!conditions || conditions.length === 0) return true
+  return conditions.every(c => {
+    const val = parseFloat(groups?.[c.varName])
+    if (isNaN(val)) return false
+    switch (c.op) {
+      case 'eq': return val === c.compareValue
+      case 'neq': return val !== c.compareValue
+      case 'gt': return val > c.compareValue
+      case 'gte': return val >= c.compareValue
+      case 'lt': return val < c.compareValue
+      case 'lte': return val <= c.compareValue
+      default: return false
+    }
+  })
+}
+
+
+// ---------------------------------------------------------------------------
+// Helper: try matching a single line against a pattern (with params support)
+// ---------------------------------------------------------------------------
+
+function matchLineWithParams(line, triggerItem, type) {
+  const syntax = getTriggerSyntax(triggerItem)
+  if (!syntax) return { matched: false, groups: null, paramsResult: null }
+
+  const converted = convertSyntaxToRegex(syntax)
+
+  try {
+    const regex = new RegExp(converted)
+    const execResult = regex.exec(line)
+
+    if (!execResult) return { matched: false, groups: null, paramsResult: null }
+
+    const groups = execResult.groups || {}
+
+    // Check params conditions if present
+    const paramsStr = (typeof triggerItem === 'object' && triggerItem) ? triggerItem.params : null
+    const conditions = parseParams(paramsStr)
+    let paramsResult = null
+
+    if (conditions && conditions.length > 0) {
+      const passed = evaluateParams(conditions, groups)
+      paramsResult = {
+        conditions,
+        passed,
+        details: conditions.map(c => {
+          const extractedVal = parseFloat(groups?.[c.varName])
+          const ok = !isNaN(extractedVal) && evaluateParams([c], groups)
+          return {
+            varName: c.varName,
+            extractedValue: isNaN(extractedVal) ? null : extractedVal,
+            op: c.op,
+            compareValue: c.compareValue,
+            passed: ok
+          }
+        })
       }
-    default:
-      // Default to regex matching
-      try {
-        return new RegExp(syntax).test(line)
-      } catch {
-        return false
-      }
+      return { matched: passed, groups, paramsResult }
+    }
+
+    return { matched: true, groups, paramsResult }
+  } catch (e) {
+    return { matched: false, groups: null, paramsResult: null, error: e.message }
   }
 }
 
@@ -548,6 +626,8 @@ function executeOneChain(recipe, lines, startLineOffset, tsParser, parseTimestam
     const durationMs = parseDurationMs(durationStr)
 
     const matches = []
+    const rejectedMatches = []  // regex matched but params failed
+    const regexErrors = new Set()  // regex syntax errors (deduplicated)
     let fired = false
     let durationCheck = null
 
@@ -578,9 +658,12 @@ function executeOneChain(recipe, lines, startLineOffset, tsParser, parseTimestam
       nextAction = '→ 체인 리셋'       // default label = reset (when fired)
     }
 
+    let testedLineCount = 0
+
     // Scan lines from lineOffset
     for (let li = lineOffset; li < lines.length; li++) {
       const line = lines[li]
+      testedLineCount++
       const timestamp = parseTimestamp(line)
 
       // For delay steps with duration: check if we've exceeded the time window
@@ -600,12 +683,32 @@ function executeOneChain(recipe, lines, startLineOffset, tsParser, parseTimestam
         }
       }
 
-      // Try each pattern
+      // Try each trigger item (with params support)
       let matchedPattern = null
-      for (const pat of patterns) {
-        if (matchLine(line, pat, stepType)) {
-          matchedPattern = pat
+      let matchResult = null
+      for (let pi = 0; pi < triggerItems.length; pi++) {
+        const item = triggerItems[pi]
+        const result = matchLineWithParams(line, item, stepType)
+        if (result.matched) {
+          matchedPattern = patterns[pi]
+          matchResult = result
           break
+        }
+        // Regex matched but params failed → record as rejected
+        if (!result.matched && result.groups) {
+          rejectedMatches.push({
+            lineNum: li + 1,
+            line,
+            pattern: patterns[pi],
+            timestamp: timestamp || null,
+            groups: result.groups,
+            paramsResult: result.paramsResult,
+            reason: 'params_failed'
+          })
+        }
+        // Regex syntax error → record once per pattern
+        if (result.error) {
+          regexErrors.add(`${patterns[pi]}: ${result.error}`)
         }
       }
 
@@ -614,7 +717,9 @@ function executeOneChain(recipe, lines, startLineOffset, tsParser, parseTimestam
           lineNum: li + 1,
           line,
           pattern: matchedPattern,
-          timestamp: timestamp || null
+          timestamp: timestamp || null,
+          groups: matchResult.groups,
+          paramsResult: matchResult.paramsResult
         })
 
         // Check if step should fire
@@ -730,6 +835,9 @@ function executeOneChain(recipe, lines, startLineOffset, tsParser, parseTimestam
       timedOut: isDelay && !fired,
       matchCount: matches.length,
       matches,
+      rejectedMatches,
+      regexErrors: [...regexErrors],
+      testedLineCount,
       nextAction,
       durationCheck
     })
@@ -836,6 +944,8 @@ function executeOneChain(recipe, lines, startLineOffset, tsParser, parseTimestam
  * @param {string|null} timestampFormat - e.g. "yyyy-MM-dd HH:mm:ss"
  * @returns {Object} result with steps[], finalResult, firings[], and limitation
  */
+export { convertSyntaxToRegex, parseParams, evaluateParams }
+
 export function testTriggerPattern(trigger, logText, timestampFormat) {
   const trig = trigger || {}
   const recipe = Array.isArray(trig.recipe) ? trig.recipe : []
@@ -1046,6 +1156,18 @@ export function testTriggerWithFiles(trigger, files, timestampFormat) {
         fileName: fileInfo.fileName
       }
     })
+    if (stepResult.rejectedMatches) {
+      stepResult.rejectedMatches = stepResult.rejectedMatches.map((m) => {
+        const globalIdx = m.lineNum - 1
+        const fileInfo = lineFileMap[globalIdx] || { fileName: 'unknown', localLineNum: m.lineNum }
+        return {
+          ...m,
+          globalLineNum: m.lineNum,
+          lineNum: fileInfo.localLineNum,
+          fileName: fileInfo.fileName
+        }
+      })
+    }
   }
 
   return result

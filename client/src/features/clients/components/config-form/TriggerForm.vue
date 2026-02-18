@@ -142,8 +142,35 @@
                   objectKey="syntax"
                   :placeholder="stepSchema.fields.trigger.placeholder"
                   :readOnly="readOnly"
+                  :selectedIndex="selectedPatternIdx[`${ti}_${si}`] ?? -1"
+                  @select="onPatternSelect(ti, si, $event)"
                 />
-                <p class="text-xs text-gray-400 mt-1">팁: &lt;&lt;변수명&gt;&gt; 문법으로 로그에서 값을 추출합니다. 예: .*ERROR.*&lt;&lt;code&gt;&gt;.*</p>
+                <p class="text-xs text-gray-400 mt-1">팁: &lt;&lt;변수명&gt;&gt; 문법으로 로그에서 값을 추출합니다. 예: .*value: (&lt;&lt;val&gt;[\d.]+)</p>
+
+                <!-- Params Editor (선택된 패턴) -->
+                <div v-if="getSelectedPatternItem(ti, si)" class="mt-2 p-3 border border-amber-200 dark:border-amber-800/50 rounded-lg bg-amber-50/30 dark:bg-amber-900/10">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-medium text-amber-700 dark:text-amber-400">파라미터 조건 (params)</span>
+                    <button v-if="!readOnly" type="button" class="text-xs text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 transition" @click="addParamsCondition(ti, si)">+ 조건 추가</button>
+                  </div>
+                  <div v-if="getParamsConditions(ti, si).length === 0" class="text-xs text-gray-400">
+                    조건 없음. "조건 추가"를 눌러 파라미터 비교 조건을 설정하세요.
+                  </div>
+                  <div v-for="(cond, ci) in getParamsConditions(ti, si)" :key="ci" class="flex gap-2 items-center mb-1.5">
+                    <input type="number" :value="cond.compareValue" @input="updateParamsCondition(ti, si, ci, 'compareValue', $event.target.value)" step="0.1" :disabled="readOnly" class="w-20 form-input text-xs" placeholder="값" />
+                    <select :value="cond.op" @change="updateParamsCondition(ti, si, ci, 'op', $event.target.value)" :disabled="readOnly" class="form-input text-xs w-24">
+                      <option value="eq">= (같음)</option>
+                      <option value="neq">&#8800; (다름)</option>
+                      <option value="gt">&gt; (초과)</option>
+                      <option value="gte">&#8805; (이상)</option>
+                      <option value="lt">&lt; (미만)</option>
+                      <option value="lte">&#8804; (이하)</option>
+                    </select>
+                    <span class="text-xs text-gray-400">@</span>
+                    <input type="text" :value="cond.varName" @input="updateParamsCondition(ti, si, ci, 'varName', $event.target.value)" :disabled="readOnly" class="w-24 form-input text-xs" placeholder="변수명" />
+                    <button v-if="!readOnly" type="button" class="text-gray-400 hover:text-red-500 transition text-sm leading-none" @click="removeParamsCondition(ti, si, ci)">&times;</button>
+                  </div>
+                </div>
               </FormField>
 
               <!-- Duration + Times -->
@@ -318,6 +345,7 @@ const triggerSchema = TRIGGER_SCHEMA
 const stepSchema = TRIGGER_STEP_SCHEMA
 const scriptSchema = TRIGGER_SCRIPT_SCHEMA
 const expanded = reactive({})
+const selectedPatternIdx = reactive({})
 
 // Object → Array 변환
 const triggers = computed(() => {
@@ -465,6 +493,80 @@ function updateDetailField(ti, si, field, value) {
   const updated = cloneTriggers()
   updated[ti].recipe[si].detail = { ...updated[ti].recipe[si].detail, [field]: value }
   emitUpdate(updated)
+}
+
+function onPatternSelect(ti, si, idx) {
+  const key = `${ti}_${si}`
+  selectedPatternIdx[key] = idx
+}
+
+function getSelectedPatternItem(ti, si) {
+  const key = `${ti}_${si}`
+  const idx = selectedPatternIdx[key]
+  if (idx == null || idx < 0) return null
+  const trig = triggers.value[ti]
+  if (!trig) return null
+  const step = trig.recipe[si]
+  if (!step || !step.trigger) return null
+  return step.trigger[idx] || null
+}
+
+function getParamsConditions(ti, si) {
+  const item = getSelectedPatternItem(ti, si)
+  if (!item || !item.params) return []
+  const match = item.params.match(/^ParameterMatcher(\d+):(.+)$/)
+  if (!match) return []
+  return match[2].split(',').map(c => {
+    const m = c.match(/^([\d.]+)(eq|neq|gt|gte|lt|lte)@(\w*)$/)
+    if (!m) return null
+    return { compareValue: parseFloat(m[1]), op: m[2], varName: m[3] }
+  }).filter(Boolean)
+}
+
+function serializeParams(conditions) {
+  if (!conditions || conditions.length === 0) return ''
+  const parts = conditions.map(c => `${c.compareValue}${c.op}@${c.varName}`)
+  return `ParameterMatcher${conditions.length}:${parts.join(',')}`
+}
+
+function updateTriggerItemParams(ti, si, paramsStr) {
+  const key = `${ti}_${si}`
+  const idx = selectedPatternIdx[key]
+  if (idx == null || idx < 0) return
+  const updated = cloneTriggers()
+  const trigger = updated[ti].recipe[si].trigger
+  if (!trigger[idx]) return
+  trigger[idx] = { ...trigger[idx] }
+  if (paramsStr) {
+    trigger[idx].params = paramsStr
+  } else {
+    delete trigger[idx].params
+  }
+  emitUpdate(updated)
+}
+
+function addParamsCondition(ti, si) {
+  const current = getParamsConditions(ti, si)
+  current.push({ compareValue: 0, op: 'gte', varName: '' })
+  updateTriggerItemParams(ti, si, serializeParams(current))
+}
+
+function removeParamsCondition(ti, si, ci) {
+  const current = getParamsConditions(ti, si)
+  current.splice(ci, 1)
+  updateTriggerItemParams(ti, si, serializeParams(current))
+}
+
+function updateParamsCondition(ti, si, ci, field, value) {
+  const current = getParamsConditions(ti, si)
+  if (!current[ci]) return
+  current[ci] = { ...current[ci] }
+  if (field === 'compareValue') {
+    current[ci].compareValue = value === '' ? 0 : parseFloat(value) || 0
+  } else {
+    current[ci][field] = value
+  }
+  updateTriggerItemParams(ti, si, serializeParams(current))
 }
 
 function isNoEmailChecked(value, option) {

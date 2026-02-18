@@ -140,13 +140,78 @@
           </div>
 
           <!-- Matched lines -->
-          <div v-if="step.matches.length > 0" class="space-y-0.5 font-mono">
-            <div v-for="(m, mi) in step.matches" :key="mi" class="text-gray-600 dark:text-gray-400 flex gap-2">
-              <span class="text-gray-400 shrink-0">
-                {{ m.fileName ? `${m.fileName}:${m.lineNum}` : `Line ${m.lineNum}` }}
-              </span>
-              <span class="truncate">"{{ m.line }}"</span>
-              <span class="text-primary-500 shrink-0">← {{ m.pattern }}</span>
+          <div v-if="step.matches.length > 0" class="space-y-1 font-mono">
+            <div v-for="(m, mi) in step.matches" :key="mi">
+              <div class="text-gray-600 dark:text-gray-400 flex gap-2">
+                <span class="text-gray-400 shrink-0">
+                  {{ m.fileName ? `${m.fileName}:${m.lineNum}` : `Line ${m.lineNum}` }}
+                </span>
+                <span class="truncate">"{{ m.line }}"</span>
+                <span class="text-primary-500 shrink-0">← {{ m.pattern }}</span>
+              </div>
+              <!-- Extracted groups -->
+              <div v-if="m.groups && Object.keys(m.groups).length > 0" class="ml-4 mt-0.5 flex flex-wrap gap-2">
+                <span v-for="(val, name) in m.groups" :key="name" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400">
+                  {{ name }}=<strong>{{ val }}</strong>
+                </span>
+              </div>
+              <!-- Params evaluation result -->
+              <div v-if="m.paramsResult" class="ml-4 mt-0.5 flex flex-wrap gap-2">
+                <span
+                  v-for="(d, di) in m.paramsResult.details"
+                  :key="di"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]"
+                  :class="d.passed ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'"
+                >
+                  {{ d.passed ? '✓' : '✗' }} {{ d.varName }}={{ d.extractedValue ?? '?' }} {{ formatOp(d.op) }} {{ d.compareValue }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Regex errors -->
+          <div v-if="step.regexErrors && step.regexErrors.length > 0" class="mt-1 space-y-1">
+            <div v-for="(err, ei) in step.regexErrors" :key="'e'+ei" class="text-xs px-2 py-1.5 rounded bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50">
+              ⚠ 정규식 오류: {{ err }}
+            </div>
+          </div>
+
+
+          <!-- No match hint -->
+          <div v-if="step.matchCount === 0 && (!step.rejectedMatches || step.rejectedMatches.length === 0) && (!step.regexErrors || step.regexErrors.length === 0)" class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+            <div>입력된 {{ step.testedLineCount || '?' }}줄 중 매칭되는 라인이 없습니다.</div>
+            <div v-for="(p, pi) in step.patterns" :key="'p'+pi" class="font-mono text-gray-400 dark:text-gray-500 pl-2">
+              패턴: {{ p }}
+            </div>
+          </div>
+          <!-- Rejected lines (regex matched but params failed) -->
+          <div v-if="step.rejectedMatches && step.rejectedMatches.length > 0" class="space-y-1 font-mono">
+            <div class="text-[10px] font-sans font-medium text-red-500 dark:text-red-400 mt-1">파라미터 조건 미충족:</div>
+            <div v-for="(m, mi) in step.rejectedMatches" :key="'r'+mi" class="opacity-70">
+              <div class="text-gray-500 dark:text-gray-500 flex gap-2">
+                <span class="text-gray-400 shrink-0">
+                  {{ m.fileName ? `${m.fileName}:${m.lineNum}` : `Line ${m.lineNum}` }}
+                </span>
+                <span class="truncate">"{{ m.line }}"</span>
+                <span class="text-gray-400 shrink-0">← {{ m.pattern }}</span>
+              </div>
+              <!-- Extracted groups -->
+              <div v-if="m.groups && Object.keys(m.groups).length > 0" class="ml-4 mt-0.5 flex flex-wrap gap-2">
+                <span v-for="(val, name) in m.groups" :key="name" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400">
+                  {{ name }}=<strong>{{ val }}</strong>
+                </span>
+              </div>
+              <!-- Params evaluation result (all failed) -->
+              <div v-if="m.paramsResult" class="ml-4 mt-0.5 flex flex-wrap gap-2">
+                <span
+                  v-for="(d, di) in m.paramsResult.details"
+                  :key="di"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]"
+                  :class="d.passed ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'"
+                >
+                  {{ d.passed ? '✓' : '✗' }} {{ d.varName }}={{ d.extractedValue ?? '?' }} {{ formatOp(d.op) }} {{ d.compareValue }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -311,6 +376,11 @@ function formatTimestamp(ts) {
   if (!ts || !(ts instanceof Date)) return ''
   const pad = (n) => String(n).padStart(2, '0')
   return `${ts.getFullYear()}-${pad(ts.getMonth() + 1)}-${pad(ts.getDate())} ${pad(ts.getHours())}:${pad(ts.getMinutes())}:${pad(ts.getSeconds())}`
+}
+
+function formatOp(op) {
+  const map = { eq: '=', neq: '≠', gt: '>', gte: '≥', lt: '<', lte: '≤' }
+  return map[op] || op
 }
 </script>
 

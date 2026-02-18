@@ -214,6 +214,25 @@ function getTriggerPattern(item) {
 }
 
 /**
+ * Describe params conditions for a trigger item in Korean.
+ * @param {Object|string} item - trigger item (may have params field)
+ * @returns {string} Korean description of params conditions, or empty string
+ */
+function describeParamsCondition(item) {
+  if (!item || typeof item !== 'object' || !item.params) return '';
+  const match = item.params.match(/^ParameterMatcher(\d+):(.+)$/);
+  if (!match) return '';
+  const OP_MAP = { eq: '같음', neq: '다름', gt: '초과', gte: '이상', lt: '미만', lte: '이하' };
+  const conditions = match[2].split(',').map(c => {
+    const m = c.match(/^([\d.]+)(eq|neq|gt|gte|lt|lte)@(\w+)$/);
+    if (!m) return null;
+    return `${m[3]} ${m[1]} ${OP_MAP[m[2]] || m[2]}`;
+  }).filter(Boolean);
+  if (conditions.length === 0) return '';
+  return `[조건: ${conditions.join(', ')}]`;
+}
+
+/**
  * Describe a Trigger object in Korean.
  * @param {Object} trigger - Trigger configuration
  * @returns {string} Korean description
@@ -235,16 +254,20 @@ function describeTrigger(trigger) {
       const stepNum = index + 1;
       const typeLabel = TRIGGER_TYPE_MAP[step.type] || step.type || '알 수 없는';
 
-      // Pattern text
+      // Pattern text (with params conditions)
       let patternText = '';
       if (step.trigger && step.trigger.length > 0) {
-        const patterns = step.trigger.map(getTriggerPattern);
-        if (patterns.length === 1) {
-          patternText = `"${patterns[0]}"`;
-        } else if (patterns.length <= 3) {
-          patternText = patterns.map(p => `"${p}"`).join(', ');
+        const patternsWithParams = step.trigger.map(item => {
+          const pat = getTriggerPattern(item);
+          const paramDesc = describeParamsCondition(item);
+          return paramDesc ? `"${pat}" ${paramDesc}` : `"${pat}"`;
+        });
+        if (patternsWithParams.length === 1) {
+          patternText = patternsWithParams[0];
+        } else if (patternsWithParams.length <= 3) {
+          patternText = patternsWithParams.join(', ');
         } else {
-          patternText = patterns.slice(0, 2).map(p => `"${p}"`).join(', ') + ` 외 ${patterns.length - 2}개`;
+          patternText = patternsWithParams.slice(0, 2).join(', ') + ` 외 ${patternsWithParams.length - 2}개`;
         }
       }
 
