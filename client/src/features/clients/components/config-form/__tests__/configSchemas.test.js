@@ -116,14 +116,14 @@ describe('ACCESS_LOG_SCHEMA', () => {
   })
 
   it('has multiline fields', () => {
-    expect(ACCESS_LOG_SCHEMA.fields.startPattern).toBeDefined()
-    expect(ACCESS_LOG_SCHEMA.fields.endPattern).toBeDefined()
-    expect(ACCESS_LOG_SCHEMA.fields.count).toBeDefined()
+    expect(ACCESS_LOG_SCHEMA.fields.start_pattern).toBeDefined()
+    expect(ACCESS_LOG_SCHEMA.fields.end_pattern).toBeDefined()
+    expect(ACCESS_LOG_SCHEMA.fields.line_count).toBeDefined()
     expect(ACCESS_LOG_SCHEMA.fields.priority).toBeDefined()
   })
 
   it('has extract-append fields', () => {
-    expect(ACCESS_LOG_SCHEMA.fields.extractPattern).toBeDefined()
+    expect(ACCESS_LOG_SCHEMA.fields.pathPattern).toBeDefined()
     expect(ACCESS_LOG_SCHEMA.fields.appendPos).toBeDefined()
     expect(ACCESS_LOG_SCHEMA.fields.appendFormat).toBeDefined()
   })
@@ -190,8 +190,8 @@ describe('buildAccessLogOutput', () => {
     const out = buildAccessLogOutput(source)
     expect(out.directory).toBe('C:/logs')
     expect(out.log_type).toBe('normal_single')
-    expect(out.startPattern).toBeUndefined()
-    expect(out.extractPattern).toBeUndefined()
+    expect(out.start_pattern).toBeUndefined()
+    expect(out.pathPattern).toBeUndefined()
     expect(out.date_subdir_format).toBeUndefined()
   })
 
@@ -250,29 +250,29 @@ describe('buildAccessLogOutput', () => {
       name: '__TestLog__',
       directory: 'C:/logs',
       log_type: 'normal_multiline',
-      startPattern: '.*START.*',
-      endPattern: '.*END.*',
-      count: 10,
+      start_pattern: '.*START.*',
+      end_pattern: '.*END.*',
+      line_count: 10,
       priority: 'pattern'
     }
     const out = buildAccessLogOutput(source)
-    expect(out.startPattern).toBe('.*START.*')
-    expect(out.endPattern).toBe('.*END.*')
-    expect(out.count).toBe(10)
+    expect(out.start_pattern).toBe('.*START.*')
+    expect(out.end_pattern).toBe('.*END.*')
+    expect(out.line_count).toBe(10)
     expect(out.priority).toBe('pattern')
   })
 
-  it('extract_append log_type includes extractPattern/appendPos/appendFormat', () => {
+  it('extract_append log_type includes pathPattern/appendPos/appendFormat', () => {
     const source = {
       name: '__TestLog__',
       directory: 'C:/logs',
       log_type: 'normal_single_extract_append',
-      extractPattern: '.*Log\\\\([0-9]+).*',
+      pathPattern: '.*Log\\\\([0-9]+).*',
       appendPos: 0,
       appendFormat: '@1 '
     }
     const out = buildAccessLogOutput(source)
-    expect(out.extractPattern).toBe('.*Log\\\\([0-9]+).*')
+    expect(out.pathPattern).toBe('.*Log\\\\([0-9]+).*')
     expect(out.appendPos).toBe(0)
     expect(out.appendFormat).toBe('@1 ')
   })

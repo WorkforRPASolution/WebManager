@@ -220,9 +220,9 @@ describe('describeAccessLog', () => {
       const result = describeAccessLog({
         directory: '/d',
         log_type: 'normal_multiline',
-        startPattern: '.*START.*',
-        endPattern: '.*END.*',
-        count: 10,
+        start_pattern: '.*START.*',
+        end_pattern: '.*END.*',
+        line_count: 10,
         priority: 'pattern'
       })
       expect(result).toContain('다중 라인:')
@@ -234,7 +234,7 @@ describe('describeAccessLog', () => {
     it('startPattern only → "부터 블록 수집"', () => {
       const result = describeAccessLog({
         directory: '/d',
-        startPattern: '.*BEGIN.*',
+        start_pattern: '.*BEGIN.*',
       })
       expect(result).toContain('".*BEGIN.*"부터 블록 수집')
     })
@@ -242,7 +242,7 @@ describe('describeAccessLog', () => {
     it('endPattern only → "까지 블록 수집"', () => {
       const result = describeAccessLog({
         directory: '/d',
-        endPattern: '.*FINISH.*',
+        end_pattern: '.*FINISH.*',
       })
       expect(result).toContain('".*FINISH.*"까지 블록 수집')
     })
@@ -250,8 +250,8 @@ describe('describeAccessLog', () => {
     it('count with priority=count → "라인 수 우선"', () => {
       const result = describeAccessLog({
         directory: '/d',
-        startPattern: 'S',
-        count: 5,
+        start_pattern: 'S',
+        line_count: 5,
         priority: 'count'
       })
       expect(result).toContain('최대 5줄, 라인 수 우선')
@@ -265,8 +265,8 @@ describe('describeAccessLog', () => {
     it('blank line before multiline section', () => {
       const result = describeAccessLog({
         directory: '/d',
-        startPattern: 'S',
-        endPattern: 'E',
+        start_pattern: 'S',
+        end_pattern: 'E',
       })
       const lines = result.split('\n')
       const mlIndex = lines.findIndex(l => l.startsWith('다중 라인:'))
@@ -277,11 +277,11 @@ describe('describeAccessLog', () => {
 
   // --- Extract-append description ---
   describe('extract-append settings', () => {
-    it('extractPattern + appendFormat + appendPos=0', () => {
+    it('pathPattern + appendFormat + appendPos=0', () => {
       const result = describeAccessLog({
         directory: '/d',
         log_type: 'normal_single_extract_append',
-        extractPattern: '.*Log\\([0-9]+).*',
+        pathPattern: '.*Log\\([0-9]+).*',
         appendFormat: '@1-@2 ',
         appendPos: 0
       })
@@ -293,14 +293,14 @@ describe('describeAccessLog', () => {
     it('appendPos non-zero → "위치: N"', () => {
       const result = describeAccessLog({
         directory: '/d',
-        extractPattern: 'pat',
+        pathPattern: 'pat',
         appendFormat: 'fmt',
         appendPos: 5
       })
       expect(result).toContain('(위치: 5)')
     })
 
-    it('no extractPattern → no extract line', () => {
+    it('no pathPattern → no extract line', () => {
       const result = describeAccessLog({ directory: '/d', log_type: 'normal_single' })
       expect(result).not.toContain('추출-삽입')
     })
@@ -308,7 +308,7 @@ describe('describeAccessLog', () => {
     it('blank line before extract-append section', () => {
       const result = describeAccessLog({
         directory: '/d',
-        extractPattern: 'pat',
+        pathPattern: 'pat',
         appendFormat: 'fmt',
         appendPos: 0
       })

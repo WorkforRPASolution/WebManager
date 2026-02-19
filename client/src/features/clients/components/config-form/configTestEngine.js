@@ -1172,3 +1172,269 @@ export function testTriggerWithFiles(trigger, files, timestampFormat) {
 
   return result
 }
+
+
+// ---------------------------------------------------------------------------
+// 6. testMultilineBlocks
+// ---------------------------------------------------------------------------
+
+/**
+ * Tests multiline block extraction from log text.
+ *
+ * @param {Object} source - { start_pattern, end_pattern, line_count, priority }
+ * @param {string} text - multi-line log text
+ * @returns {Object} { blocks, skippedLines, summary, errors }
+ */
+export function testMultilineBlocks(source, text) {
+  const src = source || {}
+  const lines = (text || '').split('\n')
+  const blocks = []
+  const skippedLines = []
+  const errors = []
+
+  // Validate regex patterns
+  let startRe = null
+  let endRe = null
+  try {
+    if (src.start_pattern) startRe = new RegExp(src.start_pattern)
+  } catch (e) {
+    errors.push(`start_pattern 정규식 오류: ${e.message}`)
+  }
+  try {
+    if (src.end_pattern) endRe = new RegExp(src.end_pattern)
+  } catch (e) {
+    errors.push(`end_pattern 정규식 오류: ${e.message}`)
+  }
+
+  if (!startRe || errors.length > 0) {
+    // Can't process without valid start_pattern
+    for (let i = 0; i < lines.length; i++) {
+      skippedLines.push({ lineNum: i + 1, text: lines[i] })
+    }
+    return {
+      blocks,
+      skippedLines,
+      summary: { totalLines: lines.length, blockCount: 0, skippedCount: lines.length },
+      errors
+    }
+  }
+
+  const maxCount = (src.line_count != null && src.line_count > 0) ? src.line_count : Infinity
+  const priority = src.priority || 'count'
+
+  let state = 'SCANNING' // SCANNING or COLLECTING
+  let currentBlock = null
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const lineNum = i + 1
+    const matchesStart = startRe.test(line)
+    const matchesEnd = endRe ? endRe.test(line) : false
+
+    if (state === 'SCANNING') {
+      if (matchesStart) {
+        currentBlock = {
+          blockNum: blocks.length + 1,
+          startLine: lineNum,
+          endLine: lineNum,
+          lines: [{ lineNum, text: line, role: 'start' }],
+          terminatedBy: null,
+          lineCount: 1
+        }
+        state = 'COLLECTING'
+        // Note: no immediate count check here — matches real Scala code
+      } else {
+        skippedLines.push({ lineNum, text: line })
+      }
+    } else {
+      // COLLECTING: Scala match order — start_pattern → end_pattern → default
+
+      if (matchesStart) {
+        // case start_pattern()
+        if (priority === 'count' && maxCount !== Infinity) {
+          // Count priority: start_pattern treated as content (no new block)
+          currentBlock.lines.push({ lineNum, text: line, role: 'content' })
+          currentBlock.lineCount++
+          currentBlock.endLine = lineNum
+          if (currentBlock.lineCount >= maxCount) {
+            currentBlock.terminatedBy = 'count'
+            blocks.push(currentBlock)
+            currentBlock = null
+            state = 'SCANNING'
+          }
+        } else {
+          // Pattern priority (or line_count not set): flush current block, start new
+          currentBlock.terminatedBy = 'startPattern'
+          currentBlock.endLine = currentBlock.lines[currentBlock.lines.length - 1].lineNum
+          blocks.push(currentBlock)
+          currentBlock = {
+            blockNum: blocks.length + 1,
+            startLine: lineNum,
+            endLine: lineNum,
+            lines: [{ lineNum, text: line, role: 'start' }],
+            terminatedBy: null,
+            lineCount: 1
+          }
+        }
+      } else if (matchesEnd) {
+        // case end_pattern() — always terminates block (regardless of priority)
+        currentBlock.lines.push({ lineNum, text: line, role: 'end' })
+        currentBlock.lineCount++
+        currentBlock.endLine = lineNum
+        currentBlock.terminatedBy = 'endPattern'
+        blocks.push(currentBlock)
+        currentBlock = null
+        state = 'SCANNING'
+      } else {
+        // case _ (default) — empty line or count reached terminates block
+        currentBlock.lines.push({ lineNum, text: line, role: 'content' })
+        currentBlock.lineCount++
+        currentBlock.endLine = lineNum
+        if (line === '' || currentBlock.lineCount >= maxCount) {
+          currentBlock.terminatedBy = line === '' ? 'emptyLine' : 'count'
+          blocks.push(currentBlock)
+          currentBlock = null
+          state = 'SCANNING'
+        }
+      }
+    }
+  }
+
+  // EOF: close any open block
+  if (currentBlock) {
+    currentBlock.terminatedBy = 'eof'
+    currentBlock.endLine = currentBlock.lines[currentBlock.lines.length - 1].lineNum
+    blocks.push(currentBlock)
+  }
+
+  return {
+    blocks,
+    skippedLines,
+    summary: {
+      totalLines: lines.length,
+      blockCount: blocks.length,
+      skippedCount: skippedLines.length
+    },
+    errors
+  }
+}
+
+
+/**
+ * Auto-escape backslashes in a regex pattern that are NOT part of recognized regex escapes.
+ * Handles Windows paths where users type single \ in form inputs.
+ * e.g., ".*\Log\test" → ".*\\Log\\test" (matches literal backslash)
+ */
+function autoEscapeBackslashes(pattern) {
+  const validEscapeChars = /^[dDwWsSnrtfvbB0-9cxupP.*+?(){}\[\]|^$\\\/]$/
+  let result = ''
+  let i = 0
+  while (i < pattern.length) {
+    if (pattern[i] === '\\' && i + 1 < pattern.length) {
+      const next = pattern[i + 1]
+      if (validEscapeChars.test(next)) {
+        result += '\\' + next
+        i += 2
+      } else {
+        // Not a recognized regex escape → escape the backslash
+        result += '\\\\' + next
+        i += 2
+      }
+    } else {
+      result += pattern[i]
+      i++
+    }
+  }
+  return result
+}
+
+// ---------------------------------------------------------------------------
+// 7. testExtractAppend
+// ---------------------------------------------------------------------------
+
+/**
+ * Tests extract-append processing on log text.
+ *
+ * @param {Object} source - { pathPattern, appendPos, appendFormat }
+ * @param {string} filePath - file absolute path to extract from
+ * @param {string} logText - multi-line log text
+ * @returns {Object} { extraction, formatting, lines, summary }
+ */
+export function testExtractAppend(source, filePath, logText) {
+  const src = source || {}
+  const logLines = (logText || '').split('\n')
+
+  // Step 1: Extract groups from filePath
+  const extraction = {
+    pattern: src.pathPattern ? autoEscapeBackslashes(src.pathPattern) : '',
+    matched: false,
+    groups: [],
+    error: null
+  }
+
+  let regex = null
+  try {
+    if (src.pathPattern) {
+      regex = new RegExp(autoEscapeBackslashes(src.pathPattern))
+    }
+  } catch (e) {
+    extraction.error = e.message
+  }
+
+  if (regex && filePath) {
+    const match = regex.exec(filePath)
+    if (match) {
+      extraction.matched = true
+      // Extract capture groups (up to 5)
+      for (let g = 1; g <= 5 && g < match.length; g++) {
+        extraction.groups.push(match[g] !== undefined ? match[g] : '')
+      }
+    }
+  }
+
+  // Step 2: Build resolved format string
+  const appendFormat = src.appendFormat || ''
+  let resolved = appendFormat
+  for (let g = 0; g < 5; g++) {
+    const placeholder = `@${g + 1}`
+    const value = g < extraction.groups.length ? extraction.groups[g] : ''
+    resolved = resolved.split(placeholder).join(value)
+  }
+
+  const appendPos = src.appendPos != null ? src.appendPos : 0
+
+  const formatting = {
+    appendFormat,
+    resolved,
+    appendPos
+  }
+
+  // Step 3: Apply to each log line
+  const resultLines = logLines.map((line, idx) => {
+    let result = line
+    if (extraction.matched && resolved) {
+      if (appendPos <= 0) {
+        result = resolved + line
+      } else if (appendPos >= line.length) {
+        result = line + resolved
+      } else {
+        result = line.slice(0, appendPos) + resolved + line.slice(appendPos)
+      }
+    }
+    return {
+      lineNum: idx + 1,
+      original: line,
+      result
+    }
+  })
+
+  return {
+    extraction,
+    formatting,
+    lines: resultLines,
+    summary: {
+      totalLines: logLines.length,
+      groupCount: extraction.groups.length
+    }
+  }
+}

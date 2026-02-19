@@ -8,7 +8,9 @@ import {
   testTriggerWithFiles,
   convertSyntaxToRegex,
   parseParams,
-  evaluateParams
+  evaluateParams,
+  testMultilineBlocks,
+  testExtractAppend
 } from '../configTestEngine'
 
 // ===========================================================================
@@ -1554,5 +1556,295 @@ describe('testTriggerPattern - params conditions', () => {
     expect(pr.details[0].op).toBe('gte')
     expect(pr.details[0].compareValue).toBe(10)
     expect(pr.details[0].passed).toBe(true)
+  })
+})
+
+// ===========================================================================
+// testMultilineBlocks
+// ===========================================================================
+
+describe('testMultilineBlocks', () => {
+  it('1. startPattern + endPattern → single block', () => {
+    const source = { start_pattern: '.*BEGIN.*', end_pattern: '.*END.*', line_count: 100, priority: 'count' }
+    const text = 'skip line\nBEGIN block\ncontent 1\ncontent 2\nEND block\nskip after'
+    const result = testMultilineBlocks(source, text)
+    expect(result.blocks).toHaveLength(1)
+    expect(result.blocks[0].startLine).toBe(2)
+    expect(result.blocks[0].endLine).toBe(5)
+    expect(result.blocks[0].terminatedBy).toBe('endPattern')
+    expect(result.blocks[0].lineCount).toBe(4)
+    expect(result.blocks[0].lines[0].role).toBe('start')
+    expect(result.blocks[0].lines[3].role).toBe('end')
+    expect(result.skippedLines).toHaveLength(2)
+  })
+
+  it('2. count only termination (priority=count)', () => {
+    const source = { start_pattern: '.*START.*', line_count: 3, priority: 'count' }
+    const text = 'START here\nline 2\nline 3\nline 4'
+    const result = testMultilineBlocks(source, text)
+    expect(result.blocks).toHaveLength(1)
+    expect(result.blocks[0].lineCount).toBe(3)
+    expect(result.blocks[0].terminatedBy).toBe('count')
+    expect(result.blocks[0].lines).toHaveLength(3)
+  })
+
+  it('3. endPattern termination (priority=pattern)', () => {
+    const source = { start_pattern: '.*START.*', end_pattern: '.*STOP.*', line_count: 10, priority: 'pattern' }
+    const text = 'START here\nline 2\nSTOP here\nline 4'
+    const result = testMultilineBlocks(source, text)
+    expect(result.blocks).toHaveLength(1)
+    expect(result.blocks[0].terminatedBy).toBe('endPattern')
+    expect(result.blocks[0].lineCount).toBe(3)
+  })
+
+  it('4. multiple blocks', () => {
+    const source = { start_pattern: '.*BEGIN.*', end_pattern: '.*END.*', line_count: 100, priority: 'count' }
+    const text = 'BEGIN 1\ncontent\nEND 1\nskip\nBEGIN 2\nEND 2'
+    const result = testMultilineBlocks(source, text)
+    expect(result.blocks).toHaveLength(2)
+    expect(result.blocks[0].blockNum).toBe(1)
+    expect(result.blocks[1].blockNum).toBe(2)
+  })
+
+  it('5. nested startPattern with count priority → treated as content', () => {
+    const source = { start_pattern: '.*START.*', end_pattern: '.*END.*', line_count: 100, priority: 'count' }
+    const text = 'START block 1\ncontent\nSTART block 2\ncontent 2\nEND block 2'
+    const result = testMultilineBlocks(source, text)
+    expect(result.blocks).toHaveLength(1)
+    expect(result.blocks[0].lineCount).toBe(5)
+    expect(result.blocks[0].terminatedBy).toBe('endPattern')
+    // start_pattern line treated as content in count priority
+    expect(result.blocks[0].lines[2].role).toBe('content')
+  })
+
+  it('6. EOF termination', () => {
+    const source = { start_pattern: '.*START.*', end_pattern: '.*END.*', line_count: 100, priority: 'count' }
+    const text = 'START block\ncontent 1\ncontent 2'
+    const result = testMultilineBlocks(source, text)
+    expect(result.blocks).toHaveLength(1)
+    expect(result.blocks[0].terminatedBy).toBe('eof')
+  })
+
+  it('7. no match → all skipped', () => {
+    const source = { start_pattern: '.*NEVER.*', end_pattern: '.*END.*', line_count: 100, priority: 'count' }
+    const text = 'line 1\nline 2\nline 3'
+    const result = testMultilineBlocks(source, text)
+    expect(result.blocks).toHaveLength(0)
+    expect(result.skippedLines).toHaveLength(3)
+    expect(result.summary.blockCount).toBe(0)
+    expect(result.summary.skippedCount).toBe(3)
+  })
+
+  it('8. empty input', () => {
+    const source = { start_pattern: '.*START.*', line_count: 5, priority: 'count' }
+    const result = testMultilineBlocks(source, '')
+    expect(result.blocks).toHaveLength(0)
+    expect(result.summary.totalLines).toBe(1) // empty string splits to ['']
+  })
+
+  it('9. invalid regex → errors array', () => {
+    const source = { start_pattern: '[invalid', end_pattern: '.*END.*', line_count: 5, priority: 'count' }
+    const text = 'line 1\nline 2'
+    const result = testMultilineBlocks(source, text)
+    expect(result.errors.length).toBeGreaterThan(0)
+    expect(result.errors[0]).toContain('start_pattern')
+    expect(result.blocks).toHaveLength(0)
+  })
+
+  it('10. count=1: block start does not immediately check count', () => {
+    const source = { start_pattern: '.*START.*', end_pattern: '.*END.*', line_count: 1, priority: 'count' }
+    const text = 'START and END same line\nother line'
+    const result = testMultilineBlocks(source, text)
+    expect(result.blocks).toHaveLength(1)
+    // line_count=1 but block starts with lineCount=1, next line triggers count
+    expect(result.blocks[0].lineCount).toBe(2)
+    expect(result.blocks[0].terminatedBy).toBe('count')
+  })
+
+  it('11. pattern priority: endPattern before count → endPattern wins', () => {
+    const source = { start_pattern: '.*START.*', end_pattern: '.*END.*', line_count: 10, priority: 'pattern' }
+    const text = 'START block\ncontent\nEND here\nmore lines\nmore lines'
+    const result = testMultilineBlocks(source, text)
+    expect(result.blocks).toHaveLength(1)
+    expect(result.blocks[0].terminatedBy).toBe('endPattern')
+    expect(result.blocks[0].lineCount).toBe(3)
+  })
+
+  it('12. endPattern only (no startPattern) → no blocks', () => {
+    const source = { end_pattern: '.*END.*', line_count: 5, priority: 'count' }
+    const text = 'line 1\nEND here\nline 3'
+    const result = testMultilineBlocks(source, text)
+    expect(result.blocks).toHaveLength(0)
+    expect(result.skippedLines).toHaveLength(3)
+  })
+
+  it('13. line roles verification (start/content/end)', () => {
+    const source = { start_pattern: '.*BEGIN.*', end_pattern: '.*END.*', line_count: 100, priority: 'count' }
+    const text = 'BEGIN block\nmiddle 1\nmiddle 2\nEND block'
+    const result = testMultilineBlocks(source, text)
+    expect(result.blocks[0].lines[0].role).toBe('start')
+    expect(result.blocks[0].lines[1].role).toBe('content')
+    expect(result.blocks[0].lines[2].role).toBe('content')
+    expect(result.blocks[0].lines[3].role).toBe('end')
+  })
+
+  it('14. empty line terminates block', () => {
+    const source = { start_pattern: '.*START.*', end_pattern: '.*END.*', line_count: 100, priority: 'count' }
+    const text = 'START block\ncontent 1\n\ncontent after empty'
+    const result = testMultilineBlocks(source, text)
+    expect(result.blocks).toHaveLength(1)
+    expect(result.blocks[0].lineCount).toBe(3) // START + content + empty
+    expect(result.blocks[0].terminatedBy).toBe('emptyLine')
+    expect(result.skippedLines).toHaveLength(1) // 'content after empty'
+  })
+
+  it('15. start_pattern treated as content in count priority (not new block)', () => {
+    const source = { start_pattern: '.*BEGIN.*', line_count: 5, priority: 'count' }
+    const text = 'BEGIN first\nBEGIN second\nBEGIN third\ncontent\nmore'
+    const result = testMultilineBlocks(source, text)
+    expect(result.blocks).toHaveLength(1)
+    expect(result.blocks[0].lineCount).toBe(5)
+    expect(result.blocks[0].terminatedBy).toBe('count')
+    // All BEGIN lines are content (except the first which is 'start')
+    expect(result.blocks[0].lines[0].role).toBe('start')
+    expect(result.blocks[0].lines[1].role).toBe('content')
+    expect(result.blocks[0].lines[2].role).toBe('content')
+  })
+
+  it('16. pattern priority: start_pattern flushes current block and starts new', () => {
+    const source = { start_pattern: '.*START.*', end_pattern: '.*END.*', line_count: 100, priority: 'pattern' }
+    const text = 'START block 1\ncontent\nSTART block 2\ncontent 2\nEND block 2'
+    const result = testMultilineBlocks(source, text)
+    expect(result.blocks).toHaveLength(2)
+    expect(result.blocks[0].terminatedBy).toBe('startPattern')
+    expect(result.blocks[0].lineCount).toBe(2) // START block 1 + content
+    expect(result.blocks[1].terminatedBy).toBe('endPattern')
+    expect(result.blocks[1].lineCount).toBe(3) // START block 2 + content 2 + END block 2
+  })
+})
+
+
+// ===========================================================================
+// testExtractAppend
+// ===========================================================================
+
+describe('testExtractAppend', () => {
+  it('1. basic extract + appendPos=0 prepend', () => {
+    const source = {
+      pathPattern: '.*Log\\\\(\\d+)\\\\(\\d+)\\\\.*',
+      appendPos: 0,
+      appendFormat: '@1-@2 '
+    }
+    const result = testExtractAppend(source, 'C:\\Log\\1234\\5678\\app.log', 'ERROR something')
+    expect(result.extraction.matched).toBe(true)
+    expect(result.extraction.groups).toEqual(['1234', '5678'])
+    expect(result.formatting.resolved).toBe('1234-5678 ')
+    expect(result.lines[0].result).toBe('1234-5678 ERROR something')
+  })
+
+  it('2. appendPos large → append (end)', () => {
+    const source = {
+      pathPattern: '.*\\\\(\\w+)\\.log',
+      appendPos: 9999,
+      appendFormat: ' [@1]'
+    }
+    const result = testExtractAppend(source, 'C:\\Log\\myapp.log', 'hello')
+    expect(result.lines[0].result).toBe('hello [@1]'.replace('@1', 'myapp'))
+    expect(result.lines[0].result).toBe('hello [myapp]')
+  })
+
+  it('3. pattern no match → lines unchanged', () => {
+    const source = {
+      pathPattern: '.*NOMATCH.*',
+      appendPos: 0,
+      appendFormat: '@1 '
+    }
+    const result = testExtractAppend(source, 'C:\\Log\\app.log', 'original line')
+    expect(result.extraction.matched).toBe(false)
+    expect(result.lines[0].result).toBe('original line')
+  })
+
+  it('4. invalid regex → error', () => {
+    const source = {
+      pathPattern: '[invalid',
+      appendPos: 0,
+      appendFormat: '@1'
+    }
+    const result = testExtractAppend(source, 'some/path', 'line')
+    expect(result.extraction.error).toBeTruthy()
+    expect(result.extraction.matched).toBe(false)
+  })
+
+  it('5. multiple log lines all transformed', () => {
+    const source = {
+      pathPattern: '.*\\\\(\\w+)\\.log',
+      appendPos: 0,
+      appendFormat: '[@1] '
+    }
+    const result = testExtractAppend(source, 'C:\\Log\\svc.log', 'line1\nline2\nline3')
+    expect(result.lines).toHaveLength(3)
+    expect(result.lines[0].result).toBe('[svc] line1')
+    expect(result.lines[1].result).toBe('[svc] line2')
+    expect(result.lines[2].result).toBe('[svc] line3')
+    expect(result.summary.totalLines).toBe(3)
+  })
+
+  it('6. middle position insert', () => {
+    const source = {
+      pathPattern: '.*\\\\(\\w+)\\.log',
+      appendPos: 5,
+      appendFormat: '[@1]'
+    }
+    const result = testExtractAppend(source, 'C:\\Log\\app.log', 'ABCDEFGHIJ')
+    expect(result.lines[0].result).toBe('ABCDE[app]FGHIJ')
+  })
+
+  it('7. max 5 capture groups', () => {
+    const source = {
+      pathPattern: '(a)(b)(c)(d)(e)(f)',
+      appendPos: 0,
+      appendFormat: '@1@2@3@4@5'
+    }
+    const result = testExtractAppend(source, 'abcdef', 'X')
+    expect(result.extraction.groups).toHaveLength(5) // max 5
+    expect(result.extraction.groups).toEqual(['a', 'b', 'c', 'd', 'e'])
+    expect(result.formatting.resolved).toBe('abcde')
+    expect(result.lines[0].result).toBe('abcdeX')
+  })
+
+  it('8. empty appendFormat → no change', () => {
+    const source = {
+      pathPattern: '.*\\\\(\\w+)\\.log',
+      appendPos: 0,
+      appendFormat: ''
+    }
+    const result = testExtractAppend(source, 'C:\\Log\\app.log', 'original')
+    expect(result.lines[0].result).toBe('original')
+  })
+
+  it('9. fewer groups than placeholders → empty string substitution', () => {
+    const source = {
+      pathPattern: '.*\\\\(\\w+)\\.log',
+      appendPos: 0,
+      appendFormat: '@1-@2-@3 '
+    }
+    const result = testExtractAppend(source, 'C:\\Log\\app.log', 'line')
+    // Only @1 has value, @2 and @3 become empty
+    expect(result.formatting.resolved).toBe('app-- ')
+    expect(result.lines[0].result).toBe('app-- line')
+  })
+
+  it('10. auto-escapes backslashes in pathPattern for Windows paths', () => {
+    const source = {
+      pathPattern: '.*\\Log\\Log_([0-9]+)-([0-9]+)-([0-9]+).txt',
+      appendPos: 0,
+      appendFormat: '@1-@2-@3 '
+    }
+    const filePath = 'D:\\EARS\\Log\\Log_2025-06-12.txt'
+    const logText = 'some log line'
+    const result = testExtractAppend(source, filePath, logText)
+    expect(result.extraction.matched).toBe(true)
+    expect(result.extraction.groups).toEqual(['2025', '06', '12'])
+    expect(result.lines[0].result).toBe('2025-06-12 some log line')
   })
 })

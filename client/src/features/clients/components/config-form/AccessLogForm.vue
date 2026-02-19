@@ -236,16 +236,16 @@
         <div v-if="getAxis(source, 'lineAxis') === 'multiline'" class="border border-purple-200 dark:border-purple-800/50 rounded-lg bg-purple-50/30 dark:bg-purple-900/10 p-3 space-y-3">
           <h5 class="text-xs font-semibold text-purple-700 dark:text-purple-400">멀티라인 설정</h5>
           <div class="grid grid-cols-2 gap-3">
-            <FormField :schema="schema.fields.startPattern">
-              <input type="text" :value="source.startPattern" @input="updateField(idx, 'startPattern', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.startPattern.placeholder" class="form-input" />
+            <FormField :schema="schema.fields.start_pattern">
+              <input type="text" :value="source.start_pattern" @input="updateField(idx, 'start_pattern', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.start_pattern.placeholder" class="form-input" />
             </FormField>
-            <FormField :schema="schema.fields.endPattern">
-              <input type="text" :value="source.endPattern" @input="updateField(idx, 'endPattern', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.endPattern.placeholder" class="form-input" />
+            <FormField :schema="schema.fields.end_pattern">
+              <input type="text" :value="source.end_pattern" @input="updateField(idx, 'end_pattern', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.end_pattern.placeholder" class="form-input" />
             </FormField>
           </div>
           <div class="grid grid-cols-2 gap-3">
-            <FormField :schema="schema.fields.count">
-              <input type="number" :value="source.count" @input="updateField(idx, 'count', $event.target.value ? Number($event.target.value) : null)" :disabled="readOnly" :placeholder="schema.fields.count.placeholder" class="form-input" />
+            <FormField :schema="schema.fields.line_count">
+              <input type="number" :value="source.line_count" @input="updateField(idx, 'line_count', $event.target.value ? Number($event.target.value) : null)" :disabled="readOnly" :placeholder="schema.fields.line_count.placeholder" class="form-input" />
             </FormField>
             <FormField :schema="schema.fields.priority">
               <select :value="source.priority" @change="updateField(idx, 'priority', $event.target.value)" :disabled="readOnly" class="form-input">
@@ -258,8 +258,8 @@
         <!-- Extract-Append Settings (conditional) -->
         <div v-if="getAxis(source, 'postProc') === 'extract_append'" class="border border-orange-200 dark:border-orange-800/50 rounded-lg bg-orange-50/30 dark:bg-orange-900/10 p-3 space-y-3">
           <h5 class="text-xs font-semibold text-orange-700 dark:text-orange-400">추출-삽입 설정</h5>
-          <FormField :schema="schema.fields.extractPattern">
-            <input type="text" :value="source.extractPattern" @input="updateField(idx, 'extractPattern', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.extractPattern.placeholder" class="form-input" />
+          <FormField :schema="schema.fields.pathPattern">
+            <input type="text" :value="source.pathPattern" @input="updateField(idx, 'pathPattern', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.pathPattern.placeholder" class="form-input" />
           </FormField>
           <div class="grid grid-cols-2 gap-3">
             <FormField :schema="schema.fields.appendPos">

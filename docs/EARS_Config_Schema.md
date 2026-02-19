@@ -120,11 +120,11 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
     "end": boolean,
     "exclude_suffix": ["string"],
     "date_subdir_format": "string (joda datetime format)",
-    "startPattern": "string",
-    "endPattern": "string",
-    "count": number,
+    "start_pattern": "string",
+    "end_pattern": "string",
+    "line_count": number,
     "priority": "string",
-    "extractPattern": "string",
+    "pathPattern": "string",
     "appendPos": "string"
   }
 }
@@ -244,15 +244,15 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
                 대상 파일의 접두어를 joda date time format 을 사용하여 결정
 - single : 1개 라인 단위로 trigger 에 전달
 - multiline : 여러 라인을 group 으로 모아 trigger 에 전달
-- extract_append : Full Path 의 파일 경로에서 `extractPattern` 에서 지정한 추출 값을 `appendPos` 항목에서 지정한 위치에 따라 trigger 에 전달하기전 log 에 붙임
+- extract_append : Full Path 의 파일 경로에서 `pathPattern` 에서 지정한 추출 값을 `appendPos` 항목에서 지정한 위치에 따라 trigger 에 전달하기전 log 에 붙임
  예시) 파일의 경로가 `D:\EARS\Log\2025\08\05\app_log.txt` 이고,
       log 가 `05:46:49 INFO  DummyAgentMain:71 -    GET /health - Health check`  인 상황에서 
-      `"extractPattern": ".*Log\\([0-9]+)\\([0-9]+)\\([0-9]+)\\app_log.*"`
+      `"pathPattern": ".*Log\\([0-9]+)\\([0-9]+)\\([0-9]+)\\app_log.*"`
       `"appendPos": 0`
       `"appendFormat": "@1-@2-@3 "`
       와 같이 설정되어 있다면 trigger 에 전달되는 최종 log 는 다음과 같음
       `202-08-05 05:46:49 INFO  DummyAgentMain:71 -    GET /health - Health check`
-      즉, extractPattern 에서 정규표현식의 group 으로 추출지정된 값을 추출하여 appendPos 에서 지정한 위치(로그 앞) 에, appendFormat 으로  지정한 양식(@0, @01 과 같이 @[숫자] 로 추출된 값 매칭.
+      즉, pathPattern 에서 정규표현식의 group 으로 추출지정된 값을 추출하여 appendPos 에서 지정한 위치(로그 앞) 에, appendFormat 으로  지정한 양식(@0, @01 과 같이 @[숫자] 로 추출된 값 매칭.
       나머지는 텍스트 처리)에 따라 log 에 추가하여 trigger에 전달
 
 4. log_type 은 상기 3개 축에 대해 list 에서 선택하여, 최종적으로 2번의 가능한 List 내에서 조합되어 결정되도록 기능 구현 필요
@@ -366,7 +366,7 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 설명 | 모니터링에서 제외할 파일 확장자 목록 |
 | 예시 | `[".bak", ".tmp", ".gz"]` |
 
-#### `startPattern`
+#### `start_pattern`
 | 속성 | 값 |
 |------|-----|
 | 타입 | `string` |
@@ -376,10 +376,10 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 
 ---
 추가 설명
-1. startPattern 은 log_type 에 `multiline` 이 포함되어 있어야만 입력 활성화
+1. start_pattern 은 log_type 에 `multiline` 이 포함되어 있어야만 입력 활성화
 ---
 
-#### `endPattern`
+#### `end_pattern`
 | 속성 | 값 |
 |------|-----|
 | 타입 | `string` |
@@ -389,10 +389,10 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 
 ---
 추가 설명
-1. endPattern 은 log_type 에 `multiline` 이 포함되어 있어야만 입력 활성화
+1. end_pattern 은 log_type 에 `multiline` 이 포함되어 있어야만 입력 활성화
 ---
 
-#### `count`
+#### `line_count`
 | 속성 | 값 |
 |------|-----|
 | 타입 | `number` |
@@ -402,23 +402,23 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 
 ---
 추가 설명
-1. count 는 log_type 에 `multiline` 이 포함되어 있어야만 입력 활성화
+1. line_count 는 log_type 에 `multiline` 이 포함되어 있어야만 입력 활성화
 ---
 
 #### `priority`
 | 속성 | 값 |
 |------|-----|
 | 타입 | `string` |
-| 기본값 | `"count"` |
-| 허용값 | `"count"`, `"pattern"` |
+| 기본값 | `"line_count"` |
+| 허용값 | `"line_count"`, `"pattern"` |
 | 설명 | multiline 완료의 우선 순위 설정. 설정된 항목을 우선으로 처리함 |
 
 ---
 추가 설명
-1. count 는 log_type 에 `multiline` 이 포함되어 있어야만 입력 활성화
+1. line_count 는 log_type 에 `multiline` 이 포함되어 있어야만 입력 활성화
 ---
 
-#### `extractPattern`
+#### `pathPattern`
 | 속성 | 값 |
 |------|-----|
 | 타입 | `string` |
@@ -429,7 +429,7 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 
 ---
 추가 설명
-1. extractPattern 은 log_type 에 `extract_append` 이 포함되어 있어야만 입력 활성화
+1. pathPattern 은 log_type 에 `extract_append` 이 포함되어 있어야만 입력 활성화
 ---
 
 #### `appendPos`
@@ -437,7 +437,7 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 |------|-----|
 | 타입 | `number` |
 | 기본값 | `"0"` |
-| 설명 | extractPattern 를 사용하여 경로에서 추출한 Data 를 로그에 붙일 위치 설정. `0` 은 로그 앞(왼쪽) |
+| 설명 | pathPattern 를 사용하여 경로에서 추출한 Data 를 로그에 붙일 위치 설정. `0` 은 로그 앞(왼쪽) |
 | 예시 | `"0"` |
 
 ---
@@ -450,7 +450,7 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 |------|-----|
 | 타입 | `string` |
 | 기본값 | `""` |
-| 설명 | extractPattern 를 사용하여 경로에서 추출한 Data 의 포멧 설정. 추출한 data 는 왼쪽부터 순서대로 @1, @2, @3 .. 에 대응 |
+| 설명 | pathPattern 를 사용하여 경로에서 추출한 Data 의 포멧 설정. 추출한 data 는 왼쪽부터 순서대로 @1, @2, @3 .. 에 대응 |
 | 예시 | `"@1-@2-@3 "` |
 
 ---
@@ -969,3 +969,54 @@ ConfigFormView.vue
 | `patterns` | FormTagInput.vue | `{syntax: string}` 객체 배열 (objectKey="syntax") |
 | `trigger-list` | 체크박스 리스트 | `{alid: string}` 객체 배열 변환 |
 | `source-list` | 체크박스 리스트 | plain string 배열 |
+
+
+### D. AccessLog 다중라인(multiline) log_type 설정의 Client 프로그램의 실제 다중라인 생성 code
+
+| 구분 | 설명 |
+| line | 로그의 한 개 라인 |
+| fileAccessInfo.priority | AccessLog 의 priority |
+| fileAccessInfo.line_count | AccessLog 의 line_count |
+| buffer | 다중 라인 생성 buffer |
+| actor ! sendNewLine(buffer) | | buffer 에 생성된 다중 라인을 trigger 로 보내는 code |
+| started | 다중 라인 생성 시작 flag |
+| cnt | 현재 buffer 에 추가된 line 수 |
+
+```scala
+line match {
+        case start_pattern() =>
+          if(fileAccessInfo.priority == "count" && fileAccessInfo.line_count > 0 ){
+            if(cnt >= fileAccessInfo.line_count - 1){
+              buffer = buffer + line
+              actor ! sendNewLine(buffer)
+              buffer = ""
+              started = false
+              cnt = 0
+            }else{
+              buffer = buffer + line
+              cnt += 1
+            }
+          } else{
+            actor ! sendNewLine(buffer)
+            buffer = line
+            cnt = 1
+          }
+        case end_pattern() =>
+          buffer = buffer + line
+          actor ! sendNewLine(buffer)
+          buffer = ""
+          started = false
+          cnt = 0
+        case _ =>
+          if(line == "" || cnt >= fileAccessInfo.line_count - 1){
+            buffer = buffer + line
+            actor ! sendNewLine(buffer)
+            buffer = ""
+            started = false
+            cnt = 0
+          }else{
+            buffer = buffer + line
+            cnt += 1
+          }
+      }
+```

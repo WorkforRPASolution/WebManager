@@ -183,18 +183,18 @@ export const ACCESS_LOG_SCHEMA = {
       placeholder: '예: .bak'
     },
     // Multiline fields (visible when lineAxis === 'multiline')
-    startPattern: {
-      type: 'text', label: '시작 패턴 (startPattern)',
+    start_pattern: {
+      type: 'text', label: '시작 패턴 (start_pattern)',
       description: '멀티라인 로그 수집을 시작하는 정규표현식 패턴입니다.',
       placeholder: '.* WARN Alarm Occured.*'
     },
-    endPattern: {
-      type: 'text', label: '종료 패턴 (endPattern)',
+    end_pattern: {
+      type: 'text', label: '종료 패턴 (end_pattern)',
       description: '멀티라인 로그 수집을 완료하는 정규표현식 패턴입니다. 이 패턴의 로그까지 한 라인으로 모아서 전달합니다.',
       placeholder: '.* WARN Alarm Reset.*'
     },
-    count: {
-      type: 'number', label: '수집 라인 수 (count)',
+    line_count: {
+      type: 'number', label: '수집 라인 수 (line_count)',
       description: '멀티라인 로그를 모으기 완료하는 라인 수입니다.',
       placeholder: ''
     },
@@ -207,8 +207,8 @@ export const ACCESS_LOG_SCHEMA = {
       ]
     },
     // Extract-append fields (visible when postProc === 'extract_append')
-    extractPattern: {
-      type: 'text', label: '추출 패턴 (extractPattern)',
+    pathPattern: {
+      type: 'text', label: '추출 패턴 (pathPattern)',
       description: '파일 절대 경로에서 로그에 붙일 데이터를 추출하는 정규표현식입니다. ()그룹으로 추출하며 최대 5개까지 지원합니다.',
       placeholder: '.*Log\\\\([0-9]+)\\\\([0-9]+)\\\\([0-9]+)\\\\app_log.*'
     },
@@ -239,12 +239,12 @@ export const ACCESS_LOG_SCHEMA = {
     batch_count: 1000,
     batch_timeout: '30 seconds',
     // multiline
-    startPattern: '',
-    endPattern: '',
-    count: null,
+    start_pattern: '',
+    end_pattern: '',
+    line_count: null,
     priority: 'count',
     // extract_append
-    extractPattern: '',
+    pathPattern: '',
     appendPos: 0,
     appendFormat: ''
   }
@@ -298,15 +298,15 @@ export function buildAccessLogOutput(source) {
 
   // Multiline fields: only when lineAxis === 'multiline'
   if (axes.lineAxis === 'multiline') {
-    if (s.startPattern) result.startPattern = s.startPattern
-    if (s.endPattern) result.endPattern = s.endPattern
-    if (s.count != null) result.count = s.count
+    if (s.start_pattern) result.start_pattern = s.start_pattern
+    if (s.end_pattern) result.end_pattern = s.end_pattern
+    if (s.line_count != null) result.line_count = s.line_count
     if (s.priority) result.priority = s.priority
   }
 
   // Extract-append fields: only when postProc === 'extract_append'
   if (axes.postProc === 'extract_append') {
-    if (s.extractPattern) result.extractPattern = s.extractPattern
+    if (s.pathPattern) result.pathPattern = s.pathPattern
     result.appendPos = s.appendPos ?? 0
     if (s.appendFormat) result.appendFormat = s.appendFormat
   }

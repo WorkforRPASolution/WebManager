@@ -109,13 +109,22 @@
         </div>
       </div>
     </div>
+
+    <!-- Multiline Block Test (conditional) -->
+    <MultilineTestSection v-if="showMultiline" :source="source" />
+
+    <!-- Extract-Append Test (conditional) -->
+    <ExtractAppendTestSection v-if="showExtractAppend" :source="source" />
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { testAccessLogPath } from './configTestEngine'
+import { decomposeLogType } from './configSchemas'
 import { configTestApi } from '../../api'
+import MultilineTestSection from './MultilineTestSection.vue'
+import ExtractAppendTestSection from './ExtractAppendTestSection.vue'
 
 const props = defineProps({
   source: { type: Object, required: true },
@@ -129,6 +138,16 @@ const result = ref(null)
 const remoteLoading = ref(false)
 const remoteResult = ref(null)
 const remoteError = ref(null)
+
+const showMultiline = computed(() => {
+  const axes = decomposeLogType(props.source?.log_type)
+  return axes.lineAxis === 'multiline'
+})
+
+const showExtractAppend = computed(() => {
+  const axes = decomposeLogType(props.source?.log_type)
+  return axes.postProc === 'extract_append'
+})
 
 function runTest() {
   if (!testPath.value.trim()) return

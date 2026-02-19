@@ -153,8 +153,8 @@ function describeAccessLog(source) {
   }
 
   // --- Blank line before advanced sections ---
-  const hasMultiline = source.startPattern || source.endPattern || source.count
-  const hasExtract = !!source.extractPattern
+  const hasMultiline = source.start_pattern || source.end_pattern || source.line_count
+  const hasExtract = !!source.pathPattern
   if (hasMultiline || hasExtract) {
     lines.push('')
   }
@@ -164,20 +164,20 @@ function describeAccessLog(source) {
     let mlText = '다중 라인: '
 
     // Block pattern description
-    if (source.startPattern && source.endPattern) {
-      mlText += `"${source.startPattern}" ~ "${source.endPattern}" 블록 수집`
-    } else if (source.startPattern) {
-      mlText += `"${source.startPattern}"부터 블록 수집`
-    } else if (source.endPattern) {
-      mlText += `"${source.endPattern}"까지 블록 수집`
+    if (source.start_pattern && source.end_pattern) {
+      mlText += `"${source.start_pattern}" ~ "${source.end_pattern}" 블록 수집`
+    } else if (source.start_pattern) {
+      mlText += `"${source.start_pattern}"부터 블록 수집`
+    } else if (source.end_pattern) {
+      mlText += `"${source.end_pattern}"까지 블록 수집`
     }
 
     // Count and priority
-    if (source.count != null) {
+    if (source.line_count != null) {
       const priorityLabel = source.priority
         ? (source.priority === 'count' ? '라인 수' : '패턴') + ' 우선'
         : ''
-      const countParts = [`최대 ${source.count}줄`]
+      const countParts = [`최대 ${source.line_count}줄`]
       if (priorityLabel) countParts.push(priorityLabel)
       mlText += ' (' + countParts.join(', ') + ')'
     }
@@ -187,7 +187,7 @@ function describeAccessLog(source) {
 
   // --- Line 6 (optional): 추출-삽입 ---
   if (hasExtract) {
-    let eaText = `추출-삽입: "${source.extractPattern}"`
+    let eaText = `추출-삽입: "${source.pathPattern}"`
     if (source.appendFormat) {
       eaText += ` → "${source.appendFormat}"`
     }
