@@ -94,12 +94,14 @@ class AvroRpcClient {
         }
       }, timeout + 5000) // RPC 타임아웃보다 약간 여유 있게
 
-      this.client.RunCommand(request, (err, response) => {
+      this.client.RunCommand(request, { timeout: timeout + 5000 }, (err, response) => {
         if (settled) return
         settled = true
         clearTimeout(timer)
         if (err) {
-          reject(new Error(`RPC call failed: ${err.message}`))
+          const detail = err.message || err.string || JSON.stringify(err)
+          console.error('[DEBUG] Avro RPC err object:', typeof err, err)
+          reject(new Error(`RPC call failed: ${detail}`))
         } else {
           resolve(response)
         }
