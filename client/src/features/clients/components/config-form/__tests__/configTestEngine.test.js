@@ -1353,12 +1353,12 @@ describe('convertSyntaxToRegex', () => {
 
 describe('parseParams', () => {
   it('parses single condition', () => {
-    const result = parseParams('ParameterMatcher1:9.5gte@value')
+    const result = parseParams('ParamComparisionMatcher1@9.5,GTE,value')
     expect(result).toEqual([{ compareValue: 9.5, op: 'gte', varName: 'value' }])
   })
 
   it('parses multiple conditions', () => {
-    const result = parseParams('ParameterMatcher2:100gt@count,50lte@rate')
+    const result = parseParams('ParamComparisionMatcher2@100,GT,count;50,LTE,rate')
     expect(result).toEqual([
       { compareValue: 100, op: 'gt', varName: 'count' },
       { compareValue: 50, op: 'lte', varName: 'rate' }
@@ -1377,9 +1377,15 @@ describe('parseParams', () => {
   })
 
   it('parses integer compare values', () => {
-    const result = parseParams('ParameterMatcher1:100eq@code')
+    const result = parseParams('ParamComparisionMatcher1@100,EQ,code')
     expect(result).toEqual([{ compareValue: 100, op: 'eq', varName: 'code' }])
   })
+
+  it('returns null for old format (ParameterMatcher)', () => {
+    const result = parseParams('ParameterMatcher1:9.5gte@value')
+    expect(result).toBeNull()
+  })
+
 })
 
 // ===========================================================================
@@ -1462,7 +1468,7 @@ describe('testTriggerPattern - params conditions', () => {
       source: 'test',
       recipe: [{
         name: 'Step_1', type: 'regex',
-        trigger: [{ syntax: '.*Warning value: (<<value>[\\d.]+)', params: 'ParameterMatcher1:9.5gte@value' }],
+        trigger: [{ syntax: '.*Warning value: (<<value>[\\d.]+)', params: 'ParamComparisionMatcher1@9.5,GTE,value' }],
         times: 1, next: '@recovery'
       }]
     }
@@ -1478,7 +1484,7 @@ describe('testTriggerPattern - params conditions', () => {
       source: 'test',
       recipe: [{
         name: 'Step_1', type: 'regex',
-        trigger: [{ syntax: '.*Warning value: (<<value>[\\d.]+)', params: 'ParameterMatcher1:9.5gte@value' }],
+        trigger: [{ syntax: '.*Warning value: (<<value>[\\d.]+)', params: 'ParamComparisionMatcher1@9.5,GTE,value' }],
         times: 1, next: '@recovery'
       }]
     }
@@ -1493,7 +1499,7 @@ describe('testTriggerPattern - params conditions', () => {
       source: 'test',
       recipe: [{
         name: 'Step_1', type: 'regex',
-        trigger: [{ syntax: '.*ERROR <<code>>', params: 'ParameterMatcher1:500gte@code' }],
+        trigger: [{ syntax: '.*ERROR <<code>>', params: 'ParamComparisionMatcher1@500,GTE,code' }],
         times: 1, next: '@recovery'
       }]
     }
@@ -1523,7 +1529,7 @@ describe('testTriggerPattern - params conditions', () => {
       source: 'test',
       recipe: [{
         name: 'Step_1', type: 'regex',
-        trigger: [{ syntax: '.*value=(<<val>[\\d.]+)', params: 'ParameterMatcher1:100gte@val' }],
+        trigger: [{ syntax: '.*value=(<<val>[\\d.]+)', params: 'ParamComparisionMatcher1@100,GTE,val' }],
         times: 2, next: '@recovery'
       }]
     }
@@ -1542,7 +1548,7 @@ describe('testTriggerPattern - params conditions', () => {
       source: 'test',
       recipe: [{
         name: 'Step_1', type: 'regex',
-        trigger: [{ syntax: '.*val=(<<val>[\\d.]+)', params: 'ParameterMatcher1:10gte@val' }],
+        trigger: [{ syntax: '.*val=(<<val>[\\d.]+)', params: 'ParamComparisionMatcher1@10,GTE,val' }],
         times: 1, next: '@recovery'
       }]
     }

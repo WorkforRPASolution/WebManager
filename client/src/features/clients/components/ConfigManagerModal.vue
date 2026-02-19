@@ -308,8 +308,14 @@
                   :agentGroup="currentAgentGroup"
                   @update:content="updateContent"
                 />
+                <!-- Resizable divider -->
+                <div
+                  v-if="showFormPreview"
+                  class="w-1 shrink-0 cursor-col-resize bg-gray-200 dark:bg-gray-700/30 hover:bg-primary-400 dark:hover:bg-primary-500 active:bg-primary-500 transition-colors"
+                  @mousedown.prevent="startPanelResize"
+                ></div>
                 <!-- JSON Preview Panel (Monaco 테마 색상 매칭) -->
-                <div v-if="showFormPreview" class="w-[360px] shrink-0 border-l border-gray-200 dark:border-gray-700/30 flex flex-col bg-white dark:bg-[#1e1e1e]">
+                <div v-if="showFormPreview" class="shrink-0 border-l border-gray-200 dark:border-gray-700/30 flex flex-col bg-white dark:bg-[#1e1e1e]" :style="{ width: previewPanelWidth + 'px' }">
                   <div class="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700/50">
                     <span class="text-xs font-medium text-gray-500 dark:text-gray-400">JSON Preview</span>
                     <div class="flex items-center gap-2">
@@ -604,6 +610,33 @@ const otherSelectedClientIds = computed(() => {
 
 // Form preview
 const showFormPreview = ref(true)
+const previewPanelWidth = ref(360)
+
+// Panel resize (Form ↔ Preview divider)
+let isPanelResizing = false
+let panelResizeStartX = 0
+let panelResizeStartW = 0
+
+const startPanelResize = (e) => {
+  isPanelResizing = true
+  panelResizeStartX = e.clientX
+  panelResizeStartW = previewPanelWidth.value
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+const doPanelResize = (e) => {
+  if (!isPanelResizing) return
+  const delta = panelResizeStartX - e.clientX
+  previewPanelWidth.value = Math.max(200, Math.min(800, panelResizeStartW + delta))
+}
+
+const stopPanelResize = () => {
+  if (!isPanelResizing) return
+  isPanelResizing = false
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
 const previewCopyLabel = ref('Copy')
 
 const copyPreviewJson = () => {
@@ -708,11 +741,13 @@ const stopResize = () => { isResizing = false }
 const onMouseMove = (e) => {
   doDrag(e)
   doResize(e)
+  doPanelResize(e)
 }
 
 const onMouseUp = () => {
   stopDrag()
   stopResize()
+  stopPanelResize()
 }
 
 // Keyboard shortcut

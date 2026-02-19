@@ -220,13 +220,13 @@ function getTriggerPattern(item) {
  */
 function describeParamsCondition(item) {
   if (!item || typeof item !== 'object' || !item.params) return '';
-  const match = item.params.match(/^ParameterMatcher(\d+):(.+)$/);
+  const match = item.params.match(/^ParamComparisionMatcher(\d+)@(.+)$/);
   if (!match) return '';
   const OP_MAP = { eq: '같음', neq: '다름', gt: '초과', gte: '이상', lt: '미만', lte: '이하' };
-  const conditions = match[2].split(',').map(c => {
-    const m = c.match(/^([\d.]+)(eq|neq|gt|gte|lt|lte)@(\w+)$/);
+  const conditions = match[2].split(';').map(c => {
+    const m = c.match(/^([\d.]+),(EQ|NEQ|GT|GTE|LT|LTE),(\w+)$/i);
     if (!m) return null;
-    return `${m[3]} ${m[1]} ${OP_MAP[m[2]] || m[2]}`;
+    return `${m[3]} ${m[1]} ${OP_MAP[m[2].toLowerCase()] || m[2]}`;
   }).filter(Boolean);
   if (conditions.length === 0) return '';
   return `[조건: ${conditions.join(', ')}]`;

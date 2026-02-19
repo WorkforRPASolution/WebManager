@@ -507,17 +507,17 @@ function convertSyntaxToRegex(syntax) {
 
 // ---------------------------------------------------------------------------
 // Helper: parse params string → array of conditions
-// Format: "ParameterMatcher[N]:[compareValue][op]@[varName],..."
+// Format: "ParamComparisionMatcher[count]@[compare_value],[op],[extract_value_name];..."
 // ---------------------------------------------------------------------------
 
 function parseParams(paramsStr) {
   if (!paramsStr) return null
-  const match = paramsStr.match(/^ParameterMatcher(\d+):(.+)$/)
+  const match = paramsStr.match(/^ParamComparisionMatcher(\d+)@(.+)$/)
   if (!match) return null
-  return match[2].split(',').map(c => {
-    const m = c.match(/^([\d.]+)(eq|neq|gt|gte|lt|lte)@(\w+)$/)
+  return match[2].split(';').map(c => {
+    const m = c.match(/^([\d.]+),(EQ|NEQ|GT|GTE|LT|LTE),(\w+)$/i)
     if (!m) return null
-    return { compareValue: parseFloat(m[1]), op: m[2], varName: m[3] }
+    return { compareValue: parseFloat(m[1]), op: m[2].toLowerCase(), varName: m[3] }
   }).filter(Boolean)
 }
 

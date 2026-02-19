@@ -202,7 +202,10 @@
                     조건 없음. "조건 추가"를 눌러 파라미터 비교 조건을 설정하세요.
                   </div>
                   <div v-for="(cond, ci) in getParamsConditions(ti, si)" :key="ci" class="flex gap-2 items-center mb-1.5">
-                    <input type="number" :value="cond.compareValue" @input="updateParamsCondition(ti, si, ci, 'compareValue', $event.target.value)" step="0.1" :disabled="readOnly" class="w-20 form-input text-xs" placeholder="값" />
+                    <select :value="cond.varName" @change="updateParamsCondition(ti, si, ci, 'varName', $event.target.value)" :disabled="readOnly" class="w-28 form-input text-xs">
+                      <option value="" disabled>변수 선택</option>
+                      <option v-for="vn in extractVarNames(ti, si)" :key="vn" :value="vn">{{ vn }}</option>
+                    </select>
                     <select :value="cond.op" @change="updateParamsCondition(ti, si, ci, 'op', $event.target.value)" :disabled="readOnly" class="form-input text-xs w-24">
                       <option value="eq">= (같음)</option>
                       <option value="neq">&#8800; (다름)</option>
@@ -211,11 +214,7 @@
                       <option value="lt">&lt; (미만)</option>
                       <option value="lte">&#8804; (이하)</option>
                     </select>
-                    <span class="text-xs text-gray-400">@</span>
-                    <select :value="cond.varName" @change="updateParamsCondition(ti, si, ci, 'varName', $event.target.value)" :disabled="readOnly" class="w-28 form-input text-xs">
-                      <option value="" disabled>변수 선택</option>
-                      <option v-for="vn in extractVarNames(ti, si)" :key="vn" :value="vn">{{ vn }}</option>
-                    </select>
+                    <input type="number" :value="cond.compareValue" @input="updateParamsCondition(ti, si, ci, 'compareValue', $event.target.value)" step="0.1" :disabled="readOnly" class="w-20 form-input text-xs" placeholder="값" />
                     <button v-if="!readOnly" type="button" class="text-gray-400 hover:text-red-500 transition text-sm leading-none" @click="removeParamsCondition(ti, si, ci)">&times;</button>
                   </div>
                 </div>
@@ -564,19 +563,19 @@ function getSelectedPatternItem(ti, si) {
 function getParamsConditions(ti, si) {
   const item = getSelectedPatternItem(ti, si)
   if (!item || !item.params) return []
-  const match = item.params.match(/^ParameterMatcher(\d+):(.+)$/)
+  const match = item.params.match(/^ParamComparisionMatcher(\d+)@(.+)$/)
   if (!match) return []
-  return match[2].split(',').map(c => {
-    const m = c.match(/^([\d.]+)(eq|neq|gt|gte|lt|lte)@(\w*)$/)
+  return match[2].split(';').map(c => {
+    const m = c.match(/^([\d.]+),(EQ|NEQ|GT|GTE|LT|LTE),(\w*)$/i)
     if (!m) return null
-    return { compareValue: parseFloat(m[1]), op: m[2], varName: m[3] }
+    return { compareValue: parseFloat(m[1]), op: m[2].toLowerCase(), varName: m[3] }
   }).filter(Boolean)
 }
 
 function serializeParams(conditions) {
   if (!conditions || conditions.length === 0) return ''
-  const parts = conditions.map(c => `${c.compareValue}${c.op}@${c.varName}`)
-  return `ParameterMatcher${conditions.length}:${parts.join(',')}`
+  const parts = conditions.map(c => `${c.compareValue},${c.op.toUpperCase()},${c.varName}`)
+  return `ParamComparisionMatcher${conditions.length}@${parts.join(';')}`
 }
 
 function updateTriggerItemParams(ti, si, paramsStr) {
@@ -597,6 +596,7 @@ function updateTriggerItemParams(ti, si, paramsStr) {
 
 function addParamsCondition(ti, si) {
   const current = getParamsConditions(ti, si)
+  if (current.length >= 3) return
   current.push({ compareValue: 0, op: 'gte', varName: '' })
   updateTriggerItemParams(ti, si, serializeParams(current))
 }

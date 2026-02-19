@@ -590,22 +590,24 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
   }
 ]
 ```
-3. params string 구조 : `"ParameterMatcher[count]:[compare_value][op]@[extract_value_name]"`
+3. params string 구조 : `"ParamComparisionMatcher[count]@[compare_value],[op],[extract_value_name]"`
  : syntax 에서 추출되는 값(extract_value_name)과 비교값(compare_value)을 Operation(op) 에 따라 비교하여 참일 경우 trigger 가 매칭되었다고 판단
   * 최종 발동은 duration, times, type 에 따라 달라지면, params 는 syntax 로 매칭된 log 에 대해 추가로 매칭 여부를 최종 판단하는 항목이다.
- - ParameterMatcher: 고정 값
- - count: 비교 항목 갯수. [compare_value][op]@[extract_value_name] 1개 set 이 비교 항목 한개, 2개 이상일 경우 ,(콤마) 를 구분자로 나열
-          [compare_value][op]@[extract_value_name],[compare_value2][op2]@[extract_value_name2]
+ - ParamComparisionMatcher: 고정 값
+ - count: 비교 항목 갯수. [compare_value],[op],[extract_value_name] 1개 set 이 비교 항목 한개, 2개 이상일 경우 ;(세미콜론) 를 구분자로 나열
+          [compare_value],[op],[extract_value_name];[compare_value2],[op2],[extract_value_name2]
+ - count (비교 항목 갯수) 는 최대 3개까지. 따라서 4개 이상 입력을 제한 한다. (추가 버튼 누를 경우 )
  - compare_value: 비교값 (number)
- - op : eq (같은), neq (같지 않음), gt (큼), gte (크거나 같음), lt (작음), lte (작거나 같음)
+ - op : EQ (같은), NEQ (같지 않음), GT (큼), GTE (크거나 같음), LT (작음), LTE (작거나 같음)
  - extract_value_name : syntax 의 정규 표현식에 의해 추출된 값의 변수명
- - 비교 방법 : extract_value_name  op compare_value  참이면 매칭. 예시) 1.0gte@value  : value 가 1.0 보다 크거나 같으면 참(최종 매칭)
+ - 비교 방법 : extract_value_name  op compare_value  참이면 매칭. 예시) 1.0,GTE,value  : value 가 1.0 보다 크거나 같으면 참(최종 매칭)
+ - 
  4. 설정 예시
  ```json
 "trigger": [
   {
-    "syntax": ".*Warning value: (<<value>[\\.0-9]+)",
-    "params": "ParameterMatcher1:9.5gte@value" // 선택 항목
+    "syntax": ".*Warning value: (<<value>[\\.0-9]+), value2: (<<value2>[\\.0-9]+) ",
+    "params": "ParamComparisionMatcher2@9.5,GTE,value;9.9,GTE,value2" // 선택 항목
   }
 ]
 
