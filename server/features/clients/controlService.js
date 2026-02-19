@@ -292,6 +292,35 @@ async function detectBasePath(eqpId, agentGroup) {
   }
 }
 
+
+/**
+ * List files in a remote directory via strategy-specific RPC command
+ * @param {string} eqpId - Equipment ID
+ * @param {string} agentGroup - Agent group for strategy lookup
+ * @param {string} directory - Remote directory path
+ * @returns {Promise<{files: Array<{name, size, modifiedAt}>, error?: string}>}
+ */
+async function listRemoteFiles(eqpId, agentGroup, directory) {
+  const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL agentPorts serviceType').lean()
+  if (!client) throw new Error(`Client not found: ${eqpId}`)
+
+  const strategy = client.serviceType
+    ? strategyRegistry.get(agentGroup, client.serviceType)
+    : strategyRegistry.getDefault(agentGroup)
+  if (!strategy) throw new Error(`No strategy found for ${agentGroup}`)
+  if (!strategy.getListFilesCommand) throw new Error(`Strategy ${agentGroup}:${strategy.serviceType} does not support listFiles`)
+
+  const cmd = strategy.getListFilesCommand(directory)
+  const rpcClient = new AvroRpcClient(client.ipAddr, client.ipAddrL, client.agentPorts)
+  try {
+    await rpcClient.connect()
+    const response = await rpcClient.runCommand(cmd.commandLine, cmd.args, cmd.timeout)
+    return strategy.parseListFilesResponse(response)
+  } finally {
+    rpcClient.disconnect()
+  }
+}
+
 module.exports = {
   getClientStatus,
   startClient,
@@ -304,5 +333,6 @@ module.exports = {
   executeAction,
   batchExecuteAction,
   batchExecuteActionStream,
-  detectBasePath
+  detectBasePath,
+  listRemoteFiles
 }

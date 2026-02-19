@@ -306,6 +306,7 @@
                   :configFiles="configFiles"
                   :eqpId="activeClientId"
                   :agentGroup="currentAgentGroup"
+                  :agentVersion="activeAgentVersion"
                   @update:content="updateContent"
                 />
                 <!-- Resizable divider -->
@@ -489,7 +490,8 @@ const props = defineProps({
   selectedClients: { type: Array, default: () => [] },
   activeClientId: String,
   isMultiMode: Boolean,
-  clientStatuses: { type: Array, default: () => [] }
+  clientStatuses: { type: Array, default: () => [] },
+  activeAgentVersion: { type: String, default: '' }
 })
 
 const emit = defineEmits([

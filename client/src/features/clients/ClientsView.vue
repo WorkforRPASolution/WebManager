@@ -475,6 +475,7 @@ const handleExportColumnWidths = () => {
       :active-client-id="configManager.activeClientId.value"
       :is-multi-mode="configManager.isMultiMode.value"
       :client-statuses="configManager.clientStatuses.value"
+      :active-agent-version="configManager.activeAgentVersion.value"
       @close="configManager.closeConfig()"
       @select-file="configManager.selectFile($event)"
       @update-content="configManager.updateContent($event)"

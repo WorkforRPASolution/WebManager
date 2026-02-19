@@ -8,7 +8,9 @@
     "start": "node index.js",
     "seed:roles": "node scripts/seedRolePermissions.js",
     "setup:admin": "node scripts/setupAdmin.js",
-    "seed:all": "node scripts/seedRolePermissions.js && node scripts/setupAdmin.js"
+    "seed:all": "node scripts/seedRolePermissions.js && node scripts/setupAdmin.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [],
   "author": "",
@@ -28,5 +30,8 @@
     "multer": "^2.0.2",
     "socks": "^2.8.7",
     "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
   }
 }

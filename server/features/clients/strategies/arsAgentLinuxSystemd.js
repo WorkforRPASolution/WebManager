@@ -98,5 +98,32 @@ module.exports = {
       throw new Error(`Cannot extract basePath from: ${binaryPath}`)
     }
     return binaryPath.substring(0, binIdx)
+  },
+
+  // --- List Files (configTestController.js) ---
+  getListFilesCommand(directory) {
+    return {
+      commandLine: 'find',
+      args: [directory, '-maxdepth', '1', '-type', 'f', '-printf', '%f\\t%s\\t%T@\\n'],
+      timeout: 15000
+    }
+  },
+
+  parseListFilesResponse(rpcResult) {
+    if (!rpcResult.success) {
+      const combined = (rpcResult.output || '') + ' ' + (rpcResult.error || '')
+      if (/no such file or directory/i.test(combined))
+        return { files: [], error: '디렉토리를 찾을 수 없습니다' }
+      throw new Error(rpcResult.error || 'List files command failed')
+    }
+    const output = (rpcResult.output || '').trim()
+    if (!output) return { files: [] }
+    return {
+      files: output.split('\n').filter(l => l.trim()).map(line => {
+        const [name, size, epoch] = line.split('\t')
+        return { name, size: parseInt(size) || 0, modifiedAt: epoch ? new Date(parseFloat(epoch) * 1000).toISOString() : null }
+      })
+    }
   }
+
 }

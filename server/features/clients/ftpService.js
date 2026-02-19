@@ -519,121 +519,6 @@ async function uploadStreamToFile(eqpId, readableStream, remotePath) {
 }
 
 
-/**
- * List files matching AccessLog source pattern via FTP
- * @param {string} eqpId - Equipment ID
- * @param {Object} sourceConfig - { directory, prefix, wildcard, suffix, exclude_suffix, date_subdir_format }
- * @param {string} agentGroup - Agent group for port resolution
- * @returns {Promise<{ files: Array<{name, size, modifiedAt}>, total: number, matched: number }>}
- */
-async function listAccessLogFiles(eqpId, sourceConfig, agentGroup) {
-  const { client: ftpClient } = await connectFtp(eqpId)
-
-  try {
-    const directory = sourceConfig.directory || '/'
-    // Normalize directory path for FTP (use forward slashes)
-    const ftpDir = directory.replace(/[\\/]+/g, '/')
-
-    // List all files in the directory
-    let listing
-    try {
-      listing = await ftpClient.list(ftpDir)
-    } catch (err) {
-      // Directory not found
-      if (err.code === 550 || err.message?.includes('No such file')) {
-        return { files: [], total: 0, matched: 0, error: `디렉토리를 찾을 수 없습니다: ${directory}` }
-      }
-      throw err
-    }
-
-    // Filter: files only (type === 1)
-    const allFiles = listing.filter(entry => entry.type === 1)
-    const total = allFiles.length
-
-    // Apply pattern matching
-    const matched = allFiles.filter(entry => {
-      const name = entry.name
-
-      // Prefix check
-      if (sourceConfig.prefix && !name.startsWith(sourceConfig.prefix)) return false
-
-      // Suffix check
-      if (sourceConfig.suffix && !name.endsWith(sourceConfig.suffix)) return false
-
-      // Exclude suffix check
-      if (sourceConfig.exclude_suffix && sourceConfig.exclude_suffix.length > 0) {
-        if (sourceConfig.exclude_suffix.some(es => name.endsWith(es))) return false
-      }
-
-      return true
-    })
-
-    const files = matched.map(entry => ({
-      name: entry.name,
-      size: entry.size,
-      modifiedAt: entry.modifiedAt ? entry.modifiedAt.toISOString() : null
-    })).sort((a, b) => {
-      if (!a.modifiedAt || !b.modifiedAt) return 0
-      return new Date(b.modifiedAt) - new Date(a.modifiedAt)
-    })
-
-    // If date_subdir_format is set, also check today's date subdirectory
-    if (sourceConfig.date_subdir_format) {
-      // Try to list today's date subdirectory too
-      // This is a best-effort attempt - format is Java SimpleDateFormat which we can't fully parse,
-      // but we can try common patterns
-      try {
-        const now = new Date()
-        const year = now.getFullYear().toString()
-        const month = (now.getMonth() + 1).toString().padStart(2, '0')
-        const day = now.getDate().toString().padStart(2, '0')
-
-        // Try common subdir patterns: yyyy/MM/dd, yyyy\MM\dd, yyyyMMdd
-        const candidates = [
-          `${ftpDir}/${year}/${month}/${day}`,
-          `${ftpDir}/${year}${month}${day}`,
-          `${ftpDir}/${year}/${month}`,
-        ]
-
-        for (const subDir of candidates) {
-          try {
-            const subListing = await ftpClient.list(subDir)
-            const subFiles = subListing
-              .filter(e => e.type === 1)
-              .filter(e => {
-                if (sourceConfig.prefix && !e.name.startsWith(sourceConfig.prefix)) return false
-                if (sourceConfig.suffix && !e.name.endsWith(sourceConfig.suffix)) return false
-                if (sourceConfig.exclude_suffix?.length > 0) {
-                  if (sourceConfig.exclude_suffix.some(es => e.name.endsWith(es))) return false
-                }
-                return true
-              })
-              .map(e => ({
-                name: e.name,
-                size: e.size,
-                modifiedAt: e.modifiedAt ? e.modifiedAt.toISOString() : null,
-                subdir: subDir.replace(ftpDir, '').replace(/^\//, '')
-              }))
-
-            if (subFiles.length > 0) {
-              files.push(...subFiles)
-            }
-            break // Found a valid subdir, no need to try others
-          } catch {
-            // Subdir doesn't exist, try next
-          }
-        }
-      } catch {
-        // Ignore date subdir errors
-      }
-    }
-
-    return { files, total, matched: files.length }
-  } finally {
-    ftpClient.close()
-  }
-}
-
 module.exports = {
   getConfigSettings,
   connectFtp,
@@ -646,6 +531,5 @@ module.exports = {
   listLogFiles,
   readLogFile,
   deleteLogFile,
-  uploadStreamToFile,
-  listAccessLogFiles
+  uploadStreamToFile
 }

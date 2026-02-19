@@ -4,18 +4,15 @@
  * Generates Korean descriptions for AccessLog and Trigger config entries.
  */
 
-const LOG_TYPE_MAP = {
-  normal_single: '일반 단일 라인',
-  date_single: '날짜별 단일 라인',
-  date_prefix_single: '날짜접두사 단일 라인',
-  normal_single_extract_append: '일반 단일 라인 + 추출-삽입',
-  date_single_extract_append: '날짜별 단일 라인 + 추출-삽입',
-  date_prefix_single_extract_append: '날짜접두사 단일 라인 + 추출-삽입',
-  normal_multiline: '일반 다중 라인',
-  date_multiline: '날짜별 다중 라인',
-  normal_multiline_extract_append: '일반 다중 라인 + 추출-삽입',
-  date_multiline_extract_append: '날짜별 다중 라인 + 추출-삽입',
-};
+import { decomposeLogType } from './configSchemas'
+
+function getLogTypeDescription(logType) {
+  const { dateAxis, lineAxis, postProc } = decomposeLogType(logType)
+  const dateLabel = { normal: '일반', date: '날짜별', date_prefix: '날짜접두사', date_suffix: '날짜접미사' }[dateAxis] || dateAxis
+  const lineLabel = lineAxis === 'multiline' ? '다중 라인' : '단일 라인'
+  const procLabel = postProc === 'extract_append' ? ' + 추출-삽입' : ''
+  return `${dateLabel} ${lineLabel}${procLabel}`
+}
 
 const TRIGGER_TYPE_MAP = {
   regex: '정규식',

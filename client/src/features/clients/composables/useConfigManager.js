@@ -16,6 +16,7 @@ export function useConfigManager() {
   const showRollout = ref(false)
   const viewMode = ref('json') // 'json' | 'form'
   const currentAgentGroup = ref(null)
+  const agentVersions = ref({})
 
   // Derived from cache for active client
   const sourceClient = computed(() =>
@@ -97,6 +98,8 @@ export function useConfigManager() {
     })
   )
 
+  const activeAgentVersion = computed(() => agentVersions.value[activeClientId.value] || '')
+
   // Internal: load configs for a single client into cache
   async function loadClientConfigs(eqpId) {
     const entry = clientCache.value[eqpId]
@@ -127,6 +130,8 @@ export function useConfigManager() {
         error: null,
         loaded: true
       }
+      // TODO: RPC로 실제 버전 조회 (현재 mock)
+      agentVersions.value[eqpId] = '6.8.5.24'
     } catch (err) {
       clientCache.value[eqpId] = {
         ...clientCache.value[eqpId],
@@ -327,6 +332,7 @@ export function useConfigManager() {
     viewMode,
     error,
     currentAgentGroup,
+    agentVersions,
 
     // Multi-client state
     selectedClients,
@@ -341,6 +347,7 @@ export function useConfigManager() {
     hasChanges,
     activeFileHasChanges,
     changedFileIds,
+    activeAgentVersion,
 
     // Methods
     openConfig,

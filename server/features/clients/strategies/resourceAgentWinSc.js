@@ -132,5 +132,32 @@ module.exports = {
       throw new Error(`Cannot extract basePath from: ${binaryLine}`)
     }
     return binaryLine.substring(0, binIdx).replace(/\\/g, '/')
+  },
+
+  // --- List Files (configTestController.js) ---
+  getListFilesCommand(directory) {
+    return {
+      commandLine: 'cmd',
+      args: ['/c', 'dir', '/A-D', '/B', directory],
+      timeout: 15000
+    }
+  },
+
+  parseListFilesResponse(rpcResult) {
+    if (!rpcResult.success) {
+      const combined = (rpcResult.output || '') + ' ' + (rpcResult.error || '')
+      if (/file not found|cannot find|does not exist|찾을 수 없/i.test(combined))
+        return { files: [], error: '디렉토리를 찾을 수 없습니다' }
+      throw new Error(rpcResult.error || 'List files command failed')
+    }
+    const output = (rpcResult.output || '').trim()
+    if (!output) return { files: [] }
+    return {
+      files: output.split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 0)
+        .map(name => ({ name, size: 0, modifiedAt: null }))
+    }
   }
+
 }

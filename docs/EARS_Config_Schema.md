@@ -211,31 +211,37 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 |------|-----|
 | 타입 | `string` |
 | 기본값 | `"normal_single"` |
-| 허용값 | `"normal_single"`, `"date_single"`, `"date_prefix_single"`, `"normal_single_extract_append"`, `"date_single_extract_append"`, `"date_prefix_single_extract_append"`, `"normal_multiline"`, `"date_multiline"`, `"normal_multiline_extract_append"`, `"date_multiline_extract_append"` |
+| 허용값 | 2번 log_type 의 기능 축 조합의 VALID_LOG_TYPES 에 N/A 표기가 없는 항목 |
 
 ---
 추가 설명
 * 위의 기존 ㅣog_type 설명은 무시하고 하기의 내용에 따라 재정리
 1. 현재 log_type 값을 3가지 독립적인 기능 축이 합쳐져 있음 
-| 축       | 가능한 값                          |
-|----------|------------------------------------|
-| date 모드 | `normal` / `date` / `date_prefix` |
-| line 모드 | `single` / `multiline`            |
-| 후처리    | (없음) / `extract_append`          |
+| 축       | 가능한 값                                            |
+|----------|---------------------------------------------------|
+| date 모드 | `normal` / `date` / `date_prefix` / `date_suffix` |
+| line 모드 | `single` / `multiline`                            |
+| 후처리    | (없음) / `extract_append`                           |
 
 2. 위의 조합에 따라 가능한 log_type 의 기능 축 조합은 다음과 같으며, 일부 조합 case 에서 빠져 있는 항목은, ARSAgent 에서 기능 제공이 안되어 빠져 있는 항목임
-| log_type                             | date        | line      | 후처리          |
-|--------------------------------------|-------------|-----------|-----------------|
-| `normal_single`                      | normal      | single    | -               |
-| `date_single`                        | date        | single    | -               |
-| `date_prefix_single`                | date_prefix | single    | -               |
-| `normal_single_extract_append`       | normal      | single    | extract_append  |
-| `date_single_extract_append`         | date        | single    | extract_append  |
-| `date_prefix_single_extract_append`  | date_prefix | single    | extract_append  |
-| `normal_multiline`                   | normal      | multiline | -               |
-| `date_multiline`                     | date        | multiline | -               |
-| `normal_multiline_extract_append`    | normal      | multiline | extract_append  |
-| `date_multiline_extract_append`      | date        | multiline | extract_append  |
+| # | log_type (3축 조합)                       | date        | line      | 후처리          | 구버전 ARSAgent log_type                    | VALID_LOG_TYPES |
+|---|-----------------------------------------|-------------|-----------|----------------|-------------------------------------------|-----------------|
+| 1 | `normal_single`                         | normal      | single    | -              |                                           |                 |
+| 2 | `normal_single_extract_append`          | normal      | single    | extract_append | `extract_append`                          |                 |
+| 3 | `normal_multiline`                      | normal      | multiline | -              |                                           |                 |
+| 4 | `normal_multiline_extract_append`       | normal      | multiline | extract_append |                                           | N/A             |
+| 5 | `date_single`                           | date        | single    | -              |                                           |                 |
+| 6 | `date_single_extract_append`            | date        | single    | extract_append |                                           |                 |
+| 7 | `date_multiline`                        | date        | multiline | -              |                                           |                 |
+| 8 | `date_multiline_extract_append`         | date        | multiline | extract_append |                                           | N/A             |
+| 9 | `date_prefix_single`                    | date_prefix | single    | -              | `date_prefix_normal_single`               |                 |
+| 10 | `date_prefix_single_extract_append`    | date_prefix | single    | extract_append | `date_prefix_normal_single_extract_append`|                 |
+| 11 | `date_prefix_multiline`                | date_prefix | multiline | -              |                                           | N/A             |
+| 12 | `date_prefix_multiline_extract_append` | date_prefix | multiline | extract_append |                                           | N/A             |
+| 13 | `date_suffix_single`                   | date_suffix | single    | -              | `date_suffix_normal_single`               |                 |
+| 14 | `date_suffix_single_extract_append`    | date_suffix | single    | extract_append | `date_suffix_normal_single_extract_append`|                 |
+| 15 | `date_suffix_multiline`                | date_suffix | multiline | -              |                                           | N/A             |
+| 16 | `date_suffix_multiline_extract_append` | date_suffix | multiline | extract_append |                                           | N/A             |
 
 3. 각 기능축에 대한 설명
 - normal : 일반적인 항목

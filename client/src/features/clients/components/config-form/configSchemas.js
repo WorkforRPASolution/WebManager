@@ -7,6 +7,8 @@
  * - ARSAgent.json: 트리거 ↔ 로그 소스 연결
  */
 
+import { isNewLogTypeVersion } from './versionUtils'
+
 // ── 파일 타입 감지 ──
 
 const FILE_TYPE_MAP = {
@@ -38,7 +40,8 @@ export function detectConfigFileType(fileName, filePath) {
 export const DATE_AXIS_OPTIONS = [
   { value: 'normal', label: '일반' },
   { value: 'date', label: '날짜별' },
-  { value: 'date_prefix', label: '날짜접두사' }
+  { value: 'date_prefix', label: '날짜접두사' },
+  { value: 'date_suffix', label: '날짜접미사' },
 ]
 
 export const LINE_AXIS_OPTIONS = [
@@ -51,40 +54,49 @@ export const POST_PROC_OPTIONS = [
   { value: 'extract_append', label: '추출-삽입' }
 ]
 
-// Valid 10 combinations lookup
-const VALID_LOG_TYPES = new Set([
-  'normal_single',
-  'date_single',
-  'date_prefix_single',
-  'normal_single_extract_append',
-  'date_single_extract_append',
-  'date_prefix_single_extract_append',
-  'normal_multiline',
-  'date_multiline',
-  'normal_multiline_extract_append',
-  'date_multiline_extract_append'
-])
+// ── LOG_TYPE_REGISTRY (매핑 테이블) ──
 
-export function decomposeLogType(logType) {
-  if (!logType || !VALID_LOG_TYPES.has(logType)) {
-    return { dateAxis: 'normal', lineAxis: 'single', postProc: 'none' }
-  }
+const LOG_TYPE_REGISTRY = [
+  { date: 'normal',      line: 'single',    postProc: 'none',           canonical: 'normal_single',                           oldName: null },
+  { date: 'normal',      line: 'single',    postProc: 'extract_append', canonical: 'normal_single_extract_append',             oldName: 'extract_append' },
+  { date: 'normal',      line: 'multiline', postProc: 'none',           canonical: 'normal_multiline',                        oldName: null },
+  { date: 'date',        line: 'single',    postProc: 'none',           canonical: 'date_single',                             oldName: null },
+  { date: 'date',        line: 'single',    postProc: 'extract_append', canonical: 'date_single_extract_append',              oldName: null },
+  { date: 'date',        line: 'multiline', postProc: 'none',           canonical: 'date_multiline',                          oldName: null },
+  { date: 'date_prefix', line: 'single',    postProc: 'none',           canonical: 'date_prefix_single',                      oldName: 'date_prefix_normal_single' },
+  { date: 'date_prefix', line: 'single',    postProc: 'extract_append', canonical: 'date_prefix_single_extract_append',       oldName: 'date_prefix_normal_single_extract_append' },
+  { date: 'date_suffix', line: 'single',    postProc: 'none',           canonical: 'date_suffix_single',                      oldName: 'date_suffix_normal_single' },
+  { date: 'date_suffix', line: 'single',    postProc: 'extract_append', canonical: 'date_suffix_single_extract_append',       oldName: 'date_suffix_normal_single_extract_append' },
+]
 
-  let dateAxis = 'normal'
-  if (logType.startsWith('date_prefix_')) dateAxis = 'date_prefix'
-  else if (logType.startsWith('date_')) dateAxis = 'date'
-
-  const lineAxis = logType.includes('multiline') ? 'multiline' : 'single'
-  const postProc = logType.includes('extract_append') ? 'extract_append' : 'none'
-
-  return { dateAxis, lineAxis, postProc }
+// 이름→항목 조회 (canonical + oldName 모두)
+const LOG_TYPE_NAME_MAP = new Map()
+for (const e of LOG_TYPE_REGISTRY) {
+  LOG_TYPE_NAME_MAP.set(e.canonical, e)
+  if (e.oldName) LOG_TYPE_NAME_MAP.set(e.oldName, e)
 }
 
-export function composeLogType({ dateAxis = 'normal', lineAxis = 'single', postProc = 'none' } = {}) {
-  const parts = [dateAxis, lineAxis]
-  if (postProc && postProc !== 'none') parts.push(postProc)
-  const result = parts.join('_')
-  return VALID_LOG_TYPES.has(result) ? result : 'normal_single'
+// 3축→항목 조회
+const LOG_TYPE_AXIS_MAP = new Map()
+for (const e of LOG_TYPE_REGISTRY) {
+  LOG_TYPE_AXIS_MAP.set(`${e.date}|${e.line}|${e.postProc}`, e)
+}
+
+export { LOG_TYPE_REGISTRY }
+
+export function decomposeLogType(logType) {
+  const entry = logType ? LOG_TYPE_NAME_MAP.get(logType) : null
+  if (!entry) return { dateAxis: 'normal', lineAxis: 'single', postProc: 'none' }
+  return { dateAxis: entry.date, lineAxis: entry.line, postProc: entry.postProc }
+}
+
+export function composeLogType({ dateAxis = 'normal', lineAxis = 'single', postProc = 'none' } = {}, { version } = {}) {
+  const entry = LOG_TYPE_AXIS_MAP.get(`${dateAxis}|${lineAxis}|${postProc}`)
+  if (!entry) return 'normal_single'
+  if (version && entry.oldName) {
+    return isNewLogTypeVersion(version) ? entry.canonical : entry.oldName
+  }
+  return entry.canonical
 }
 
 // ── 소스 네이밍 ──
@@ -252,7 +264,7 @@ export const ACCESS_LOG_SCHEMA = {
 
 // ── JSON 변환 함수 ──
 
-export function buildAccessLogOutput(source) {
+export function buildAccessLogOutput(source, { version } = {}) {
   const s = source || {}
   const axes = decomposeLogType(s.log_type)
   const result = {}
@@ -262,10 +274,22 @@ export function buildAccessLogOutput(source) {
   result.prefix = s.prefix || ''
   result.wildcard = s.wildcard || ''
   result.suffix = s.suffix || ''
-  result.log_type = s.log_type || 'normal_single'
+  // log_type 결정: 원본 보존 vs 버전 기반 compose
+  if (s._originalLogType) {
+    const originalAxes = decomposeLogType(s._originalLogType)
+    const currentAxes = { dateAxis: axes.dateAxis, lineAxis: axes.lineAxis, postProc: axes.postProc }
+    const axesChanged = (originalAxes.dateAxis !== currentAxes.dateAxis ||
+      originalAxes.lineAxis !== currentAxes.lineAxis ||
+      originalAxes.postProc !== currentAxes.postProc)
+    result.log_type = axesChanged
+      ? composeLogType(currentAxes, { version })
+      : s._originalLogType
+  } else {
+    result.log_type = composeLogType(axes, { version })
+  }
 
   // date_subdir_format: only when date axis is date or date_prefix AND not _omit
-  if ((axes.dateAxis === 'date' || axes.dateAxis === 'date_prefix') && s.date_subdir_format !== undefined && s._omit_date_subdir_format !== true) {
+  if (['date', 'date_prefix', 'date_suffix'].includes(axes.dateAxis) && s.date_subdir_format !== undefined && s._omit_date_subdir_format !== true) {
     result.date_subdir_format = s.date_subdir_format
   }
 
@@ -324,7 +348,7 @@ export function parseAccessLogInput(key, config) {
     purpose,
     ...ACCESS_LOG_SCHEMA.defaults,
     ...config,
-    // Ensure _omit flags
+    _originalLogType: config?.log_type || null,
     _omit_charset: !config?.charset,
     _omit_back: config?.back === undefined || config?.back === null,
     _omit_end: config?.end === undefined || config?.end === null,

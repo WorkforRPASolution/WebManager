@@ -55,7 +55,7 @@
       <!-- Remote Test -->
       <div v-if="eqpId" class="space-y-2 pt-2 border-t border-gray-100 dark:border-dark-border">
         <div class="flex items-center justify-between">
-          <label class="text-xs font-medium text-gray-600 dark:text-gray-400">원격 파일 확인 (FTP)</label>
+          <label class="text-xs font-medium text-gray-600 dark:text-gray-400">원격 파일 확인</label>
           <button
             type="button"
             class="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-teal-500 hover:bg-teal-600 rounded-lg transition"

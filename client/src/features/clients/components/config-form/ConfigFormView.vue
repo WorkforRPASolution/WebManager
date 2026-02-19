@@ -18,6 +18,7 @@
         :readOnly="readOnly"
         :eqpId="eqpId"
         :agentGroup="agentGroup"
+        :agentVersion="agentVersion"
         @update:modelValue="handleFormChange"
       />
       <TriggerForm
@@ -54,7 +55,8 @@ const props = defineProps({
   allContents: { type: Object, default: () => ({}) },
   configFiles: { type: Array, default: () => [] },
   eqpId: { type: String, default: '' },
-  agentGroup: { type: String, default: '' }
+  agentGroup: { type: String, default: '' },
+  agentVersion: { type: String, default: '' }
 })
 
 const emit = defineEmits(['update:content'])

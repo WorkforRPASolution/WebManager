@@ -153,12 +153,12 @@
           </FormField>
           <FormField label="라인 모드" description="로그 라인 처리 방식입니다.">
             <select :value="getAxis(source, 'lineAxis')" @change="updateAxis(idx, 'lineAxis', $event.target.value)" :disabled="readOnly" class="form-input">
-              <option v-for="opt in lineAxisOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              <option v-for="opt in getLineAxisOptions(source)" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
             </select>
           </FormField>
           <FormField label="후처리" description="로그 전달 전 추가 처리입니다.">
             <select :value="getAxis(source, 'postProc')" @change="updateAxis(idx, 'postProc', $event.target.value)" :disabled="readOnly" class="form-input">
-              <option v-for="opt in postProcOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              <option v-for="opt in getPostProcOptions(source)" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
             </select>
           </FormField>
         </div>
@@ -302,7 +302,8 @@ const props = defineProps({
   modelValue: { type: Object, default: () => ({}) },
   readOnly: { type: Boolean, default: false },
   eqpId: { type: String, default: '' },
-  agentGroup: { type: String, default: '' }
+  agentGroup: { type: String, default: '' },
+  agentVersion: { type: String, default: '' }
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -313,8 +314,20 @@ const draggingIdx = ref(-1)
 const dragOverIdx = ref(-1)
 
 const dateAxisOptions = DATE_AXIS_OPTIONS
-const lineAxisOptions = LINE_AXIS_OPTIONS
-const postProcOptions = POST_PROC_OPTIONS
+
+function getLineAxisOptions(source) {
+  const dateAxis = getAxis(source, 'dateAxis')
+  if (dateAxis === 'date_prefix' || dateAxis === 'date_suffix')
+    return LINE_AXIS_OPTIONS.filter(o => o.value === 'single')
+  return LINE_AXIS_OPTIONS
+}
+
+function getPostProcOptions(source) {
+  const lineAxis = getAxis(source, 'lineAxis')
+  if (lineAxis === 'multiline')
+    return POST_PROC_OPTIONS.filter(o => o.value === 'none')
+  return POST_PROC_OPTIONS
+}
 
 // Object -> Array conversion with schema parsing
 const sources = computed(() => {
@@ -327,6 +340,7 @@ const sources = computed(() => {
       purpose,
       ...ACCESS_LOG_SCHEMA.defaults,
       ...config,
+      _originalLogType: config.log_type || null,
       _omit_charset: !config.charset,
       _omit_back: config.back === undefined || config.back === null,
       _omit_end: config.end === undefined || config.end === null,
@@ -352,7 +366,14 @@ function updateAxis(idx, axis, value) {
   const source = sources.value[idx]
   const current = decomposeLogType(source.log_type)
   current[axis] = value
-  const newLogType = composeLogType(current)
+
+  // 불가능한 조합 자동 보정
+  if ((current.dateAxis === 'date_prefix' || current.dateAxis === 'date_suffix') && current.lineAxis === 'multiline')
+    current.lineAxis = 'single'
+  if (current.lineAxis === 'multiline' && current.postProc === 'extract_append')
+    current.postProc = 'none'
+
+  const newLogType = composeLogType(current, { version: props.agentVersion })
   // When switching to/from date modes, auto-manage _omit_date_subdir_format
   if (axis === 'dateAxis') {
     const updated = sources.value.map((s, i) => i === idx
@@ -407,9 +428,9 @@ function emitUpdate(newSources) {
   const obj = {}
   for (const source of newSources) {
     const key = source.name || '(unnamed)'
-    const { name, baseName, purpose, _omit_charset, _omit_back, _omit_end, _omit_date_subdir_format, _customCharset, ...rest } = source
+    const { name, baseName, purpose, _omit_charset, _omit_back, _omit_end, _omit_date_subdir_format, _customCharset, _originalLogType, ...rest } = source
     // Build clean output using buildAccessLogOutput
-    const output = buildAccessLogOutput({ ...rest, name: key, _omit_charset, _omit_back, _omit_end, _omit_date_subdir_format })
+    const output = buildAccessLogOutput({ ...rest, name: key, _omit_charset, _omit_back, _omit_end, _omit_date_subdir_format, _originalLogType }, { version: props.agentVersion })
     // If charset is __custom__, use the custom value
     if (rest.charset === '__custom__' && _customCharset && !_omit_charset) {
       output.charset = _customCharset

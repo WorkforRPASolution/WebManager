@@ -12,7 +12,8 @@ import {
   TRIGGER_SCHEMA,
   DATE_AXIS_OPTIONS,
   LINE_AXIS_OPTIONS,
-  POST_PROC_OPTIONS
+  POST_PROC_OPTIONS,
+  LOG_TYPE_REGISTRY
 } from '../configSchemas'
 
 // ===========================================================================
@@ -22,19 +23,27 @@ import {
 describe('decomposeLogType', () => {
   const cases = [
     ['normal_single', { dateAxis: 'normal', lineAxis: 'single', postProc: 'none' }],
-    ['date_single', { dateAxis: 'date', lineAxis: 'single', postProc: 'none' }],
-    ['date_prefix_single', { dateAxis: 'date_prefix', lineAxis: 'single', postProc: 'none' }],
     ['normal_single_extract_append', { dateAxis: 'normal', lineAxis: 'single', postProc: 'extract_append' }],
-    ['date_single_extract_append', { dateAxis: 'date', lineAxis: 'single', postProc: 'extract_append' }],
-    ['date_prefix_single_extract_append', { dateAxis: 'date_prefix', lineAxis: 'single', postProc: 'extract_append' }],
     ['normal_multiline', { dateAxis: 'normal', lineAxis: 'multiline', postProc: 'none' }],
+    ['date_single', { dateAxis: 'date', lineAxis: 'single', postProc: 'none' }],
+    ['date_single_extract_append', { dateAxis: 'date', lineAxis: 'single', postProc: 'extract_append' }],
     ['date_multiline', { dateAxis: 'date', lineAxis: 'multiline', postProc: 'none' }],
-    ['normal_multiline_extract_append', { dateAxis: 'normal', lineAxis: 'multiline', postProc: 'extract_append' }],
-    ['date_multiline_extract_append', { dateAxis: 'date', lineAxis: 'multiline', postProc: 'extract_append' }]
+    ['date_prefix_single', { dateAxis: 'date_prefix', lineAxis: 'single', postProc: 'none' }],
+    ['date_prefix_single_extract_append', { dateAxis: 'date_prefix', lineAxis: 'single', postProc: 'extract_append' }],
+    ['date_suffix_single', { dateAxis: 'date_suffix', lineAxis: 'single', postProc: 'none' }],
+    ['date_suffix_single_extract_append', { dateAxis: 'date_suffix', lineAxis: 'single', postProc: 'extract_append' }],
   ]
 
   it.each(cases)('decomposes "%s" correctly', (logType, expected) => {
     expect(decomposeLogType(logType)).toEqual(expected)
+  })
+
+  it('recognizes old names (구버전 이름)', () => {
+    expect(decomposeLogType('extract_append')).toEqual({ dateAxis: 'normal', lineAxis: 'single', postProc: 'extract_append' })
+    expect(decomposeLogType('date_prefix_normal_single')).toEqual({ dateAxis: 'date_prefix', lineAxis: 'single', postProc: 'none' })
+    expect(decomposeLogType('date_prefix_normal_single_extract_append')).toEqual({ dateAxis: 'date_prefix', lineAxis: 'single', postProc: 'extract_append' })
+    expect(decomposeLogType('date_suffix_normal_single')).toEqual({ dateAxis: 'date_suffix', lineAxis: 'single', postProc: 'none' })
+    expect(decomposeLogType('date_suffix_normal_single_extract_append')).toEqual({ dateAxis: 'date_suffix', lineAxis: 'single', postProc: 'extract_append' })
   })
 
   it('returns defaults for undefined/null', () => {
@@ -46,18 +55,17 @@ describe('decomposeLogType', () => {
     expect(decomposeLogType('rolling')).toEqual({ dateAxis: 'normal', lineAxis: 'single', postProc: 'none' })
     expect(decomposeLogType('static')).toEqual({ dateAxis: 'normal', lineAxis: 'single', postProc: 'none' })
   })
+
+  it('returns defaults for removed types (multiline + extract_append)', () => {
+    expect(decomposeLogType('normal_multiline_extract_append')).toEqual({ dateAxis: 'normal', lineAxis: 'single', postProc: 'none' })
+    expect(decomposeLogType('date_multiline_extract_append')).toEqual({ dateAxis: 'normal', lineAxis: 'single', postProc: 'none' })
+  })
 })
 
 describe('composeLogType', () => {
-  it('roundtrip: 10 valid log types decompose and recompose correctly', () => {
-    const types = [
-      'normal_single', 'date_single', 'date_prefix_single',
-      'normal_single_extract_append', 'date_single_extract_append', 'date_prefix_single_extract_append',
-      'normal_multiline', 'date_multiline',
-      'normal_multiline_extract_append', 'date_multiline_extract_append'
-    ]
-    for (const t of types) {
-      expect(composeLogType(decomposeLogType(t))).toBe(t)
+  it('roundtrip: all 10 registry entries decompose and recompose correctly', () => {
+    for (const entry of LOG_TYPE_REGISTRY) {
+      expect(composeLogType(decomposeLogType(entry.canonical))).toBe(entry.canonical)
     }
   })
 
@@ -66,9 +74,43 @@ describe('composeLogType', () => {
     expect(composeLogType({})).toBe('normal_single')
   })
 
-  it('returns normal_single for invalid combination (date_prefix_multiline_extract_append is valid)', () => {
-    // date_prefix + multiline without extract_append is NOT a valid combination
+  it('returns normal_single for invalid combinations', () => {
+    // date_prefix + multiline
     expect(composeLogType({ dateAxis: 'date_prefix', lineAxis: 'multiline', postProc: 'none' })).toBe('normal_single')
+    // date_suffix + multiline
+    expect(composeLogType({ dateAxis: 'date_suffix', lineAxis: 'multiline', postProc: 'none' })).toBe('normal_single')
+    // multiline + extract_append
+    expect(composeLogType({ dateAxis: 'normal', lineAxis: 'multiline', postProc: 'extract_append' })).toBe('normal_single')
+  })
+
+  it('returns old name when version is old and oldName exists', () => {
+    expect(composeLogType({ dateAxis: 'normal', lineAxis: 'single', postProc: 'extract_append' }, { version: '6.8.5.24' }))
+      .toBe('extract_append')
+    expect(composeLogType({ dateAxis: 'date_prefix', lineAxis: 'single', postProc: 'none' }, { version: '6.0.0.0' }))
+      .toBe('date_prefix_normal_single')
+    expect(composeLogType({ dateAxis: 'date_suffix', lineAxis: 'single', postProc: 'none' }, { version: '6.8.0.0' }))
+      .toBe('date_suffix_normal_single')
+  })
+
+  it('returns canonical name when version is new and oldName exists', () => {
+    expect(composeLogType({ dateAxis: 'normal', lineAxis: 'single', postProc: 'extract_append' }, { version: '7.0.0.0' }))
+      .toBe('normal_single_extract_append')
+    expect(composeLogType({ dateAxis: 'date_prefix', lineAxis: 'single', postProc: 'none' }, { version: '7.1.0.0' }))
+      .toBe('date_prefix_single')
+  })
+
+  it('returns canonical name when version is not provided', () => {
+    expect(composeLogType({ dateAxis: 'normal', lineAxis: 'single', postProc: 'extract_append' }))
+      .toBe('normal_single_extract_append')
+    expect(composeLogType({ dateAxis: 'date_prefix', lineAxis: 'single', postProc: 'none' }))
+      .toBe('date_prefix_single')
+  })
+
+  it('returns canonical name when entry has no oldName', () => {
+    expect(composeLogType({ dateAxis: 'normal', lineAxis: 'single', postProc: 'none' }, { version: '6.0.0.0' }))
+      .toBe('normal_single')
+    expect(composeLogType({ dateAxis: 'date', lineAxis: 'single', postProc: 'none' }, { version: '6.0.0.0' }))
+      .toBe('date_single')
   })
 })
 
@@ -158,9 +200,9 @@ describe('ACCESS_LOG_SCHEMA', () => {
 // ===========================================================================
 
 describe('axis options', () => {
-  it('DATE_AXIS_OPTIONS has 3 options', () => {
-    expect(DATE_AXIS_OPTIONS).toHaveLength(3)
-    expect(DATE_AXIS_OPTIONS.map(o => o.value)).toEqual(['normal', 'date', 'date_prefix'])
+  it('DATE_AXIS_OPTIONS has 4 options including date_suffix', () => {
+    expect(DATE_AXIS_OPTIONS).toHaveLength(4)
+    expect(DATE_AXIS_OPTIONS.map(o => o.value)).toEqual(['normal', 'date', 'date_prefix', 'date_suffix'])
   })
 
   it('LINE_AXIS_OPTIONS has 2 options', () => {
@@ -169,6 +211,31 @@ describe('axis options', () => {
 
   it('POST_PROC_OPTIONS has 2 options', () => {
     expect(POST_PROC_OPTIONS).toHaveLength(2)
+  })
+})
+
+// ===========================================================================
+// LOG_TYPE_REGISTRY
+// ===========================================================================
+
+describe('LOG_TYPE_REGISTRY', () => {
+  it('has exactly 10 entries', () => {
+    expect(LOG_TYPE_REGISTRY).toHaveLength(10)
+  })
+
+  it('all canonical names are unique', () => {
+    const names = LOG_TYPE_REGISTRY.map(e => e.canonical)
+    expect(new Set(names).size).toBe(names.length)
+  })
+
+  it('does not contain multiline + extract_append combinations', () => {
+    const multilineEA = LOG_TYPE_REGISTRY.filter(e => e.line === 'multiline' && e.postProc === 'extract_append')
+    expect(multilineEA).toHaveLength(0)
+  })
+
+  it('contains date_suffix entries', () => {
+    const dateSuffix = LOG_TYPE_REGISTRY.filter(e => e.date === 'date_suffix')
+    expect(dateSuffix).toHaveLength(2)
   })
 })
 
@@ -316,6 +383,50 @@ describe('buildAccessLogOutput', () => {
     expect(out).toHaveProperty('wildcard')
     expect(out.wildcard).toBe('')
   })
+
+  it('date_suffix with date_subdir_format — includes date_subdir_format', () => {
+    const source = {
+      name: '__TestLog__',
+      directory: 'C:/logs',
+      log_type: 'date_suffix_single',
+      date_subdir_format: 'yyyyMMdd'
+    }
+    const out = buildAccessLogOutput(source)
+    expect(out.date_subdir_format).toBe('yyyyMMdd')
+  })
+
+  it('preserves _originalLogType when axes unchanged', () => {
+    const source = {
+      name: '__TestLog__',
+      directory: 'C:/logs',
+      log_type: 'extract_append',
+      _originalLogType: 'extract_append'
+    }
+    const out = buildAccessLogOutput(source)
+    expect(out.log_type).toBe('extract_append')
+  })
+
+  it('uses version-based compose when axes changed from original', () => {
+    const source = {
+      name: '__TestLog__',
+      directory: 'C:/logs',
+      log_type: 'date_single',
+      _originalLogType: 'extract_append'
+    }
+    const out = buildAccessLogOutput(source, { version: '6.8.0.0' })
+    expect(out.log_type).toBe('date_single')
+  })
+
+  it('uses version-based old name when axes changed and version is old', () => {
+    const source = {
+      name: '__TestLog__',
+      directory: 'C:/logs',
+      log_type: 'normal_single_extract_append',
+      _originalLogType: 'normal_single'
+    }
+    const out = buildAccessLogOutput(source, { version: '6.8.0.0' })
+    expect(out.log_type).toBe('extract_append')
+  })
 })
 
 // ===========================================================================
@@ -354,6 +465,16 @@ describe('parseAccessLogInput', () => {
     expect(result.log_type).toBe('date_multiline')
     expect(result.startPattern).toBe('.*START.*')
     expect(result.suffix).toBe('.txt') // from defaults
+  })
+
+  it('stores _originalLogType from config', () => {
+    const result = parseAccessLogInput('__Test__', { directory: 'C:/logs', log_type: 'extract_append' })
+    expect(result._originalLogType).toBe('extract_append')
+  })
+
+  it('stores null _originalLogType when log_type not in config', () => {
+    const result = parseAccessLogInput('__Test__', { directory: 'C:/logs' })
+    expect(result._originalLogType).toBeNull()
   })
 })
 
