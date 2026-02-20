@@ -491,8 +491,9 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
     ],
     "limitation": {
       "times": number,
-      "duration": "duration string" 
-    }
+      "duration": "duration string"
+    },
+    "class": "string"  // 선택 항목 (MULTI / none)
   }
 }
 ```
@@ -579,9 +580,11 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 
 ---
 추가 설명
-1. `syntax` 에서는 정규 표현식을 사용하는데, 정규 표현식에서 `()` 을 사용하여 group 을 하면 추출을 의미한다. 
+1. `syntax` 에서는 정규 표현식을 사용하는데, 정규 표현식에서 `()` 을 사용하여 group 을 하면 추출을 의미한다.
  - 이때 추출된 값은 trigger 에서 변수로 사용되는데 변수면은 `()` 내부에 추출되는 정규표현식에 `<<[변수명>>` 와 같이 접두사로 표현한다.
    예시) `"syntax": ".*ERROR.*TIMEOUT: (<<duration>>[0-9]+).*"` -> [0-9]+ 로 추출된 값을 duration 에 저장
+2. `class: "MULTI"` 설정 시, 이전 step 에서 `<<변수명>>` 문법으로 추출된 값을 이후 step 의 syntax 에서 `@<<변수명>>@` 문법으로 참조할 수 있다. `@<<변수명>>@` 는 실행 시점에 추출된 값으로 치환된다.
+   예시) step_01 의 syntax `".* error occur. code: (<<code>>[_A-z0-9]+).*"` 에서 code=1234 가 추출되면, step_02 의 syntax `".* error reset. code: @<<code>>@.*"` 는 `".* error reset. code: 1234.*"` 로 치환되어 매칭
 ---
 
 
@@ -756,6 +759,79 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 | 기본값 | `"1 minutes"` |
 | 설명 | 트리거 발동 횟수 제한이 적용되는 기간 |
 
+---
+
+### 5.8 class 필드 (선택)
+
+트리거에 `class` 필드를 추가하여 다중 인스턴스 체인 추적 기능을 활성화합니다. 선택 항목으로, 설정하지 않으면 기존 동작과 동일합니다.
+
+#### `class`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | (미설정 — JSON에 포함하지 않음) |
+| 허용값 | `"MULTI"`, `"none"` |
+| 설명 | 이전 step 에서 추출된 데이터를 캡처값별로 독립 저장 후, 이후 step 에서 `@<<변수명>>@` 참조로 치환하여 캡처값별 독립 체인을 추적 |
+
+| 값 | 동작 |
+|----|------|
+| `"MULTI"` | 다중 인스턴스 추적 기능 사용 |
+| `"none"` | 기능 미사용 (미설정과 동일) |
+
+---
+추가 설명
+1. `class` 의 용도: 이전 step 에서 추출된 data 를 여러개 임시 저장 후, 이후 step 의 log 매칭 여부 확인 시 텍스트로 치환하여 활용하기 위한 설정
+2. `class` 설정 시 step_01 의 syntax 에서 `(<<변수명>>패턴)` 문법으로 값을 캡처하고, 이후 step 에서 `@<<변수명>>@` 로 참조한다
+3. 캡처된 값별로 독립적인 체인 인스턴스가 생성되어 각각 독립적으로 step 진행/타임아웃/취소가 처리된다
+4. 시나리오 예시 (step_01: regex, step_02: delay):
+   ```
+   1) 14:10:00 error occur. code: 1234
+      → data (1234) 저장. step_02 로 이동.
+        step_02 syntax: ".* error reset. code: @<<code>>@.*" → ".* error reset. code: 1234.*" 로 치환
+   2) 14:11:00 error occur. code: 4567
+      → data (4567) 저장. step_02 로 이동.
+        step_02 syntax: ".* error reset. code: @<<code>>@.*" → ".* error reset. code: 4567.*" 로 치환
+   3) 14:12:00 error reset. code: 7890
+      → 저장된 data 중 7890 없음. 아무 동작 안함
+   4) 14:13:00 error reset. code: 4567
+      → 4567 매칭. delay type 이므로 4567 에 대한 체인 취소 (리셋)
+   5) 14:20:00 이후 reset log 미발생
+      → 1234 가 step_02 에서 duration timeout → @recovery 실행. 1234 체인 종료
+   ```
+5. 위의 시나리오는 마지막 step 이 delay 의 경우의 예시이며, regex step 도 사용 가능하다
+
+#### 설정 예시
+
+```json
+{
+  "MULTI_TRIGGER": {
+    "source": "__LogReadInfo__",
+    "recipe": [
+      {
+        "name": "step_01",
+        "type": "regex",
+        "trigger": [{"syntax": ".* error occur. code: (<<code>>[_A-z0-9]+).*"}],
+        "duration": "",
+        "times": 1,
+        "next": "step_02"
+      },
+      {
+        "name": "step_02",
+        "type": "delay",
+        "trigger": [{"syntax": ".* error reset. code: @<<code>>@.*"}],
+        "duration": "10 minutes",
+        "times": 1,
+        "next": "@recovery"
+      }
+    ],
+    "limitation": {
+      "times": 1,
+      "duration": "1 minutes"
+    },
+    "class": "MULTI"
+  }
+}
+```
 ---
 
 ## 6. ARSAgent.json
