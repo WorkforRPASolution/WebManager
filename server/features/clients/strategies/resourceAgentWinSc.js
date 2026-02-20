@@ -8,7 +8,7 @@
  *   - start/stop: net 명령 사용 (동기 — 실제 상태 변경까지 대기)
  *   - status: sc query 사용
  *
- * [Log Tail] getTailCommand(filePath, lines)
+ * [Log Tail] getTailCommand(filePath, lines, basePath)
  *   - logService.js에서 호출 — 런타임 인자(파일경로, 줄 수)가 필요하여 별도 메서드
  *
  * [BasePath Detection] getDetectBasePathCommand() + parseBasePath(rpcResult)
@@ -110,8 +110,9 @@ module.exports = {
   },
 
   // --- Log Tail (logService.js) ---
-  getTailCommand(filePath, lines) {
-    return { commandLine: 'powershell', args: ['-Command', `Get-Content '${filePath}' -Tail ${lines} -Encoding UTF8`], timeout: 10000 }
+  getTailCommand(filePath, lines, basePath) {
+    const tailBin = basePath ? `${basePath}/utils/tail` : 'tail'
+    return { commandLine: tailBin, args: ['-n', String(lines), filePath], timeout: 10000 }
   },
 
   // --- BasePath Detection (controlService.js) ---

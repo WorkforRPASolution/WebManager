@@ -125,7 +125,7 @@ async function tailLogStream(targets, onData, signal) {
         
         let commandLine, args
         if (strategy && strategy.getTailCommand) {
-          const tailCmd = strategy.getTailCommand(fullPath, LOG_TAIL_BATCH_LINES)
+          const tailCmd = strategy.getTailCommand(fullPath, LOG_TAIL_BATCH_LINES, currentBasePath)
           commandLine = tailCmd.commandLine
           args = tailCmd.args
         } else {
