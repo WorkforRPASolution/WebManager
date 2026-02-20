@@ -96,6 +96,38 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 
 감지 로직: 파일 표시명(`fileName`) 우선 체크 → 실패 시 경로의 basename(`filePath`) 체크
 
+### 3.4 정규 표현식 매칭 방식
+
+Config 파일의 정규 표현식 필드는 ARSAgent 내부 구현에 따라 **전체 매칭** 또는 **부분 매칭**으로 나뉩니다.
+
+- **전체 매칭(full-match)**: Java `String.matches()` 또는 Scala `case pattern() =>`을 사용. 내부적으로 `java.util.regex.Matcher.matches()`가 호출되어 문자열 **전체**가 패턴과 일치해야 합니다. 부분 매칭이 필요하면 `.*패턴.*` 형태로 작성해야 합니다.
+- **부분 매칭(partial-match)**: 문자열 내에서 패턴에 해당하는 부분을 **검색/추출**합니다.
+
+#### 전체 매칭 필드 (5개)
+
+| 파일 | 필드 | 용도 | ARSAgent 구현 |
+|------|------|------|---------------|
+| AccessLog.json | `start_pattern` | 멀티라인 시작 감지 | Scala `case start_pattern() =>` |
+| AccessLog.json | `end_pattern` | 멀티라인 종료 감지 | Scala `case end_pattern() =>` |
+| AccessLog.json | `pathPattern` | 파일 경로에서 데이터 추출 여부 판정 | 경로 전체 매칭 후 그룹 추출 |
+| AccessLog.json | `line_group_pattern` | 그룹 대상 라인 필터 | Java `String.matches()` |
+| trigger.json | `syntax` | 로그 라인 패턴 매칭 | Java `String.matches()` |
+
+#### 부분 매칭 필드 (1개)
+
+| 파일 | 필드 | 용도 | ARSAgent 구현 |
+|------|------|------|---------------|
+| AccessLog.json | `log_time_pattern` | 로그 라인에서 시간 문자열 추출 | 라인 내 검색 후 추출 |
+
+> `log_time_pattern`은 라인의 대상 여부를 판별하는 것이 아니라, 라인 안에서 시간 문자열을 **찾아서 추출**하는 용도이므로 부분 매칭입니다.
+
+#### 비-정규식 필드 (참고)
+
+| 파일 | 필드 | 매칭 방식 |
+|------|------|-----------|
+| AccessLog.json | `prefix` / `suffix` / `wildcard` / `exclude_suffix` | 파일명 문자열 비교 |
+| AccessLog.json | `log_time_format` / `date_subdir_format` | Joda datetime 포맷 (정규식 아님) |
+
 ---
 
 ## 4. AccessLog.json
@@ -125,7 +157,11 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
     "line_count": number,
     "priority": "string",
     "pathPattern": "string",
-    "appendPos": "string"
+    "appendPos": "string",
+    "log_time_pattern": "string",
+    "log_time_format": "string (joda datetime format)",
+    "line_group_count": number,
+    "line_group_pattern": "string"
   }
 }
 ```
@@ -383,6 +419,7 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 ---
 추가 설명
 1. start_pattern 은 log_type 에 `multiline` 이 포함되어 있어야만 입력 활성화
+2. **전체 매칭(full-match)**: ARSAgent의 Scala 코드에서 `start_pattern.r`을 패턴 매칭(`case start_pattern() =>`)으로 사용하므로, 내부적으로 `java.util.regex.Matcher.matches()` (전체 문자열 매칭)가 적용됨. 따라서 로그 라인 전체가 패턴과 일치해야 함. 부분 매칭이 필요하면 `.*패턴.*` 형태로 작성해야 함.
 ---
 
 #### `end_pattern`
@@ -396,6 +433,7 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 ---
 추가 설명
 1. end_pattern 은 log_type 에 `multiline` 이 포함되어 있어야만 입력 활성화
+2. **전체 매칭(full-match)**: ARSAgent의 Scala 코드에서 `end_pattern.r`을 패턴 매칭(`case end_pattern() =>`)으로 사용하므로, 내부적으로 `java.util.regex.Matcher.matches()` (전체 문자열 매칭)가 적용됨. 따라서 로그 라인 전체가 패턴과 일치해야 함. 부분 매칭이 필요하면 `.*패턴.*` 형태로 작성해야 함.
 ---
 
 #### `line_count`
@@ -436,6 +474,7 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 ---
 추가 설명
 1. pathPattern 은 log_type 에 `extract_append` 이 포함되어 있어야만 입력 활성화
+2. **전체 매칭(full-match)**: ARSAgent에서 파일 경로 전체가 패턴과 일치해야 추출이 수행됨. 부분 매칭이 필요하면 `.*패턴.*` 형태로 작성해야 함. 예시의 `".*Log\\([0-9]+)\\..."` 처럼 앞뒤에 `.*`를 포함하는 이유가 이 때문임.
 ---
 
 #### `appendPos`
@@ -462,6 +501,62 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 ---
 추가 설명
 1. appendFormat 은 log_type 에 `extract_append` 이 포함되어 있어야만 입력 활성화
+---
+
+#### `log_time_pattern`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `""` |
+| 설명 | log 의 시간 값을 확인하기 위한 정규 표현식 패턴.  |
+| 예시 | `"[0-9]+-[0-9]+-[0-9]+ [0-9]+:[0-9]+:[0-9]+.[0-9]+"` |
+
+#### `log_time_format`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string (joda datetime format)` |
+| 기본값 | `""` |
+| 설명 | `log_time_pattern` 으로 추출한 시간 String 을 시간 값으로 변환하기 위한 format |
+| 예시 | `"yyyy-MM-dd HH:mm:ss.SSS"` |
+
+---
+추가 설명
+1. `log_time_pattern`, `log_time_format` 은 ARSAgent 가 log 를 중복으로 처리하지 않게 하기 위해 log 의 시간을 산출하여 이전 시간의 log 를 처리하게 않게 하기 위해 사용
+2. `log_time_pattern`, `log_time_format` 은 선택적으로 입력 가능하며, 입력을 할 경우 2개 항목을 모두 입력하여야 함
+3. `log_time_pattern` 로 추출한 시간 텍스트를 `log_time_format` 으로 시간 값으로 변환하여 바로 이전 log 시간(last read load time) 보다 이전 시간으 log 일 경우 trigger 로 log 를 전송하지 않음.
+    바로 이전 log 의 시간과 같을 경우 trigger 로 log 를 전송. 
+    바로 이전 log 시간 이후의 log 일 경우, trigger 로 log 전 송 후, 바로 이전 log 시간을 현재 log 의 시간으로 갱신
+---
+
+#### `line_group_count`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `number` |
+| 기본값 | `"1"` |
+| 설명 | log 를 한꺼번에 보내기 위해 한줄로 저장하는 log 라인 수  |
+
+---
+추가 설명
+1. `line_group_count` 은 log 를 batch 로 처리하여 AccessLog to trigger 전송 오버헤드를 줄이기 위해 선택적으로 사용
+2. Log Trigger 용 에서만 선택하여 입력할 수 있음. 기본은 UI 에서 선택안됨 상태. 선택할 경우 기본값 1
+3. 설정한 count 에 도달할때 까지 log 라인의 줄바꿈 문자를 LogLineSepator(`"<<EOL>>"`) 로 변경하여 한 개 라인으로 변환하여 저장
+4. 설정한 coutn 에 도달한 group line trigger 로 전송 후 초기화
+---
+
+#### `line_group_pattern`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `""` |
+| 설명 | `line_group_count` 에 의해 group line 으로 만들 log 를 지정하는 정규 표현식 패턴 |
+| 예시 | `".*group data:[0-9]+.*"` |
+
+---
+추가 설명
+1. `line_group_count` 가 0 보다 크게 설정되어 있을 경우에만 사용
+2. `line_group_pattern` 이 설정되어 있지 않을 경우(기본값 상태) 모든 log 가 group line 대상
+3. `line_group_pattern` 이 설정되어 있을 경우, 전체 문자열이 정규표현식과 일치해야 group line 대상이 되어 한개 라인으로 변환
+4. **전체 매칭(full-match)**: ARSAgent는 Java `String.matches()`를 사용하여 패턴을 검사함. `String.matches()`는 암묵적으로 `^pattern$`과 동일하게 동작하므로, 로그 라인 전체가 패턴과 일치해야 매칭됨. 예) 패턴 `".*line"` → `"line 1"`은 미매칭 (끝이 "line"이 아님), `"line 1".matches(".*line.*")` → 매칭
 ---
 
 ## 5. trigger.json
@@ -580,7 +675,8 @@ WebManager Form View에서 파일명으로 타입을 판별합니다 (대소문�
 
 ---
 추가 설명
-1. `syntax` 에서는 정규 표현식을 사용하는데, 정규 표현식에서 `()` 을 사용하여 group 을 하면 추출을 의미한다.
+1. **전체 매칭(full-match)**: `syntax`의 정규 표현식은 ARSAgent에서 Java `String.matches()`로 검사됨. `String.matches()`는 암묵적으로 `^pattern$`과 동일하게 동작하므로, 로그 라인 전체가 패턴과 일치해야 매칭됨. 예) 패턴 `".*ERROR"` → `"ERROR occurred"`는 미매칭 (끝이 "ERROR"가 아님), `".*ERROR.*"` → 매칭
+2. `syntax` 에서는 정규 표현식을 사용하는데, 정규 표현식에서 `()` 을 사용하여 group 을 하면 추출을 의미한다.
  - 이때 추출된 값은 trigger 에서 변수로 사용되는데 변수면은 `()` 내부에 추출되는 정규표현식에 `<<[변수명>>` 와 같이 접두사로 표현한다.
    예시) `"syntax": ".*ERROR.*TIMEOUT: (<<duration>>[0-9]+).*"` -> [0-9]+ 로 추출된 값을 duration 에 저장
 2. `class: "MULTI"` 설정 시, 이전 step 에서 `<<변수명>>` 문법으로 추출된 값을 이후 step 의 syntax 에서 `@<<변수명>>@` 문법으로 참조할 수 있다. `@<<변수명>>@` 는 실행 시점에 추출된 값으로 치환된다.
@@ -924,7 +1020,6 @@ trigger.json script의 `no-email` 필드는 키에 하이픈을 포함합니다.
 ## 8. 전체 예시
 
 ### 8.1 AccessLog.json 예시
-
 ```json
 {
   "__LogReadInfo__": {
@@ -999,14 +1094,60 @@ trigger.json script의 `no-email` 필드는 키에 하이픈을 포함합니다.
 
 ```json
 {
+  "VirtualAddressList": "",
+  "AliveSignalInterval": "5 minutes",
+  "RedisPingInterval": "5 minutes",
+  "IsSendAgentStatus2Redis": false,
+  "AgentPort4RPC": 50100,
+  "AgentPort4ScreenProtector": 32126,
+  "ScenarioCheckInterval": "1 seconds",
+  "UpdateServerAddressInterval": "100 minutes",
+  "IgnoreEventBetweenTime": "300 milliseconds",
+  "TransferImagerInterval": "5 seconds",
+  "IsStandAloneMode": false,
+  "IsSnapshotRecordingOn": true,
+  "IsSnapshotRecordingDuringRecovery": false,
+  "SnapshotFormat": "png",
+  "InformDialogSize": "800:280",
+  "MouseEventDelay": 100,
+  "MouseEventDelayDoubleClick": 50,
+  "CpuMonitoringInterval": "2 minutes",
+  "MemMonitoringInterval": "10 minutes",
+  "TotalCpuPercentLimit": 90,
+  "AgentCpuPercentLimit": 20,
+  "FileChangeMonitorInterval": "10 seconds",
+  "UseUploadLog": true,
+  "ResourceMonitorInterval": "2 minutes",
+  "PopupSrcLocalMode": true,
+  "UseDataBackup": false,
+  "UseRouter": false,
+  "PrivateIPAddressPattern": "",
   "ErrorTrigger": [
     {"alid": "LIMITATION_TEST"}
   ],
   "AccessLogLists": [
     "__LogReadInfo__"
-  ]
+  ],
+  "CronTab": [
+    {
+      "name": "CronTab_Test",
+      "type": "AR",
+      "arg": "arg1;arg2",
+      "no-email": "success;fail",
+      "key": 1,
+      "timeout": "30 seconds",
+      "retry": "3 minutes"
+
+    }
+  ],
+  "ShowEQPLog": false,
+  "VisionType": "thrift/grpc",
+  "CommandType": "http/grpc"
 }
 ```
+
+
+### 4 ARSAgent.json CronTab 예시
 
 ---
 

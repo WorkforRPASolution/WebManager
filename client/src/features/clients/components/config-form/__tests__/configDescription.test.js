@@ -319,6 +319,63 @@ describe('describeAccessLog', () => {
     })
   })
 
+  // --- Log time filter description ---
+  describe('log time filter', () => {
+    it('log_time_pattern + log_time_format → "시간 필터" line', () => {
+      const result = describeAccessLog({
+        directory: '/d',
+        log_time_pattern: '[0-9]{2}:[0-9]{2}:[0-9]{2}',
+        log_time_format: 'HH:mm:ss'
+      })
+      expect(result).toContain('시간 필터:')
+      expect(result).toContain('[0-9]{2}:[0-9]{2}:[0-9]{2}')
+      expect(result).toContain('HH:mm:ss')
+    })
+
+    it('log_time_pattern only → shows pattern without format', () => {
+      const result = describeAccessLog({
+        directory: '/d',
+        log_time_pattern: '\\d{2}:\\d{2}:\\d{2}'
+      })
+      expect(result).toContain('시간 필터:')
+      expect(result).toContain('\\d{2}:\\d{2}:\\d{2}')
+    })
+
+    it('no log_time fields → no 시간 필터 line', () => {
+      const result = describeAccessLog({ directory: '/d' })
+      expect(result).not.toContain('시간 필터')
+    })
+  })
+
+  // --- Line group description ---
+  describe('line group', () => {
+    it('line_group_count → "라인 그룹" line', () => {
+      const result = describeAccessLog({
+        directory: '/d',
+        line_group_count: 3
+      })
+      expect(result).toContain('라인 그룹:')
+      expect(result).toContain('3줄')
+      expect(result).toContain('<<EOL>>')
+    })
+
+    it('line_group_count + line_group_pattern → shows pattern', () => {
+      const result = describeAccessLog({
+        directory: '/d',
+        line_group_count: 5,
+        line_group_pattern: '.*ERROR.*'
+      })
+      expect(result).toContain('라인 그룹:')
+      expect(result).toContain('5줄')
+      expect(result).toContain('대상: ".*ERROR.*"')
+    })
+
+    it('no line_group fields → no 라인 그룹 line', () => {
+      const result = describeAccessLog({ directory: '/d' })
+      expect(result).not.toContain('라인 그룹')
+    })
+  })
+
   // --- Purpose display ---
   describe('purpose display', () => {
     it('trigger source name shows [Log Trigger 용]', () => {

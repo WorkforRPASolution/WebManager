@@ -152,7 +152,9 @@ function describeAccessLog(source) {
   // --- Blank line before advanced sections ---
   const hasMultiline = source.start_pattern || source.end_pattern || source.line_count
   const hasExtract = !!source.pathPattern
-  if (hasMultiline || hasExtract) {
+  const hasLogTime = !!source.log_time_pattern
+  const hasLineGroup = source.line_group_count != null && source.line_group_count > 0
+  if (hasMultiline || hasExtract || hasLogTime || hasLineGroup) {
     lines.push('')
   }
 
@@ -193,6 +195,24 @@ function describeAccessLog(source) {
       eaText += ` (${posLabel})`
     }
     lines.push(eaText)
+  }
+
+  // --- Log time filter ---
+  if (hasLogTime) {
+    let ltText = `시간 필터: "${source.log_time_pattern}"`
+    if (source.log_time_format) {
+      ltText += ` → ${source.log_time_format} (이전 시간 로그 스킵)`
+    }
+    lines.push(ltText)
+  }
+
+  // --- Line group ---
+  if (hasLineGroup) {
+    let lgText = `라인 그룹: ${source.line_group_count}줄 단위 (<<EOL>> 연결)`
+    if (source.line_group_pattern) {
+      lgText += `\n  대상: "${source.line_group_pattern}" 매칭 라인만`
+    }
+    lines.push(lgText)
   }
 
   return lines.join('\n');

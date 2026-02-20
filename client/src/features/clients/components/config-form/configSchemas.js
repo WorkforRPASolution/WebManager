@@ -194,6 +194,28 @@ export const ACCESS_LOG_SCHEMA = {
       description: '모니터링에서 제외할 파일 확장자 목록입니다. 예: .bak, .tmp',
       placeholder: '예: .bak'
     },
+    // Log time filter fields (선택적)
+    log_time_pattern: {
+      type: 'text', label: '로그 시간 패턴',
+      description: '로그 라인에서 시간을 추출하는 정규표현식입니다. 추출된 시간이 마지막 읽은 시간 이전이면 스킵합니다.',
+      placeholder: '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}'
+    },
+    log_time_format: {
+      type: 'text', label: '로그 시간 포맷',
+      description: '추출된 시간 문자열의 Joda DateTime 포맷입니다.',
+      placeholder: 'yyyy-MM-dd HH:mm:ss'
+    },
+    // Line group fields (선택적, trigger 용만)
+    line_group_count: {
+      type: 'number', label: '그룹 라인 수',
+      description: '이 수만큼 로그 라인을 <<EOL>>로 연결하여 하나의 라인으로 트리거에 전달합니다.',
+      placeholder: '1'
+    },
+    line_group_pattern: {
+      type: 'text', label: '그룹 대상 패턴',
+      description: '이 정규표현식에 매칭되는 라인만 그룹 대상입니다. 비워두면 모든 라인이 대상입니다.',
+      placeholder: ''
+    },
     // Multiline fields (visible when lineAxis === 'multiline')
     start_pattern: {
       type: 'text', label: '시작 패턴 (start_pattern)',
@@ -313,11 +335,23 @@ export function buildAccessLogOutput(source, { version } = {}) {
     result.exclude_suffix = s.exclude_suffix
   }
 
+  // Log time filter fields: always include when not omitted (even if empty)
+  if (s._omit_log_time !== true) {
+    result.log_time_pattern = s.log_time_pattern || ''
+    result.log_time_format = s.log_time_format || ''
+  }
+
   // batch fields: only for upload purpose
   const { purpose } = parseSourceName(source?.name || '')
   if (purpose === 'upload') {
     result.batch_count = s.batch_count ?? 1000
     result.batch_timeout = s.batch_timeout || '30 seconds'
+  }
+
+  // Line group fields: always include when trigger purpose and not omitted (even if empty)
+  if (purpose === 'trigger' && s._omit_line_group !== true) {
+    result.line_group_count = s.line_group_count ?? 1
+    result.line_group_pattern = s.line_group_pattern || ''
   }
 
   // Multiline fields: only when lineAxis === 'multiline'
@@ -352,7 +386,9 @@ export function parseAccessLogInput(key, config) {
     _omit_charset: !config?.charset,
     _omit_back: config?.back === undefined || config?.back === null,
     _omit_end: config?.end === undefined || config?.end === null,
-    _omit_date_subdir_format: config?.date_subdir_format === undefined
+    _omit_date_subdir_format: config?.date_subdir_format === undefined,
+    _omit_log_time: config?.log_time_pattern === undefined || config?.log_time_pattern === null,
+    _omit_line_group: config?.line_group_count == null
   }
 }
 

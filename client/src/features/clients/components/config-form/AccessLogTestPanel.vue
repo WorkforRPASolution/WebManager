@@ -110,6 +110,12 @@
       </div>
     </div>
 
+    <!-- Log Time Filter Test (conditional) -->
+    <LogTimeTestSection v-if="showLogTime" :source="source" />
+
+    <!-- Line Group Test (conditional) -->
+    <LineGroupTestSection v-if="showLineGroup" :source="source" />
+
     <!-- Multiline Block Test (conditional) -->
     <MultilineTestSection v-if="showMultiline" :source="source" />
 
@@ -123,6 +129,8 @@ import { ref, computed } from 'vue'
 import { testAccessLogPath } from './configTestEngine'
 import { decomposeLogType } from './configSchemas'
 import { configTestApi } from '../../api'
+import LogTimeTestSection from './LogTimeTestSection.vue'
+import LineGroupTestSection from './LineGroupTestSection.vue'
 import MultilineTestSection from './MultilineTestSection.vue'
 import ExtractAppendTestSection from './ExtractAppendTestSection.vue'
 
@@ -147,6 +155,14 @@ const showMultiline = computed(() => {
 const showExtractAppend = computed(() => {
   const axes = decomposeLogType(props.source?.log_type)
   return axes.postProc === 'extract_append'
+})
+
+const showLogTime = computed(() => {
+  return !props.source?._omit_log_time && !!props.source?.log_time_pattern
+})
+
+const showLineGroup = computed(() => {
+  return !props.source?._omit_line_group && props.source?.line_group_count != null
 })
 
 function runTest() {

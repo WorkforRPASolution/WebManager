@@ -428,6 +428,79 @@ describe('buildAccessLogOutput', () => {
     const out = buildAccessLogOutput(source, { version: '6.8.0.0' })
     expect(out.log_type).toBe('extract_append')
   })
+
+  // ── log_time fields ──
+
+  it('_omit_log_time=false includes log_time_pattern/log_time_format', () => {
+    const source = {
+      name: '__TestLog__',
+      directory: 'C:/logs',
+      log_type: 'normal_single',
+      log_time_pattern: '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}',
+      log_time_format: 'yyyy-MM-dd HH:mm:ss',
+      _omit_log_time: false
+    }
+    const out = buildAccessLogOutput(source)
+    expect(out.log_time_pattern).toBe('[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}')
+    expect(out.log_time_format).toBe('yyyy-MM-dd HH:mm:ss')
+  })
+
+  it('_omit_log_time=true excludes log_time_pattern/log_time_format', () => {
+    const source = {
+      name: '__TestLog__',
+      directory: 'C:/logs',
+      log_type: 'normal_single',
+      log_time_pattern: '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}',
+      log_time_format: 'yyyy-MM-dd HH:mm:ss',
+      _omit_log_time: true
+    }
+    const out = buildAccessLogOutput(source)
+    expect(out.log_time_pattern).toBeUndefined()
+    expect(out.log_time_format).toBeUndefined()
+  })
+
+  // ── line_group fields ──
+
+  it('_omit_line_group=false + trigger purpose includes line_group_count/line_group_pattern', () => {
+    const source = {
+      name: '__TriggerLog__',
+      directory: 'C:/logs',
+      log_type: 'normal_single',
+      line_group_count: 5,
+      line_group_pattern: '.*ERROR.*',
+      _omit_line_group: false
+    }
+    const out = buildAccessLogOutput(source)
+    expect(out.line_group_count).toBe(5)
+    expect(out.line_group_pattern).toBe('.*ERROR.*')
+  })
+
+  it('_omit_line_group=false + upload purpose excludes line_group_count/line_group_pattern', () => {
+    const source = {
+      name: 'UploadLog',
+      directory: 'C:/logs',
+      log_type: 'normal_single',
+      line_group_count: 5,
+      line_group_pattern: '.*ERROR.*',
+      _omit_line_group: false
+    }
+    const out = buildAccessLogOutput(source)
+    expect(out.line_group_count).toBeUndefined()
+    expect(out.line_group_pattern).toBeUndefined()
+  })
+
+  it('line_group fields use defaults when not set and not omitted', () => {
+    const source = {
+      name: '__TriggerLog__',
+      directory: 'C:/logs',
+      log_type: 'normal_single',
+      _omit_line_group: false
+      // line_group_count and line_group_pattern not set
+    }
+    const out = buildAccessLogOutput(source)
+    expect(out.line_group_count).toBe(1)
+    expect(out.line_group_pattern).toBe('')
+  })
 })
 
 // ===========================================================================
@@ -476,6 +549,45 @@ describe('parseAccessLogInput', () => {
   it('stores null _originalLogType when log_type not in config', () => {
     const result = parseAccessLogInput('__Test__', { directory: 'C:/logs' })
     expect(result._originalLogType).toBeNull()
+  })
+
+  // ── _omit_log_time ──
+
+  it('config with log_time_pattern → _omit_log_time=false', () => {
+    const result = parseAccessLogInput('__Test__', {
+      directory: 'C:/logs',
+      log_time_pattern: '[0-9]{4}-[0-9]{2}-[0-9]{2}'
+    })
+    expect(result._omit_log_time).toBe(false)
+  })
+
+  it('config without log_time_pattern → _omit_log_time=true', () => {
+    const result = parseAccessLogInput('__Test__', { directory: 'C:/logs' })
+    expect(result._omit_log_time).toBe(true)
+  })
+
+  it('config with empty log_time_pattern → _omit_log_time=false (roundtrip)', () => {
+    const result = parseAccessLogInput('__Test__', {
+      directory: 'C:/logs',
+      log_time_pattern: '',
+      log_time_format: ''
+    })
+    expect(result._omit_log_time).toBe(false)
+  })
+
+  // ── _omit_line_group ──
+
+  it('config with line_group_count → _omit_line_group=false', () => {
+    const result = parseAccessLogInput('__Test__', {
+      directory: 'C:/logs',
+      line_group_count: 3
+    })
+    expect(result._omit_line_group).toBe(false)
+  })
+
+  it('config without line_group_count → _omit_line_group=true', () => {
+    const result = parseAccessLogInput('__Test__', { directory: 'C:/logs' })
+    expect(result._omit_line_group).toBe(true)
   })
 })
 

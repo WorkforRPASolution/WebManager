@@ -232,6 +232,56 @@
           />
         </FormField>
 
+        <!-- Log Time Filter (teal, optional) -->
+        <div v-if="!source._omit_log_time" class="border border-teal-200 dark:border-teal-800/50 rounded-lg bg-teal-50/30 dark:bg-teal-900/10 p-3 space-y-3">
+          <div class="flex items-center justify-between">
+            <h5 class="text-xs font-semibold text-teal-700 dark:text-teal-400">로그 시간 필터</h5>
+            <button v-if="!readOnly" type="button" class="text-xs text-gray-400 hover:text-red-500 transition" @click="removeLogTime(idx)">삭제</button>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <FormField :schema="schema.fields.log_time_pattern">
+              <input type="text" :value="source.log_time_pattern" @input="updateField(idx, 'log_time_pattern', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.log_time_pattern.placeholder" class="form-input" />
+            </FormField>
+            <FormField :schema="schema.fields.log_time_format">
+              <input type="text" :value="source.log_time_format" @input="updateField(idx, 'log_time_format', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.log_time_format.placeholder" class="form-input" />
+            </FormField>
+          </div>
+        </div>
+        <button
+          v-else-if="!readOnly"
+          type="button"
+          class="w-full py-2 border-2 border-dashed border-teal-200 dark:border-teal-800/50 rounded-lg text-xs text-teal-500 dark:text-teal-400 hover:bg-teal-50/50 dark:hover:bg-teal-900/10 transition"
+          @click="addLogTime(idx)"
+        >
+          + 로그 시간 필터 추가 (선택)
+        </button>
+
+        <!-- Line Group (indigo, optional, trigger only) -->
+        <template v-if="source.purpose !== 'upload'">
+          <div v-if="!source._omit_line_group" class="border border-indigo-200 dark:border-indigo-800/50 rounded-lg bg-indigo-50/30 dark:bg-indigo-900/10 p-3 space-y-3">
+            <div class="flex items-center justify-between">
+              <h5 class="text-xs font-semibold text-indigo-700 dark:text-indigo-400">라인 그룹핑</h5>
+              <button v-if="!readOnly" type="button" class="text-xs text-gray-400 hover:text-red-500 transition" @click="removeLineGroup(idx)">삭제</button>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <FormField :schema="schema.fields.line_group_count">
+                <input type="number" :value="source.line_group_count" @input="updateField(idx, 'line_group_count', $event.target.value ? Number($event.target.value) : null)" :disabled="readOnly" :placeholder="schema.fields.line_group_count.placeholder" class="form-input" />
+              </FormField>
+              <FormField :schema="schema.fields.line_group_pattern">
+                <input type="text" :value="source.line_group_pattern" @input="updateField(idx, 'line_group_pattern', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.line_group_pattern.placeholder" class="form-input" />
+              </FormField>
+            </div>
+          </div>
+          <button
+            v-else-if="!readOnly"
+            type="button"
+            class="w-full py-2 border-2 border-dashed border-indigo-200 dark:border-indigo-800/50 rounded-lg text-xs text-indigo-500 dark:text-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition"
+            @click="addLineGroup(idx)"
+          >
+            + 라인 그룹핑 추가 (선택)
+          </button>
+        </template>
+
         <!-- Multiline Settings (conditional) -->
         <div v-if="getAxis(source, 'lineAxis') === 'multiline'" class="border border-purple-200 dark:border-purple-800/50 rounded-lg bg-purple-50/30 dark:bg-purple-900/10 p-3 space-y-3">
           <h5 class="text-xs font-semibold text-purple-700 dark:text-purple-400">멀티라인 설정</h5>
@@ -344,7 +394,9 @@ const sources = computed(() => {
       _omit_charset: !config.charset,
       _omit_back: config.back === undefined || config.back === null,
       _omit_end: config.end === undefined || config.end === null,
-      _omit_date_subdir_format: config.date_subdir_format === undefined
+      _omit_date_subdir_format: config.date_subdir_format === undefined,
+      _omit_log_time: config.log_time_pattern === undefined || config.log_time_pattern === null,
+      _omit_line_group: config.line_group_count == null
     }
   })
 })
@@ -405,6 +457,26 @@ function handleCharsetToggle(idx, checked) {
   emitUpdate(updated)
 }
 
+function addLogTime(idx) {
+  const updated = sources.value.map((s, i) => i === idx ? { ...s, _omit_log_time: false, log_time_pattern: '', log_time_format: '' } : { ...s })
+  emitUpdate(updated)
+}
+
+function removeLogTime(idx) {
+  const updated = sources.value.map((s, i) => i === idx ? { ...s, _omit_log_time: true, log_time_pattern: '', log_time_format: '' } : { ...s })
+  emitUpdate(updated)
+}
+
+function addLineGroup(idx) {
+  const updated = sources.value.map((s, i) => i === idx ? { ...s, _omit_line_group: false, line_group_count: 1, line_group_pattern: '' } : { ...s })
+  emitUpdate(updated)
+}
+
+function removeLineGroup(idx) {
+  const updated = sources.value.map((s, i) => i === idx ? { ...s, _omit_line_group: true, line_group_count: null, line_group_pattern: '' } : { ...s })
+  emitUpdate(updated)
+}
+
 function handleBoolToggle(idx, field, checked) {
   const omit = !checked
   const source = sources.value[idx]
@@ -428,9 +500,9 @@ function emitUpdate(newSources) {
   const obj = {}
   for (const source of newSources) {
     const key = source.name || '(unnamed)'
-    const { name, baseName, purpose, _omit_charset, _omit_back, _omit_end, _omit_date_subdir_format, _customCharset, _originalLogType, ...rest } = source
+    const { name, baseName, purpose, _omit_charset, _omit_back, _omit_end, _omit_date_subdir_format, _omit_log_time, _omit_line_group, _customCharset, _originalLogType, ...rest } = source
     // Build clean output using buildAccessLogOutput
-    const output = buildAccessLogOutput({ ...rest, name: key, _omit_charset, _omit_back, _omit_end, _omit_date_subdir_format, _originalLogType }, { version: props.agentVersion })
+    const output = buildAccessLogOutput({ ...rest, name: key, _omit_charset, _omit_back, _omit_end, _omit_date_subdir_format, _omit_log_time, _omit_line_group, _originalLogType }, { version: props.agentVersion })
     // If charset is __custom__, use the custom value
     if (rest.charset === '__custom__' && _customCharset && !_omit_charset) {
       output.charset = _customCharset
@@ -453,7 +525,9 @@ function addSource() {
     _omit_charset: true,
     _omit_back: true,
     _omit_end: true,
-    _omit_date_subdir_format: true
+    _omit_date_subdir_format: true,
+    _omit_log_time: true,
+    _omit_line_group: true
   }
   const updated = [...sources.value.map(s => ({ ...s })), newSource]
   expanded[updated.length - 1] = true

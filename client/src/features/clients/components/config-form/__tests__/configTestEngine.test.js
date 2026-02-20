@@ -11,7 +11,9 @@ import {
   evaluateParams,
   testMultilineBlocks,
   testExtractAppend,
-  substituteMultiCaptures
+  substituteMultiCaptures,
+  testLogTimeFilter,
+  testLineGroup
 } from '../configTestEngine'
 
 // ===========================================================================
@@ -905,6 +907,27 @@ describe('testTriggerPattern', () => {
     expect(result.steps[0].nextAction).toContain('PopUp 실행')
     expect(result.finalResult.triggered).toBe(true)
   })
+
+  it('syntax uses Java String.matches() full-match — partial pattern should NOT match', () => {
+    // Java: "ERROR occurred".matches(".*ERROR") === false (doesn't end with "ERROR")
+    const trigger = {
+      recipe: [{ type: 'regex', trigger: [{ syntax: '.*ERROR' }], times: 1, next: '' }]
+    }
+    const logText = 'ERROR occurred'
+    const result = testTriggerPattern(trigger, logText, null)
+    expect(result.steps[0].fired).toBe(false)
+    expect(result.steps[0].matchCount).toBe(0)
+  })
+
+  it('syntax full-match — ".*ERROR.*" matches "ERROR occurred"', () => {
+    const trigger = {
+      recipe: [{ type: 'regex', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '' }]
+    }
+    const logText = 'ERROR occurred'
+    const result = testTriggerPattern(trigger, logText, null)
+    expect(result.steps[0].fired).toBe(true)
+    expect(result.steps[0].matchCount).toBe(1)
+  })
 })
 
 
@@ -976,7 +999,7 @@ describe('testTriggerPattern - multi-step duration', () => {
       source: '',
       recipe: [
         { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*Start Log.*' }], duration: '1 minutes', times: 2, next: 'Step_2' },
-        { name: 'Step_2', type: 'regex', trigger: [{ syntax: 'Start2 Log' }], duration: '10 seconds', times: 1, next: '@notify' }
+        { name: 'Step_2', type: 'regex', trigger: [{ syntax: '.*Start2 Log.*' }], duration: '10 seconds', times: 1, next: '@notify' }
       ],
       limitation: { times: 1, duration: '1 minutes' }
     }
@@ -997,7 +1020,7 @@ describe('testTriggerPattern - multi-step duration', () => {
       source: '',
       recipe: [
         { name: 'Step_1', type: 'regex', trigger: [{ syntax: '.*Start Log.*' }], duration: '1 minutes', times: 1, next: 'Step_2' },
-        { name: 'Step_2', type: 'regex', trigger: [{ syntax: 'Start2 Log' }], duration: '30 seconds', times: 1, next: '@notify' }
+        { name: 'Step_2', type: 'regex', trigger: [{ syntax: '.*Start2 Log.*' }], duration: '30 seconds', times: 1, next: '@notify' }
       ],
       limitation: { times: 1, duration: '5 minutes' }
     }
@@ -1728,6 +1751,21 @@ describe('testMultilineBlocks', () => {
     expect(result.blocks[1].terminatedBy).toBe('endPattern')
     expect(result.blocks[1].lineCount).toBe(3) // START block 2 + content 2 + END block 2
   })
+
+  it('17. start/end_pattern use full-match (Java String.matches / Scala .r match)', () => {
+    // "BEGIN block" does NOT fully match "BEGIN" (no trailing .*)
+    const source = { start_pattern: 'BEGIN', end_pattern: 'END', line_count: 100, priority: 'count' }
+    const text = 'BEGIN block\nBEGIN\ncontent\nEND block\nEND'
+    const result = testMultilineBlocks(source, text)
+    // Only exact "BEGIN" (line 2) matches start, exact "END" (line 5) matches end
+    expect(result.blocks).toHaveLength(1)
+    expect(result.blocks[0].startLine).toBe(2)
+    expect(result.blocks[0].endLine).toBe(5)
+    // "BEGIN block" (line 1) is outside block → skipped
+    expect(result.skippedLines.some(s => s.text === 'BEGIN block')).toBe(true)
+    // "END block" (line 4) is inside block → content (not skipped)
+    expect(result.blocks[0].lines.some(l => l.text === 'END block')).toBe(true)
+  })
 })
 
 
@@ -1841,7 +1879,31 @@ describe('testExtractAppend', () => {
     expect(result.lines[0].result).toBe('app-- line')
   })
 
-  it('10. auto-escapes backslashes in pathPattern for Windows paths', () => {
+  it('10. pathPattern uses full-match (Java String.matches / Scala .r match)', () => {
+    // "C:\Log\app.log" does NOT fully match "\\Log\\" (partial pattern)
+    const source = {
+      pathPattern: '\\\\Log\\\\(\\w+)',
+      appendPos: 0,
+      appendFormat: '@1 '
+    }
+    const result = testExtractAppend(source, 'C:\\Log\\app.log', 'line')
+    // Partial pattern doesn't cover full path → no match
+    expect(result.extraction.matched).toBe(false)
+    expect(result.lines[0].result).toBe('line')
+  })
+
+  it('11. pathPattern full-match with .* anchors works', () => {
+    const source = {
+      pathPattern: '.*\\\\Log\\\\(\\w+)\\.log',
+      appendPos: 0,
+      appendFormat: '@1 '
+    }
+    const result = testExtractAppend(source, 'C:\\Log\\app.log', 'line')
+    expect(result.extraction.matched).toBe(true)
+    expect(result.lines[0].result).toBe('app line')
+  })
+
+  it('12. auto-escapes backslashes in pathPattern for Windows paths', () => {
     const source = {
       pathPattern: '.*\\Log\\Log_([0-9]+)-([0-9]+)-([0-9]+).txt',
       appendPos: 0,
@@ -2040,5 +2102,190 @@ describe('executeMultiChain', () => {
     const result = testTriggerPattern(trigger, lines.join('\n'), tsFormat)
     expect(result.isMulti).toBe(true)
     expect(result.multiInstances.length).toBeLessThanOrEqual(20)
+  })
+})
+
+// ===========================================================================
+// testLogTimeFilter
+// ===========================================================================
+
+describe('testLogTimeFilter', () => {
+  it('basic extraction — HH:mm:ss pattern', () => {
+    const source = {
+      log_time_pattern: '(\\d{2}:\\d{2}:\\d{2})',
+      log_time_format: 'HH:mm:ss'
+    }
+    const text = '10:00:00 INFO Start\n10:01:00 INFO Process\n10:02:00 INFO End'
+    const result = testLogTimeFilter(source, text)
+    expect(result.lines).toHaveLength(3)
+    expect(result.lines.every(l => l.status === 'pass')).toBe(true)
+    expect(result.summary.total).toBe(3)
+    expect(result.summary.passed).toBe(3)
+    expect(result.summary.skipped).toBe(0)
+  })
+
+  it('reverse order — later lines skipped', () => {
+    const source = {
+      log_time_pattern: '(\\d{2}:\\d{2}:\\d{2})',
+      log_time_format: 'HH:mm:ss'
+    }
+    const text = '10:02:00 INFO Late\n10:01:00 INFO Mid\n10:00:00 INFO Early'
+    const result = testLogTimeFilter(source, text)
+    expect(result.lines[0].status).toBe('pass')
+    expect(result.lines[1].status).toBe('skip')
+    expect(result.lines[2].status).toBe('skip')
+    expect(result.summary.passed).toBe(1)
+    expect(result.summary.skipped).toBe(2)
+  })
+
+  it('same time — passes (>=)', () => {
+    const source = {
+      log_time_pattern: '(\\d{2}:\\d{2}:\\d{2})',
+      log_time_format: 'HH:mm:ss'
+    }
+    const text = '10:00:00 A\n10:00:00 B\n10:00:00 C'
+    const result = testLogTimeFilter(source, text)
+    expect(result.lines.every(l => l.status === 'pass')).toBe(true)
+  })
+
+  it('no match — status is no-match (passes through)', () => {
+    const source = {
+      log_time_pattern: '(\\d{2}:\\d{2}:\\d{2})',
+      log_time_format: 'HH:mm:ss'
+    }
+    const text = 'No timestamp here\n10:00:00 Valid\nAnother no match'
+    const result = testLogTimeFilter(source, text)
+    expect(result.lines[0].status).toBe('no-match')
+    expect(result.lines[1].status).toBe('pass')
+    expect(result.lines[2].status).toBe('no-match')
+    expect(result.summary.noTimestamp).toBe(2)
+  })
+
+  it('full datetime format', () => {
+    const source = {
+      log_time_pattern: '(\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2})',
+      log_time_format: 'yyyy-MM-dd HH:mm:ss'
+    }
+    const text = '2026-02-20 10:00:00 INFO Start\n2026-02-20 10:01:00 INFO Next\n2026-02-19 23:59:00 INFO Old'
+    const result = testLogTimeFilter(source, text)
+    expect(result.lines[0].status).toBe('pass')
+    expect(result.lines[1].status).toBe('pass')
+    expect(result.lines[2].status).toBe('skip')
+  })
+
+  it('missing log_time_pattern → error', () => {
+    const source = {}
+    const text = 'some log line'
+    const result = testLogTimeFilter(source, text)
+    expect(result.errors.length).toBeGreaterThan(0)
+  })
+
+  it('invalid regex pattern → error', () => {
+    const source = {
+      log_time_pattern: '([invalid',
+      log_time_format: 'HH:mm:ss'
+    }
+    const text = '10:00:00 test'
+    const result = testLogTimeFilter(source, text)
+    expect(result.errors.length).toBeGreaterThan(0)
+  })
+})
+
+// ===========================================================================
+// testLineGroup
+// ===========================================================================
+
+describe('testLineGroup', () => {
+  it('basic grouping — count=3, 6 lines → 2 groups', () => {
+    const source = { line_group_count: 3 }
+    const text = 'line1\nline2\nline3\nline4\nline5\nline6'
+    const result = testLineGroup(source, text)
+    expect(result.groups).toHaveLength(2)
+    expect(result.groups[0].lines).toHaveLength(3)
+    expect(result.groups[1].lines).toHaveLength(3)
+    expect(result.summary.groupCount).toBe(2)
+  })
+
+  it('<<EOL>> concatenation', () => {
+    const source = { line_group_count: 2 }
+    const text = 'A\nB\nC\nD'
+    const result = testLineGroup(source, text)
+    expect(result.groups[0].groupedText).toBe('A<<EOL>>B')
+    expect(result.groups[1].groupedText).toBe('C<<EOL>>D')
+  })
+
+  it('pattern filter — only matching lines grouped', () => {
+    const source = { line_group_count: 2, line_group_pattern: '.*ERROR.*' }
+    const text = 'ERROR one\nINFO two\nERROR three\nINFO four\nERROR five'
+    const result = testLineGroup(source, text)
+    // ERROR one + ERROR three = group 1, ERROR five is incomplete
+    expect(result.groups).toHaveLength(1)
+    expect(result.groups[0].groupedText).toBe('ERROR one<<EOL>>ERROR three')
+    expect(result.ungrouped).toHaveLength(2) // INFO two, INFO four
+    expect(result.summary.incompleteGroup).toBe(true) // ERROR five remaining
+  })
+
+  it('incomplete group — 5 lines / count=3 → 1 group + 1 incomplete', () => {
+    const source = { line_group_count: 3 }
+    const text = 'A\nB\nC\nD\nE'
+    const result = testLineGroup(source, text)
+    expect(result.groups).toHaveLength(1) // first 3
+    expect(result.summary.incompleteGroup).toBe(true)
+    expect(result.summary.totalLines).toBe(5)
+  })
+
+  it('no pattern — all lines are group targets', () => {
+    const source = { line_group_count: 2 }
+    const text = 'A\nB\nC'
+    const result = testLineGroup(source, text)
+    expect(result.groups).toHaveLength(1) // A+B
+    expect(result.ungrouped).toHaveLength(0)
+    expect(result.summary.incompleteGroup).toBe(true) // C is incomplete
+  })
+
+  it('count=1 — each line is its own group', () => {
+    const source = { line_group_count: 1 }
+    const text = 'A\nB\nC'
+    const result = testLineGroup(source, text)
+    expect(result.groups).toHaveLength(3)
+    expect(result.groups[0].groupedText).toBe('A')
+    expect(result.groups[1].groupedText).toBe('B')
+    expect(result.groups[2].groupedText).toBe('C')
+    expect(result.summary.incompleteGroup).toBe(false)
+  })
+
+  it('empty input — 0 groups', () => {
+    const source = { line_group_count: 3 }
+    const text = ''
+    const result = testLineGroup(source, text)
+    expect(result.groups).toHaveLength(0)
+    expect(result.summary.groupCount).toBe(0)
+  })
+
+  it('pattern uses Java String.matches() full-match semantics (implicit ^...$)', () => {
+    // Java: "line 1".matches(".*line") === false (full-match: doesn't end with "line")
+    const source = { line_group_count: 3, line_group_pattern: '.*line' }
+    const text = 'line 1\nline 2\nline 3\nline 4'
+    const result = testLineGroup(source, text)
+    // None of "line 1", "line 2", etc. fully match ".*line" — all go to ungrouped
+    expect(result.groups).toHaveLength(0)
+    expect(result.ungrouped).toHaveLength(4)
+  })
+
+  it('pattern full-match — ".*ERROR.*" matches "ERROR one" (full-match OK)', () => {
+    // Java: "ERROR one".matches(".*ERROR.*") === true
+    const source = { line_group_count: 2, line_group_pattern: '.*ERROR.*' }
+    const text = 'ERROR one\nINFO two\nERROR three'
+    const result = testLineGroup(source, text)
+    expect(result.groups).toHaveLength(1)
+    expect(result.groups[0].groupedText).toBe('ERROR one<<EOL>>ERROR three')
+    expect(result.ungrouped).toHaveLength(1) // INFO two
+  })
+
+  it('invalid pattern → error', () => {
+    const source = { line_group_count: 2, line_group_pattern: '([invalid' }
+    const text = 'line1\nline2'
+    const result = testLineGroup(source, text)
+    expect(result.errors.length).toBeGreaterThan(0)
   })
 })

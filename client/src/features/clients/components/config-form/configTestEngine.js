@@ -554,7 +554,9 @@ function matchLineWithParams(line, triggerItem, type) {
   const converted = convertSyntaxToRegex(syntax)
 
   try {
-    const regex = new RegExp(converted)
+    // Java String.matches() uses full-string matching (implicit ^...$)
+    const anchored = (converted.startsWith('^') ? '' : '^') + converted + (converted.endsWith('$') ? '' : '$')
+    const regex = new RegExp(anchored)
     const execResult = regex.exec(line)
 
     if (!execResult) return { matched: false, groups: null, paramsResult: null }
@@ -984,7 +986,9 @@ function matchLineForMulti(line, triggerItems, capturedGroups) {
     const converted = convertSyntaxToRegex(substituted)
 
     try {
-      const regex = new RegExp(converted)
+      // Java String.matches() uses full-string matching (implicit ^...$)
+      const anchored = (converted.startsWith('^') ? '' : '^') + converted + (converted.endsWith('$') ? '' : '$')
+      const regex = new RegExp(anchored)
       const execResult = regex.exec(line)
       if (execResult) {
         return { matched: true, groups: execResult.groups || {} }
@@ -1504,12 +1508,21 @@ export function testMultilineBlocks(source, text) {
   let startRe = null
   let endRe = null
   try {
-    if (src.start_pattern) startRe = new RegExp(src.start_pattern)
+    if (src.start_pattern) {
+      // Scala pattern match (case regex()) uses full-string matching
+      const raw = src.start_pattern
+      const anchored = (raw.startsWith('^') ? '' : '^') + raw + (raw.endsWith('$') ? '' : '$')
+      startRe = new RegExp(anchored)
+    }
   } catch (e) {
     errors.push(`start_pattern 정규식 오류: ${e.message}`)
   }
   try {
-    if (src.end_pattern) endRe = new RegExp(src.end_pattern)
+    if (src.end_pattern) {
+      const raw = src.end_pattern
+      const anchored = (raw.startsWith('^') ? '' : '^') + raw + (raw.endsWith('$') ? '' : '$')
+      endRe = new RegExp(anchored)
+    }
   } catch (e) {
     errors.push(`end_pattern 정규식 오류: ${e.message}`)
   }
@@ -1683,7 +1696,10 @@ export function testExtractAppend(source, filePath, logText) {
   let regex = null
   try {
     if (src.pathPattern) {
-      regex = new RegExp(autoEscapeBackslashes(src.pathPattern))
+      // Java String.matches() / Scala .r match uses full-string matching
+      const raw = autoEscapeBackslashes(src.pathPattern)
+      const anchored = (raw.startsWith('^') ? '' : '^') + raw + (raw.endsWith('$') ? '' : '$')
+      regex = new RegExp(anchored)
     }
   } catch (e) {
     extraction.error = e.message
@@ -1744,5 +1760,216 @@ export function testExtractAppend(source, filePath, logText) {
       totalLines: logLines.length,
       groupCount: extraction.groups.length
     }
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// 8. testLogTimeFilter
+// ---------------------------------------------------------------------------
+
+/**
+ * Tests log time filter on log text.
+ * Extracts timestamp from each line using log_time_pattern regex,
+ * parses via log_time_format, and compares to track last_read_time.
+ *
+ * Lines with timestamps earlier than the last seen timestamp are marked 'skip'.
+ * Lines with timestamps >= last seen are marked 'pass' and update last_read_time.
+ * Lines without a matching timestamp are marked 'no-match' and pass through.
+ *
+ * @param {Object} source - { log_time_pattern, log_time_format }
+ * @param {string} logText - multi-line log text
+ * @returns {Object} { lines, summary, errors }
+ */
+export function testLogTimeFilter(source, logText) {
+  const src = source || {}
+  const textLines = (logText || '').split('\n')
+  const errors = []
+  const resultLines = []
+
+  if (!src.log_time_pattern) {
+    errors.push('log_time_pattern이 설정되지 않았습니다')
+    return {
+      lines: textLines.map((text, i) => ({
+        lineNum: i + 1, text, extracted: null, parsedTime: null,
+        status: 'no-match', reason: '패턴 미설정'
+      })),
+      summary: { total: textLines.length, passed: 0, skipped: 0, noTimestamp: textLines.length },
+      errors
+    }
+  }
+
+  let patternRe
+  try {
+    patternRe = new RegExp(src.log_time_pattern)
+  } catch (e) {
+    errors.push(`log_time_pattern 정규식 오류: ${e.message}`)
+    return {
+      lines: textLines.map((text, i) => ({
+        lineNum: i + 1, text, extracted: null, parsedTime: null,
+        status: 'no-match', reason: '정규식 오류'
+      })),
+      summary: { total: textLines.length, passed: 0, skipped: 0, noTimestamp: textLines.length },
+      errors
+    }
+  }
+
+  // Use timestampFormatToRegex for parsing the extracted time string
+  const tsParser = src.log_time_format ? timestampFormatToRegex(src.log_time_format) : null
+
+  let lastReadTime = null
+  let passed = 0
+  let skipped = 0
+  let noTimestamp = 0
+
+  for (let i = 0; i < textLines.length; i++) {
+    const text = textLines[i]
+    const match = patternRe.exec(text)
+
+    if (!match) {
+      resultLines.push({
+        lineNum: i + 1, text, extracted: null, parsedTime: null,
+        status: 'no-match', reason: '패턴 미매칭 (통과)'
+      })
+      noTimestamp++
+      continue
+    }
+
+    // Use first capture group if available, otherwise full match
+    const extracted = match[1] || match[0]
+    let parsedTime = null
+
+    if (tsParser && tsParser.regex) {
+      const tsMatch = extracted.match(tsParser.regex)
+      if (tsMatch) {
+        parsedTime = tsParser.parse(tsMatch)
+      }
+    }
+
+    if (!parsedTime) {
+      resultLines.push({
+        lineNum: i + 1, text, extracted, parsedTime: null,
+        status: 'no-match', reason: '시간 파싱 실패 (통과)'
+      })
+      noTimestamp++
+      continue
+    }
+
+    if (lastReadTime && parsedTime.getTime() < lastReadTime.getTime()) {
+      resultLines.push({
+        lineNum: i + 1, text, extracted, parsedTime,
+        status: 'skip', reason: `이전 시간 (${extracted}) < 마지막 읽은 시간`
+      })
+      skipped++
+    } else {
+      resultLines.push({
+        lineNum: i + 1, text, extracted, parsedTime,
+        status: 'pass', reason: parsedTime.getTime() === lastReadTime?.getTime()
+          ? `같은 시간 (${extracted}) — 전송`
+          : `새 시간 (${extracted}) — 전송 + 갱신`
+      })
+      lastReadTime = parsedTime
+      passed++
+    }
+  }
+
+  return {
+    lines: resultLines,
+    summary: { total: textLines.length, passed, skipped, noTimestamp },
+    errors
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// 9. testLineGroup
+// ---------------------------------------------------------------------------
+
+/**
+ * Tests line grouping on log text.
+ * Groups lines into chunks of line_group_count, concatenated with <<EOL>>.
+ * If line_group_pattern is set, only matching lines are grouped;
+ * non-matching lines go to the ungrouped list.
+ *
+ * Only complete groups (buffer reaches line_group_count) are included in groups[].
+ * If there's a leftover buffer, summary.incompleteGroup = true.
+ *
+ * @param {Object} source - { line_group_count, line_group_pattern }
+ * @param {string} logText - multi-line log text
+ * @returns {Object} { groups, ungrouped, summary, errors }
+ */
+export function testLineGroup(source, logText) {
+  const src = source || {}
+  const textLines = (logText || '').split('\n')
+  const errors = []
+  const groups = []
+  const ungrouped = []
+
+  const count = parseInt(src.line_group_count, 10) || 1
+
+  let patternRe = null
+  if (src.line_group_pattern) {
+    try {
+      // Java String.matches() uses full-string matching (implicit ^...$)
+      const raw = src.line_group_pattern
+      const anchored = (raw.startsWith('^') ? '' : '^') + raw + (raw.endsWith('$') ? '' : '$')
+      patternRe = new RegExp(anchored)
+    } catch (e) {
+      errors.push(`line_group_pattern 정규식 오류: ${e.message}`)
+      return {
+        groups: [],
+        ungrouped: [],
+        summary: { totalLines: textLines.length, groupCount: 0, ungroupedCount: 0, incompleteGroup: false },
+        errors
+      }
+    }
+  }
+
+  // Handle empty input (split('') produces [''])
+  if (textLines.length === 1 && textLines[0] === '') {
+    return {
+      groups: [],
+      ungrouped: [],
+      summary: { totalLines: 1, groupCount: 0, ungroupedCount: 0, incompleteGroup: false },
+      errors
+    }
+  }
+
+  let buffer = []
+
+  for (let i = 0; i < textLines.length; i++) {
+    const text = textLines[i]
+    const lineNum = i + 1
+    const matched = patternRe ? patternRe.test(text) : true
+
+    if (!matched) {
+      ungrouped.push({ lineNum, text })
+      continue
+    }
+
+    buffer.push({ lineNum, text })
+
+    if (buffer.length >= count) {
+      groups.push({
+        groupNum: groups.length + 1,
+        lines: [...buffer],
+        groupedText: buffer.map(l => l.text).join('<<EOL>>')
+      })
+      buffer = []
+    }
+  }
+
+  const incompleteGroup = buffer.length > 0
+
+  return {
+    groups,
+    ungrouped,
+    summary: {
+      totalLines: textLines.length,
+      groupCount: groups.length,
+      ungroupedCount: ungrouped.length,
+      incompleteGroup
+    },
+    errors
   }
 }
