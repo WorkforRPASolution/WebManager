@@ -7,6 +7,7 @@ import {
   buildAccessLogOutput,
   parseAccessLogInput,
   createDefaultTriggerStep,
+  createDefaultTrigger,
   ACCESS_LOG_SCHEMA,
   TRIGGER_STEP_SCHEMA,
   TRIGGER_SCHEMA,
@@ -515,5 +516,31 @@ describe('createDefaultTriggerStep', () => {
     expect(step.detail).toEqual({})
     expect(step.type).toBe('regex')
     expect(step.name).toBe('Step_1')
+  })
+})
+
+// ===========================================================================
+// TRIGGER_SCHEMA.classField
+// ===========================================================================
+
+describe('TRIGGER_SCHEMA.classField', () => {
+  it('classField exists in TRIGGER_SCHEMA', () => {
+    expect(TRIGGER_SCHEMA.classField).toBeDefined()
+  })
+
+  it('classField has MULTI and none options', () => {
+    const options = TRIGGER_SCHEMA.classField.options
+    expect(options).toBeDefined()
+    expect(options.some(o => o.value === 'MULTI')).toBe(true)
+    expect(options.some(o => o.value === 'none')).toBe(true)
+  })
+
+  it('classField type is select', () => {
+    expect(TRIGGER_SCHEMA.classField.type).toBe('select')
+  })
+
+  it('createDefaultTrigger does NOT include class field', () => {
+    const trigger = createDefaultTrigger()
+    expect(trigger.class).toBeUndefined()
   })
 })

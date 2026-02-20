@@ -377,6 +377,15 @@ export const TRIGGER_SCHEMA = {
       description: '트리거 횟수 제한이 적용되는 기간입니다. 예: "1 minutes", "30 seconds"',
       placeholder: '1 minutes'
     }
+  },
+  classField: {
+    type: 'select',
+    label: '트리거 클래스',
+    description: '다중 인스턴스 추적을 활성화합니다. MULTI: step_01 캡처값별 독립 체인 추적, none: 기본 동작',
+    options: [
+      { value: 'MULTI', label: 'MULTI (다중 인스턴스 추적)' },
+      { value: 'none', label: 'none (기본)' }
+    ]
   }
 }
 

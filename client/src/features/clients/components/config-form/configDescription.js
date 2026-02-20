@@ -245,6 +245,11 @@ function describeTrigger(trigger) {
     lines.push(`"${trigger.source || ''}" 로그 소스를 감시합니다.`)
   }
 
+  // --- MULTI class description ---
+  if (trigger.class === 'MULTI') {
+    lines.push('  [MULTI] 다중 인스턴스 추적: step_01 캡처값별 독립 체인')
+  }
+
   // --- Recipe steps ---
   if (trigger.recipe && trigger.recipe.length > 0) {
     trigger.recipe.forEach((step, index) => {

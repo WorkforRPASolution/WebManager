@@ -10,7 +10,8 @@ import {
   parseParams,
   evaluateParams,
   testMultilineBlocks,
-  testExtractAppend
+  testExtractAppend,
+  substituteMultiCaptures
 } from '../configTestEngine'
 
 // ===========================================================================
@@ -1852,5 +1853,192 @@ describe('testExtractAppend', () => {
     expect(result.extraction.matched).toBe(true)
     expect(result.extraction.groups).toEqual(['2025', '06', '12'])
     expect(result.lines[0].result).toBe('2025-06-12 some log line')
+  })
+})
+
+
+// ===========================================================================
+// substituteMultiCaptures
+// ===========================================================================
+
+describe('substituteMultiCaptures', () => {
+  it('replaces @<<name>>@ with captured value', () => {
+    const result = substituteMultiCaptures('.* error reset. code: @<<code>>@.*', { code: '1234' })
+    expect(result).toBe('.* error reset. code: 1234.*')
+  })
+
+  it('escapes special regex characters in captured values', () => {
+    const result = substituteMultiCaptures('.* version: @<<ver>>@.*', { ver: '1.2+3' })
+    expect(result).toBe('.* version: 1\\.2\\+3.*')
+  })
+
+  it('leaves undefined variables unchanged', () => {
+    const result = substituteMultiCaptures('.* code: @<<code>>@ type: @<<type>>@', { code: '1234' })
+    expect(result).toBe('.* code: 1234 type: @<<type>>@')
+  })
+
+  it('returns pattern unchanged when no @<<>>@ references', () => {
+    const result = substituteMultiCaptures('.* error occur.*', { code: '1234' })
+    expect(result).toBe('.* error occur.*')
+  })
+
+  it('handles multiple replacements', () => {
+    const result = substituteMultiCaptures('@<<a>>@ and @<<b>>@ end', { a: 'X', b: 'Y' })
+    expect(result).toBe('X and Y end')
+  })
+
+  it('returns empty string for null/undefined input', () => {
+    expect(substituteMultiCaptures(null, {})).toBe('')
+    expect(substituteMultiCaptures(undefined, {})).toBe('')
+  })
+})
+
+
+// ===========================================================================
+// executeMultiChain
+// ===========================================================================
+
+describe('executeMultiChain', () => {
+  const tsFormat = 'HH:mm:ss'
+
+  // Helper to build a MULTI trigger config
+  function makeMultiTrigger(steps) {
+    return {
+      recipe: steps,
+      class: 'MULTI'
+    }
+  }
+
+  it('creates instance on step_01 match with capture', () => {
+    const trigger = makeMultiTrigger([
+      { name: 'step_01', type: 'regex', trigger: ['.* error occur. code: (<<code>>[_A-Za-z0-9]+)'], times: 1, next: 'step_02' },
+      { name: 'step_02', type: 'delay', trigger: ['.* error reset. code: @<<code>>@.*'], duration: '10 minutes', times: 1, next: '@notify' }
+    ])
+    const logText = '14:10:00 error occur. code: 1234'
+    const result = testTriggerPattern(trigger, logText, tsFormat)
+    expect(result.isMulti).toBe(true)
+    expect(result.multiInstances.length).toBe(1)
+    expect(result.multiInstances[0].capturedGroups.code).toBe('1234')
+    expect(result.multiInstances[0].status).toBe('active') // only step_01 matched, waiting on step_02
+  })
+
+  it('tracks independent instances for different captured values', () => {
+    const trigger = makeMultiTrigger([
+      { name: 'step_01', type: 'regex', trigger: ['.* error occur. code: (<<code>>[_A-Za-z0-9]+)'], times: 1, next: 'step_02' },
+      { name: 'step_02', type: 'delay', trigger: ['.* error reset. code: @<<code>>@.*'], duration: '10 minutes', times: 1, next: '@notify' }
+    ])
+    const logText = [
+      '14:10:00 error occur. code: 1234',
+      '14:11:00 error occur. code: 4567'
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, tsFormat)
+    expect(result.isMulti).toBe(true)
+    expect(result.multiInstances.length).toBe(2)
+    expect(result.multiInstances[0].capturedKey).toBe('1234')
+    expect(result.multiInstances[1].capturedKey).toBe('4567')
+  })
+
+  it('cancels instance when delay pattern matches within duration', () => {
+    const trigger = makeMultiTrigger([
+      { name: 'step_01', type: 'regex', trigger: ['.* error occur. code: (<<code>>[_A-Za-z0-9]+)'], times: 1, next: 'step_02' },
+      { name: 'step_02', type: 'delay', trigger: ['.* error reset. code: @<<code>>@.*'], duration: '10 minutes', times: 1, next: '@notify' }
+    ])
+    const logText = [
+      '14:10:00 error occur. code: 4567',
+      '14:13:00 error reset. code: 4567'
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, tsFormat)
+    expect(result.isMulti).toBe(true)
+    const inst = result.multiInstances.find(i => i.capturedKey === '4567')
+    expect(inst.status).toBe('cancelled')
+  })
+
+  it('fires instance when delay times out (EOF)', () => {
+    const trigger = makeMultiTrigger([
+      { name: 'step_01', type: 'regex', trigger: ['.* error occur. code: (<<code>>[_A-Za-z0-9]+)'], times: 1, next: 'step_02' },
+      { name: 'step_02', type: 'delay', trigger: ['.* error reset. code: @<<code>>@.*'], duration: '10 minutes', times: 1, next: '@notify' }
+    ])
+    const logText = [
+      '14:10:00 error occur. code: 1234',
+      '14:21:00 some unrelated log'
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, tsFormat)
+    expect(result.isMulti).toBe(true)
+    const inst = result.multiInstances.find(i => i.capturedKey === '1234')
+    expect(inst.status).toBe('fired')
+  })
+
+  it('unrelated code reset does not affect other instances', () => {
+    const trigger = makeMultiTrigger([
+      { name: 'step_01', type: 'regex', trigger: ['.* error occur. code: (<<code>>[_A-Za-z0-9]+)'], times: 1, next: 'step_02' },
+      { name: 'step_02', type: 'delay', trigger: ['.* error reset. code: @<<code>>@.*'], duration: '10 minutes', times: 1, next: '@notify' }
+    ])
+    const logText = [
+      '14:10:00 error occur. code: 1234',
+      '14:11:00 error occur. code: 4567',
+      '14:12:00 error reset. code: 7890',
+      '14:21:00 some unrelated log'
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, tsFormat)
+    // 7890 was never created, so it's ignored
+    // 1234 and 4567 should both timeout (fired) since 7890 doesn't match either
+    const inst1234 = result.multiInstances.find(i => i.capturedKey === '1234')
+    const inst4567 = result.multiInstances.find(i => i.capturedKey === '4567')
+    expect(inst1234.status).toBe('fired')
+    expect(inst4567.status).toBe('fired')
+  })
+
+  it('full docs scenario: 1234 fired, 4567 cancelled', () => {
+    const trigger = makeMultiTrigger([
+      { name: 'step_01', type: 'regex', trigger: ['.* error occur. code: (<<code>>[_A-Za-z0-9]+)'], times: 1, next: 'step_02' },
+      { name: 'step_02', type: 'delay', trigger: ['.* error reset. code: @<<code>>@.*'], duration: '10 minutes', times: 1, next: '@notify' }
+    ])
+    const logText = [
+      '14:10:00 error occur. code: 1234',
+      '14:11:00 error occur. code: 4567',
+      '14:12:00 error reset. code: 7890',
+      '14:13:00 error reset. code: 4567',
+      '14:21:00 some unrelated log'
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, tsFormat)
+    expect(result.isMulti).toBe(true)
+
+    const inst1234 = result.multiInstances.find(i => i.capturedKey === '1234')
+    const inst4567 = result.multiInstances.find(i => i.capturedKey === '4567')
+
+    expect(inst1234.status).toBe('fired')
+    expect(inst4567.status).toBe('cancelled')
+
+    expect(result.multiSummary.totalCreated).toBe(2)
+    expect(result.multiSummary.fired).toBe(1)
+    expect(result.multiSummary.cancelled).toBe(1)
+    expect(result.finalResult.triggered).toBe(true)
+  })
+
+  it('class absent or none uses existing behavior (not MULTI)', () => {
+    const triggerNoClass = {
+      recipe: [
+        { name: 'step_01', type: 'regex', trigger: ['.*ERROR.*'], times: 1, next: '@notify' }
+      ]
+    }
+    const logText = '14:10:00 ERROR something happened'
+    const result = testTriggerPattern(triggerNoClass, logText, tsFormat)
+    expect(result.isMulti).toBeUndefined()
+    expect(result.multiInstances).toBeUndefined()
+    expect(result.finalResult.triggered).toBe(true)
+  })
+
+  it('max instances capped at 20', () => {
+    const trigger = makeMultiTrigger([
+      { name: 'step_01', type: 'regex', trigger: ['.* code: (<<code>>[_A-Za-z0-9]+)'], times: 1, next: 'step_02' },
+      { name: 'step_02', type: 'delay', trigger: ['.* reset: @<<code>>@.*'], duration: '10 minutes', times: 1, next: '@notify' }
+    ])
+    const lines = []
+    for (let i = 0; i < 25; i++) {
+      lines.push(`14:10:${String(i).padStart(2,'0')} code: ID_${i}`)
+    }
+    const result = testTriggerPattern(trigger, lines.join('\n'), tsFormat)
+    expect(result.isMulti).toBe(true)
+    expect(result.multiInstances.length).toBeLessThanOrEqual(20)
   })
 })

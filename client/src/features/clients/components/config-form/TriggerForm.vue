@@ -364,6 +364,49 @@
           </svg>
           Limitation 추가 (선택)
         </button>
+
+        <!-- Class Section (선택적) -->
+        <div v-if="trig.class" class="border border-purple-200 dark:border-purple-800/50 rounded-lg bg-purple-50/50 dark:bg-purple-900/10 p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-semibold text-purple-700 dark:text-purple-400 flex items-center gap-1">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              트리거 클래스
+            </h4>
+            <div class="flex items-center gap-2">
+              <select :value="trig.class" @change="updateTriggerField(ti, 'class', $event.target.value)" :disabled="readOnly" class="form-input text-xs w-32">
+                <option value="MULTI">MULTI</option>
+                <option value="none">none</option>
+              </select>
+              <button
+                v-if="!readOnly"
+                type="button"
+                class="p-0.5 text-purple-400 hover:text-red-500 transition-colors"
+                title="Class 삭제"
+                @click="deleteClass(ti)"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <p v-if="trig.class === 'MULTI'" class="text-xs text-purple-600 dark:text-purple-400">
+            step_01에서 캡처된 값별로 독립적인 체인 인스턴스를 추적합니다. 후속 스텝의 @&lt;&lt;name&gt;&gt;@ 참조가 캡처값으로 치환됩니다.
+          </p>
+        </div>
+        <button
+          v-else-if="!readOnly"
+          type="button"
+          class="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-purple-600 dark:text-purple-400 border border-dashed border-purple-300 dark:border-purple-700 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition"
+          @click="addClass(ti)"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Class 추가 (선택)
+        </button>
       </div>
 
       <!-- Test Panel -->
@@ -422,7 +465,8 @@ const triggers = computed(() => {
       }
       if (isScript) return null
       return { times: 1, duration: '1 minutes' }
-    })()
+    })(),
+    class: config.class || null
   }))
 })
 
@@ -495,6 +539,9 @@ function buildOutput(triggersList) {
     } else if (!isScriptTerm) {
       triggerObj.limitation = { times: 1, duration: '1 minutes' }
     }
+    if (trig.class && trig.class !== 'none') {
+      triggerObj.class = trig.class
+    }
     obj[uniqueName] = triggerObj
   }
   return obj
@@ -516,7 +563,8 @@ function cloneTriggers() {
   return triggers.value.map(t => ({
     ...t,
     recipe: t.recipe.map(r => ({ ...r, trigger: [...r.trigger], script: { ...r.script }, detail: { ...(r.detail || {}) } })),
-    limitation: t.limitation ? { ...t.limitation } : null
+    limitation: t.limitation ? { ...t.limitation } : null,
+    class: t.class || null
   }))
 }
 
@@ -680,6 +728,18 @@ function deleteLimitation(ti) {
 function addLimitation(ti) {
   const updated = cloneTriggers()
   updated[ti].limitation = { times: 1, duration: '1 minutes' }
+  emitUpdate(updated)
+}
+
+function addClass(ti) {
+  const updated = cloneTriggers()
+  updated[ti].class = 'MULTI'
+  emitUpdate(updated)
+}
+
+function deleteClass(ti) {
+  const updated = cloneTriggers()
+  updated[ti].class = null
   emitUpdate(updated)
 }
 

@@ -729,6 +729,50 @@ describe('describeTrigger', () => {
     })
   })
 
+  // ===========================================================================
+  // describeTrigger — MULTI class
+  // ===========================================================================
+
+  describe('describeTrigger — MULTI class', () => {
+    it('includes 다중 인스턴스 description for class=MULTI', () => {
+      const trigger = {
+        source: '__TestLog__',
+        class: 'MULTI',
+        recipe: [
+          { name: 'step_01', type: 'regex', trigger: ['.* error occur. code: (<<code>>[_A-Za-z0-9]+)'], times: 1, next: 'step_02' },
+          { name: 'step_02', type: 'delay', trigger: ['.* error reset. code: @<<code>>@.*'], duration: '10 minutes', times: 1, next: '@notify' }
+        ]
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('다중 인스턴스')
+      expect(result).toContain('MULTI')
+    })
+
+    it('does not include MULTI description when class is absent', () => {
+      const trigger = {
+        source: '__TestLog__',
+        recipe: [
+          { name: 'step_01', type: 'regex', trigger: ['.*ERROR.*'], times: 1, next: '@notify' }
+        ]
+      }
+      const result = describeTrigger(trigger)
+      expect(result).not.toContain('다중 인스턴스')
+      expect(result).not.toContain('MULTI')
+    })
+
+    it('does not include MULTI description when class is none', () => {
+      const trigger = {
+        source: '__TestLog__',
+        class: 'none',
+        recipe: [
+          { name: 'step_01', type: 'regex', trigger: ['.*ERROR.*'], times: 1, next: '@notify' }
+        ]
+      }
+      const result = describeTrigger(trigger)
+      expect(result).not.toContain('다중 인스턴스')
+    })
+  })
+
   // --- New next actions ---
   describe('new next actions', () => {
     it('@recovery → "시나리오 실행"', () => {

@@ -946,6 +946,283 @@ function executeOneChain(recipe, lines, startLineOffset, tsParser, parseTimestam
  */
 export { convertSyntaxToRegex, parseParams, evaluateParams }
 
+
+// ---------------------------------------------------------------------------
+// MULTI trigger class support
+// ---------------------------------------------------------------------------
+
+/**
+ * Replace @<<name>>@ references with captured group values.
+ * Special regex chars in values are escaped.
+ * Must be called BEFORE convertSyntaxToRegex().
+ */
+export function substituteMultiCaptures(syntax, capturedGroups) {
+  if (!syntax) return ''
+  if (!capturedGroups) return syntax
+  return syntax.replace(/@<<(\w+)>>@/g, (match, name) => {
+    if (capturedGroups[name] !== undefined) {
+      // Escape special regex characters in the value
+      return String(capturedGroups[name]).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    }
+    return match // leave unchanged if not found
+  })
+}
+
+const MAX_MULTI_INSTANCES = 20
+
+/**
+ * Match a line for a MULTI instance's current step, substituting captures.
+ */
+function matchLineForMulti(line, triggerItems, capturedGroups) {
+  for (let pi = 0; pi < triggerItems.length; pi++) {
+    const item = triggerItems[pi]
+    const syntax = getTriggerSyntax(item)
+    if (!syntax) continue
+
+    // Substitute @<<name>>@ references BEFORE regex conversion
+    const substituted = substituteMultiCaptures(syntax, capturedGroups)
+    const converted = convertSyntaxToRegex(substituted)
+
+    try {
+      const regex = new RegExp(converted)
+      const execResult = regex.exec(line)
+      if (execResult) {
+        return { matched: true, groups: execResult.groups || {} }
+      }
+    } catch (e) {
+      // regex error, skip
+    }
+  }
+  return { matched: false, groups: null }
+}
+
+/**
+ * Execute MULTI chain logic for a trigger with class='MULTI'.
+ *
+ * @param {Object} trigger - trigger config with recipe and class='MULTI'
+ * @param {string[]} lines - log lines
+ * @param {Object|null} tsParser - timestamp parser
+ * @param {Function} parseTimestamp - function(line) => Date|null
+ * @returns {Object} MULTI result with instances
+ */
+function executeMultiChain(trigger, lines, tsParser, parseTimestamp) {
+  const recipe = Array.isArray(trigger.recipe) ? trigger.recipe : []
+  if (recipe.length === 0) {
+    return {
+      multiInstances: [],
+      multiSummary: { totalCreated: 0, fired: 0, cancelled: 0, incomplete: 0 }
+    }
+  }
+
+  const step01 = recipe[0]
+  const step01Triggers = Array.isArray(step01.trigger) ? step01.trigger : []
+
+  let instances = []
+  let nextId = 1
+
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li]
+    const timestamp = parseTimestamp(line)
+
+    // 1. Process active instances (check their current step)
+    for (const inst of instances) {
+      if (inst.status !== 'active') continue
+
+      const currentStepIdx = inst.currentStepIdx
+      if (currentStepIdx >= recipe.length) continue
+      const step = recipe[currentStepIdx]
+      const stepTriggers = Array.isArray(step.trigger) ? step.trigger : []
+      const isDelay = step.type === 'delay'
+      const durationMs = parseDurationMs(step.duration)
+
+      if (isDelay) {
+        // Check timeout first
+        if (durationMs && inst.prevStepTimestamp && timestamp) {
+          const elapsed = timestamp.getTime() - inst.prevStepTimestamp.getTime()
+          if (elapsed > durationMs) {
+            // Timeout -> fired
+            inst.status = 'fired'
+            inst.firingTimestamp = new Date(inst.prevStepTimestamp.getTime() + durationMs)
+            inst.stepResults.push({
+              name: step.name,
+              type: 'delay',
+              timedOut: true,
+              cancelled: false,
+              message: `타임아웃 (${step.duration} 초과)`
+            })
+            continue
+          }
+        }
+
+        // Check cancel pattern
+        const matchResult = matchLineForMulti(line, stepTriggers, inst.capturedGroups)
+        if (matchResult.matched) {
+          inst.status = 'cancelled'
+          inst.stepResults.push({
+            name: step.name,
+            type: 'delay',
+            timedOut: false,
+            cancelled: true,
+            lineNum: li + 1,
+            line,
+            message: `패턴 매칭 → 취소`
+          })
+          continue
+        }
+      } else {
+        // regex step (steps beyond step_01)
+        const matchResult = matchLineForMulti(line, stepTriggers, inst.capturedGroups)
+        if (matchResult.matched) {
+          inst.stepResults.push({
+            name: step.name,
+            type: step.type,
+            matched: true,
+            lineNum: li + 1,
+            line
+          })
+          inst.prevStepTimestamp = timestamp
+
+          // Check if terminal
+          const terminalActions = ['@script', '@Script', '@recovery', '@notify', '@popup']
+          if (terminalActions.includes(step.next) || !step.next) {
+            inst.status = 'fired'
+            inst.firingTimestamp = timestamp
+          } else {
+            // Move to next step
+            const nextStepIdx = recipe.findIndex(s => s.name === step.next)
+            if (nextStepIdx >= 0) {
+              inst.currentStepIdx = nextStepIdx
+            } else {
+              inst.status = 'fired'
+              inst.firingTimestamp = timestamp
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Check step_01 for new instances
+    if (instances.filter(i => i.status === 'active').length < MAX_MULTI_INSTANCES) {
+      for (const item of step01Triggers) {
+        const syntax = getTriggerSyntax(item)
+        if (!syntax) continue
+        const converted = convertSyntaxToRegex(syntax)
+        try {
+          const regex = new RegExp(converted)
+          const execResult = regex.exec(line)
+          if (execResult && execResult.groups && Object.keys(execResult.groups).length > 0) {
+            const groups = { ...execResult.groups }
+            // Use the first captured group value as the key
+            const capturedKey = Object.values(groups)[0] || ''
+
+            // Don't create duplicate active instances for the same key
+            const existingActive = instances.find(i => i.capturedKey === capturedKey && i.status === 'active')
+            if (existingActive) continue
+
+            const inst = {
+              id: nextId++,
+              capturedGroups: groups,
+              capturedKey,
+              startLineNum: li + 1,
+              status: 'active',
+              currentStepIdx: 0, // will be advanced below
+              prevStepTimestamp: timestamp,
+              stepResults: [{
+                name: step01.name,
+                type: step01.type,
+                matched: true,
+                lineNum: li + 1,
+                line
+              }],
+              firingTimestamp: null
+            }
+
+            // Advance past step_01
+            const terminalActions = ['@script', '@Script', '@recovery', '@notify', '@popup']
+            if (terminalActions.includes(step01.next) || !step01.next) {
+              inst.status = 'fired'
+              inst.firingTimestamp = timestamp
+            } else {
+              const nextStepIdx = recipe.findIndex(s => s.name === step01.next)
+              if (nextStepIdx >= 0) {
+                inst.currentStepIdx = nextStepIdx
+              } else {
+                inst.status = 'fired'
+                inst.firingTimestamp = timestamp
+              }
+            }
+
+            instances.push(inst)
+          }
+        } catch (e) {
+          // regex error
+        }
+      }
+    }
+  }
+
+  // EOF: handle remaining active instances
+  for (const inst of instances) {
+    if (inst.status !== 'active') continue
+
+    const currentStepIdx = inst.currentStepIdx
+    if (currentStepIdx >= recipe.length) {
+      inst.status = 'fired'
+      continue
+    }
+    const step = recipe[currentStepIdx]
+
+    if (step.type === 'delay') {
+      // Delay step at EOF
+      // If instance was created on the very last line, no subsequent lines were
+      // checked for the delay step, so the instance remains active (incomplete)
+      if (inst.startLineNum >= lines.length) {
+        // No lines were processed after creation -> remain active
+        // (status stays 'active', will be counted as incomplete)
+      } else {
+        // At least one line was processed after creation -> timeout (fired)
+        const durationMs = parseDurationMs(step.duration)
+        if (inst.prevStepTimestamp && durationMs) {
+          inst.firingTimestamp = new Date(inst.prevStepTimestamp.getTime() + durationMs)
+        }
+        inst.status = 'fired'
+        inst.stepResults.push({
+          name: step.name,
+          type: 'delay',
+          timedOut: true,
+          cancelled: false,
+          message: '로그 끝 → 타임아웃'
+        })
+      }
+    } else {
+      // Regex step at EOF -> incomplete
+      inst.status = 'incomplete'
+    }
+  }
+
+  const fired = instances.filter(i => i.status === 'fired').length
+  const cancelled = instances.filter(i => i.status === 'cancelled').length
+  const incomplete = instances.filter(i => i.status === 'incomplete' || i.status === 'active').length
+
+  return {
+    multiInstances: instances.map(i => ({
+      id: i.id,
+      capturedGroups: i.capturedGroups,
+      capturedKey: i.capturedKey,
+      startLineNum: i.startLineNum,
+      status: i.status,
+      stepResults: i.stepResults,
+      firingTimestamp: i.firingTimestamp
+    })),
+    multiSummary: {
+      totalCreated: instances.length,
+      fired,
+      cancelled,
+      incomplete
+    }
+  }
+}
+
 export function testTriggerPattern(trigger, logText, timestampFormat) {
   const trig = trigger || {}
   const recipe = Array.isArray(trig.recipe) ? trig.recipe : []
@@ -961,6 +1238,37 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
     if (!tsParser || !tsParser.regex) return null
     const m = line.match(tsParser.regex)
     return m ? tsParser.parse(m) : null
+  }
+
+  // MULTI class branch
+  if (trig.class === 'MULTI') {
+    const multiResult = executeMultiChain(trig, lines, tsParser, parseTimestamp)
+    const hasFired = multiResult.multiSummary.fired > 0
+
+    let message = ''
+    if (multiResult.multiInstances.length === 0) {
+      message = 'step_01 패턴에 매칭되는 라인이 없습니다'
+    } else if (hasFired) {
+      message = `${multiResult.multiSummary.fired}건 발동, ${multiResult.multiSummary.cancelled}건 취소`
+      if (multiResult.multiSummary.incomplete > 0) {
+        message += `, ${multiResult.multiSummary.incomplete}건 미완료`
+      }
+    } else {
+      message = `${multiResult.multiInstances.length}건 생성, 발동 없음`
+    }
+
+    return {
+      steps: [],
+      finalResult: {
+        triggered: hasFired,
+        message
+      },
+      firings: [],
+      limitation: null,
+      isMulti: true,
+      multiInstances: multiResult.multiInstances,
+      multiSummary: multiResult.multiSummary
+    }
   }
 
   // Limitation config

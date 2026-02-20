@@ -116,6 +116,51 @@
           {{ fileSummary }}
         </div>
 
+        <!-- MULTI results -->
+        <template v-if="testResult.isMulti">
+          <!-- MULTI summary -->
+          <div v-if="testResult.multiSummary" class="rounded-lg p-3 text-xs border border-purple-200 dark:border-purple-800/50 bg-purple-50/50 dark:bg-purple-900/10">
+            <div class="font-medium text-purple-700 dark:text-purple-400 mb-1">다중 인스턴스 추적 (MULTI)</div>
+            <div class="text-gray-600 dark:text-gray-400">
+              {{ testResult.multiSummary.totalCreated }}건 생성
+              · <span class="text-green-600 dark:text-green-400 font-medium">{{ testResult.multiSummary.fired }}건 발동</span>
+              · <span class="text-orange-600 dark:text-orange-400 font-medium">{{ testResult.multiSummary.cancelled }}건 취소</span>
+              <template v-if="testResult.multiSummary.incomplete > 0">
+                · <span class="text-gray-500">{{ testResult.multiSummary.incomplete }}건 미완료</span>
+              </template>
+            </div>
+          </div>
+
+          <!-- Instance cards -->
+          <div v-for="inst in testResult.multiInstances" :key="inst.id" class="rounded-lg p-3 text-xs border" :class="multiInstClass(inst)">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="font-mono font-medium text-gray-700 dark:text-gray-300">
+                #{{ inst.id }}
+              </span>
+              <span v-for="(val, name) in inst.capturedGroups" :key="name" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400">
+                {{ name }}=<strong>{{ val }}</strong>
+              </span>
+              <span class="ml-auto px-2 py-0.5 rounded-full text-[10px] font-medium" :class="multiStatusBadge(inst)">
+                {{ multiStatusLabel(inst) }}
+              </span>
+            </div>
+
+            <!-- Instance step results -->
+            <div v-if="inst.stepResults && inst.stepResults.length > 0" class="space-y-1 font-mono">
+              <div v-for="(sr, sri) in inst.stepResults" :key="sri" class="text-gray-600 dark:text-gray-400 flex gap-2">
+                <span class="text-gray-400 shrink-0">{{ sr.name }}</span>
+                <template v-if="sr.lineNum">
+                  <span class="shrink-0">Line {{ sr.lineNum }}</span>
+                  <span class="truncate">"{{ sr.line }}"</span>
+                </template>
+                <span v-if="sr.message" class="text-gray-500">{{ sr.message }}</span>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Existing step results (non-MULTI) -->
+        <template v-else>
         <!-- Step results -->
         <div v-for="(step, si) in testResult.steps" :key="si" class="rounded-lg p-3 text-xs border" :class="stepClass(step)">
           <div class="flex items-center gap-2 mb-2">
@@ -215,6 +260,7 @@
             </div>
           </div>
         </div>
+        </template>
 
         <!-- Final result -->
         <div class="rounded-lg p-3 text-sm font-medium" :class="testResult.finalResult.triggered ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'">
@@ -222,7 +268,7 @@
         </div>
 
         <!-- Limitation summary -->
-        <div v-if="testResult.limitation" class="rounded-lg p-3 text-sm border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-dark-bg">
+        <div v-if="testResult.limitation && !testResult.isMulti" class="rounded-lg p-3 text-sm border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-dark-bg">
           <div class="font-medium mb-1 text-gray-700 dark:text-gray-300">발동 제한 (Limitation)</div>
           <div class="text-gray-600 dark:text-gray-400">
             {{ testResult.limitation.durationFormatted || testResult.limitation.duration }} 내 최대 {{ testResult.limitation.times }}회
@@ -381,6 +427,25 @@ function formatTimestamp(ts) {
 function formatOp(op) {
   const map = { eq: '=', neq: '≠', gt: '>', gte: '≥', lt: '<', lte: '≤' }
   return map[op] || op
+}
+
+function multiInstClass(inst) {
+  if (inst.status === 'fired') return 'bg-green-50/50 dark:bg-green-900/10 border-green-200 dark:border-green-800/50'
+  if (inst.status === 'cancelled') return 'bg-orange-50/50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800/50'
+  return 'bg-gray-50 dark:bg-dark-bg border-gray-200 dark:border-dark-border'
+}
+
+function multiStatusBadge(inst) {
+  if (inst.status === 'fired') return 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+  if (inst.status === 'cancelled') return 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
+  return 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+}
+
+function multiStatusLabel(inst) {
+  if (inst.status === 'fired') return '발동'
+  if (inst.status === 'cancelled') return '취소'
+  if (inst.status === 'incomplete') return '미완료'
+  return '대기 중'
 }
 </script>
 
