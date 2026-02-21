@@ -417,10 +417,10 @@
 
 <script setup>
 import { computed, reactive, ref, onMounted } from 'vue'
-import { TRIGGER_SCHEMA, TRIGGER_STEP_SCHEMA, TRIGGER_SCRIPT_SCHEMA, createDefaultTrigger, createDefaultTriggerStep } from './configSchemas'
-import { describeTrigger } from './configDescription'
-import FormTagInput from './FormTagInput.vue'
-import FormField from './FormField.vue'
+import { TRIGGER_SCHEMA, TRIGGER_STEP_SCHEMA, TRIGGER_SCRIPT_SCHEMA, createDefaultTrigger, createDefaultTriggerStep } from './schema'
+import { describeTrigger } from './description'
+import FormTagInput from '../shared/components/FormTagInput.vue'
+import FormField from '../shared/components/FormField.vue'
 import TriggerTestPanel from './TriggerTestPanel.vue'
 
 const props = defineProps({

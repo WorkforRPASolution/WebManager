@@ -42,10 +42,10 @@
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
-import { detectConfigFileType } from './configSchemas'
-import AccessLogForm from './AccessLogForm.vue'
-import TriggerForm from './TriggerForm.vue'
-import ARSAgentForm from './ARSAgentForm.vue'
+import { detectConfigFileType } from './shared/configDetection'
+import AccessLogForm from './accesslog/AccessLogForm.vue'
+import TriggerForm from './trigger/TriggerForm.vue'
+import ARSAgentForm from './arsagent/ARSAgentForm.vue'
 
 const props = defineProps({
   content: { type: String, default: '' },

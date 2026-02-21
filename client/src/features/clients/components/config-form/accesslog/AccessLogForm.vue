@@ -341,11 +341,11 @@ import {
   LINE_AXIS_OPTIONS,
   POST_PROC_OPTIONS,
   buildAccessLogOutput
-} from './configSchemas'
-import { describeAccessLog } from './configDescription'
-import FormTagInput from './FormTagInput.vue'
-import FormField from './FormField.vue'
-import FormCheckbox from './FormCheckbox.vue'
+} from './schema'
+import { describeAccessLog } from './description'
+import FormTagInput from '../shared/components/FormTagInput.vue'
+import FormField from '../shared/components/FormField.vue'
+import FormCheckbox from '../shared/components/FormCheckbox.vue'
 import AccessLogTestPanel from './AccessLogTestPanel.vue'
 
 const props = defineProps({

@@ -1,15 +1,15 @@
 <template>
   <div class="border-t border-gray-200 dark:border-dark-border">
-    <!-- Toggle Header (teal) -->
+    <!-- Toggle Header (purple) -->
     <button
       type="button"
-      class="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-teal-600 dark:text-teal-400 hover:bg-teal-50/50 dark:hover:bg-teal-900/10 transition"
+      class="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50/50 dark:hover:bg-purple-900/10 transition"
       @click="open = !open"
     >
       <svg class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-90': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
       </svg>
-      시간 필터 테스트
+      멀티라인 블록 테스트
     </button>
 
     <div v-show="open" class="px-4 pb-4 space-y-4">
@@ -18,7 +18,7 @@
         <button
           type="button"
           class="px-3 py-1.5 text-xs font-medium border-b-2 transition"
-          :class="activeTab === 'text' ? 'border-teal-500 text-teal-600 dark:text-teal-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
+          :class="activeTab === 'text' ? 'border-purple-500 text-purple-600 dark:text-purple-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
           @click="activeTab = 'text'"
         >
           텍스트 입력
@@ -26,7 +26,7 @@
         <button
           type="button"
           class="px-3 py-1.5 text-xs font-medium border-b-2 transition"
-          :class="activeTab === 'file' ? 'border-teal-500 text-teal-600 dark:text-teal-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
+          :class="activeTab === 'file' ? 'border-purple-500 text-purple-600 dark:text-purple-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
           @click="activeTab = 'file'"
         >
           파일 시뮬레이션
@@ -38,23 +38,23 @@
         <textarea
           v-model="logText"
           rows="8"
-          placeholder="로그 텍스트를 입력하세요&#10;예:&#10;2026-02-20 10:00:00 INFO Start&#10;2026-02-20 10:01:00 INFO Process&#10;2026-02-20 09:59:00 INFO Old (스킵 대상)"
-          class="w-full px-3 py-2 text-xs font-mono border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition resize-y"
+          placeholder="멀티라인 로그 텍스트를 입력하세요&#10;예:&#10;2026-02-18 WARN Alarm Occured EQP001&#10;  Details: Temperature over limit&#10;  Value: 95.3&#10;2026-02-18 WARN Alarm Reset EQP001"
+          class="w-full px-3 py-2 text-xs font-mono border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition resize-y"
         ></textarea>
         <button
           type="button"
-          class="px-3 py-1.5 text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 rounded-lg transition"
+          class="px-3 py-1.5 text-sm font-medium text-white bg-purple-500 hover:bg-purple-600 rounded-lg transition"
           :disabled="!logText.trim()"
           @click="runTextTest"
         >
-          시간 필터 테스트
+          블록 추출 테스트
         </button>
       </div>
 
       <!-- File Tab -->
       <div v-if="activeTab === 'file'" class="space-y-3">
         <div
-          class="border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg p-4 text-center cursor-pointer hover:border-teal-400 transition"
+          class="border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg p-4 text-center cursor-pointer hover:border-purple-400 transition"
           @click="$refs.fileInput.click()"
           @dragover.prevent
           @drop.prevent="handleFileDrop"
@@ -77,7 +77,7 @@
 
         <button
           type="button"
-          class="px-3 py-1.5 text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 rounded-lg transition"
+          class="px-3 py-1.5 text-sm font-medium text-white bg-purple-500 hover:bg-purple-600 rounded-lg transition"
           :disabled="!uploadedFile || fileProcessing"
           @click="runFileTest"
         >
@@ -95,37 +95,21 @@
         </div>
 
         <!-- Summary bar -->
-        <div class="text-xs font-medium px-3 py-2 rounded-lg bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800/50">
-          전체 {{ testResult.summary.total }}줄 → {{ testResult.summary.passed }}줄 전송, {{ testResult.summary.skipped }}줄 스킵
-          <span v-if="testResult.summary.noTimestamp > 0" class="text-gray-500">(시간 미추출: {{ testResult.summary.noTimestamp }}줄)</span>
+        <div class="text-xs font-medium px-3 py-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50">
+          전체 {{ testResult.summary.totalLines }}줄 → {{ testResult.summary.blockCount }}개 블록 추출
         </div>
 
-        <!-- Line results -->
-        <div class="space-y-1 max-h-64 overflow-y-auto">
-          <div
-            v-for="line in testResult.lines" :key="line.lineNum"
-            class="flex items-start gap-2 px-2 py-1 text-xs rounded"
-            :class="{
-              'bg-green-50 dark:bg-green-900/10': line.status === 'pass',
-              'bg-red-50 dark:bg-red-900/10': line.status === 'skip',
-              'bg-gray-50 dark:bg-gray-800/30': line.status === 'no-match'
-            }"
-          >
-            <span class="shrink-0 w-8 text-right text-gray-400 font-mono">{{ line.lineNum }}</span>
-            <span class="shrink-0">
-              <span v-if="line.status === 'pass'" class="text-green-600 dark:text-green-400">✓</span>
-              <span v-else-if="line.status === 'skip'" class="text-red-600 dark:text-red-400">✗</span>
-              <span v-else class="text-gray-400">-</span>
-            </span>
-            <div class="min-w-0 flex-1">
-              <div class="font-mono text-gray-700 dark:text-gray-300 truncate">{{ line.text }}</div>
-              <div v-if="line.extracted" class="text-gray-500 dark:text-gray-400 mt-0.5">
-                추출: {{ line.extracted }}
-                <span v-if="line.status === 'skip'" class="text-red-500"> (스킵)</span>
-              </div>
-            </div>
+        <!-- Block cards -->
+        <div v-for="block in testResult.blocks" :key="block.blockNum" class="rounded-lg border border-purple-200 dark:border-purple-800/50 overflow-hidden">
+          <div class="px-3 py-1.5 bg-purple-50/50 dark:bg-purple-900/10 text-xs font-medium text-purple-700 dark:text-purple-300 flex items-center justify-between">
+            <span>블록 #{{ block.blockNum }} (Line {{ block.startLine }}~{{ block.endLine }}, {{ block.lineCount }}줄)</span>
+            <span class="text-purple-500 dark:text-purple-400">종료: {{ terminatedLabel(block.terminatedBy) }}</span>
+          </div>
+          <div class="px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300 overflow-x-auto whitespace-nowrap">
+            {{ block.lines.map(l => l.text).join('') }}
           </div>
         </div>
+
       </div>
     </div>
   </div>
@@ -133,7 +117,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { testLogTimeFilter } from './configTestEngine'
+import { testMultilineBlocks } from './testEngine'
 
 const props = defineProps({
   source: { type: Object, required: true }
@@ -147,7 +131,7 @@ const uploadedFile = ref(null)
 const fileProcessing = ref(false)
 
 function runTextTest() {
-  testResult.value = testLogTimeFilter(props.source, logText.value)
+  testResult.value = testMultilineBlocks(props.source, logText.value)
 }
 
 function handleFileSelect(event) {
@@ -166,7 +150,7 @@ async function runFileTest() {
   fileProcessing.value = true
   try {
     const content = await uploadedFile.value.file.text()
-    testResult.value = testLogTimeFilter(props.source, content)
+    testResult.value = testMultilineBlocks(props.source, content)
   } finally {
     fileProcessing.value = false
   }
@@ -177,4 +161,16 @@ function formatFileSize(bytes) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
+
+function terminatedLabel(t) {
+  const map = { endPattern: '종료 패턴 매칭', count: '라인 수 도달', startPattern: '새 시작 패턴', emptyLine: '빈 줄', eof: '파일 끝' }
+  return map[t] || t
+}
+
 </script>
+
+<style scoped>
+.form-input {
+  @apply w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition disabled:opacity-60 disabled:cursor-not-allowed;
+}
+</style>

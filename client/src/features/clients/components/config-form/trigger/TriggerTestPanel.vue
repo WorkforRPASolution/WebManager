@@ -303,7 +303,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { testTriggerPattern, testTriggerWithFiles } from './configTestEngine'
+import { testTriggerPattern, testTriggerWithFiles } from './testEngine'
 
 const props = defineProps({
   trigger: { type: Object, required: true }

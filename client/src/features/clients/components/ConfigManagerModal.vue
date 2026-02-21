@@ -459,8 +459,7 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import MonacoEditor from '../../../shared/components/MonacoEditor.vue'
 import MonacoDiffEditor from '../../../shared/components/MonacoDiffEditor.vue'
 import ConfigRolloutPanel from './ConfigRolloutPanel.vue'
-import ConfigFormView from './config-form/ConfigFormView.vue'
-import { detectConfigFileType } from './config-form/configSchemas'
+import { ConfigFormView, detectConfigFileType } from './config-form'
 import { useTheme } from '../../../shared/composables/useTheme'
 
 const { isDark } = useTheme()

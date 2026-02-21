@@ -86,7 +86,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { ARSAGENT_SCHEMA } from './configSchemas'
+import { ARSAGENT_SCHEMA } from './schema'
 
 const props = defineProps({
   modelValue: { type: Object, default: () => ({}) },

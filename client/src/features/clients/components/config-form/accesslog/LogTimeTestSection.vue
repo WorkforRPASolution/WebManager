@@ -1,15 +1,15 @@
 <template>
   <div class="border-t border-gray-200 dark:border-dark-border">
-    <!-- Toggle Header (indigo) -->
+    <!-- Toggle Header (teal) -->
     <button
       type="button"
-      class="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 transition"
+      class="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-teal-600 dark:text-teal-400 hover:bg-teal-50/50 dark:hover:bg-teal-900/10 transition"
       @click="open = !open"
     >
       <svg class="w-3.5 h-3.5 transition-transform" :class="{ 'rotate-90': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
       </svg>
-      라인 그룹핑 테스트
+      시간 필터 테스트
     </button>
 
     <div v-show="open" class="px-4 pb-4 space-y-4">
@@ -18,7 +18,7 @@
         <button
           type="button"
           class="px-3 py-1.5 text-xs font-medium border-b-2 transition"
-          :class="activeTab === 'text' ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
+          :class="activeTab === 'text' ? 'border-teal-500 text-teal-600 dark:text-teal-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
           @click="activeTab = 'text'"
         >
           텍스트 입력
@@ -26,7 +26,7 @@
         <button
           type="button"
           class="px-3 py-1.5 text-xs font-medium border-b-2 transition"
-          :class="activeTab === 'file' ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
+          :class="activeTab === 'file' ? 'border-teal-500 text-teal-600 dark:text-teal-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'"
           @click="activeTab = 'file'"
         >
           파일 시뮬레이션
@@ -38,23 +38,23 @@
         <textarea
           v-model="logText"
           rows="8"
-          placeholder="로그 텍스트를 입력하세요&#10;예:&#10;ERROR first error&#10;INFO normal log&#10;ERROR second error&#10;INFO another normal&#10;ERROR third error"
-          class="w-full px-3 py-2 text-xs font-mono border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition resize-y"
+          placeholder="로그 텍스트를 입력하세요&#10;예:&#10;2026-02-20 10:00:00 INFO Start&#10;2026-02-20 10:01:00 INFO Process&#10;2026-02-20 09:59:00 INFO Old (스킵 대상)"
+          class="w-full px-3 py-2 text-xs font-mono border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition resize-y"
         ></textarea>
         <button
           type="button"
-          class="px-3 py-1.5 text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-600 rounded-lg transition"
+          class="px-3 py-1.5 text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 rounded-lg transition"
           :disabled="!logText.trim()"
           @click="runTextTest"
         >
-          그룹핑 테스트
+          시간 필터 테스트
         </button>
       </div>
 
       <!-- File Tab -->
       <div v-if="activeTab === 'file'" class="space-y-3">
         <div
-          class="border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg p-4 text-center cursor-pointer hover:border-indigo-400 transition"
+          class="border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg p-4 text-center cursor-pointer hover:border-teal-400 transition"
           @click="$refs.fileInput.click()"
           @dragover.prevent
           @drop.prevent="handleFileDrop"
@@ -77,7 +77,7 @@
 
         <button
           type="button"
-          class="px-3 py-1.5 text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-600 rounded-lg transition"
+          class="px-3 py-1.5 text-sm font-medium text-white bg-teal-500 hover:bg-teal-600 rounded-lg transition"
           :disabled="!uploadedFile || fileProcessing"
           @click="runFileTest"
         >
@@ -95,37 +95,34 @@
         </div>
 
         <!-- Summary bar -->
-        <div class="text-xs font-medium px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/50">
-          전체 {{ testResult.summary.totalLines }}줄 → {{ testResult.summary.groupCount }}개 그룹
-          <span v-if="testResult.summary.ungroupedCount > 0">+ {{ testResult.summary.ungroupedCount }}줄 비대상</span>
-          <span v-if="testResult.summary.incompleteGroup" class="text-amber-600 dark:text-amber-400"> (불완전 그룹 있음)</span>
+        <div class="text-xs font-medium px-3 py-2 rounded-lg bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800/50">
+          전체 {{ testResult.summary.total }}줄 → {{ testResult.summary.passed }}줄 전송, {{ testResult.summary.skipped }}줄 스킵
+          <span v-if="testResult.summary.noTimestamp > 0" class="text-gray-500">(시간 미추출: {{ testResult.summary.noTimestamp }}줄)</span>
         </div>
 
-        <!-- Group cards -->
-        <div v-for="group in testResult.groups" :key="group.groupNum" class="rounded-lg border border-indigo-200 dark:border-indigo-800/50 overflow-hidden">
-          <div class="px-3 py-1.5 bg-indigo-50/50 dark:bg-indigo-900/10 text-xs font-medium text-indigo-700 dark:text-indigo-300">
-            그룹 #{{ group.groupNum }} ({{ group.lines.length }}줄)
-          </div>
-          <div class="px-3 py-2 space-y-1">
-            <div v-for="(line, li) in group.lines" :key="li" class="text-xs font-mono text-gray-600 dark:text-gray-400">
-              <span class="text-gray-400 mr-1">{{ line.lineNum }}:</span> {{ line.text }}
-            </div>
-            <div class="mt-2 pt-2 border-t border-indigo-100 dark:border-indigo-800/30">
-              <div class="text-xs text-indigo-600 dark:text-indigo-400 font-mono break-all">
-                {{ group.groupedText }}
+        <!-- Line results -->
+        <div class="space-y-1 max-h-64 overflow-y-auto">
+          <div
+            v-for="line in testResult.lines" :key="line.lineNum"
+            class="flex items-start gap-2 px-2 py-1 text-xs rounded"
+            :class="{
+              'bg-green-50 dark:bg-green-900/10': line.status === 'pass',
+              'bg-red-50 dark:bg-red-900/10': line.status === 'skip',
+              'bg-gray-50 dark:bg-gray-800/30': line.status === 'no-match'
+            }"
+          >
+            <span class="shrink-0 w-8 text-right text-gray-400 font-mono">{{ line.lineNum }}</span>
+            <span class="shrink-0">
+              <span v-if="line.status === 'pass'" class="text-green-600 dark:text-green-400">✓</span>
+              <span v-else-if="line.status === 'skip'" class="text-red-600 dark:text-red-400">✗</span>
+              <span v-else class="text-gray-400">-</span>
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="font-mono text-gray-700 dark:text-gray-300 truncate">{{ line.text }}</div>
+              <div v-if="line.extracted" class="text-gray-500 dark:text-gray-400 mt-0.5">
+                추출: {{ line.extracted }}
+                <span v-if="line.status === 'skip'" class="text-red-500"> (스킵)</span>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Ungrouped lines -->
-        <div v-if="testResult.ungrouped.length > 0" class="rounded-lg border border-gray-200 dark:border-dark-border overflow-hidden">
-          <div class="px-3 py-1.5 bg-gray-50 dark:bg-dark-bg text-xs font-medium text-gray-500 dark:text-gray-400">
-            비대상 라인 ({{ testResult.ungrouped.length }}줄)
-          </div>
-          <div class="px-3 py-2 space-y-1">
-            <div v-for="line in testResult.ungrouped" :key="line.lineNum" class="text-xs font-mono text-gray-500 dark:text-gray-500">
-              <span class="text-gray-400 mr-1">{{ line.lineNum }}:</span> {{ line.text }}
             </div>
           </div>
         </div>
@@ -136,7 +133,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { testLineGroup } from './configTestEngine'
+import { testLogTimeFilter } from './testEngine'
 
 const props = defineProps({
   source: { type: Object, required: true }
@@ -150,7 +147,7 @@ const uploadedFile = ref(null)
 const fileProcessing = ref(false)
 
 function runTextTest() {
-  testResult.value = testLineGroup(props.source, logText.value)
+  testResult.value = testLogTimeFilter(props.source, logText.value)
 }
 
 function handleFileSelect(event) {
@@ -169,7 +166,7 @@ async function runFileTest() {
   fileProcessing.value = true
   try {
     const content = await uploadedFile.value.file.text()
-    testResult.value = testLineGroup(props.source, content)
+    testResult.value = testLogTimeFilter(props.source, content)
   } finally {
     fileProcessing.value = false
   }

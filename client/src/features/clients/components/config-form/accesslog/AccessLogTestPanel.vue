@@ -126,9 +126,9 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { testAccessLogPath } from './configTestEngine'
-import { decomposeLogType } from './configSchemas'
-import { configTestApi } from '../../api'
+import { testAccessLogPath } from './testEngine'
+import { decomposeLogType } from './schema'
+import { configTestApi } from '../../../api'
 import LogTimeTestSection from './LogTimeTestSection.vue'
 import LineGroupTestSection from './LineGroupTestSection.vue'
 import MultilineTestSection from './MultilineTestSection.vue'
