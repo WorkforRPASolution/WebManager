@@ -202,12 +202,13 @@ export function parseDurationMs(str) {
   const trimmed = str.trim().toLowerCase()
   if (!trimmed) return 0
 
-  const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)$/i)
+  const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*(milliseconds?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)$/i)
   if (!match) return 0
 
   const value = parseFloat(match[1])
   const unit = match[2].toLowerCase()
 
+  if (/^(ms|millisecond|milliseconds)$/.test(unit)) return Math.round(value)
   if (/^(s|sec|secs|second|seconds)$/.test(unit)) return Math.round(value * 1000)
   if (/^(m|min|mins|minute|minutes)$/.test(unit)) return Math.round(value * 60 * 1000)
   if (/^(h|hr|hrs|hour|hours)$/.test(unit)) return Math.round(value * 3600 * 1000)
@@ -227,12 +228,13 @@ export function parseDurationMs(str) {
 export function parseDuration(str) {
   if (!str || !str.trim()) return null;
 
-  const match = str.trim().match(/^(\d+)\s*(seconds?|minutes?|hours?)$/i);
+  const match = str.trim().match(/^(\d+)\s*(milliseconds?|seconds?|minutes?|hours?)$/i);
   if (!match) return str;
 
   const value = parseInt(match[1], 10);
   const unit = match[2].toLowerCase();
 
+  if (unit.startsWith('millisecond')) return `${value}밀리초`;
   if (unit.startsWith('second')) return `${value}초`;
   if (unit.startsWith('minute')) return `${value}분`;
   if (unit.startsWith('hour')) return `${value}시간`;

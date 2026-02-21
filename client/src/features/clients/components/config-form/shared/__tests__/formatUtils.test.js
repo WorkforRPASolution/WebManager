@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { jodaSubdirFormat, timestampFormatToRegex, parseDurationMs } from '../formatUtils'
+import { jodaSubdirFormat, timestampFormatToRegex, parseDurationMs, parseDuration } from '../formatUtils'
 
 // ===========================================================================
 // jodaSubdirFormat
@@ -134,5 +134,28 @@ describe('parseDurationMs', () => {
 
   it('7. "invalid" -> 0', () => {
     expect(parseDurationMs('invalid')).toBe(0)
+  })
+
+  it('8. "300 milliseconds" -> 300', () => {
+    expect(parseDurationMs('300 milliseconds')).toBe(300)
+  })
+
+  it('9. "500 ms" -> 500', () => {
+    expect(parseDurationMs('500 ms')).toBe(500)
+  })
+})
+
+
+// ===========================================================================
+// parseDuration
+// ===========================================================================
+
+describe('parseDuration', () => {
+  it('1. "300 milliseconds" -> "300밀리초"', () => {
+    expect(parseDuration('300 milliseconds')).toBe('300밀리초')
+  })
+
+  it('2. "10 seconds" -> "10초"', () => {
+    expect(parseDuration('10 seconds')).toBe('10초')
   })
 })

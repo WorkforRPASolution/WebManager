@@ -581,7 +581,16 @@ Config 파일의 정규 표현식 필드는 ARSAgent 내부 구현에 따라 **�
         "times": number,
         "next": "string",
         "script": { ... },  // next가 "@script"일 때만
-        "detail": { ... }  // next가 "@popup"일 때만 선택적 입력
+        "detail": { ... },  // next가 "@popup"일 때만 선택적 입력
+        "suspend": [        // next "@suspend"일 때만 선택적 입력
+          {
+            "name": "string",
+            "duration": "duration string"
+          } 
+        ], 
+        "resume": [         // next "@resume"일 때만 선택적 입력
+          {"name": "string"}
+        ]
       }
     ],
     "limitation": {
@@ -715,9 +724,7 @@ Config 파일의 정규 표현식 필드는 ARSAgent 내부 구현에 따라 **�
     "params": "ParamComparisionMatcher2@9.5,GTE,value;9.9,GTE,value2" // 선택 항목
   }
 ]
-
-
-
+```
 #### `duration` (duration)
 | 속성 | 값 |
 |------|-----|
@@ -740,21 +747,95 @@ Config 파일의 정규 표현식 필드는 ARSAgent 내부 구현에 따라 **�
 |------|-----|
 | 타입 | `string` |
 | 기본값 | `""` |
-| 허용값 | (1) 같은 트리거 내 다른 스텝의 `name`, (2) `"@recovery"`, `"@script"`, `"@notify"`, `"@popup"` |
+| 허용값 | (1) 같은 트리거 내 다른 스텝의 `name`, (2) `"@recovery"`, `"@script"`, `"@notify"`, `"@popup"`, `"@suspend"`, `"@resume"` |
 | 설명 | 이 스텝 발동 후 실행할 동작 |
 
 | next 값 | 동작 |
 |---------|------|
-| `"[다음 Step명]"` | 다음 스텝으로 진행 (스텝 체이닝) |
+| `"[다음 Step명]"` | 다음 스텝으로 진행 (스텝 체이닝). 바로 다음 Step 만 선택 가능. 이전 Step 선택 불가능 |
 | `"@recovery"` | 트리거 이름 (key) 과 동일한 이름의 시나리오 실행 |
 | `"@script"` | Code 기반 시나리오 실행 → `script` 객체 필수 |
 | `"@notify"` | 이메일 발송 실행|
 | `"@popup"` | PopUp 실행 → `detail` 객체 선택 |
+| `"@suspend"` | 지정한 trigger 의 실행 제한 |
+| `"@resume"` | 지정한 trigger 의 실행 제한 취소 |
 
 ---
 추가 설명
 1. `detail` 객체는 `"@popup"` 에서만 사용하는 추가 설정값으로 설정을 Skip 할 수 있다
 ---
+
+#### `suspend` (suspend trigger 목록)
+
+`next`가 `"@suspend"`일 때만 존재합니다. 일정 시간 혹은 지속적으로 trigger 발동에 의한 next action(`"@recovery"`, `"@script"`, `"@notify"`, `"@popup"`) 의 실행을 제한할 목록입니다.
+
+| 속성 | 값 |
+|------|-----|
+| 타입 | `array` of `{name: string, duration: duration string}` |
+| 설명 | trigger 발동이 되더라도 일정시간 혹은 지속적으로 next action 을 실행 제한할 목록 |
+| 비고 | duration 을 빈값(`""`) 으로 설정하면 항목 삭제. 지속 제한의 의미|
+
+```json
+"suspend": [
+  {
+    "name": "Test_Scenario", 
+    "duration"; "30 minutes"
+  },
+  {
+    "name": "Test_Trigger"
+  }
+]
+```
+
+> **중요**: name 은 필수 항목, duration 은 선택 입력.입력 폼은 유지하되 값이 없을 경우 json 에서 항목 삭제
+
+#### `suspend` (suspend trigger 목록)
+
+`next`가 `"@suspend"`일 때만 존재합니다. 일정 시간 혹은 지속적으로, trigger 발동에 의한 next action(`"@recovery"`, `"@script"`, `"@notify"`, `"@popup"`) 의 실행을 제한할 목록입니다.
+
+| 속성 | 값 |
+|------|-----|
+| 타입 | `array` of `{name: string, duration: duration string}` |
+| 설명 | trigger 발동이 되더라도 일정시간 혹은 지속적으로 next action 을 실행 제한할 목록 |
+| 비고 | duration 을 빈값(`""`) 으로 설정하면 항목 삭제. 지속 제한의 의미|
+
+```json
+"suspend": [
+  {
+    "name": "Test_Scenario", 
+    "duration"; "30 minutes"  //(선택)
+  },
+  {
+    "name": "Test_Trigger"
+  }
+]
+```
+
+> **중요**:
+  `next`가 `"@suspend"`일 때, 선택 입력 가능하도록 폼 구성. 입력 선택을 하지 않을 경우 모든 trigger 의 실행 제한을 의미.
+  name 은 필수 항목, trigger.json 의 trigger 목록에서 선택할 수 있도록 입력 폼 구성
+  duration 은 선택 입력. 입력 폼은 유지하되 값이 없을 경우 json 에서 항목 삭제.
+
+#### `resume` (suspend 해제 trigger 목록)
+
+`next`가 `"@resume"`일 때만 존재합니다. `"@suspend"` 에 의해 제한된 trigger 들을 제한 취소(해제) 합니다.
+
+| 속성 | 값 |
+|------|-----|
+| 타입 | `array` of `{name: string}` |
+| 설명 | `"@suspend"` 에 의해 실행 제한 된 next action 의 제한 취소(해제) |
+| 비고 | duration 을 빈값(`""`) 으로 설정하면 항목 삭제. 지속 제한의 의미|
+
+```json
+"resume": [
+  {"name": "Test_Scenario"},
+  {"name": "Test_Trigger"}
+]
+```
+
+> **중요**:
+  `next`가 `"@resume"`일 때, 선택 입력 가능하도록 폼 구성. 입력 선택을 하지 않을 경우 모든 trigger 의 실행 제한을 의미.
+  name 은 필수 항목, trigger.json 의 trigger 목록에서 선택할 수 있도록 입력 폼 구성.
 
 ### 5.5 Script 객체 필드 상세
 
@@ -835,7 +916,6 @@ Config 파일의 정규 표현식 필드는 ARSAgent 내부 구현에 따라 **�
 | 설명 | 이메일 알림을 보내지 않을 popup 결과값 목록. **세미콜론(`;`)으로 구분** |
 | 예시 | `"success;fail"` → popup 결과가 "success" 또는 "fail"이면 이메일 미발송 |
 | 비고 | JSON key에 하이픈 포함 (`no-email`). JavaScript에서 `obj['no-email']`로 접근 |
-
 
 ### 5.7 Limitation 필드 상세
 
@@ -941,13 +1021,62 @@ Config 파일의 정규 표현식 필드는 ARSAgent 내부 구현에 따라 **�
   ],
   "AccessLogLists": [
     "<소스이름>"
-  ]
+  ],
+  "CronTab": [
+    {
+      "name": "string",
+      "type": "string (enum)",
+      "arg": "string",
+      "no-email": "string (enum)",
+      "key": number,
+      "timeout": "duration string",
+      "retry": "duration string",
+      "suspend": [        // type "SA"일 때만 선택적 입력
+          {
+            "name": "string",
+            "duration": "duration string"
+          } 
+      ], 
+      "resume": [         // type "RA"일 때만 선택적 입력
+        {"name": "string"}
+      ]
+    }
+  ],
+  "VirtualAddressList": "string",
+  "AliveSignalInterval": "duration string",
+  "RedisPingInterval": "duration string",
+  "IsSendAgentStatus2Redis": boolean,
+  "AgentPort4RPC": number,
+  "AgentPort4ScreenProtector": number,
+  "ScenarioCheckInterval": "duration string",
+  "UpdateServerAddressInterval": "duration string",
+  "IgnoreEventBetweenTime": "duration string",
+  "TransferImagerInterval": "duration string",
+  "IsStandAloneMode": boolean,
+  "IsSnapshotRecordingOn": boolean,
+  "IsSnapshotRecordingDuringRecovery": boolean,
+  "SnapshotFormat": "string",
+  "InformDialogSize": "strig",
+  "MouseEventDelay": number,
+  "MouseEventDelayDoubleClick": number,
+  "CpuMonitoringInterval": "duration string",
+  "MemMonitoringInterval": "duration string",
+  "TotalCpuPercentLimit": number,
+  "AgentCpuPercentLimit": number,
+  "FileChangeMonitorInterval": "duration string",
+  "UseUploadLog": boolean,
+  "ResourceMonitorInterval": "duration string",
+  "PopupSrcLocalMode": boolean,
+  "UseDataBackup": boolean,
+  "UseRouter": boolean,
+  "PrivateIPAddressPattern": "strig",
+  "ShowEQPLog": boolean,
+  "VisionType": "strig",
+  "CommandType": "strig"
 }
 ```
 
 ARSAgent.json 에 상기 두가지 key 이외에도 여러 항목이 있지만, trigger.json, AccessLog.json 과 연관된 항목은 위 `ErrorTrigger`와 `AccessLogLists` 두가지로 고정됩니다. 
-나머지 항목에 대해서는 Form 에서는 다루지 않습니다.
-
 
 ### 6.2 `ErrorTrigger`
 
@@ -988,6 +1117,400 @@ ARSAgent.json 에 상기 두가지 key 이외에도 여러 항목이 있지만, 
 - `trigger.json`에 트리거를 정의해도 `ARSAgent.json`의 `ErrorTrigger`에 포함되지 않으면 **비활성** (감시하지 않음)
 - `AccessLog.json`에 소스를 정의해도 `ARSAgent.json`의 `AccessLogLists`에 포함되지 않으면 **비활성** (읽지 않음)
 - 즉 ARSAgent.json은 "스위치" 역할 — 정의와 활성화를 분리하여 설정을 끄고 켤 수 있음
+
+### 6.5 `CronTab`
+
+주기적으로 설정한 type (AR/SR/EN/PU) 의 Action 을 수행하는 설정 모음
+
+```json
+"CronTab": [
+    {
+      "name": "CronTab_Test",
+      "type": "AR",
+      "arg": "arg1;arg2",
+      "no-email": "success;fail",
+      "key": 1,
+      "timeout": "30 seconds",
+      "retry": "3 minutes"
+
+    }
+  ]
+```
+
+### 6.6 CronTab 객체 필드 상세
+
+```json
+"script": {
+  "name": "Test.scala",
+  "arg": "arg1;arg2",
+  "no-email": "success;fail",
+  "key": 1,
+  "timeout": "30 seconds",
+  "retry": "3 minutes"
+}
+```
+
+#### `name` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 설명 | 실행할 Action Name |
+| 예시 | `"SCENARIO"`, `"Test.scala"` |
+
+#### `type` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `""` |
+| 허용값 | `"AR"`, `"SR"`, `"EN"`, `"PU"` |
+| 설명 | CronTab 실행할 Action type |
+
+| next 값 | 동작 |
+|---------|------|
+| `"AR"` | 트리거 이름 (key) 과 동일한 이름의 시나리오 실행 |
+| `"SR"` | Code 기반 시나리오 실행  |
+| `"EN"` | 이메일 발송 실행|
+| `"PU"` | PopUp 실행 → `detail` 객체 선택 |
+| `"SA"` | 지정한 trigger 의 실행 제한 |
+| `"RA"` | 지정한 trigger 의 실행 제한 취소 |
+
+#### `arg`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `""` |
+| 설명 | Acion 에 전달할 인자. **세미콜론(`;`)으로 구분**. 설정 값이 없을 경우 항목 미추가 |
+| 예시 | `"arg1;arg2;arg3"` |
+
+#### `no-email`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `""` |
+| 설명 | 이메일 알림을 보내지 않을 Action 결과값 목록. **세미콜론(`;`)으로 구분**, 설정 값이 없을 경우 항목 미추가 |
+| 예시 | `"success;fail"` → 스크립트 결과가 "success" 또는 "fail"이면 이메일 미발송 |
+| 비고 | JSON key에 하이픈 포함 (`no-email`). JavaScript에서 `obj['no-email']`로 접근 |
+
+#### `key`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `number` (정수) |
+| 기본값 | `1` |
+| 설명 | Action 실행 식별 키. **동일 key를 가진 스크립트는 동시에 실행되지 않음** (배타적 실행), 설정 값이 없을 경우 항목 미추가 |
+| 비고 | 같은 스크립트를 여러 트리거에서 사용할 때 key를 같게 하면 동시 실행 방지 |
+
+#### `timeout` (duration)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` (duration) |
+| 기본값 | `"30 seconds"` |
+| 설명 | Action 실행 최대 대기 시간. 초과하면 강제 종료. 설정 값이 없을 경우 항목 미추가 |
+
+#### `retry` (duration)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` (duration) |
+| 기본값 | `"3 minutes"` |
+| 설명 | Action 실행 실패 시 재시도까지 대기 시간. 설정 값이 없을 경우 항목 미추가 |
+
+#### `suspend` (suspend trigger 목록)
+
+`type`이 `"SA"`일 때만 존재합니다. 일정 시간 혹은 지속적으로, trigger 발동에 의한 next action(`"@recovery"`, `"@script"`, `"@notify"`, `"@popup"`) 의 실행을 제한할 목록입니다.
+
+| 속성 | 값 |
+|------|-----|
+| 타입 | `array` of `{name: string, duration: duration string}` |
+| 설명 | trigger 발동이 되더라도 일정시간 혹은 지속적으로 next action 을 실행 제한할 목록 |
+| 비고 | duration 을 빈값(`""`) 으로 설정하면 항목 삭제. 지속 제한의 의미|
+
+```json
+"suspend": [
+  {
+    "name": "Test_Scenario", 
+    "duration"; "30 minutes"  //(선택)
+  },
+  {
+    "name": "Test_Trigger"
+  }
+]
+```
+
+> **중요**:
+  `type`이 `"SA"`일 때, 선택 입력 가능하도록 폼 구성. 입력 선택을 하지 않을 경우 모든 trigger 의 실행 제한을 의미.
+  name 은 필수 항목, trigger.json 의 trigger 목록에서 선택할 수 있도록 입력 폼 구성
+  duration 은 선택 입력. 입력 폼은 유지하되 값이 없을 경우 json 에서 항목 삭제.
+
+#### `resume` (suspend 해제 trigger 목록)
+
+`type`이 `"RA"`일 때만 존재합니다. `"SA"` 에 의해 제한된 trigger 들을 제한 취소(해제) 합니다.
+
+| 속성 | 값 |
+|------|-----|
+| 타입 | `array` of `{name: string}` |
+| 설명 | `"SA"` 에 의해 실행 제한 된 next action 의 제한 취소(해제) |
+| 비고 | duration 을 빈값(`""`) 으로 설정하면 항목 삭제. 지속 제한의 의미|
+
+```json
+"resume": [
+  {"name": "Test_Scenario"},
+  {"name": "Test_Trigger"}
+]
+```
+
+> **중요**:
+  `type`이 `"RA"`일 때, 선택 입력 가능하도록 폼 구성. 입력 선택을 하지 않을 경우 모든 trigger 의 실행 제한을 의미.
+  name 은 필수 항목, trigger.json 의 trigger 목록에서 선택할 수 있도록 입력 폼 구성.
+
+### 5.6 detail 객체 필드 상세
+
+`next`가 `"@popup"`일 때만 존재합니다. 실행 옵션을 정의합니다. 설정을 Skip 할 수 있습니다.
+
+```json
+"detail": {
+  "no-email": "success;fail"
+}
+```
+
+#### `no-email`
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `""` |
+| 설명 | 이메일 알림을 보내지 않을 popup 결과값 목록. **세미콜론(`;`)으로 구분** |
+| 예시 | `"success;fail"` → popup 결과가 "success" 또는 "fail"이면 이메일 미발송 |
+| 비고 | JSON key에 하이픈 포함 (`no-email`). JavaScript에서 `obj['no-email']`로 접근 |
+
+
+### 6.7 기타 ARSAgent.json 설정
+
+#### `VirtualAddressList` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string (IP Address pattern)` |
+| 설명 | 시스템 접속 IP address |
+| 예시 | `"11.22.33.44"` |
+
+#### `AliveSignalInterval` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `duration string` |
+| 기본값 | `"5 minutes"` |
+| 설명 | 시스템에 Avlive Signal 을 전송하는 Interval |
+
+#### `RedisPingInterval` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `duration string` |
+| 기본값 | `"5 minutes"` |
+| 설명 | 시스템에 Redis Ping Interval |
+
+#### `IsSendAgentStatus2Redis` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `boolean` |
+| 기본값 | `false` |
+| 설명 | Agent 의 상태를 Redis 에 전송할지 여부 |
+
+#### `AgentPort4RPC` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `number` |
+| 기본값 | `50100` |
+| 설명 | Agent 의 RPC Port |
+
+#### `AgentPort4ScreenProtector` (선택)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `number` |
+| 기본값 | `32126` |
+| 설명 | Agent 의 Screen Protector 용 Port |
+| 비고 | 값을 설정하지 않을 경우 항목 삭제 |
+
+#### `ScenarioCheckInterval` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `duration string` |
+| 기본값 | `"1 seconds"` |
+| 설명 | Agent 의 Scenario Check Interval |
+
+#### `UpdateServerAddressInterval` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `duration string` |
+| 기본값 | `"100 minutes"` |
+| 설명 | Server Address Update Interval |
+
+#### `IgnoreEventBetweenTime` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `duration string` |
+| 기본값 | `"300 milliseconds"` |
+| 설명 | Mouse Event 무시 시간 간격 |
+
+#### `TransferImagerInterval` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `duration string` |
+| 기본값 | `"5 seconds"` |
+| 설명 | SnapShot Image 전송 Interval |
+
+#### `IsStandAloneMode` (선택)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `boolean` |
+| 기본값 | `false` |
+| 설명 | Agent Stand Alone Mode 사용 여부 |
+| 비고 | 값을 설정하지 않을 경우 항목 삭제 |
+
+#### `IsSnapshotRecordingOn` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `boolean` |
+| 기본값 | `true` |
+| 설명 | Agent 의 SnapShot Recoding 기능 사용 여부 |
+
+#### `IsSnapshotRecordingDuringRecovery` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `boolean` |
+| 기본값 | `false` |
+| 설명 | Agent 의 Scenario 실행 중 SnapShot Recoding 기능 사용 여부 |
+
+#### `SnapshotFormat` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `"png"` |
+| 설명 | SnapShot 확장자 |
+
+#### `InformDialogSize` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `"800:280"` |
+| 설명 | Inform Dialog 의 크기 (width:height) |
+
+#### `MouseEventDelay` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `number` |
+| 기본값 | `300` |
+| 설명 | Mouse Click Event Interval(ms) |
+
+#### `MouseEventDelayDoubleClick` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `number` |
+| 기본값 | `50` |
+| 설명 | Mouse Double Click 중, 첫 Click 과 두번째 Click 사이의 Interval(ms) |
+
+#### `CpuMonitoringInterval` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `duration string` |
+| 기본값 | `"2 minutes"` |
+| 설명 | Cpu Usage Monitoring Interval |
+
+#### `MemMonitoringInterval` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `duration string` |
+| 기본값 | `"10 minutes"` |
+| 설명 | Memory Usage Monitoring Interval |
+
+#### `TotalCpuPercentLimit` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `number` |
+| 기본값 | `"90"` |
+| 설명 | Total Cpu Usage Limit for ARSAgent 동작(Scenario) 중지 |
+
+#### `AgentCpuPercentLimit` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `number` |
+| 기본값 | `"20"` |
+| 설명 | Agent Cpu Usage Limit for ARSAgent 동작(Scenario) 중지 |
+
+#### `FileChangeMonitorInterval` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `duration string` |
+| 기본값 | `"10 seconds"` |
+| 설명 | AccessLog 대상 파일 변경 Monitoring Interval |
+
+#### `UseUploadLog` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `boolean` |
+| 기본값 | `true` |
+| 설명 | Agent Data Upload 기능 사용 여부 |
+
+#### `ResourceMonitorInterval` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `duration string` |
+| 기본값 | `"2 minutes"` |
+| 설명 | PC Resource (CPU, Mem, HDD 등) 사용 Data Upload 주기 |
+| 비고 | 빈값으로 설정 가능. 빈값일 경우 기능 사용안함의 의미 |
+
+#### `PopupSrcLocalMode` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `boolean` |
+| 기본값 | `false` |
+| 설명 | Agent PopUp 실행시 local popup image 사용 여부 |
+
+#### `UseDataBackup` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `boolean` |
+| 기본값 | `false` |
+| 설명 | Agent 의 Data Backup 기능 사용 여부 |
+
+#### `UseRouter` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `boolean` |
+| 기본값 | `false` |
+| 설명 | Router(Proxy) 를 통해 시스템과 통신할지 여부 |
+| 비고 | 시스템과 직접 통신하지 않는 PC 는 설정 필수 |
+
+#### `PrivateIPAddressPattern` (필수)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string (정규 표현식)` |
+| 기본값 | `""` |
+| 설명 | `UseRouter` 를 사용하는 PC 의 Inner IP Address 정규표현식 패턴 |
+| 예시 | `"192\\.168\\.0\\.[0-9]+"` |
+| 비고 | `UseRouter` true 로 설정시 반드시 입력 필요 |
+
+#### `ShowEQPLog` (선택)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `boolean` |
+| 기본값 | `false` |
+| 설명 | AccessLog 설정을 통해 읽은 log 를 Agent log 로 기록할지 여부 |
+| 비고 | 값을 설정하지 않을 경우 항목 삭제 |
+
+#### `VisionType` (선택)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `"thrift"` |
+| 허용값 | `"thrift"`, `"grpc"`, `"http"` |
+| 설명 | Agent 의 시스템과 Vision 통신 방식 설정 |
+| 비고 | 값을 설정하지 않을 경우 항목 삭제 |
+
+#### `CommandType` (선택)
+| 속성 | 값 |
+|------|-----|
+| 타입 | `string` |
+| 기본값 | `"http"` |
+| 허용값 | `"http"`, `"grpc"` |
+| 설명 | Agent 의 시스템과 Command 통신 방식 설정 |
+| 비고 | 값을 설정하지 않을 경우 항목 삭제 |
+
 
 ---
 
@@ -1094,6 +1617,24 @@ trigger.json script의 `no-email` 필드는 키에 하이픈을 포함합니다.
 
 ```json
 {
+  "ErrorTrigger": [
+    {"alid": "LIMITATION_TEST"}
+  ],
+  "AccessLogLists": [
+    "__LogReadInfo__"
+  ],
+  "CronTab": [
+    {
+      "name": "CronTab_Test",
+      "type": "AR",
+      "arg": "arg1;arg2",
+      "no-email": "success;fail",
+      "key": 1,
+      "timeout": "30 seconds",
+      "retry": "3 minutes"
+
+    }
+  ],
   "VirtualAddressList": "",
   "AliveSignalInterval": "5 minutes",
   "RedisPingInterval": "5 minutes",
@@ -1122,27 +1663,9 @@ trigger.json script의 `no-email` 필드는 키에 하이픈을 포함합니다.
   "UseDataBackup": false,
   "UseRouter": false,
   "PrivateIPAddressPattern": "",
-  "ErrorTrigger": [
-    {"alid": "LIMITATION_TEST"}
-  ],
-  "AccessLogLists": [
-    "__LogReadInfo__"
-  ],
-  "CronTab": [
-    {
-      "name": "CronTab_Test",
-      "type": "AR",
-      "arg": "arg1;arg2",
-      "no-email": "success;fail",
-      "key": 1,
-      "timeout": "30 seconds",
-      "retry": "3 minutes"
-
-    }
-  ],
   "ShowEQPLog": false,
-  "VisionType": "thrift/grpc",
-  "CommandType": "http/grpc"
+  "VisionType": "thrift",
+  "CommandType": "http"
 }
 ```
 
