@@ -405,7 +405,7 @@ function emitChange() {
 
 watch(() => props.suspendableTriggerNames, () => {
   emitChange()
-})
+}, { immediate: true })
 
 const selectedTriggers = computed(() =>
   (formData.value.ErrorTrigger || []).map(t => t.alid)
