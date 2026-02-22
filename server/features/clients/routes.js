@@ -8,6 +8,7 @@ const controller = require('./controller')
 const configController = require('./configController')
 const logController = require('./logController')
 const updateController = require('./updateController')
+const configTestController = require('./configTestController')
 const { asyncHandler } = require('../../shared/middleware/errorHandler')
 const { authenticate, requireRole, requireMenuPermission } = require('../../shared/middleware/authMiddleware')
 const { requireFeaturePermission, requireActionPermission } = require('../permissions/middleware')
@@ -115,6 +116,9 @@ router.post('/log-tail-stream', authenticate, requireMenuPermission(['arsAgent',
 
 // POST /api/clients/:id/detect-base-path - Detect basePath via RPC
 router.post('/:id/detect-base-path', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('clientControl', 'write'), requireClientExists(), asyncHandler(logController.detectClientBasePath))
+
+// POST /api/clients/:id/test-accesslog - Test AccessLog file matching via FTP
+router.post('/:id/test-accesslog', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('clientControl', 'read'), requireClientExists(), asyncHandler(configTestController.testAccessLog))
 
 // ============================================
 // Update Settings & Deploy Routes

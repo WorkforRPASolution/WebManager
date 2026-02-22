@@ -97,9 +97,35 @@
 
           <!-- Action Buttons -->
           <div class="flex items-center gap-2 pl-4">
+            <!-- Form/JSON Toggle (only for recognized config files) -->
+            <div v-if="isFormSupported" class="flex items-center bg-gray-200 dark:bg-gray-700 rounded-md p-0.5 mr-1">
+              <button
+                @click="toggleViewMode()"
+                :class="[
+                  'px-2.5 py-1 text-xs font-medium rounded transition',
+                  isFormMode
+                    ? 'bg-white dark:bg-dark-card text-primary-600 dark:text-primary-400 shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                ]"
+              >
+                Form
+              </button>
+              <button
+                @click="isFormMode ? toggleViewMode() : null"
+                :class="[
+                  'px-2.5 py-1 text-xs font-medium rounded transition',
+                  !isFormMode
+                    ? 'bg-white dark:bg-dark-card text-primary-600 dark:text-primary-400 shadow-sm'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                ]"
+              >
+                JSON
+              </button>
+            </div>
+
             <button
               @click="toggleDiff()"
-              :disabled="!activeFile || !!activeFile.error"
+              :disabled="!activeFile || !!activeFile.error || isFormMode"
               :class="[
                 'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded transition',
                 showDiff
@@ -116,7 +142,7 @@
             </button>
 
             <button
-              v-if="canWrite"
+              v-if="canWrite && !isFormMode"
               @click="formatJson"
               :disabled="!activeFile || !!activeFile.error || !!jsonError"
               class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -259,6 +285,72 @@
               </div>
             </div>
 
+            <!-- Form View -->
+            <div v-else-if="isFormMode && activeFile && !activeFile.error" class="h-full flex flex-col">
+              <!-- Missing file banner -->
+              <div v-if="activeFile.missing" class="px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm flex items-center gap-2 shrink-0">
+                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>File not found on server. Save to create a new file.</span>
+              </div>
+              <!-- Form + Preview split -->
+              <div class="flex-1 flex overflow-hidden">
+                <ConfigFormView
+                  class="flex-1 overflow-hidden"
+                  :content="activeContent"
+                  :fileName="activeFile.name"
+                  :filePath="activeFile.path"
+                  :readOnly="!canWrite"
+                  :allContents="editedContents"
+                  :configFiles="configFiles"
+                  :eqpId="activeClientId"
+                  :agentGroup="currentAgentGroup"
+                  :agentVersion="activeAgentVersion"
+                  @update:content="updateContent"
+                />
+                <!-- Resizable divider -->
+                <div
+                  v-if="showFormPreview"
+                  class="w-1 shrink-0 cursor-col-resize bg-gray-200 dark:bg-gray-700/30 hover:bg-primary-400 dark:hover:bg-primary-500 active:bg-primary-500 transition-colors"
+                  @mousedown.prevent="startPanelResize"
+                ></div>
+                <!-- JSON Preview Panel (Monaco 테마 색상 매칭) -->
+                <div v-if="showFormPreview" class="shrink-0 border-l border-gray-200 dark:border-gray-700/30 flex flex-col bg-white dark:bg-[#1e1e1e]" :style="{ width: previewPanelWidth + 'px' }">
+                  <div class="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700/50">
+                    <span class="text-xs font-medium text-gray-500 dark:text-gray-400">JSON Preview</span>
+                    <div class="flex items-center gap-2">
+                      <button
+                        @click="copyPreviewJson"
+                        class="px-2 py-0.5 text-xs rounded bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600/50 transition"
+                      >{{ previewCopyLabel }}</button>
+                      <button
+                        @click="showFormPreview = false"
+                        class="p-0.5 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition"
+                        title="Hide preview"
+                      >
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <pre class="flex-1 overflow-auto p-3 text-xs leading-5 font-mono select-text text-gray-800 dark:text-[#d4d4d4]" v-html="highlightedPreviewJson"></pre>
+                </div>
+                <!-- Preview toggle (when hidden) -->
+                <button
+                  v-else
+                  @click="showFormPreview = true"
+                  class="w-8 shrink-0 border-l border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg flex items-center justify-center hover:bg-gray-100 dark:hover:bg-dark-hover transition"
+                  title="Show JSON Preview"
+                >
+                  <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
             <!-- Editor View -->
             <div v-else-if="activeFile && !activeFile.error" class="h-full flex flex-col">
               <!-- Missing file banner -->
@@ -327,7 +419,13 @@
           <div class="flex items-center gap-4">
             <span v-if="error" class="text-red-500">{{ error }}</span>
             <span>{{ sourceClient?.eqpModel }}</span>
-            <span v-if="jsonError" class="flex items-center gap-1 text-red-500" :title="jsonError.message">
+            <span v-if="isFormMode" class="flex items-center gap-1 text-primary-500">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Form View
+            </span>
+            <span v-else-if="jsonError" class="flex items-center gap-1 text-red-500" :title="jsonError.message">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -361,6 +459,7 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import MonacoEditor from '../../../shared/components/MonacoEditor.vue'
 import MonacoDiffEditor from '../../../shared/components/MonacoDiffEditor.vue'
 import ConfigRolloutPanel from './ConfigRolloutPanel.vue'
+import { ConfigFormView, detectConfigFileType } from './config-form'
 import { useTheme } from '../../../shared/composables/useTheme'
 
 const { isDark } = useTheme()
@@ -377,6 +476,7 @@ const props = defineProps({
   saving: Boolean,
   showDiff: Boolean,
   showRollout: { type: Boolean, default: false },
+  viewMode: { type: String, default: 'json' },
   error: String,
   activeFile: Object,
   activeContent: String,
@@ -389,7 +489,8 @@ const props = defineProps({
   selectedClients: { type: Array, default: () => [] },
   activeClientId: String,
   isMultiMode: Boolean,
-  clientStatuses: { type: Array, default: () => [] }
+  clientStatuses: { type: Array, default: () => [] },
+  activeAgentVersion: { type: String, default: '' }
 })
 
 const emit = defineEmits([
@@ -400,6 +501,7 @@ const emit = defineEmits([
   'discard',
   'toggle-diff',
   'toggle-rollout',
+  'toggle-view-mode',
   'switch-client'
 ])
 
@@ -470,6 +572,16 @@ const updateContent = (content) => emit('update-content', content)
 const handleSave = () => emit('save')
 const toggleDiff = () => emit('toggle-diff')
 const toggleRollout = () => emit('toggle-rollout')
+const toggleViewMode = () => emit('toggle-view-mode')
+
+// Form View 지원 여부 판별
+const isFormSupported = computed(() => {
+  return props.activeFile ? !!detectConfigFileType(props.activeFile.name, props.activeFile.path) : false
+})
+
+const isFormMode = computed(() => {
+  return props.viewMode === 'form' && isFormSupported.value
+})
 
 // JSON validation
 const jsonError = computed(() => {
@@ -495,6 +607,74 @@ const otherSelectedClientIds = computed(() => {
   if (!props.isMultiMode) return []
   const sourceId = props.sourceClient?.eqpId || props.sourceClient?.id
   return props.selectedClients.map(c => c.eqpId || c.id).filter(id => id !== sourceId)
+})
+
+// Form preview
+const showFormPreview = ref(true)
+const previewPanelWidth = ref(360)
+
+// Panel resize (Form ↔ Preview divider)
+let isPanelResizing = false
+let panelResizeStartX = 0
+let panelResizeStartW = 0
+
+const startPanelResize = (e) => {
+  isPanelResizing = true
+  panelResizeStartX = e.clientX
+  panelResizeStartW = previewPanelWidth.value
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+const doPanelResize = (e) => {
+  if (!isPanelResizing) return
+  const delta = panelResizeStartX - e.clientX
+  previewPanelWidth.value = Math.max(200, Math.min(800, panelResizeStartW + delta))
+}
+
+const stopPanelResize = () => {
+  if (!isPanelResizing) return
+  isPanelResizing = false
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
+const previewCopyLabel = ref('Copy')
+
+const copyPreviewJson = () => {
+  navigator.clipboard.writeText(props.activeContent || '').then(() => {
+    previewCopyLabel.value = 'Copied!'
+    setTimeout(() => previewCopyLabel.value = 'Copy', 2000)
+  })
+}
+
+// Monaco VS / VS-Dark 테마 색상 매칭
+const monacoColors = computed(() => isDark.value
+  ? { key: '#9cdcfe', string: '#ce9178', number: '#b5cea8', keyword: '#569cd6' }
+  : { key: '#0451a5', string: '#a31515', number: '#098658', keyword: '#0000ff' }
+)
+
+const highlightedPreviewJson = computed(() => {
+  if (!props.activeContent || !props.activeContent.trim()) return ''
+  const c = monacoColors.value
+  try {
+    const formatted = JSON.stringify(JSON.parse(props.activeContent), null, 2)
+    return formatted
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(
+        /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+        (match) => {
+          let color = c.number
+          if (/^"/.test(match)) {
+            color = /:$/.test(match) ? c.key : c.string
+          } else if (/true|false|null/.test(match)) {
+            color = c.keyword
+          }
+          return `<span style="color:${color}">${match}</span>`
+        }
+      )
+  } catch {
+    return (props.activeContent || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  }
 })
 
 const formatJson = () => {
@@ -562,11 +742,13 @@ const stopResize = () => { isResizing = false }
 const onMouseMove = (e) => {
   doDrag(e)
   doResize(e)
+  doPanelResize(e)
 }
 
 const onMouseUp = () => {
   stopDrag()
   stopResize()
+  stopPanelResize()
 }
 
 // Keyboard shortcut

@@ -8,7 +8,7 @@
  *   - start/stop: net 명령 사용 (동기 — 실제 상태 변경까지 대기)
  *   - status: sc query 사용
  *
- * [Log Tail] getTailCommand(filePath, lines)
+ * [Log Tail] getTailCommand(filePath, lines, basePath)
  *   - logService.js에서 호출 — 런타임 인자(파일경로, 줄 수)가 필요하여 별도 메서드
  *
  * [BasePath Detection] getDetectBasePathCommand() + parseBasePath(rpcResult)
@@ -110,8 +110,9 @@ module.exports = {
   },
 
   // --- Log Tail (logService.js) ---
-  getTailCommand(filePath, lines) {
-    return { commandLine: 'powershell', args: ['-Command', `Get-Content '${filePath}' -Tail ${lines} -Encoding UTF8`], timeout: 10000 }
+  getTailCommand(filePath, lines, basePath) {
+    const tailBin = basePath ? `${basePath}/utils/tail` : 'tail'
+    return { commandLine: tailBin, args: ['-n', String(lines), filePath], timeout: 10000 }
   },
 
   // --- BasePath Detection (controlService.js) ---
@@ -130,6 +131,32 @@ module.exports = {
     if (binIdx <= 0) {
       throw new Error(`Cannot extract basePath from: ${binaryLine}`)
     }
-    return binaryLine.substring(0, binIdx).replace(/\\/g, '/')
+    return binaryLine.substring(0, binIdx).replace(/\\\\/g, '/')
+  },
+
+  // --- List Files (configTestController.js) ---
+  getListFilesCommand(directory) {
+    return {
+      commandLine: 'cmd',
+      args: ['/c', 'dir', '/A-D', '/B', directory],
+      timeout: 15000
+    }
+  },
+
+  parseListFilesResponse(rpcResult) {
+    if (!rpcResult.success) {
+      const combined = (rpcResult.output || '') + ' ' + (rpcResult.error || '')
+      if (/file not found|cannot find|does not exist|찾을 수 없/i.test(combined))
+        return { files: [], error: '디렉토리를 찾을 수 없습니다' }
+      throw new Error(rpcResult.error || 'List files command failed')
+    }
+    const output = (rpcResult.output || '').trim()
+    if (!output) return { files: [] }
+    return {
+      files: output.split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 0)
+        .map(name => ({ name, size: 0, modifiedAt: null }))
+    }
   }
 }

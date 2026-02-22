@@ -106,3 +106,9 @@ export const updateSettingsApi = {
   listSourceFiles: (source, relativePath) =>
     api.post('/clients/update-source/list', { source, relativePath }),
 }
+
+// Config Test API
+export const configTestApi = {
+  testAccessLog: (eqpId, sourceConfig, agentGroup) =>
+    api.post(`/clients/${eqpId}/test-accesslog`, { ...sourceConfig, agentGroup }, { timeout: 30000 }),
+}

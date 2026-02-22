@@ -1,0 +1,373 @@
+/**
+ * accesslog/schema.js
+ *
+ * AccessLog configuration schema, log_type model, and JSON conversion functions.
+ */
+
+import { isNewLogTypeVersion } from '../shared/versionUtils'
+
+// ── log_type 3축 모델 ──
+
+export const DATE_AXIS_OPTIONS = [
+  { value: 'normal', label: '일반' },
+  { value: 'date', label: '날짜별' },
+  { value: 'date_prefix', label: '날짜접두사' },
+  { value: 'date_suffix', label: '날짜접미사' },
+]
+
+export const LINE_AXIS_OPTIONS = [
+  { value: 'single', label: '단일 라인' },
+  { value: 'multiline', label: '다중 라인' }
+]
+
+export const POST_PROC_OPTIONS = [
+  { value: 'none', label: '없음' },
+  { value: 'extract_append', label: '추출-삽입' }
+]
+
+// ── LOG_TYPE_REGISTRY (매핑 테이블) ──
+
+const LOG_TYPE_REGISTRY = [
+  { date: 'normal',      line: 'single',    postProc: 'none',           canonical: 'normal_single',                           oldName: null },
+  { date: 'normal',      line: 'single',    postProc: 'extract_append', canonical: 'normal_single_extract_append',             oldName: 'extract_append' },
+  { date: 'normal',      line: 'multiline', postProc: 'none',           canonical: 'normal_multiline',                        oldName: null },
+  { date: 'date',        line: 'single',    postProc: 'none',           canonical: 'date_single',                             oldName: null },
+  { date: 'date',        line: 'single',    postProc: 'extract_append', canonical: 'date_single_extract_append',              oldName: null },
+  { date: 'date',        line: 'multiline', postProc: 'none',           canonical: 'date_multiline',                          oldName: null },
+  { date: 'date_prefix', line: 'single',    postProc: 'none',           canonical: 'date_prefix_single',                      oldName: 'date_prefix_normal_single' },
+  { date: 'date_prefix', line: 'single',    postProc: 'extract_append', canonical: 'date_prefix_single_extract_append',       oldName: 'date_prefix_normal_single_extract_append' },
+  { date: 'date_suffix', line: 'single',    postProc: 'none',           canonical: 'date_suffix_single',                      oldName: 'date_suffix_normal_single' },
+  { date: 'date_suffix', line: 'single',    postProc: 'extract_append', canonical: 'date_suffix_single_extract_append',       oldName: 'date_suffix_normal_single_extract_append' },
+]
+
+// 이름→항목 조회 (canonical + oldName 모두)
+const LOG_TYPE_NAME_MAP = new Map()
+for (const e of LOG_TYPE_REGISTRY) {
+  LOG_TYPE_NAME_MAP.set(e.canonical, e)
+  if (e.oldName) LOG_TYPE_NAME_MAP.set(e.oldName, e)
+}
+
+// 3축→항목 조회
+const LOG_TYPE_AXIS_MAP = new Map()
+for (const e of LOG_TYPE_REGISTRY) {
+  LOG_TYPE_AXIS_MAP.set(`${e.date}|${e.line}|${e.postProc}`, e)
+}
+
+export { LOG_TYPE_REGISTRY }
+
+export function decomposeLogType(logType) {
+  const entry = logType ? LOG_TYPE_NAME_MAP.get(logType) : null
+  if (!entry) return { dateAxis: 'normal', lineAxis: 'single', postProc: 'none' }
+  return { dateAxis: entry.date, lineAxis: entry.line, postProc: entry.postProc }
+}
+
+export function composeLogType({ dateAxis = 'normal', lineAxis = 'single', postProc = 'none' } = {}, { version } = {}) {
+  const entry = LOG_TYPE_AXIS_MAP.get(`${dateAxis}|${lineAxis}|${postProc}`)
+  if (!entry) return 'normal_single'
+  if (version && entry.oldName) {
+    return isNewLogTypeVersion(version) ? entry.canonical : entry.oldName
+  }
+  return entry.canonical
+}
+
+// ── 소스 네이밍 ──
+
+export function formatSourceName(baseName, purpose) {
+  if (!baseName) return ''
+  if (purpose === 'trigger') return `__${baseName}__`
+  return baseName // upload
+}
+
+export function parseSourceName(key) {
+  if (!key) return { baseName: '', purpose: 'trigger' }
+  const match = key.match(/^__(.+)__$/)
+  if (match) return { baseName: match[1], purpose: 'trigger' }
+  return { baseName: key, purpose: 'upload' }
+}
+
+// ── AccessLog.json 스키마 ──
+
+export const ACCESS_LOG_SCHEMA = {
+  fields: {
+    purpose: {
+      type: 'select', label: '용도',
+      description: 'Trigger용 소스는 이름 양쪽에 __가 자동 추가됩니다. Upload용 소스는 이름 그대로 사용됩니다.',
+      options: [
+        { value: 'trigger', label: 'Log Trigger 용' },
+        { value: 'upload', label: 'Log Upload 용' }
+      ]
+    },
+    directory: {
+      type: 'text', label: '디렉토리 경로', required: true,
+      description: '로그 파일이 위치한 클라이언트 머신의 디렉토리 경로입니다. 예: C:/EARS/TestFile',
+      placeholder: 'C:/EARS/TestFile'
+    },
+    prefix: {
+      type: 'text', label: '접두사 (Prefix)',
+      description: '로그 파일명의 접두사입니다. 예: "log_"이면 log_20240101.txt 형태의 파일을 매칭합니다.',
+      placeholder: 'log_'
+    },
+    wildcard: {
+      type: 'text', label: '와일드카드 (Wildcard)',
+      description: '파일명 중간 부분의 와일드카드 패턴입니다. 비워두면 와일드카드를 사용하지 않습니다.',
+      placeholder: ''
+    },
+    suffix: {
+      type: 'text', label: '접미사 (Suffix)',
+      description: '로그 파일의 확장자입니다. 예: ".txt", ".log"',
+      placeholder: '.txt'
+    },
+    date_subdir_format: {
+      type: 'text', label: '날짜 하위 디렉토리 포맷',
+      description: "날짜 기반 하위 디렉토리 패턴입니다 (Java SimpleDateFormat). 예: \"'\\\\' yyyy '\\\\' MM '\\\\' dd\" → \\2024\\01\\15",
+      placeholder: "'\\\\'yyyy'\\\\'MM'\\\\'dd"
+    },
+    charset: {
+      type: 'select', label: '문자 인코딩',
+      description: '로그 파일의 문자 인코딩입니다. 한글 환경에서는 주로 EUC-KR 또는 UTF-8을 사용합니다.',
+      options: [
+        { value: 'UTF-8', label: 'UTF-8' },
+        { value: 'EUC-KR', label: 'EUC-KR' },
+        { value: 'MS949', label: 'MS949' },
+        { value: 'UCS-2 LE BOM', label: 'UCS-2 LE BOM' },
+        { value: '__custom__', label: '직접 입력' }
+      ]
+    },
+    access_interval: {
+      type: 'text', label: '접근 주기',
+      description: '로그 파일을 확인하는 주기입니다. 예: "10 seconds", "1 minutes". 짧을수록 실시간에 가깝지만 부하가 증가합니다.',
+      placeholder: '10 seconds'
+    },
+    batch_count: {
+      type: 'number', label: '배치 수',
+      description: '한 번에 시스템에 보내는 로그 batch 크기 (로그 라인 수)입니다.',
+      placeholder: '1000'
+    },
+    batch_timeout: {
+      type: 'text', label: '배치 타임아웃',
+      description: 'batch send timeout 시간입니다. 로그가 batch_count만큼 수집되지 않아도 시스템에 보내는 대기 시간입니다.',
+      placeholder: '30 seconds'
+    },
+    reopen: {
+      type: 'boolean', label: '파일 재열기 (Reopen)',
+      description: '매 접근 주기마다 파일 핸들을 다시 열지 여부입니다. 로그 로테이션이 발생하는 환경에서는 true로 설정하세요.'
+    },
+    back: {
+      type: 'boolean', label: '이전 위치부터 읽기 (Back)',
+      description: '파일 크기가 줄어들 경우 파일을 처음부터 읽을지 여부입니다. true일 경우 파일 크기가 줄어들면 처음부터 EOF까지 읽습니다.'
+    },
+    end: {
+      type: 'boolean', label: '끝부터 읽기 (End)',
+      description: '최초 접근 시 파일 끝부터 읽기 시작할지 여부입니다. true면 기존 로그는 건너뛰고 새 로그만 처리합니다.'
+    },
+    exclude_suffix: {
+      type: 'tags', label: '제외 접미사',
+      description: '모니터링에서 제외할 파일 확장자 목록입니다. 예: .bak, .tmp',
+      placeholder: '예: .bak'
+    },
+    // Log time filter fields (선택적)
+    log_time_pattern: {
+      type: 'text', label: '로그 시간 패턴',
+      description: '로그 라인에서 시간을 추출하는 정규표현식입니다. 추출된 시간이 마지막 읽은 시간 이전이면 스킵합니다.',
+      placeholder: '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}'
+    },
+    log_time_format: {
+      type: 'text', label: '로그 시간 포맷',
+      description: '추출된 시간 문자열의 Joda DateTime 포맷입니다.',
+      placeholder: 'yyyy-MM-dd HH:mm:ss'
+    },
+    // Line group fields (선택적, trigger 용만)
+    line_group_count: {
+      type: 'number', label: '그룹 라인 수',
+      description: '이 수만큼 로그 라인을 <<EOL>>로 연결하여 하나의 라인으로 트리거에 전달합니다.',
+      placeholder: '1'
+    },
+    line_group_pattern: {
+      type: 'text', label: '그룹 대상 패턴',
+      description: '이 정규표현식에 매칭되는 라인만 그룹 대상입니다. 비워두면 모든 라인이 대상입니다.',
+      placeholder: ''
+    },
+    // Multiline fields (visible when lineAxis === 'multiline')
+    start_pattern: {
+      type: 'text', label: '시작 패턴 (start_pattern)',
+      description: '멀티라인 로그 수집을 시작하는 정규표현식 패턴입니다.',
+      placeholder: '.* WARN Alarm Occured.*'
+    },
+    end_pattern: {
+      type: 'text', label: '종료 패턴 (end_pattern)',
+      description: '멀티라인 로그 수집을 완료하는 정규표현식 패턴입니다. 이 패턴의 로그까지 한 라인으로 모아서 전달합니다.',
+      placeholder: '.* WARN Alarm Reset.*'
+    },
+    line_count: {
+      type: 'number', label: '수집 라인 수 (line_count)',
+      description: '멀티라인 로그를 모으기 완료하는 라인 수입니다.',
+      placeholder: ''
+    },
+    priority: {
+      type: 'select', label: '우선순위 (priority)',
+      description: '멀티라인 완료의 우선순위 설정입니다. 설정된 항목을 우선으로 처리합니다.',
+      options: [
+        { value: 'count', label: 'count (라인 수 우선)' },
+        { value: 'pattern', label: 'pattern (패턴 우선)' }
+      ]
+    },
+    // Extract-append fields (visible when postProc === 'extract_append')
+    pathPattern: {
+      type: 'text', label: '추출 패턴 (pathPattern)',
+      description: '파일 절대 경로에서 로그에 붙일 데이터를 추출하는 정규표현식입니다. ()그룹으로 추출하며 최대 5개까지 지원합니다.',
+      placeholder: '.*Log\\\\([0-9]+)\\\\([0-9]+)\\\\([0-9]+)\\\\app_log.*'
+    },
+    appendPos: {
+      type: 'number', label: '삽입 위치 (appendPos)',
+      description: '추출한 데이터를 로그에 붙일 위치입니다. 0은 로그 앞(왼쪽)입니다.',
+      placeholder: '0'
+    },
+    appendFormat: {
+      type: 'text', label: '삽입 포맷 (appendFormat)',
+      description: '추출 데이터의 포맷입니다. @1, @2, @3으로 추출 그룹을 참조합니다.',
+      placeholder: '@1-@2-@3 '
+    }
+  },
+  defaults: {
+    directory: '',
+    prefix: '',
+    wildcard: '',
+    suffix: '.txt',
+    log_type: 'normal_single',
+    date_subdir_format: '',
+    reopen: true,
+    access_interval: '10 seconds',
+    exclude_suffix: [],
+    charset: '',
+    back: null,
+    end: null,
+    batch_count: 1000,
+    batch_timeout: '30 seconds',
+    // multiline
+    start_pattern: '',
+    end_pattern: '',
+    line_count: null,
+    priority: 'count',
+    // extract_append
+    pathPattern: '',
+    appendPos: 0,
+    appendFormat: ''
+  }
+}
+
+// ── JSON 변환 함수 ──
+
+export function buildAccessLogOutput(source, { version } = {}) {
+  const s = source || {}
+  const axes = decomposeLogType(s.log_type)
+  const result = {}
+
+  // Always included fields
+  result.directory = s.directory || ''
+  result.prefix = s.prefix || ''
+  result.wildcard = s.wildcard || ''
+  result.suffix = s.suffix || ''
+  // log_type 결정: 원본 보존 vs 버전 기반 compose
+  if (s._originalLogType) {
+    const originalAxes = decomposeLogType(s._originalLogType)
+    const currentAxes = { dateAxis: axes.dateAxis, lineAxis: axes.lineAxis, postProc: axes.postProc }
+    const axesChanged = (originalAxes.dateAxis !== currentAxes.dateAxis ||
+      originalAxes.lineAxis !== currentAxes.lineAxis ||
+      originalAxes.postProc !== currentAxes.postProc)
+    result.log_type = axesChanged
+      ? composeLogType(currentAxes, { version })
+      : s._originalLogType
+  } else {
+    result.log_type = composeLogType(axes, { version })
+  }
+
+  // date_subdir_format: only when date axis is date or date_prefix AND not _omit
+  if (['date', 'date_prefix', 'date_suffix'].includes(axes.dateAxis) && s.date_subdir_format !== undefined && s._omit_date_subdir_format !== true) {
+    result.date_subdir_format = s.date_subdir_format
+  }
+
+  // charset: only when not _omit
+  if (s.charset && s._omit_charset !== true) {
+    result.charset = s.charset
+  }
+
+  result.access_interval = s.access_interval || '10 seconds'
+  result.reopen = s.reopen !== undefined ? s.reopen : true
+
+  // back/end: only when not _omit
+  if (s._omit_back !== true && s.back !== null && s.back !== undefined) {
+    result.back = s.back
+  }
+  if (s._omit_end !== true && s.end !== null && s.end !== undefined) {
+    result.end = s.end
+  }
+
+  if (s.exclude_suffix && s.exclude_suffix.length > 0) {
+    result.exclude_suffix = s.exclude_suffix
+  }
+
+  // Log time filter fields: always include when not omitted (even if empty)
+  if (s._omit_log_time !== true) {
+    result.log_time_pattern = s.log_time_pattern || ''
+    result.log_time_format = s.log_time_format || ''
+  }
+
+  // batch fields: only for upload purpose
+  const { purpose } = parseSourceName(source?.name || '')
+  if (purpose === 'upload') {
+    result.batch_count = s.batch_count ?? 1000
+    result.batch_timeout = s.batch_timeout || '30 seconds'
+  }
+
+  // Line group fields: always include when trigger purpose and not omitted (even if empty)
+  if (purpose === 'trigger' && s._omit_line_group !== true) {
+    result.line_group_count = s.line_group_count ?? 1
+    result.line_group_pattern = s.line_group_pattern || ''
+  }
+
+  // Multiline fields: only when lineAxis === 'multiline'
+  if (axes.lineAxis === 'multiline') {
+    if (s.start_pattern) result.start_pattern = s.start_pattern
+    if (s.end_pattern) result.end_pattern = s.end_pattern
+    if (s.line_count != null) result.line_count = s.line_count
+    if (s.priority) result.priority = s.priority
+  }
+
+  // Extract-append fields: only when postProc === 'extract_append'
+  if (axes.postProc === 'extract_append') {
+    if (s.pathPattern) result.pathPattern = s.pathPattern
+    result.appendPos = s.appendPos ?? 0
+    if (s.appendFormat) result.appendFormat = s.appendFormat
+  }
+
+  return result
+}
+
+export function parseAccessLogInput(key, config) {
+  const { baseName, purpose } = parseSourceName(key)
+  const axes = decomposeLogType(config?.log_type)
+
+  return {
+    name: key,
+    baseName,
+    purpose,
+    ...ACCESS_LOG_SCHEMA.defaults,
+    ...config,
+    _originalLogType: config?.log_type || null,
+    _omit_charset: !config?.charset,
+    _omit_back: config?.back === undefined || config?.back === null,
+    _omit_end: config?.end === undefined || config?.end === null,
+    _omit_date_subdir_format: config?.date_subdir_format === undefined,
+    _omit_log_time: config?.log_time_pattern === undefined || config?.log_time_pattern === null,
+    _omit_line_group: config?.line_group_count == null
+  }
+}
+
+// ── 기본값 생성 헬퍼 ──
+
+export function createDefaultAccessLog(index = 0) {
+  return {
+    name: index === 0 ? '__LogReadInfo__' : `__LogReadInfo_${index + 1}__`,
+    ...ACCESS_LOG_SCHEMA.defaults
+  }
+}

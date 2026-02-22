@@ -518,6 +518,7 @@ async function uploadStreamToFile(eqpId, readableStream, remotePath) {
   }
 }
 
+
 module.exports = {
   getConfigSettings,
   connectFtp,

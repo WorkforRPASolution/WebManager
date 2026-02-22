@@ -461,6 +461,7 @@ const handleExportColumnWidths = () => {
       :saving="configManager.saving.value"
       :show-diff="configManager.showDiff.value"
       :show-rollout="configManager.showRollout.value"
+      :view-mode="configManager.viewMode.value"
       :error="configManager.error.value"
       :active-file="configManager.activeFile.value"
       :active-content="configManager.activeContent.value"
@@ -474,6 +475,7 @@ const handleExportColumnWidths = () => {
       :active-client-id="configManager.activeClientId.value"
       :is-multi-mode="configManager.isMultiMode.value"
       :client-statuses="configManager.clientStatuses.value"
+      :active-agent-version="configManager.activeAgentVersion.value"
       @close="configManager.closeConfig()"
       @select-file="configManager.selectFile($event)"
       @update-content="configManager.updateContent($event)"
@@ -481,6 +483,7 @@ const handleExportColumnWidths = () => {
       @discard="configManager.discardCurrentFile"
       @toggle-diff="configManager.toggleDiff()"
       @toggle-rollout="configManager.toggleRollout()"
+      @toggle-view-mode="() => { const toForm = configManager.viewMode.value === 'json'; configManager.viewMode.value = toForm ? 'form' : 'json'; if (toForm) configManager.showDiff.value = false }"
       @switch-client="handleSwitchClient"
     />
 
