@@ -403,6 +403,10 @@ function emitChange() {
   nextTick(() => { isInternalUpdate = false })
 }
 
+watch(() => props.suspendableTriggerNames, () => {
+  emitChange()
+})
+
 const selectedTriggers = computed(() =>
   (formData.value.ErrorTrigger || []).map(t => t.alid)
 )
