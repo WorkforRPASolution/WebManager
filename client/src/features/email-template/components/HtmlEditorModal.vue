@@ -85,6 +85,24 @@
               HTML
             </span>
           </button>
+          <button
+            v-if="previewMode"
+            @click="switchTab('preview')"
+            :class="[
+              'px-4 py-2 text-sm font-medium transition border-b-2 -mb-px',
+              activeTab === 'preview'
+                ? 'text-primary-600 dark:text-primary-400 border-primary-500'
+                : 'text-gray-500 dark:text-gray-400 border-transparent hover:text-gray-700 dark:hover:text-gray-300'
+            ]"
+          >
+            <span class="flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              Preview
+            </span>
+          </button>
           <!-- Insert Image Button -->
           <div class="flex-1"></div>
           <button
@@ -139,6 +157,17 @@
               </div>
             </div>
           </div>
+
+          <!-- Preview Tab (iframe) -->
+          <div v-show="activeTab === 'preview'" class="h-full p-4">
+            <div class="w-full h-full rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden bg-white">
+              <iframe
+                :srcdoc="previewHtml"
+                sandbox="allow-same-origin"
+                class="w-full h-full border-0"
+              />
+            </div>
+          </div>
         </div>
 
         <!-- Footer -->
@@ -155,6 +184,48 @@
           >
             Save
           </button>
+        </div>
+
+        <!-- CSS Warning Dialog -->
+        <div
+          v-if="showCssWarning"
+          class="absolute inset-0 z-10 flex items-center justify-center bg-black/30 rounded-lg"
+        >
+          <div class="bg-white dark:bg-dark-card rounded-lg shadow-2xl p-6 max-w-md mx-4 border border-gray-200 dark:border-dark-border">
+            <div class="flex items-start gap-3 mb-4">
+              <svg class="w-6 h-6 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <div>
+                <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-1">
+                  CSS 스타일이 포함된 HTML입니다
+                </h4>
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                  Visual 편집기는 CSS 스타일을 지원하지 않아, 전환 시 스타일이 사라집니다.
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center justify-end gap-2">
+              <button
+                @click="handleCssWarningCancel"
+                class="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition"
+              >
+                취소
+              </button>
+              <button
+                @click="handleCssWarningVisual"
+                class="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition"
+              >
+                Visual 편집기로 열기
+              </button>
+              <button
+                @click="handleCssWarningPreview"
+                class="px-3 py-1.5 text-sm bg-primary-500 hover:bg-primary-600 text-white rounded transition"
+              >
+                미리보기
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Resize Handle -->
@@ -236,6 +307,16 @@ const tinymceReady = ref(false)
 const tinymceKey = ref(0)
 const tinymceEditor = ref(null)
 
+// Full HTML preview state
+const previewMode = ref(false)
+const showCssWarning = ref(false)
+
+const isFullHtmlDocument = (html) => {
+  if (!html) return false
+  const trimmed = html.trim().toLowerCase()
+  return trimmed.startsWith('<!doctype') || trimmed.startsWith('<html')
+}
+
 // URL conversion utilities
 const API_BASE_URL = import.meta.env.VITE_API_URL || `${window.location.origin}/api`
 
@@ -257,6 +338,9 @@ const toStorageUrl = (html) => {
     'http://@HttpWebServerAddress/ARS/EmailImage/'
   )
 }
+
+// Preview HTML with display URLs (for iframe srcdoc)
+const previewHtml = computed(() => toDisplayUrl(htmlContent.value))
 
 // Modal sizing
 const isMaximized = ref(false)
@@ -373,16 +457,40 @@ const switchTab = (tab) => {
   if (tab === activeTab.value) return
 
   if (activeTab.value === 'code' && tab === 'visual') {
-    // Code -> Visual: Convert to display URL for TinyMCE
+    // Code -> Visual: Check for full HTML with CSS
+    if (isFullHtmlDocument(htmlContent.value)) {
+      showCssWarning.value = true
+      return
+    }
     visualContent.value = toDisplayUrl(htmlContent.value)
   } else if (activeTab.value === 'visual' && tab === 'code') {
     // Visual -> Code: Convert back to storage URL
     if (tinymceEditor.value) {
       htmlContent.value = toStorageUrl(tinymceEditor.value.getContent())
     }
+  } else if (activeTab.value === 'preview' && tab === 'visual') {
+    // Preview -> Visual: Convert and switch
+    visualContent.value = toDisplayUrl(htmlContent.value)
   }
 
   activeTab.value = tab
+}
+
+// CSS warning dialog handlers
+const handleCssWarningPreview = () => {
+  showCssWarning.value = false
+  previewMode.value = true
+  activeTab.value = 'preview'
+}
+
+const handleCssWarningVisual = () => {
+  showCssWarning.value = false
+  visualContent.value = toDisplayUrl(htmlContent.value)
+  activeTab.value = 'visual'
+}
+
+const handleCssWarningCancel = () => {
+  showCssWarning.value = false
 }
 
 // Resize functionality
@@ -428,6 +536,8 @@ watch(() => props.modelValue, async (newVal) => {
     // Cleanup on close
     tinymceReady.value = false
     tinymceEditor.value = null
+    previewMode.value = false
+    showCssWarning.value = false
   }
 })
 
@@ -441,6 +551,8 @@ watch(isDark, () => {
 const handleCancel = () => {
   modalPos.x = null
   modalPos.y = null
+  previewMode.value = false
+  showCssWarning.value = false
   emit('update:modelValue', false)
 }
 
