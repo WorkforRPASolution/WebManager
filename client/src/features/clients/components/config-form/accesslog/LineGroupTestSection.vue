@@ -137,6 +137,7 @@
 <script setup>
 import { ref } from 'vue'
 import { testLineGroup } from './testEngine'
+import { formatFileSize } from '../shared/formatUtils'
 
 const props = defineProps({
   source: { type: Object, required: true }
@@ -175,9 +176,4 @@ async function runFileTest() {
   }
 }
 
-function formatFileSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
 </script>

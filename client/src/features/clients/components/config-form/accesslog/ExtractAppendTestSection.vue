@@ -122,7 +122,5 @@ function positionLabel(pos) {
 </script>
 
 <style scoped>
-.form-input {
-  @apply w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition disabled:opacity-60 disabled:cursor-not-allowed;
-}
+@import '../shared/form-input.css';
 </style>

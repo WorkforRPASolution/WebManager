@@ -103,8 +103,8 @@
       <!-- Trigger Body -->
       <div v-show="expanded[ti]" class="px-4 py-4 space-y-4 border-t border-gray-200 dark:border-dark-border">
         <!-- Description -->
-        <div v-if="describeTrig(trig)" class="mb-4 px-3 py-2.5 text-xs leading-relaxed text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-lg whitespace-pre-line">
-          {{ describeTrig(trig) }}
+        <div v-if="describeTrigger(trig)" class="mb-4 px-3 py-2.5 text-xs leading-relaxed text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-lg whitespace-pre-line">
+          {{ describeTrigger(trig) }}
         </div>
 
         <!-- Trigger Name + Source -->
@@ -307,68 +307,30 @@
               </div>
 
               <!-- Suspend Section (conditional) -->
-              <div v-if="step.next === '@suspend'" class="border border-orange-200 dark:border-orange-800/50 rounded-lg bg-orange-50/50 dark:bg-orange-900/10 p-3 space-y-3">
-                <h5 class="text-xs font-semibold text-orange-700 dark:text-orange-400 flex items-center gap-1">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                  </svg>
-                  트리거 실행 제한 (@suspend)
-                </h5>
-                <p class="text-xs text-orange-600 dark:text-orange-400">항목을 추가하지 않으면 모든 트리거가 대상입니다.</p>
-                <div v-for="(item, idx) in (step.suspend || [])" :key="idx" class="flex items-center gap-2 p-2 border border-orange-100 dark:border-orange-800/30 rounded-lg bg-white dark:bg-dark-bg">
-                  <FormField label="트리거" class="flex-1">
-                    <select :value="item.name" @change="updateSuspendResumeItem(ti, si, 'suspend', idx, 'name', $event.target.value)" :disabled="readOnly" class="form-input text-xs">
-                      <option value="">-- 선택 --</option>
-                      <option v-for="tn in suspendableTriggerNames" :key="tn" :value="tn">{{ tn }}</option>
-                    </select>
-                  </FormField>
-                  <FormField label="기간 (선택)" class="flex-1">
-                    <input type="text" :value="item.duration || ''" @input="updateSuspendResumeItem(ti, si, 'suspend', idx, 'duration', $event.target.value)" :disabled="readOnly" placeholder="예: 30 minutes" class="form-input text-xs" />
-                  </FormField>
-                  <button v-if="!readOnly" type="button" class="mt-4 p-1 text-gray-400 hover:text-red-500 transition-colors" @click="removeSuspendResumeItem(ti, si, 'suspend', idx)">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <button v-if="!readOnly" type="button" class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-orange-600 dark:text-orange-400 border border-orange-300 dark:border-orange-700 rounded-md hover:bg-orange-50 dark:hover:bg-orange-900/20 transition" @click="addSuspendResumeItem(ti, si, 'suspend')">
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                  </svg>
-                  항목 추가
-                </button>
-              </div>
+              <SuspendResumeEditor
+                v-if="step.next === '@suspend'"
+                mode="suspend"
+                title="트리거 실행 제한 (@suspend)"
+                :items="step.suspend || []"
+                :triggerNames="suspendableTriggerNames"
+                :readOnly="readOnly"
+                @add="addSuspendResumeItem(ti, si, 'suspend')"
+                @remove="(idx) => removeSuspendResumeItem(ti, si, 'suspend', idx)"
+                @update="(idx, prop, value) => updateSuspendResumeItem(ti, si, 'suspend', idx, prop, value)"
+              />
 
               <!-- Resume Section (conditional) -->
-              <div v-if="step.next === '@resume'" class="border border-teal-200 dark:border-teal-800/50 rounded-lg bg-teal-50/50 dark:bg-teal-900/10 p-3 space-y-3">
-                <h5 class="text-xs font-semibold text-teal-700 dark:text-teal-400 flex items-center gap-1">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  트리거 실행 제한 해제 (@resume)
-                </h5>
-                <p class="text-xs text-teal-600 dark:text-teal-400">항목을 추가하지 않으면 모든 트리거가 대상입니다.</p>
-                <div v-for="(item, idx) in (step.resume || [])" :key="idx" class="flex items-center gap-2 p-2 border border-teal-100 dark:border-teal-800/30 rounded-lg bg-white dark:bg-dark-bg">
-                  <FormField label="트리거" class="flex-1">
-                    <select :value="item.name" @change="updateSuspendResumeItem(ti, si, 'resume', idx, 'name', $event.target.value)" :disabled="readOnly" class="form-input text-xs">
-                      <option value="">-- 선택 --</option>
-                      <option v-for="tn in suspendableTriggerNames" :key="tn" :value="tn">{{ tn }}</option>
-                    </select>
-                  </FormField>
-                  <button v-if="!readOnly" type="button" class="mt-4 p-1 text-gray-400 hover:text-red-500 transition-colors" @click="removeSuspendResumeItem(ti, si, 'resume', idx)">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <button v-if="!readOnly" type="button" class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-teal-600 dark:text-teal-400 border border-teal-300 dark:border-teal-700 rounded-md hover:bg-teal-50 dark:hover:bg-teal-900/20 transition" @click="addSuspendResumeItem(ti, si, 'resume')">
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                  </svg>
-                  항목 추가
-                </button>
-              </div>
+              <SuspendResumeEditor
+                v-if="step.next === '@resume'"
+                mode="resume"
+                title="트리거 실행 제한 해제 (@resume)"
+                :items="step.resume || []"
+                :triggerNames="suspendableTriggerNames"
+                :readOnly="readOnly"
+                @add="addSuspendResumeItem(ti, si, 'resume')"
+                @remove="(idx) => removeSuspendResumeItem(ti, si, 'resume', idx)"
+                @update="(idx, prop, value) => updateSuspendResumeItem(ti, si, 'resume', idx, prop, value)"
+              />
             </div>
 
             <!-- Step Arrow -->
@@ -483,8 +445,10 @@
 import { computed, reactive, ref, onMounted } from 'vue'
 import { TRIGGER_SCHEMA, TRIGGER_STEP_SCHEMA, TRIGGER_SCRIPT_SCHEMA, createDefaultTrigger, createDefaultTriggerStep } from './schema'
 import { describeTrigger } from './description'
+import { isNoEmailChecked } from '../shared/formatUtils'
 import FormTagInput from '../shared/components/FormTagInput.vue'
 import FormField from '../shared/components/FormField.vue'
+import SuspendResumeEditor from '../shared/components/SuspendResumeEditor.vue'
 import TriggerTestPanel from './TriggerTestPanel.vue'
 
 const props = defineProps({
@@ -538,10 +502,6 @@ const triggers = computed(() => {
 
 function toggleExpand(idx) {
   expanded[idx] = !expanded[idx]
-}
-
-function describeTrig(trig) {
-  return describeTrigger(trig)
 }
 
 // Source multi-select helpers
@@ -760,11 +720,6 @@ function updateParamsCondition(ti, si, ci, field, value) {
   updateTriggerItemParams(ti, si, serializeParams(current))
 }
 
-function isNoEmailChecked(value, option) {
-  if (!value) return false
-  return value.split(';').map(s => s.trim()).includes(option)
-}
-
 function toggleNoEmail(ti, si, target, option) {
   const updated = cloneTriggers()
   const obj = target === 'script' ? updated[ti].recipe[si].script : updated[ti].recipe[si].detail
@@ -923,7 +878,5 @@ function updateSuspendResumeItem(ti, si, field, idx, prop, value) {
 </script>
 
 <style scoped>
-.form-input {
-  @apply w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition disabled:opacity-60 disabled:cursor-not-allowed;
-}
+@import '../shared/form-input.css';
 </style>

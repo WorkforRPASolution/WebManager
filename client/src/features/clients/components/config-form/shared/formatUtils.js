@@ -241,3 +241,37 @@ export function parseDuration(str) {
 
   return str;
 }
+
+
+// ---------------------------------------------------------------------------
+// formatFileSize
+// ---------------------------------------------------------------------------
+
+/**
+ * Format a byte count into a human-readable string (B / KB / MB).
+ *
+ * @param {number} bytes
+ * @returns {string}
+ */
+export function formatFileSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+
+// ---------------------------------------------------------------------------
+// isNoEmailChecked
+// ---------------------------------------------------------------------------
+
+/**
+ * Check whether a semicolon-separated value string contains a given option.
+ *
+ * @param {string|null|undefined} value - e.g. "success;fail"
+ * @param {string} option - e.g. "success"
+ * @returns {boolean}
+ */
+export function isNoEmailChecked(value, option) {
+  if (!value) return false
+  return value.split(';').map(s => s.trim()).includes(option)
+}

@@ -104,8 +104,8 @@
       <!-- Card Body -->
       <div v-show="expanded[idx]" class="px-4 py-4 space-y-4 border-t border-gray-200 dark:border-dark-border">
         <!-- Description -->
-        <div v-if="describeSource(source)" class="mb-4 px-3 py-2.5 text-xs leading-relaxed text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-lg whitespace-pre-line">
-          {{ describeSource(source) }}
+        <div v-if="describeAccessLog(source)" class="mb-4 px-3 py-2.5 text-xs leading-relaxed text-gray-600 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-lg whitespace-pre-line">
+          {{ describeAccessLog(source) }}
         </div>
 
         <!-- Purpose + Source Name -->
@@ -337,6 +337,7 @@ import {
   composeLogType,
   parseSourceName,
   formatSourceName,
+  parseAccessLogInput,
   DATE_AXIS_OPTIONS,
   LINE_AXIS_OPTIONS,
   POST_PROC_OPTIONS,
@@ -381,32 +382,11 @@ function getPostProcOptions(source) {
 
 // Object -> Array conversion with schema parsing
 const sources = computed(() => {
-  return Object.entries(props.modelValue || {}).map(([name, config]) => {
-    const { baseName, purpose } = parseSourceName(name)
-    const axes = decomposeLogType(config.log_type)
-    return {
-      name,
-      baseName,
-      purpose,
-      ...ACCESS_LOG_SCHEMA.defaults,
-      ...config,
-      _originalLogType: config.log_type || null,
-      _omit_charset: !config.charset,
-      _omit_back: config.back === undefined || config.back === null,
-      _omit_end: config.end === undefined || config.end === null,
-      _omit_date_subdir_format: config.date_subdir_format === undefined,
-      _omit_log_time: config.log_time_pattern === undefined || config.log_time_pattern === null,
-      _omit_line_group: config.line_group_count == null
-    }
-  })
+  return Object.entries(props.modelValue || {}).map(([name, config]) => parseAccessLogInput(name, config))
 })
 
 function toggleExpand(idx) {
   expanded[idx] = !expanded[idx]
-}
-
-function describeSource(source) {
-  return describeAccessLog(source)
 }
 
 function getAxis(source, axis) {
@@ -582,7 +562,5 @@ function removeSource(idx) {
 </script>
 
 <style scoped>
-.form-input {
-  @apply w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition disabled:opacity-60 disabled:cursor-not-allowed;
-}
+@import '../shared/form-input.css';
 </style>

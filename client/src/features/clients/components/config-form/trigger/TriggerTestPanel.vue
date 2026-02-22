@@ -304,6 +304,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { testTriggerPattern, testTriggerWithFiles } from './testEngine'
+import { formatFileSize } from '../shared/formatUtils'
 
 const props = defineProps({
   trigger: { type: Object, required: true }
@@ -390,12 +391,6 @@ function removeFile(index) {
   uploadedFiles.value.splice(index, 1)
 }
 
-function formatFileSize(bytes) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
 async function runFileTest() {
   testError.value = null
   fileProcessing.value = true
@@ -450,7 +445,5 @@ function multiStatusLabel(inst) {
 </script>
 
 <style scoped>
-.form-input {
-  @apply w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded-lg bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none transition disabled:opacity-60 disabled:cursor-not-allowed;
-}
+@import '../shared/form-input.css';
 </style>

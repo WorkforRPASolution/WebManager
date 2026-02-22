@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { jodaSubdirFormat, timestampFormatToRegex, parseDurationMs, parseDuration } from '../formatUtils'
+import { jodaSubdirFormat, timestampFormatToRegex, parseDurationMs, parseDuration, formatFileSize, isNoEmailChecked } from '../formatUtils'
 
 // ===========================================================================
 // jodaSubdirFormat
@@ -157,5 +157,50 @@ describe('parseDuration', () => {
 
   it('2. "10 seconds" -> "10초"', () => {
     expect(parseDuration('10 seconds')).toBe('10초')
+  })
+})
+
+
+// ===========================================================================
+// formatFileSize
+// ===========================================================================
+
+describe('formatFileSize', () => {
+  it('should format bytes', () => {
+    expect(formatFileSize(500)).toBe('500 B')
+  })
+  it('should format KB', () => {
+    expect(formatFileSize(2048)).toBe('2.0 KB')
+  })
+  it('should format MB', () => {
+    expect(formatFileSize(1048576)).toBe('1.0 MB')
+  })
+  it('should format fractional KB', () => {
+    expect(formatFileSize(1536)).toBe('1.5 KB')
+  })
+})
+
+
+// ===========================================================================
+// isNoEmailChecked
+// ===========================================================================
+
+describe('isNoEmailChecked', () => {
+  it('should return false for falsy value', () => {
+    expect(isNoEmailChecked(null, 'success')).toBe(false)
+    expect(isNoEmailChecked('', 'success')).toBe(false)
+    expect(isNoEmailChecked(undefined, 'success')).toBe(false)
+  })
+  it('should detect single option', () => {
+    expect(isNoEmailChecked('success', 'success')).toBe(true)
+    expect(isNoEmailChecked('success', 'fail')).toBe(false)
+  })
+  it('should detect option in semicolon-separated list', () => {
+    expect(isNoEmailChecked('success;fail', 'success')).toBe(true)
+    expect(isNoEmailChecked('success;fail', 'fail')).toBe(true)
+  })
+  it('should handle whitespace around semicolons', () => {
+    expect(isNoEmailChecked('success ; fail', 'success')).toBe(true)
+    expect(isNoEmailChecked('success ; fail', 'fail')).toBe(true)
   })
 })
