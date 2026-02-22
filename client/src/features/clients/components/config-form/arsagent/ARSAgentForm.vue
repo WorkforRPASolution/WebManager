@@ -403,7 +403,16 @@ function emitChange() {
   nextTick(() => { isInternalUpdate = false })
 }
 
-watch(() => props.suspendableTriggerNames, () => {
+watch(() => props.suspendableTriggerNames, (validNames) => {
+  if (!validNames || !formData.value.CronTab) return
+  for (const entry of formData.value.CronTab) {
+    if (entry.type === 'SA' && entry.suspend) {
+      entry.suspend = entry.suspend.filter(item => !item.name || validNames.includes(item.name))
+    }
+    if (entry.type === 'RA' && entry.resume) {
+      entry.resume = entry.resume.filter(item => !item.name || validNames.includes(item.name))
+    }
+  }
   emitChange()
 }, { immediate: true })
 
