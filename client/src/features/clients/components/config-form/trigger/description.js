@@ -128,6 +128,25 @@ function describeTrigger(trigger) {
         if (step.detail && step.detail['no-email']) {
           nextText += ` (no-email: ${step.detail['no-email']})`
         }
+      } else if (step.next === '@suspend') {
+        const items = step.suspend
+        if (!items || items.length === 0) {
+          nextText = '모든 트리거 실행 제한'
+        } else {
+          const details = items.map(item => {
+            const dur = parseDuration(item.duration)
+            return dur ? `${item.name}(${dur})` : item.name
+          }).join(', ')
+          nextText = `트리거 실행 제한: ${details}`
+        }
+      } else if (step.next === '@resume') {
+        const items = step.resume
+        if (!items || items.length === 0) {
+          nextText = '모든 트리거 실행 제한 해제'
+        } else {
+          const details = items.map(item => item.name).join(', ')
+          nextText = `트리거 실행 제한 해제: ${details}`
+        }
       } else if (step.next) {
         nextText = `${step.next}로 이동`;
       } else {

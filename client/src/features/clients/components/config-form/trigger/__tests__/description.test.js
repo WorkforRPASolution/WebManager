@@ -441,4 +441,154 @@ describe('describeTrigger', () => {
       expect(result).toContain('no-email: success;fail')
     })
   })
+
+  // ===========================================================================
+  // @suspend / @resume next actions
+  // ===========================================================================
+
+  describe('@suspend next action', () => {
+    it('@suspend → "트리거 실행 제한"', () => {
+      const trigger = {
+        source: 'src',
+        recipe: [{ type: 'regex', trigger: ['x'], next: '@suspend' }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('트리거 실행 제한')
+    })
+
+    it('@suspend with suspend array → shows trigger names and duration', () => {
+      const trigger = {
+        source: 'src',
+        recipe: [{
+          type: 'regex',
+          trigger: ['x'],
+          next: '@suspend',
+          suspend: [
+            { name: 'Test_Scenario', duration: '30 minutes' },
+            { name: 'Test_Trigger' }
+          ]
+        }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('트리거 실행 제한')
+      expect(result).toContain('Test_Scenario')
+      expect(result).toContain('30분')
+      expect(result).toContain('Test_Trigger')
+    })
+
+    it('@suspend with empty suspend array → "모든 트리거 실행 제한"', () => {
+      const trigger = {
+        source: 'src',
+        recipe: [{
+          type: 'regex',
+          trigger: ['x'],
+          next: '@suspend',
+          suspend: []
+        }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('모든 트리거 실행 제한')
+    })
+
+    it('@suspend without suspend array → "모든 트리거 실행 제한"', () => {
+      const trigger = {
+        source: 'src',
+        recipe: [{
+          type: 'regex',
+          trigger: ['x'],
+          next: '@suspend'
+        }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('모든 트리거 실행 제한')
+    })
+
+    it('@suspend with single suspend item with duration → shows duration', () => {
+      const trigger = {
+        source: 'src',
+        recipe: [{
+          type: 'regex',
+          trigger: ['x'],
+          next: '@suspend',
+          suspend: [{ name: 'Alert_Trigger', duration: '1 hours' }]
+        }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('Alert_Trigger')
+      expect(result).toContain('1시간')
+    })
+
+    it('@suspend with single suspend item without duration → no duration shown', () => {
+      const trigger = {
+        source: 'src',
+        recipe: [{
+          type: 'regex',
+          trigger: ['x'],
+          next: '@suspend',
+          suspend: [{ name: 'Alert_Trigger' }]
+        }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('Alert_Trigger')
+      expect(result).not.toContain('시간')
+      expect(result).not.toContain('분')
+    })
+  })
+
+  describe('@resume next action', () => {
+    it('@resume → "트리거 실행 제한 해제"', () => {
+      const trigger = {
+        source: 'src',
+        recipe: [{ type: 'regex', trigger: ['x'], next: '@resume' }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('트리거 실행 제한 해제')
+    })
+
+    it('@resume with resume array → shows trigger names', () => {
+      const trigger = {
+        source: 'src',
+        recipe: [{
+          type: 'regex',
+          trigger: ['x'],
+          next: '@resume',
+          resume: [
+            { name: 'Test_Scenario' },
+            { name: 'Test_Trigger' }
+          ]
+        }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('트리거 실행 제한 해제')
+      expect(result).toContain('Test_Scenario')
+      expect(result).toContain('Test_Trigger')
+    })
+
+    it('@resume with empty resume array → "모든 트리거 실행 제한 해제"', () => {
+      const trigger = {
+        source: 'src',
+        recipe: [{
+          type: 'regex',
+          trigger: ['x'],
+          next: '@resume',
+          resume: []
+        }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('모든 트리거 실행 제한 해제')
+    })
+
+    it('@resume without resume array → "모든 트리거 실행 제한 해제"', () => {
+      const trigger = {
+        source: 'src',
+        recipe: [{
+          type: 'regex',
+          trigger: ['x'],
+          next: '@resume'
+        }],
+      }
+      const result = describeTrigger(trigger)
+      expect(result).toContain('모든 트리거 실행 제한 해제')
+    })
+  })
 })

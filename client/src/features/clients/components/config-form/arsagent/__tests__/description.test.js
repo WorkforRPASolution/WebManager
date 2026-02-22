@@ -105,4 +105,59 @@ describe('describeARSAgent', () => {
     expect(desc).toContain('라우터: 사용')
     expect(desc).not.toContain('내부IP')
   })
+
+  // --- SA/RA CronTab type tests ---
+  describe('SA/RA CronTab types', () => {
+    it('type=SA → "트리거 실행 제한"', () => {
+      const desc = describeARSAgent({
+        CronTab: [{ name: 'Suspend_Job', type: 'SA' }]
+      })
+      expect(desc).toContain('Suspend_Job(트리거 실행 제한)')
+    })
+
+    it('type=RA → "트리거 실행 제한 해제"', () => {
+      const desc = describeARSAgent({
+        CronTab: [{ name: 'Resume_Job', type: 'RA' }]
+      })
+      expect(desc).toContain('Resume_Job(트리거 실행 제한 해제)')
+    })
+
+    it('type=SA with suspend array → shows trigger names + duration', () => {
+      const desc = describeARSAgent({
+        CronTab: [{
+          name: 'Suspend_Job', type: 'SA',
+          suspend: [{ name: 'Alert_Trigger', duration: '30 minutes' }, { name: 'Other_Trigger' }]
+        }]
+      })
+      expect(desc).toContain('트리거 실행 제한')
+      expect(desc).toContain('Alert_Trigger')
+      expect(desc).toContain('30분')
+      expect(desc).toContain('Other_Trigger')
+    })
+
+    it('type=RA with resume array → shows trigger names', () => {
+      const desc = describeARSAgent({
+        CronTab: [{
+          name: 'Resume_Job', type: 'RA',
+          resume: [{ name: 'Alert_Trigger' }]
+        }]
+      })
+      expect(desc).toContain('트리거 실행 제한 해제')
+      expect(desc).toContain('Alert_Trigger')
+    })
+
+    it('mixed types — AR + SA + RA', () => {
+      const desc = describeARSAgent({
+        CronTab: [
+          { name: 'Normal', type: 'AR' },
+          { name: 'Suspend', type: 'SA' },
+          { name: 'Resume', type: 'RA' }
+        ]
+      })
+      expect(desc).toContain('3개')
+      expect(desc).toContain('Normal(시나리오 실행)')
+      expect(desc).toContain('Suspend(트리거 실행 제한)')
+      expect(desc).toContain('Resume(트리거 실행 제한 해제)')
+    })
+  })
 })

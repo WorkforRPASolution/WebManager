@@ -139,7 +139,7 @@
             </button>
           </div>
 
-          <div v-if="expandedCronTabs.has(index)" class="p-4 border-t border-gray-200 dark:border-dark-border">
+          <div v-if="expandedCronTabs.has(index)" class="p-4 border-t border-gray-200 dark:border-dark-border space-y-4">
             <div class="grid grid-cols-2 gap-4">
               <div v-for="(fieldDef, fieldKey) in schema.cronTabFields" :key="fieldKey">
                 <FormField :label="fieldDef.label" :description="fieldDef.description" :required="fieldDef.required">
@@ -183,6 +183,70 @@
                   />
                 </FormField>
               </div>
+            </div>
+
+            <!-- Suspend Section (SA type) -->
+            <div v-if="cron.type === 'SA'" class="border border-orange-200 dark:border-orange-800/50 rounded-lg bg-orange-50/50 dark:bg-orange-900/10 p-3 space-y-3">
+              <h5 class="text-xs font-semibold text-orange-700 dark:text-orange-400 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+                트리거 실행 제한 (Suspend)
+              </h5>
+              <p class="text-xs text-orange-600 dark:text-orange-400">항목을 추가하지 않으면 모든 트리거가 대상입니다.</p>
+              <div v-for="(item, idx) in (cron.suspend || [])" :key="idx" class="flex items-center gap-2 p-2 border border-orange-100 dark:border-orange-800/30 rounded-lg bg-white dark:bg-dark-bg">
+                <FormField label="트리거" class="flex-1">
+                  <select :value="item.name" @change="updateCronTabSuspendResumeItem(index, 'suspend', idx, 'name', $event.target.value)" :disabled="readOnly" class="form-input text-xs">
+                    <option value="">-- 선택 --</option>
+                    <option v-for="tn in suspendableTriggerNames" :key="tn" :value="tn">{{ tn }}</option>
+                  </select>
+                </FormField>
+                <FormField label="기간 (선택)" class="flex-1">
+                  <input type="text" :value="item.duration || ''" @input="updateCronTabSuspendResumeItem(index, 'suspend', idx, 'duration', $event.target.value)" :disabled="readOnly" placeholder="예: 30 minutes" class="form-input text-xs" />
+                </FormField>
+                <button v-if="!readOnly" type="button" class="mt-4 p-1 text-gray-400 hover:text-red-500 transition-colors" @click="removeCronTabSuspendResumeItem(index, 'suspend', idx)">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <button v-if="!readOnly" type="button" class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-orange-600 dark:text-orange-400 border border-orange-300 dark:border-orange-700 rounded-md hover:bg-orange-50 dark:hover:bg-orange-900/20 transition" @click="addCronTabSuspendResumeItem(index, 'suspend')">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                항목 추가
+              </button>
+            </div>
+
+            <!-- Resume Section (RA type) -->
+            <div v-if="cron.type === 'RA'" class="border border-teal-200 dark:border-teal-800/50 rounded-lg bg-teal-50/50 dark:bg-teal-900/10 p-3 space-y-3">
+              <h5 class="text-xs font-semibold text-teal-700 dark:text-teal-400 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                트리거 실행 제한 해제 (Resume)
+              </h5>
+              <p class="text-xs text-teal-600 dark:text-teal-400">항목을 추가하지 않으면 모든 트리거가 대상입니다.</p>
+              <div v-for="(item, idx) in (cron.resume || [])" :key="idx" class="flex items-center gap-2 p-2 border border-teal-100 dark:border-teal-800/30 rounded-lg bg-white dark:bg-dark-bg">
+                <FormField label="트리거" class="flex-1">
+                  <select :value="item.name" @change="updateCronTabSuspendResumeItem(index, 'resume', idx, 'name', $event.target.value)" :disabled="readOnly" class="form-input text-xs">
+                    <option value="">-- 선택 --</option>
+                    <option v-for="tn in suspendableTriggerNames" :key="tn" :value="tn">{{ tn }}</option>
+                  </select>
+                </FormField>
+                <button v-if="!readOnly" type="button" class="mt-4 p-1 text-gray-400 hover:text-red-500 transition-colors" @click="removeCronTabSuspendResumeItem(index, 'resume', idx)">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <button v-if="!readOnly" type="button" class="flex items-center gap-1 px-2 py-1 text-xs font-medium text-teal-600 dark:text-teal-400 border border-teal-300 dark:border-teal-700 rounded-md hover:bg-teal-50 dark:hover:bg-teal-900/20 transition" @click="addCronTabSuspendResumeItem(index, 'resume')">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                항목 추가
+              </button>
             </div>
           </div>
         </div>
@@ -350,7 +414,8 @@ const props = defineProps({
   modelValue: { type: Object, default: () => ({}) },
   readOnly: { type: Boolean, default: false },
   accessLogSources: { type: Array, default: () => [] },
-  triggerNames: { type: Array, default: () => [] }
+  triggerNames: { type: Array, default: () => [] },
+  suspendableTriggerNames: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -474,6 +539,23 @@ function updateField(fieldName, value) {
 
 function toggleOptional(fieldName, enabled) {
   formData.value[`_omit_${fieldName}`] = !enabled
+  emitChange()
+}
+
+function addCronTabSuspendResumeItem(index, field) {
+  const item = field === 'suspend' ? { name: '', duration: '' } : { name: '' }
+  if (!formData.value.CronTab[index][field]) formData.value.CronTab[index][field] = []
+  formData.value.CronTab[index][field].push(item)
+  emitChange()
+}
+
+function removeCronTabSuspendResumeItem(index, field, idx) {
+  formData.value.CronTab[index][field].splice(idx, 1)
+  emitChange()
+}
+
+function updateCronTabSuspendResumeItem(index, field, idx, prop, value) {
+  formData.value.CronTab[index][field][idx] = { ...formData.value.CronTab[index][field][idx], [prop]: value }
   emitChange()
 }
 

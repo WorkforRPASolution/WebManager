@@ -813,7 +813,7 @@ Config 파일의 정규 표현식 필드는 ARSAgent 내부 구현에 따라 **�
 
 > **중요**:
   `next`가 `"@suspend"`일 때, 선택 입력 가능하도록 폼 구성. 입력 선택을 하지 않을 경우 모든 trigger 의 실행 제한을 의미.
-  name 은 필수 항목, trigger.json 의 trigger 목록에서 선택할 수 있도록 입력 폼 구성
+  name 은 필수 항목, trigger.json 의 trigger 목록에서 선택할 수 있도록 입력 폼 구성. 단, deadlock 방지를 위해 `next` 가 `"@suspend"`, `"@resume"` 인 trigger 제외. 
   duration 은 선택 입력. 입력 폼은 유지하되 값이 없을 경우 json 에서 항목 삭제.
 
 #### `resume` (suspend 해제 trigger 목록)
@@ -835,7 +835,7 @@ Config 파일의 정규 표현식 필드는 ARSAgent 내부 구현에 따라 **�
 
 > **중요**:
   `next`가 `"@resume"`일 때, 선택 입력 가능하도록 폼 구성. 입력 선택을 하지 않을 경우 모든 trigger 의 실행 제한을 의미.
-  name 은 필수 항목, trigger.json 의 trigger 목록에서 선택할 수 있도록 입력 폼 구성.
+  name 은 필수 항목, trigger.json 의 trigger 목록에서 선택할 수 있도록 입력 폼 구성. 단, deadlock 방지를 위해 `next` 가 `"@suspend"`, `"@resume"` 인 trigger 제외. 
 
 ### 5.5 Script 객체 필드 상세
 
@@ -1237,7 +1237,7 @@ ARSAgent.json 에 상기 두가지 key 이외에도 여러 항목이 있지만, 
 
 > **중요**:
   `type`이 `"SA"`일 때, 선택 입력 가능하도록 폼 구성. 입력 선택을 하지 않을 경우 모든 trigger 의 실행 제한을 의미.
-  name 은 필수 항목, trigger.json 의 trigger 목록에서 선택할 수 있도록 입력 폼 구성
+  name 은 필수 항목, trigger.json 의 trigger 목록에서 선택할 수 있도록 입력 폼 구성. 단, deadlock 방지를 위해 `next` 가 `"@suspend"`, `"@resume"` 인 trigger 제외. 
   duration 은 선택 입력. 입력 폼은 유지하되 값이 없을 경우 json 에서 항목 삭제.
 
 #### `resume` (suspend 해제 trigger 목록)
@@ -1259,7 +1259,7 @@ ARSAgent.json 에 상기 두가지 key 이외에도 여러 항목이 있지만, 
 
 > **중요**:
   `type`이 `"RA"`일 때, 선택 입력 가능하도록 폼 구성. 입력 선택을 하지 않을 경우 모든 trigger 의 실행 제한을 의미.
-  name 은 필수 항목, trigger.json 의 trigger 목록에서 선택할 수 있도록 입력 폼 구성.
+  name 은 필수 항목, trigger.json 의 trigger 목록에서 선택할 수 있도록 입력 폼 구성. 단, deadlock 방지를 위해 `next` 가 `"@suspend"`, `"@resume"` 인 trigger 제외. 
 
 ### 5.6 detail 객체 필드 상세
 

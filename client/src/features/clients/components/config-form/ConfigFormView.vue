@@ -34,6 +34,7 @@
         :readOnly="readOnly"
         :accessLogSources="accessLogSources"
         :triggerNames="triggerNames"
+        :suspendableTriggerNames="suspendableTriggerNames"
         @update:modelValue="handleFormChange"
       />
     </div>
@@ -82,6 +83,22 @@ const triggerNames = computed(() => {
   const content = props.allContents[triggerFile.fileId]
   if (!content) return []
   try { return Object.keys(JSON.parse(content)) } catch { return [] }
+})
+
+const suspendableTriggerNames = computed(() => {
+  const triggerFile = props.configFiles.find(f => detectConfigFileType(f.name, f.path) === 'trigger')
+  if (!triggerFile) return []
+  const content = props.allContents[triggerFile.fileId]
+  if (!content) return []
+  try {
+    const parsed = JSON.parse(content)
+    return Object.entries(parsed)
+      .filter(([, config]) => {
+        const recipe = config.recipe || []
+        return !recipe.some(s => s.next === '@suspend' || s.next === '@resume')
+      })
+      .map(([name]) => name)
+  } catch { return [] }
 })
 
 // JSON string → formData 파싱

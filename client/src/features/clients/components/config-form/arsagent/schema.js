@@ -5,7 +5,8 @@
  */
 
 export const CRONTAB_DEFAULTS = {
-  name: '', type: 'AR', arg: '', 'no-email': '', key: '', timeout: '', retry: ''
+  name: '', type: 'AR', arg: '', 'no-email': '', key: '', timeout: '', retry: '',
+  suspend: [], resume: []
 }
 
 export function createDefaultCronTab() {
@@ -52,12 +53,14 @@ export const ARSAGENT_SCHEMA = {
     name: { type: 'text', label: 'Action 이름', required: true, description: '실행할 시나리오 또는 작업의 이름입니다.', placeholder: 'Scenario_Check' },
     type: {
       type: 'select', label: 'Action 타입', required: true,
-      description: 'AR: 시나리오 실행, SR: 코드 시나리오, EN: 이메일 발송, PU: 팝업 실행',
+      description: 'AR: 시나리오 실행, SR: 코드 시나리오, EN: 이메일 발송, PU: 팝업 실행, SA: 트리거 실행 제한, RA: 트리거 실행 제한 해제',
       options: [
         { value: 'AR', label: 'AR (시나리오 실행)' },
         { value: 'SR', label: 'SR (코드 시나리오)' },
         { value: 'EN', label: 'EN (이메일 발송)' },
-        { value: 'PU', label: 'PU (팝업 실행)' }
+        { value: 'PU', label: 'PU (팝업 실행)' },
+        { value: 'SA', label: 'SA (트리거 실행 제한)' },
+        { value: 'RA', label: 'RA (트리거 실행 제한 해제)' }
       ]
     },
     arg: { type: 'text', label: '인자 (Arguments)', required: false, description: '작업에 전달할 인자입니다. 세미콜론(;)으로 구분합니다.', placeholder: 'arg1;arg2' },
@@ -149,6 +152,16 @@ export function buildARSAgentOutput(formData) {
     if (entry.key !== undefined && entry.key !== '') out.key = Number(entry.key)
     if (entry.timeout !== undefined && entry.timeout !== '') out.timeout = entry.timeout
     if (entry.retry !== undefined && entry.retry !== '') out.retry = entry.retry
+    if (entry.type === 'SA' && entry.suspend && entry.suspend.length > 0) {
+      out.suspend = entry.suspend.map(item => {
+        const s = { name: item.name }
+        if (item.duration) s.duration = item.duration
+        return s
+      })
+    }
+    if (entry.type === 'RA' && entry.resume && entry.resume.length > 0) {
+      out.resume = entry.resume.map(item => ({ name: item.name }))
+    }
     return out
   })
 

@@ -75,10 +75,10 @@ describe('ARSAGENT_SCHEMA', () => {
       expect(ARSAGENT_SCHEMA.cronTabFields.retry.required).toBe(false)
     })
 
-    it('type has options AR, SR, EN, PU', () => {
+    it('type has options AR, SR, EN, PU, SA, RA', () => {
       const values = ARSAGENT_SCHEMA.cronTabFields.type.options.map(o => o.value)
-      expect(values).toHaveLength(4)
-      expect(values).toEqual(expect.arrayContaining(['AR', 'SR', 'EN', 'PU']))
+      expect(values).toHaveLength(6)
+      expect(values).toEqual(expect.arrayContaining(['AR', 'SR', 'EN', 'PU', 'SA', 'RA']))
     })
   })
 
@@ -213,7 +213,9 @@ describe('CRONTAB_DEFAULTS', () => {
       'no-email': '',
       key: '',
       timeout: '',
-      retry: ''
+      retry: '',
+      suspend: [],
+      resume: []
     })
   })
 })
@@ -407,6 +409,84 @@ describe('buildARSAgentOutput', () => {
     expect(omitKeys).toHaveLength(0)
   })
 
+  // --- SA/RA CronTab tests ---
+
+  it('CronTab type=SA with suspend array → output includes suspend', () => {
+    const data = {
+      ...fullFormData,
+      CronTab: [{
+        name: 'Suspend_Job', type: 'SA', arg: '', 'no-email': '', key: '', timeout: '', retry: '',
+        suspend: [{ name: 'Alert_Trigger', duration: '30 minutes' }]
+      }]
+    }
+    const out = buildARSAgentOutput(data)
+    expect(out.CronTab[0].type).toBe('SA')
+    expect(out.CronTab[0].suspend).toEqual([{ name: 'Alert_Trigger', duration: '30 minutes' }])
+  })
+
+  it('CronTab type=SA with empty suspend → no suspend in output', () => {
+    const data = {
+      ...fullFormData,
+      CronTab: [{
+        name: 'Suspend_Job', type: 'SA', arg: '', 'no-email': '', key: '', timeout: '', retry: '',
+        suspend: []
+      }]
+    }
+    const out = buildARSAgentOutput(data)
+    expect(out.CronTab[0]).not.toHaveProperty('suspend')
+  })
+
+  it('CronTab type=SA with suspend item without duration → no duration in output', () => {
+    const data = {
+      ...fullFormData,
+      CronTab: [{
+        name: 'Suspend_Job', type: 'SA', arg: '', 'no-email': '', key: '', timeout: '', retry: '',
+        suspend: [{ name: 'Alert_Trigger', duration: '' }]
+      }]
+    }
+    const out = buildARSAgentOutput(data)
+    expect(out.CronTab[0].suspend).toEqual([{ name: 'Alert_Trigger' }])
+  })
+
+  it('CronTab type=RA with resume array → output includes resume', () => {
+    const data = {
+      ...fullFormData,
+      CronTab: [{
+        name: 'Resume_Job', type: 'RA', arg: '', 'no-email': '', key: '', timeout: '', retry: '',
+        resume: [{ name: 'Alert_Trigger' }]
+      }]
+    }
+    const out = buildARSAgentOutput(data)
+    expect(out.CronTab[0].type).toBe('RA')
+    expect(out.CronTab[0].resume).toEqual([{ name: 'Alert_Trigger' }])
+  })
+
+  it('CronTab type=RA with empty resume → no resume in output', () => {
+    const data = {
+      ...fullFormData,
+      CronTab: [{
+        name: 'Resume_Job', type: 'RA', arg: '', 'no-email': '', key: '', timeout: '', retry: '',
+        resume: []
+      }]
+    }
+    const out = buildARSAgentOutput(data)
+    expect(out.CronTab[0]).not.toHaveProperty('resume')
+  })
+
+  it('CronTab type=AR → no suspend/resume in output even if present', () => {
+    const data = {
+      ...fullFormData,
+      CronTab: [{
+        name: 'Normal_Job', type: 'AR', arg: '', 'no-email': '', key: '', timeout: '', retry: '',
+        suspend: [{ name: 'X' }],
+        resume: [{ name: 'Y' }]
+      }]
+    }
+    const out = buildARSAgentOutput(data)
+    expect(out.CronTab[0]).not.toHaveProperty('suspend')
+    expect(out.CronTab[0]).not.toHaveProperty('resume')
+  })
+
   it('full roundtrip: parse then build preserves data', () => {
     const fullConfig = {
       ErrorTrigger: [{ alid: 'TRIGGER_1' }],
@@ -590,6 +670,32 @@ describe('parseARSAgentInput', () => {
     const result = parseARSAgentInput(config)
     expect(result.CustomField).toBe('custom_value')
     expect(result.AnotherUnknown).toBe(42)
+  })
+
+  it('CronTab suspend/resume arrays preserved on parse', () => {
+    const config = {
+      ...fullConfig,
+      CronTab: [
+        { name: 'SuspendJob', type: 'SA', suspend: [{ name: 'Trig1', duration: '10 minutes' }] },
+        { name: 'ResumeJob', type: 'RA', resume: [{ name: 'Trig2' }] }
+      ]
+    }
+    const result = parseARSAgentInput(config)
+    expect(result.CronTab[0].suspend).toEqual([{ name: 'Trig1', duration: '10 minutes' }])
+    expect(result.CronTab[1].resume).toEqual([{ name: 'Trig2' }])
+  })
+
+  it('SA/RA roundtrip: build(parse(config)) preserves suspend/resume', () => {
+    const config = {
+      ...fullConfig,
+      CronTab: [
+        { name: 'SuspendJob', type: 'SA', suspend: [{ name: 'Trig1', duration: '30 minutes' }, { name: 'Trig2' }] }
+      ]
+    }
+    const parsed = parseARSAgentInput(config)
+    const rebuilt = buildARSAgentOutput(parsed)
+    expect(rebuilt.CronTab[0].type).toBe('SA')
+    expect(rebuilt.CronTab[0].suspend).toEqual([{ name: 'Trig1', duration: '30 minutes' }, { name: 'Trig2' }])
   })
 
   it('_omit_ uses in operator, NOT truthiness check', () => {

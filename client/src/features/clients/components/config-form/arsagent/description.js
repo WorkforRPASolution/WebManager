@@ -4,7 +4,9 @@ const CRONTAB_TYPE_MAP = {
   AR: '시나리오 실행',
   SR: '코드 시나리오',
   EN: '이메일 발송',
-  PU: '팝업 실행'
+  PU: '팝업 실행',
+  SA: '트리거 실행 제한',
+  RA: '트리거 실행 제한 해제'
 }
 
 export function describeARSAgent(config) {
@@ -26,7 +28,17 @@ export function describeARSAgent(config) {
   if (crontabs.length > 0) {
     const summary = crontabs.map(c => {
       const typeLabel = CRONTAB_TYPE_MAP[c.type] || c.type || '?'
-      return `${c.name}(${typeLabel})`
+      let extra = ''
+      if (c.type === 'SA' && c.suspend && c.suspend.length > 0) {
+        extra = ' → ' + c.suspend.map(s => {
+          const dur = parseDuration(s.duration)
+          return dur ? `${s.name}(${dur})` : s.name
+        }).join(', ')
+      }
+      if (c.type === 'RA' && c.resume && c.resume.length > 0) {
+        extra = ' → ' + c.resume.map(s => s.name).join(', ')
+      }
+      return `${c.name}(${typeLabel})${extra}`
     }).join(', ')
     lines.push(`CronTab: ${crontabs.length}개 — ${summary}`)
   }
