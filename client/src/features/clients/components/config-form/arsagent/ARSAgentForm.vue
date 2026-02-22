@@ -398,10 +398,23 @@ const descriptionText = computed(() => describeARSAgent(formData.value))
 
 function emitChange() {
   isInternalUpdate = true
-  const output = buildARSAgentOutput(formData.value)
+  const output = buildARSAgentOutput(formData.value, props.suspendableTriggerNames)
   emit('update:modelValue', output)
   nextTick(() => { isInternalUpdate = false })
 }
+
+watch(() => props.suspendableTriggerNames, (validNames) => {
+  if (!validNames || !formData.value.CronTab) return
+  for (const entry of formData.value.CronTab) {
+    if (entry.type === 'SA' && entry.suspend) {
+      entry.suspend = entry.suspend.filter(item => !item.name || validNames.includes(item.name))
+    }
+    if (entry.type === 'RA' && entry.resume) {
+      entry.resume = entry.resume.filter(item => !item.name || validNames.includes(item.name))
+    }
+  }
+  emitChange()
+}, { immediate: true })
 
 const selectedTriggers = computed(() =>
   (formData.value.ErrorTrigger || []).map(t => t.alid)

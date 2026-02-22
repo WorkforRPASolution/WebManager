@@ -519,6 +519,11 @@ function toggleSource(ti, src) {
 }
 
 function buildOutput(triggersList) {
+  // triggersList에서 직접 계산 (stale computed 대신)
+  const validSuspendTargets = triggersList
+    .filter(t => !t.recipe.some(s => s.next === '@suspend' || s.next === '@resume'))
+    .map(t => t.name)
+    .filter(Boolean)
   const obj = {}
   for (const trig of triggersList) {
     let name = trig.name || 'Unnamed_Trigger'
@@ -527,8 +532,9 @@ function buildOutput(triggersList) {
     while (Object.prototype.hasOwnProperty.call(obj, uniqueName)) {
       uniqueName = `${name}_${counter++}`
     }
+    const validSources = (trig.source || '').split(',').map(s => s.trim()).filter(s => s && props.accessLogSources.includes(s))
     const triggerObj = {
-      source: trig.source,
+      source: validSources.join(','),
       recipe: trig.recipe.map(step => {
         const s = {
           name: step.name,
@@ -553,14 +559,20 @@ function buildOutput(triggersList) {
           if (Object.keys(detail).length > 0) s.detail = detail
         }
         if (step.next === '@suspend' && step.suspend && step.suspend.length > 0) {
-          s.suspend = step.suspend.map(item => {
-            const out = { name: item.name }
-            if (item.duration) out.duration = item.duration
-            return out
-          })
+          const validSuspend = step.suspend.filter(item => !item.name || validSuspendTargets.includes(item.name))
+          if (validSuspend.length > 0) {
+            s.suspend = validSuspend.map(item => {
+              const out = { name: item.name }
+              if (item.duration) out.duration = item.duration
+              return out
+            })
+          }
         }
         if (step.next === '@resume' && step.resume && step.resume.length > 0) {
-          s.resume = step.resume.map(item => ({ name: item.name }))
+          const validResume = step.resume.filter(item => !item.name || validSuspendTargets.includes(item.name))
+          if (validResume.length > 0) {
+            s.resume = validResume.map(item => ({ name: item.name }))
+          }
         }
         return s
       })

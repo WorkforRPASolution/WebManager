@@ -487,6 +487,75 @@ describe('buildARSAgentOutput', () => {
     expect(out.CronTab[0]).not.toHaveProperty('resume')
   })
 
+  it('CronTab type=SA filters out items with name not in validTriggerNames', () => {
+    const data = {
+      ...fullFormData,
+      CronTab: [{
+        name: 'Suspend_Job', type: 'SA', arg: '', 'no-email': '', key: '', timeout: '', retry: '',
+        suspend: [
+          { name: 'Valid_Trigger', duration: '30 minutes' },
+          { name: 'Deleted_Trigger', duration: '10 minutes' }
+        ]
+      }]
+    }
+    const out = buildARSAgentOutput(data, ['Valid_Trigger', 'Other_Trigger'])
+    expect(out.CronTab[0].suspend).toEqual([{ name: 'Valid_Trigger', duration: '30 minutes' }])
+  })
+
+  it('CronTab type=SA with all items invalid → no suspend in output', () => {
+    const data = {
+      ...fullFormData,
+      CronTab: [{
+        name: 'Suspend_Job', type: 'SA', arg: '', 'no-email': '', key: '', timeout: '', retry: '',
+        suspend: [{ name: 'Deleted_Trigger' }]
+      }]
+    }
+    const out = buildARSAgentOutput(data, ['Valid_Trigger'])
+    expect(out.CronTab[0]).not.toHaveProperty('suspend')
+  })
+
+  it('CronTab type=RA filters out items with name not in validTriggerNames', () => {
+    const data = {
+      ...fullFormData,
+      CronTab: [{
+        name: 'Resume_Job', type: 'RA', arg: '', 'no-email': '', key: '', timeout: '', retry: '',
+        resume: [
+          { name: 'Valid_Trigger' },
+          { name: 'Deleted_Trigger' }
+        ]
+      }]
+    }
+    const out = buildARSAgentOutput(data, ['Valid_Trigger'])
+    expect(out.CronTab[0].resume).toEqual([{ name: 'Valid_Trigger' }])
+  })
+
+  it('CronTab type=SA keeps items with empty name (new items)', () => {
+    const data = {
+      ...fullFormData,
+      CronTab: [{
+        name: 'Suspend_Job', type: 'SA', arg: '', 'no-email': '', key: '', timeout: '', retry: '',
+        suspend: [
+          { name: '', duration: '30 minutes' },
+          { name: 'Valid_Trigger', duration: '10 minutes' }
+        ]
+      }]
+    }
+    const out = buildARSAgentOutput(data)
+    expect(out.CronTab[0].suspend).toEqual([{ name: '', duration: '30 minutes' }, { name: 'Valid_Trigger', duration: '10 minutes' }])
+  })
+
+  it('CronTab without validTriggerNames keeps items with empty name', () => {
+    const data = {
+      ...fullFormData,
+      CronTab: [{
+        name: 'Suspend_Job', type: 'SA', arg: '', 'no-email': '', key: '', timeout: '', retry: '',
+        suspend: [{ name: '' }]
+      }]
+    }
+    const out = buildARSAgentOutput(data)
+    expect(out.CronTab[0].suspend).toEqual([{ name: '' }])
+  })
+
   it('full roundtrip: parse then build preserves data', () => {
     const fullConfig = {
       ErrorTrigger: [{ alid: 'TRIGGER_1' }],
