@@ -138,7 +138,7 @@ function coerceValue(value, fieldDef) {
   return value
 }
 
-export function buildARSAgentOutput(formData) {
+export function buildARSAgentOutput(formData, validTriggerNames = null) {
   const d = formData || {}
   const result = {}
 
@@ -153,14 +153,24 @@ export function buildARSAgentOutput(formData) {
     if (entry.timeout !== undefined && entry.timeout !== '') out.timeout = entry.timeout
     if (entry.retry !== undefined && entry.retry !== '') out.retry = entry.retry
     if (entry.type === 'SA' && entry.suspend && entry.suspend.length > 0) {
-      out.suspend = entry.suspend.map(item => {
-        const s = { name: item.name }
-        if (item.duration) s.duration = item.duration
-        return s
-      })
+      const items = validTriggerNames
+        ? entry.suspend.filter(item => item.name && validTriggerNames.includes(item.name))
+        : entry.suspend.filter(item => item.name)
+      if (items.length > 0) {
+        out.suspend = items.map(item => {
+          const s = { name: item.name }
+          if (item.duration) s.duration = item.duration
+          return s
+        })
+      }
     }
     if (entry.type === 'RA' && entry.resume && entry.resume.length > 0) {
-      out.resume = entry.resume.map(item => ({ name: item.name }))
+      const items = validTriggerNames
+        ? entry.resume.filter(item => item.name && validTriggerNames.includes(item.name))
+        : entry.resume.filter(item => item.name)
+      if (items.length > 0) {
+        out.resume = items.map(item => ({ name: item.name }))
+      }
     }
     return out
   })

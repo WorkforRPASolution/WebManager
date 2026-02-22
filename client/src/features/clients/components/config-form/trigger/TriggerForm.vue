@@ -554,14 +554,20 @@ function buildOutput(triggersList) {
           if (Object.keys(detail).length > 0) s.detail = detail
         }
         if (step.next === '@suspend' && step.suspend && step.suspend.length > 0) {
-          s.suspend = step.suspend.map(item => {
-            const out = { name: item.name }
-            if (item.duration) out.duration = item.duration
-            return out
-          })
+          const validSuspend = step.suspend.filter(item => item.name && suspendableTriggerNames.value.includes(item.name))
+          if (validSuspend.length > 0) {
+            s.suspend = validSuspend.map(item => {
+              const out = { name: item.name }
+              if (item.duration) out.duration = item.duration
+              return out
+            })
+          }
         }
         if (step.next === '@resume' && step.resume && step.resume.length > 0) {
-          s.resume = step.resume.map(item => ({ name: item.name }))
+          const validResume = step.resume.filter(item => item.name && suspendableTriggerNames.value.includes(item.name))
+          if (validResume.length > 0) {
+            s.resume = validResume.map(item => ({ name: item.name }))
+          }
         }
         return s
       })

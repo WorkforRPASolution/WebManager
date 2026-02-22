@@ -398,7 +398,7 @@ const descriptionText = computed(() => describeARSAgent(formData.value))
 
 function emitChange() {
   isInternalUpdate = true
-  const output = buildARSAgentOutput(formData.value)
+  const output = buildARSAgentOutput(formData.value, props.suspendableTriggerNames)
   emit('update:modelValue', output)
   nextTick(() => { isInternalUpdate = false })
 }
