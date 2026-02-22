@@ -154,8 +154,8 @@ export function buildARSAgentOutput(formData, validTriggerNames = null) {
     if (entry.retry !== undefined && entry.retry !== '') out.retry = entry.retry
     if (entry.type === 'SA' && entry.suspend && entry.suspend.length > 0) {
       const items = validTriggerNames
-        ? entry.suspend.filter(item => item.name && validTriggerNames.includes(item.name))
-        : entry.suspend.filter(item => item.name)
+        ? entry.suspend.filter(item => !item.name || validTriggerNames.includes(item.name))
+        : entry.suspend
       if (items.length > 0) {
         out.suspend = items.map(item => {
           const s = { name: item.name }
@@ -166,8 +166,8 @@ export function buildARSAgentOutput(formData, validTriggerNames = null) {
     }
     if (entry.type === 'RA' && entry.resume && entry.resume.length > 0) {
       const items = validTriggerNames
-        ? entry.resume.filter(item => item.name && validTriggerNames.includes(item.name))
-        : entry.resume.filter(item => item.name)
+        ? entry.resume.filter(item => !item.name || validTriggerNames.includes(item.name))
+        : entry.resume
       if (items.length > 0) {
         out.resume = items.map(item => ({ name: item.name }))
       }

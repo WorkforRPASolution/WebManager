@@ -529,7 +529,7 @@ describe('buildARSAgentOutput', () => {
     expect(out.CronTab[0].resume).toEqual([{ name: 'Valid_Trigger' }])
   })
 
-  it('CronTab type=SA filters out items with empty name', () => {
+  it('CronTab type=SA keeps items with empty name (new items)', () => {
     const data = {
       ...fullFormData,
       CronTab: [{
@@ -541,10 +541,10 @@ describe('buildARSAgentOutput', () => {
       }]
     }
     const out = buildARSAgentOutput(data)
-    expect(out.CronTab[0].suspend).toEqual([{ name: 'Valid_Trigger', duration: '10 minutes' }])
+    expect(out.CronTab[0].suspend).toEqual([{ name: '', duration: '30 minutes' }, { name: 'Valid_Trigger', duration: '10 minutes' }])
   })
 
-  it('CronTab without validTriggerNames still filters empty names', () => {
+  it('CronTab without validTriggerNames keeps items with empty name', () => {
     const data = {
       ...fullFormData,
       CronTab: [{
@@ -553,7 +553,7 @@ describe('buildARSAgentOutput', () => {
       }]
     }
     const out = buildARSAgentOutput(data)
-    expect(out.CronTab[0]).not.toHaveProperty('suspend')
+    expect(out.CronTab[0].suspend).toEqual([{ name: '' }])
   })
 
   it('full roundtrip: parse then build preserves data', () => {
