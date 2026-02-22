@@ -527,8 +527,9 @@ function buildOutput(triggersList) {
     while (Object.prototype.hasOwnProperty.call(obj, uniqueName)) {
       uniqueName = `${name}_${counter++}`
     }
+    const validSources = (trig.source || '').split(',').map(s => s.trim()).filter(s => s && props.accessLogSources.includes(s))
     const triggerObj = {
-      source: trig.source,
+      source: validSources.join(','),
       recipe: trig.recipe.map(step => {
         const s = {
           name: step.name,
