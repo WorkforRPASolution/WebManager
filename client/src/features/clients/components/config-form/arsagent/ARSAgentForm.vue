@@ -9,80 +9,79 @@
       <p class="text-sm text-blue-800 dark:text-blue-200 whitespace-pre-line">{{ descriptionText }}</p>
     </div>
 
-    <!-- ErrorTrigger Section -->
+    <!-- ErrorTrigger + AccessLogLists (2-column) -->
     <div class="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
       <div class="px-4 py-3 bg-gray-50 dark:bg-dark-bg border-b border-gray-200 dark:border-dark-border">
-        <div class="flex items-center gap-2">
-          <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">{{ schema.sections.ErrorTrigger.label }}</h4>
-          <span class="relative group">
-            <svg class="w-3.5 h-3.5 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span class="absolute z-50 hidden group-hover:block top-full left-0 mt-1 w-72 p-2 text-xs font-normal text-gray-600 dark:text-gray-300 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg shadow-lg whitespace-normal">
-              {{ schema.sections.ErrorTrigger.description }}
+        <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">활성 트리거 & 로그 소스</h4>
+      </div>
+      <div class="grid grid-cols-2 divide-x divide-gray-200 dark:divide-dark-border">
+        <!-- ErrorTrigger (Left) -->
+        <div class="px-4 py-3">
+          <div class="flex items-center gap-2 mb-3">
+            <h5 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ schema.sections.ErrorTrigger.label }}</h5>
+            <span class="relative group">
+              <svg class="w-3.5 h-3.5 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span class="absolute z-50 hidden group-hover:block top-full left-0 mt-1 w-72 p-2 text-xs font-normal text-gray-600 dark:text-gray-300 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg shadow-lg whitespace-normal">
+                {{ schema.sections.ErrorTrigger.description }}
+              </span>
             </span>
-          </span>
+          </div>
+          <div v-if="triggerNames.length === 0" class="text-sm text-gray-400 dark:text-gray-500 py-2">
+            trigger.json에서 먼저 트리거를 추가해주세요.
+          </div>
+          <div v-else class="space-y-1">
+            <label
+              v-for="name in triggerNames"
+              :key="name"
+              class="flex items-center gap-2.5 px-3 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover cursor-pointer select-none transition"
+              :class="{ 'opacity-60 cursor-not-allowed': readOnly }"
+            >
+              <input
+                type="checkbox"
+                :checked="selectedTriggers.includes(name)"
+                @change="toggleTrigger(name, $event.target.checked)"
+                :disabled="readOnly"
+                class="w-4 h-4 rounded border-gray-300 dark:border-dark-border text-primary-500 focus:ring-primary-500 dark:bg-dark-bg"
+              />
+              <span class="text-sm text-gray-700 dark:text-gray-300">{{ name }}</span>
+            </label>
+          </div>
         </div>
-      </div>
-      <div class="px-4 py-3">
-        <div v-if="triggerNames.length === 0" class="text-sm text-gray-400 dark:text-gray-500 py-2">
-          등록된 트리거가 없습니다. trigger.json 탭에서 먼저 트리거를 추가해주세요.
-        </div>
-        <div v-else class="space-y-2">
-          <label
-            v-for="name in triggerNames"
-            :key="name"
-            class="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover cursor-pointer select-none transition"
-            :class="{ 'opacity-60 cursor-not-allowed': readOnly }"
-          >
-            <input
-              type="checkbox"
-              :checked="selectedTriggers.includes(name)"
-              @change="toggleTrigger(name, $event.target.checked)"
-              :disabled="readOnly"
-              class="w-4 h-4 rounded border-gray-300 dark:border-dark-border text-primary-500 focus:ring-primary-500 dark:bg-dark-bg"
-            />
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ name }}</span>
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <!-- AccessLogLists Section -->
-    <div class="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
-      <div class="px-4 py-3 bg-gray-50 dark:bg-dark-bg border-b border-gray-200 dark:border-dark-border">
-        <div class="flex items-center gap-2">
-          <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">{{ schema.sections.AccessLogLists.label }}</h4>
-          <span class="relative group">
-            <svg class="w-3.5 h-3.5 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span class="absolute z-50 hidden group-hover:block top-full left-0 mt-1 w-72 p-2 text-xs font-normal text-gray-600 dark:text-gray-300 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg shadow-lg whitespace-normal">
-              {{ schema.sections.AccessLogLists.description }}
+        <!-- AccessLogLists (Right) -->
+        <div class="px-4 py-3">
+          <div class="flex items-center gap-2 mb-3">
+            <h5 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{{ schema.sections.AccessLogLists.label }}</h5>
+            <span class="relative group">
+              <svg class="w-3.5 h-3.5 text-gray-400 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span class="absolute z-50 hidden group-hover:block top-full left-0 mt-1 w-72 p-2 text-xs font-normal text-gray-600 dark:text-gray-300 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg shadow-lg whitespace-normal">
+                {{ schema.sections.AccessLogLists.description }}
+              </span>
             </span>
-          </span>
-        </div>
-      </div>
-      <div class="px-4 py-3">
-        <div v-if="accessLogSources.length === 0" class="text-sm text-gray-400 dark:text-gray-500 py-2">
-          등록된 로그 소스가 없습니다. AccessLog.json 탭에서 먼저 소스를 추가해주세요.
-        </div>
-        <div v-else class="space-y-2">
-          <label
-            v-for="name in accessLogSources"
-            :key="name"
-            class="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover cursor-pointer select-none transition"
-            :class="{ 'opacity-60 cursor-not-allowed': readOnly }"
-          >
-            <input
-              type="checkbox"
-              :checked="selectedAccessLogs.includes(name)"
-              @change="toggleAccessLog(name, $event.target.checked)"
-              :disabled="readOnly"
-              class="w-4 h-4 rounded border-gray-300 dark:border-dark-border text-primary-500 focus:ring-primary-500 dark:bg-dark-bg"
-            />
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ name }}</span>
-          </label>
+          </div>
+          <div v-if="accessLogSources.length === 0" class="text-sm text-gray-400 dark:text-gray-500 py-2">
+            AccessLog.json에서 먼저 소스를 추가해주세요.
+          </div>
+          <div v-else class="space-y-1">
+            <label
+              v-for="name in accessLogSources"
+              :key="name"
+              class="flex items-center gap-2.5 px-3 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-hover cursor-pointer select-none transition"
+              :class="{ 'opacity-60 cursor-not-allowed': readOnly }"
+            >
+              <input
+                type="checkbox"
+                :checked="selectedAccessLogs.includes(name)"
+                @change="toggleAccessLog(name, $event.target.checked)"
+                :disabled="readOnly"
+                class="w-4 h-4 rounded border-gray-300 dark:border-dark-border text-primary-500 focus:ring-primary-500 dark:bg-dark-bg"
+              />
+              <span class="text-sm text-gray-700 dark:text-gray-300">{{ name }}</span>
+            </label>
+          </div>
         </div>
       </div>
     </div>
@@ -415,6 +414,7 @@ const props = defineProps({
   readOnly: { type: Boolean, default: false },
   accessLogSources: { type: Array, default: () => [] },
   triggerNames: { type: Array, default: () => [] },
+  triggerSourceMap: { type: Object, default: () => ({}) },
   suspendableTriggerNames: { type: Array, default: () => [] }
 })
 
@@ -453,8 +453,30 @@ function toggleTrigger(name, checked) {
   let triggers = [...(formData.value.ErrorTrigger || [])]
   if (checked) {
     triggers.push({ alid: name })
+    // 트리거의 source에 연결된 AccessLog 자동 선택
+    const sources = props.triggerSourceMap[name] || []
+    if (sources.length > 0) {
+      const currentLogs = new Set(formData.value.AccessLogLists || [])
+      for (const src of sources) {
+        currentLogs.add(src)
+      }
+      formData.value.AccessLogLists = [...currentLogs]
+    }
   } else {
     triggers = triggers.filter(t => t.alid !== name)
+    // 해제된 트리거의 source 중, 남은 트리거가 아무도 사용하지 않는 AccessLog 자동 해제
+    const removedSources = props.triggerSourceMap[name] || []
+    if (removedSources.length > 0) {
+      const remainingNames = new Set(triggers.map(t => t.alid))
+      const stillUsed = new Set()
+      for (const tn of remainingNames) {
+        for (const src of (props.triggerSourceMap[tn] || [])) {
+          stillUsed.add(src)
+        }
+      }
+      formData.value.AccessLogLists = (formData.value.AccessLogLists || [])
+        .filter(log => !removedSources.includes(log) || stillUsed.has(log))
+    }
   }
   formData.value.ErrorTrigger = triggers
   emitChange()

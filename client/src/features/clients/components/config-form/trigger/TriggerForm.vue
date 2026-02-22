@@ -234,9 +234,7 @@
               <FormField :label="stepSchema.fields.next.label" :description="stepSchema.fields.next.description">
                 <select :value="step.next" @change="updateStepField(ti, si, 'next', $event.target.value)" :disabled="readOnly" class="form-input">
                   <option value="">-- 선택 --</option>
-                  <template v-for="(s, ssi) in trig.recipe" :key="ssi">
-                    <option v-if="ssi !== si && s.name" :value="s.name">{{ s.name }} (다음 스텝)</option>
-                  </template>
+                  <option v-if="si + 1 < trig.recipe.length && trig.recipe[si + 1].name" :value="trig.recipe[si + 1].name">{{ trig.recipe[si + 1].name }} (다음 스텝)</option>
                   <option value="@recovery">@recovery (시나리오 실행)</option>
                   <option value="@script">@script (코드 기반 시나리오 실행)</option>
                   <option value="@notify">@notify (메일 발송)</option>

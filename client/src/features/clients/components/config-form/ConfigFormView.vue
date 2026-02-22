@@ -34,6 +34,7 @@
         :readOnly="readOnly"
         :accessLogSources="accessLogSources"
         :triggerNames="triggerNames"
+        :triggerSourceMap="triggerSourceMap"
         :suspendableTriggerNames="suspendableTriggerNames"
         @update:modelValue="handleFormChange"
       />
@@ -83,6 +84,21 @@ const triggerNames = computed(() => {
   const content = props.allContents[triggerFile.fileId]
   if (!content) return []
   try { return Object.keys(JSON.parse(content)) } catch { return [] }
+})
+
+const triggerSourceMap = computed(() => {
+  const triggerFile = props.configFiles.find(f => detectConfigFileType(f.name, f.path) === 'trigger')
+  if (!triggerFile) return {}
+  const content = props.allContents[triggerFile.fileId]
+  if (!content) return {}
+  try {
+    const parsed = JSON.parse(content)
+    const map = {}
+    for (const [name, config] of Object.entries(parsed)) {
+      map[name] = (config.source || '').split(',').map(s => s.trim()).filter(Boolean)
+    }
+    return map
+  } catch { return {} }
 })
 
 const suspendableTriggerNames = computed(() => {
