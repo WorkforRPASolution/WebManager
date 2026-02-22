@@ -12,38 +12,40 @@
 
     <!-- Form Content -->
     <div v-else class="p-4">
-      <AccessLogForm
-        v-if="fileType === 'accesslog'"
-        :modelValue="formData"
-        :readOnly="readOnly"
-        :eqpId="eqpId"
-        :agentGroup="agentGroup"
-        :agentVersion="agentVersion"
-        @update:modelValue="handleFormChange"
-      />
-      <TriggerForm
-        v-else-if="fileType === 'trigger'"
-        :modelValue="formData"
-        :readOnly="readOnly"
-        :accessLogSources="accessLogSources"
-        @update:modelValue="handleFormChange"
-      />
-      <ARSAgentForm
-        v-else-if="fileType === 'arsagent'"
-        :modelValue="formData"
-        :readOnly="readOnly"
-        :accessLogSources="accessLogSources"
-        :triggerNames="triggerNames"
-        :triggerSourceMap="triggerSourceMap"
-        :suspendableTriggerNames="suspendableTriggerNames"
-        @update:modelValue="handleFormChange"
-      />
+      <KeepAlive>
+        <AccessLogForm
+          v-if="fileType === 'accesslog'"
+          :modelValue="formDataByType.accesslog"
+          :readOnly="readOnly"
+          :eqpId="eqpId"
+          :agentGroup="agentGroup"
+          :agentVersion="agentVersion"
+          @update:modelValue="handleFormChange"
+        />
+        <TriggerForm
+          v-else-if="fileType === 'trigger'"
+          :modelValue="formDataByType.trigger"
+          :readOnly="readOnly"
+          :accessLogSources="accessLogSources"
+          @update:modelValue="handleFormChange"
+        />
+        <ARSAgentForm
+          v-else-if="fileType === 'arsagent'"
+          :modelValue="formDataByType.arsagent"
+          :readOnly="readOnly"
+          :accessLogSources="accessLogSources"
+          :triggerNames="triggerNames"
+          :triggerSourceMap="triggerSourceMap"
+          :suspendableTriggerNames="suspendableTriggerNames"
+          @update:modelValue="handleFormChange"
+        />
+      </KeepAlive>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { reactive, computed, watch, nextTick } from 'vue'
 import { detectConfigFileType } from './shared/configDetection'
 import AccessLogForm from './accesslog/AccessLogForm.vue'
 import TriggerForm from './trigger/TriggerForm.vue'
@@ -63,9 +65,15 @@ const props = defineProps({
 
 const emit = defineEmits(['update:content'])
 
-const formData = ref({})
-const parseError = ref(null)
+const formDataByType = reactive({
+  accesslog: {},
+  trigger: {},
+  arsagent: {}
+})
+const parseErrorByType = reactive({})
+const parseError = computed(() => parseErrorByType[fileType.value] ?? null)
 let isInternalUpdate = false
+const contentCache = {}
 
 const fileType = computed(() => detectConfigFileType(props.fileName, props.filePath))
 
@@ -117,27 +125,31 @@ const suspendableTriggerNames = computed(() => {
   } catch { return [] }
 })
 
-// JSON string → formData 파싱
-watch(() => props.content, (newContent) => {
-  if (isInternalUpdate) return
+// JSON string → formData 파싱 (타입별 독립 데이터)
+watch([() => props.content, fileType], ([newContent, type]) => {
+  if (isInternalUpdate || !type) return
+  if (newContent === contentCache[type]) return
+  contentCache[type] = newContent
   if (!newContent || !newContent.trim()) {
-    formData.value = {}
-    parseError.value = null
+    formDataByType[type] = {}
+    parseErrorByType[type] = null
     return
   }
   try {
-    formData.value = JSON.parse(newContent)
-    parseError.value = null
+    formDataByType[type] = JSON.parse(newContent)
+    parseErrorByType[type] = null
   } catch (e) {
-    parseError.value = e.message
+    parseErrorByType[type] = e.message
   }
 }, { immediate: true })
 
 // formData → JSON string 직렬화
 function handleFormChange(newData) {
   isInternalUpdate = true
-  formData.value = newData
+  const type = fileType.value
+  formDataByType[type] = newData
   const json = JSON.stringify(newData, null, 2) + '\n'
+  contentCache[type] = json
   emit('update:content', json)
   nextTick(() => { isInternalUpdate = false })
 }
