@@ -14,6 +14,7 @@ const selectedValue = ref('')
 const searchQuery = ref('')
 const containerRef = ref(null)
 const searchInputRef = ref(null)
+const confirmed = ref(false)
 
 // Available options
 const availableOptions = ref([])
@@ -97,7 +98,7 @@ const fetchOptions = async () => {
 // Select an option
 const selectOption = (option) => {
   selectedValue.value = option
-  // Auto-close after selection
+  confirmed.value = true
   props.params.stopEditing()
 }
 
@@ -105,6 +106,7 @@ const selectOption = (option) => {
 const addCustomValue = () => {
   if (searchQuery.value.trim()) {
     selectedValue.value = searchQuery.value.trim().toUpperCase()
+    confirmed.value = true
     props.params.stopEditing()
   }
 }
@@ -116,6 +118,7 @@ const handleKeyDown = (event) => {
     if (canAddCustomValue.value) {
       addCustomValue()
     } else {
+      confirmed.value = true
       props.params.stopEditing()
     }
   }
@@ -132,6 +135,9 @@ defineExpose({
   },
   isPopup() {
     return true
+  },
+  isCancelAfterEnd() {
+    return !confirmed.value
   },
   getPopupPosition() {
     return getOptimalPopupPosition(props.params, 280)

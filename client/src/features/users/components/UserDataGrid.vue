@@ -14,6 +14,7 @@
         :getRowStyle="getRowStyle"
         :alwaysShowHorizontalScroll="true"
         :suppressSizeToFit="true"
+        :stopEditingWhenCellsLoseFocus="true"
         @grid-ready="onGridReady"
         @cell-editing-started="onCellEditingStarted"
         @cell-editing-stopped="onCellEditingStopped"

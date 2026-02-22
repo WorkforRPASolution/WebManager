@@ -15,6 +15,7 @@ const tags = ref([])
 const inputValue = ref('')
 const containerRef = ref(null)
 const inputRef = ref(null)
+const confirmed = ref(false)
 
 // Get placeholder from column params
 const placeholder = computed(() => {
@@ -86,6 +87,7 @@ const handleKeyDown = (event) => {
       addTag()
     } else {
       // Tab on empty input closes editor
+      confirmed.value = true
       props.params.stopEditing()
     }
   } else if (event.key === 'Escape') {
@@ -99,6 +101,7 @@ const handleKeyDown = (event) => {
 
 // Close editor and save
 const handleDone = () => {
+  confirmed.value = true
   props.params.stopEditing()
 }
 
@@ -118,6 +121,9 @@ defineExpose({
   },
   isPopup() {
     return true
+  },
+  isCancelAfterEnd() {
+    return !confirmed.value
   },
   getPopupPosition() {
     return getOptimalPopupPosition(props.params, 150)

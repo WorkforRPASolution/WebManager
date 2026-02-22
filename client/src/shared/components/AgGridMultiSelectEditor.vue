@@ -15,6 +15,7 @@ const selectedValues = ref([])
 const searchQuery = ref('')
 const containerRef = ref(null)
 const searchInputRef = ref(null)
+const confirmed = ref(false)
 
 // Get options from column params or cellEditorParams
 const options = computed(() => {
@@ -105,6 +106,7 @@ function handleKeyDown(event) {
     if (allowCustomInput.value && searchQuery.value) {
       addNewValue()
     } else {
+      confirmed.value = true
       props.params.stopEditing()
     }
   }
@@ -123,6 +125,9 @@ defineExpose({
   },
   isPopup() {
     return true
+  },
+  isCancelAfterEnd() {
+    return !confirmed.value
   },
   getPopupPosition() {
     return getOptimalPopupPosition(props.params, 300)

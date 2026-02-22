@@ -10,6 +10,7 @@ const props = defineProps({
 })
 
 // State
+const confirmed = ref(false)
 const mode = ref('select') // 'select' | 'direct'
 const selectedProcess = ref('')
 const selectedModel = ref('')
@@ -172,6 +173,7 @@ const handleKeyDown = (event) => {
 
 // Close editor and save
 const handleApply = () => {
+  confirmed.value = true
   props.params.stopEditing()
 }
 
@@ -187,6 +189,9 @@ defineExpose({
   },
   isPopup() {
     return true
+  },
+  isCancelAfterEnd() {
+    return !confirmed.value
   },
   getPopupPosition() {
     return getOptimalPopupPosition(props.params, 220)
@@ -215,7 +220,7 @@ onMounted(async () => {
     }
   }
 
-  // Add click outside listener
+  // Add click outside listener for internal dropdowns
   document.addEventListener('click', handleClickOutside)
 
   // Focus based on mode
