@@ -18,6 +18,11 @@ export function useConfigManager() {
   const currentAgentGroup = ref(null)
   const agentVersions = ref({})
 
+  // Backup state
+  const backups = ref([])
+  const loadingBackups = ref(false)
+  const backupError = ref(null)
+
   // Derived from cache for active client
   const sourceClient = computed(() =>
     selectedClients.value.find(c => (c.eqpId || c.id) === activeClientId.value) || null
@@ -316,6 +321,36 @@ export function useConfigManager() {
     showRollout.value = !showRollout.value
   }
 
+  async function loadBackups() {
+    if (!activeFileId.value || !activeClientId.value) return
+    loadingBackups.value = true
+    backupError.value = null
+    try {
+      const res = await clientConfigApi.getBackups(activeClientId.value, activeFileId.value, currentAgentGroup.value)
+      backups.value = res.data
+    } catch (err) {
+      backupError.value = err.response?.data?.error || err.message || 'Failed to load backups'
+      backups.value = []
+    } finally {
+      loadingBackups.value = false
+    }
+  }
+
+  async function restoreBackup(backupName) {
+    if (!activeFileId.value || !activeClientId.value) return
+    backupError.value = null
+    try {
+      const res = await clientConfigApi.getBackupContent(
+        activeClientId.value, activeFileId.value, backupName, currentAgentGroup.value
+      )
+      updateContent(res.data.content)
+      return { success: true }
+    } catch (err) {
+      backupError.value = err.response?.data?.error || err.message || 'Failed to restore backup'
+      return { success: false, error: backupError.value }
+    }
+  }
+
   return {
     // State
     isOpen,
@@ -340,6 +375,11 @@ export function useConfigManager() {
     isMultiMode,
     clientStatuses,
 
+    // Backup state
+    backups,
+    loadingBackups,
+    backupError,
+
     // Computed
     activeFile,
     activeContent,
@@ -358,6 +398,8 @@ export function useConfigManager() {
     discardCurrentFile,
     switchClient,
     toggleDiff,
-    toggleRollout
+    toggleRollout,
+    loadBackups,
+    restoreBackup
   }
 }

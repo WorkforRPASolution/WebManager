@@ -177,6 +177,12 @@ router.delete('/:id/log-files', authenticate, requireMenuPermission(['arsAgent',
 // POST /api/clients/:id/action/:action - Strategy-based action execution
 router.post('/:id/action/:action', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireActionPermission(), requireClientExists(), asyncHandler(controller.handleExecuteAction))
 
+// GET /api/clients/:id/config/:fileId/backups - List config backups
+router.get('/:id/config/:fileId/backups', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('clientControl', 'read'), requireClientExists(), asyncHandler(configController.listConfigBackups))
+
+// GET /api/clients/:id/config/:fileId/backups/:backupName - Read config backup content
+router.get('/:id/config/:fileId/backups/:backupName', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('clientControl', 'read'), requireClientExists(), asyncHandler(configController.readConfigBackup))
+
 // PUT /api/clients/:id/config/:fileId - Save single config file (FTP)
 router.put('/:id/config/:fileId', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('clientControl', 'write'), requireClientExists(), asyncHandler(configController.updateClientConfig))
 

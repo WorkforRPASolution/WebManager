@@ -7,6 +7,7 @@ const Client = require('./model')
 const configSettingsService = require('./configSettingsService')
 const { createBufferCollector } = require('../../shared/utils/streamCollector')
 const { runConcurrently } = require('../../shared/utils/concurrencyPool')
+const configBackupService = require('./configBackupService')
 
 const FTP_PORT = parseInt(process.env.FTP_PORT) || 21
 const FTP_USER = process.env.FTP_USER || 'ftpuser'
@@ -216,8 +217,9 @@ async function deployConfig(content, targetEqpIds, remotePath, onProgress, concu
   const results = []
 
   await runConcurrently(targetEqpIds, async (eqpId) => {
+    const { client: ftpClient } = await connectFtp(eqpId)
     try {
-      await writeConfigFile(eqpId, remotePath, content)
+      await configBackupService.writeConfigWithBackup(ftpClient, remotePath, content)
       completed++
       results.push({ eqpId, success: true })
       if (onProgress) {
@@ -229,6 +231,8 @@ async function deployConfig(content, targetEqpIds, remotePath, onProgress, concu
       if (onProgress) {
         onProgress({ completed, total, current: eqpId, status: 'error', error: err.message })
       }
+    } finally {
+      ftpClient.close()
     }
   }, concurrency)
 
@@ -250,17 +254,20 @@ async function deployConfigSelective(sourceConfig, selectedKeys, targetEqpIds, r
   const results = []
 
   await runConcurrently(targetEqpIds, async (eqpId) => {
+    const { client: ftpClient } = await connectFtp(eqpId)
     try {
-      // Read target's current config
-      const currentContent = await readConfigFile(eqpId, remotePath)
+      // Read target's current config via shared connection
+      const collector = createBufferCollector()
+      await ftpClient.downloadTo(collector.writable, remotePath)
+      const currentContent = collector.toString()
       const currentConfig = JSON.parse(currentContent)
 
       // Merge selected keys from source into target
       const merged = mergeSelectedKeys(currentConfig, sourceConfig, selectedKeys)
       const newContent = JSON.stringify(merged, null, 2)
 
-      // Write merged config
-      await writeConfigFile(eqpId, remotePath, newContent)
+      // Backup + write merged config
+      await configBackupService.writeConfigWithBackup(ftpClient, remotePath, newContent)
 
       completed++
       results.push({ eqpId, success: true })
@@ -273,6 +280,8 @@ async function deployConfigSelective(sourceConfig, selectedKeys, targetEqpIds, r
       if (onProgress) {
         onProgress({ completed, total, current: eqpId, status: 'error', error: err.message })
       }
+    } finally {
+      ftpClient.close()
     }
   }, concurrency)
 

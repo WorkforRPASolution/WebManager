@@ -6,6 +6,7 @@
 const service = require('./service')
 const ftpService = require('./ftpService')
 const configSettingsService = require('./configSettingsService')
+const configBackupService = require('./configBackupService')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 const { setupSSE } = require('../../shared/utils/sseHelper')
 
@@ -49,6 +50,7 @@ async function getClientConfigs(req, res) {
 
 /**
  * PUT /api/clients/:id/config/:fileId
+ * Backs up the existing file before writing new content.
  */
 async function updateClientConfig(req, res) {
   const { id, fileId } = req.params
@@ -64,11 +66,14 @@ async function updateClientConfig(req, res) {
     throw ApiError.notFound(`Config file not found: ${fileId}`)
   }
 
+  const { client: ftpClient } = await ftpService.connectFtp(id)
   try {
-    await ftpService.writeConfigFile(id, config.path, content)
+    await configBackupService.writeConfigWithBackup(ftpClient, config.path, content)
     res.json({ success: true, message: 'Config saved successfully' })
   } catch (error) {
     throw ApiError.internal(`Failed to save config: ${error.message}`)
+  } finally {
+    ftpClient.close()
   }
 }
 
@@ -155,6 +160,62 @@ async function saveConfigSettingsDocument(req, res) {
   res.json(doc)
 }
 
+/**
+ * GET /api/clients/:id/config/:fileId/backups
+ */
+async function listConfigBackups(req, res) {
+  const { id, fileId } = req.params
+  const { agentGroup } = req.query
+
+  const configs = await ftpService.getConfigSettings(agentGroup)
+  const config = configs.find(c => c.fileId === fileId)
+  if (!config) {
+    throw ApiError.notFound(`Config file not found: ${fileId}`)
+  }
+
+  const { client: ftpClient } = await ftpService.connectFtp(id)
+  try {
+    const backups = await configBackupService.listBackups(ftpClient, config.path)
+    res.json(backups)
+  } catch (error) {
+    throw ApiError.internal(`Failed to list backups: ${error.message}`)
+  } finally {
+    ftpClient.close()
+  }
+}
+
+/**
+ * GET /api/clients/:id/config/:fileId/backups/:backupName
+ */
+async function readConfigBackup(req, res) {
+  const { id, fileId, backupName } = req.params
+  const { agentGroup } = req.query
+
+  // Validate backupName format to prevent path traversal
+  if (!/^\d{8}_\d{6}\.\w+$/.test(backupName) && !/^\d{8}_\d{6}$/.test(backupName)) {
+    throw ApiError.badRequest('Invalid backup name format')
+  }
+
+  const configs = await ftpService.getConfigSettings(agentGroup)
+  const config = configs.find(c => c.fileId === fileId)
+  if (!config) {
+    throw ApiError.notFound(`Config file not found: ${fileId}`)
+  }
+
+  const { client: ftpClient } = await ftpService.connectFtp(id)
+  try {
+    const content = await configBackupService.readBackup(ftpClient, config.path, backupName)
+    res.json({ content })
+  } catch (error) {
+    if (error.code === 550 || error.message?.includes('No such file')) {
+      throw ApiError.notFound(`Backup not found: ${backupName}`)
+    }
+    throw ApiError.internal(`Failed to read backup: ${error.message}`)
+  } finally {
+    ftpClient.close()
+  }
+}
+
 module.exports = {
   getConfigSettings,
   getClientsByModel,
@@ -162,5 +223,7 @@ module.exports = {
   updateClientConfig,
   deployConfig,
   getConfigSettingsDocument,
-  saveConfigSettingsDocument
+  saveConfigSettingsDocument,
+  listConfigBackups,
+  readConfigBackup
 }

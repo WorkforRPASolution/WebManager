@@ -53,6 +53,12 @@ export const clientConfigApi = {
   getSettingsDocument: (agentGroup) => api.get(`/clients/config/settings/${agentGroup}`),
   saveSettingsDocument: (agentGroup, configFiles) =>
     api.put(`/clients/config/settings/${agentGroup}`, { configFiles }),
+
+  // Config Backup
+  getBackups: (eqpId, fileId, agentGroup) =>
+    api.get(`/clients/${eqpId}/config/${fileId}/backups`, { params: { agentGroup }, timeout: 30000 }),
+  getBackupContent: (eqpId, fileId, backupName, agentGroup) =>
+    api.get(`/clients/${eqpId}/config/${fileId}/backups/${backupName}`, { params: { agentGroup }, timeout: 30000 }),
 }
 
 // Single Client Control API (RPC via ManagerAgent)

@@ -167,6 +167,16 @@
               Discard
             </button>
 
+            <ConfigBackupDropdown
+              v-if="canWrite"
+              :backups="backups"
+              :loading="loadingBackups"
+              :error="backupError"
+              :disabled="!activeFile || !!activeFile.error"
+              @load-backups="$emit('load-backups')"
+              @restore-backup="$emit('restore-backup', $event)"
+            />
+
             <button
               @click="handleSave"
               :disabled="!canWrite || !activeFileHasChanges || saving || !!jsonError"
@@ -459,6 +469,7 @@ import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import MonacoEditor from '../../../shared/components/MonacoEditor.vue'
 import MonacoDiffEditor from '../../../shared/components/MonacoDiffEditor.vue'
 import ConfigRolloutPanel from './ConfigRolloutPanel.vue'
+import ConfigBackupDropdown from './ConfigBackupDropdown.vue'
 import { ConfigFormView, detectConfigFileType } from './config-form'
 import { useTheme } from '../../../shared/composables/useTheme'
 
@@ -490,7 +501,10 @@ const props = defineProps({
   activeClientId: String,
   isMultiMode: Boolean,
   clientStatuses: { type: Array, default: () => [] },
-  activeAgentVersion: { type: String, default: '' }
+  activeAgentVersion: { type: String, default: '' },
+  backups: { type: Array, default: () => [] },
+  loadingBackups: Boolean,
+  backupError: String
 })
 
 const emit = defineEmits([
@@ -502,7 +516,9 @@ const emit = defineEmits([
   'toggle-diff',
   'toggle-rollout',
   'toggle-view-mode',
-  'switch-client'
+  'switch-client',
+  'load-backups',
+  'restore-backup'
 ])
 
 // Modal sizing

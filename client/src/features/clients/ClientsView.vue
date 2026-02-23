@@ -476,6 +476,9 @@ const handleExportColumnWidths = () => {
       :is-multi-mode="configManager.isMultiMode.value"
       :client-statuses="configManager.clientStatuses.value"
       :active-agent-version="configManager.activeAgentVersion.value"
+      :backups="configManager.backups.value"
+      :loading-backups="configManager.loadingBackups.value"
+      :backup-error="configManager.backupError.value"
       @close="configManager.closeConfig()"
       @select-file="configManager.selectFile($event)"
       @update-content="configManager.updateContent($event)"
@@ -485,6 +488,8 @@ const handleExportColumnWidths = () => {
       @toggle-rollout="configManager.toggleRollout()"
       @toggle-view-mode="() => { const toForm = configManager.viewMode.value === 'json'; configManager.viewMode.value = toForm ? 'form' : 'json'; if (toForm) configManager.showDiff.value = false }"
       @switch-client="handleSwitchClient"
+      @load-backups="configManager.loadBackups()"
+      @restore-backup="configManager.restoreBackup($event)"
     />
 
     <!-- Permission Settings Dialog -->
