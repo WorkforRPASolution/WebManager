@@ -483,6 +483,22 @@ async function readLogFile(eqpId, filePath, maxSize) {
 }
 
 /**
+ * Download a log file via FTP directly to a writable stream
+ * @param {string} eqpId - Equipment ID
+ * @param {string} filePath - Remote file path
+ * @param {import('stream').Writable} destStream - Destination writable stream
+ */
+async function downloadLogFileToStream(eqpId, filePath, destStream) {
+  const { client: ftpClient } = await connectFtp(eqpId)
+
+  try {
+    await ftpClient.downloadTo(destStream, filePath)
+  } finally {
+    ftpClient.close()
+  }
+}
+
+/**
  * Delete a log file via FTP
  * @param {string} eqpId - Equipment ID
  * @param {string} filePath - Remote file path
@@ -530,6 +546,7 @@ module.exports = {
   mergeSelectedKeys,
   listLogFiles,
   readLogFile,
+  downloadLogFileToStream,
   deleteLogFile,
   uploadStreamToFile
 }

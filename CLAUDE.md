@@ -88,6 +88,7 @@ GET    /api/clients/log-settings/:agentGroup # 로그 소스 설정 조회
 PUT    /api/clients/log-settings/:agentGroup # 로그 소스 설정 저장
 GET    /api/clients/:id/log-files            # 로그 파일 목록 (FTP list)
 GET    /api/clients/:id/log-content          # 파일 내용 다운로드 (FTP read)
+POST   /api/clients/:id/log-files/download   # 로그 파일 다운로드 (FTP stream)
 DELETE /api/clients/:id/log-files            # 파일 삭제 (FTP delete)
 POST   /api/clients/log-tail-stream          # 실시간 Tailing (SSE)
 POST   /api/clients/:id/detect-base-path     # basePath 자동 감지 (RPC)
@@ -203,7 +204,7 @@ npm run dev
 - Config Management 완료 (FTP 기반 Config 파일 조회/수정/횡전개)
 - Service Control UI 테스트 완료 (상태조회/시작/중지/재시작)
 - Config Management UI 테스트 완료 (FTP 조회/수정/저장)
-- Log Viewer 완료 (FTP 파일 목록/읽기/삭제 + RPC 실시간 Tailing + 멀티클라이언트 + 크로스 검색)
+- Log Viewer 완료 (FTP 파일 목록/읽기/삭제/다운로드 + RPC 실시간 Tailing + 멀티클라이언트 + 크로스 검색)
 - Log Settings UI 완료 (LogSettingsModal)
 - User Management 완료 (CRUD/필터/권한 관리/계정 상태/비밀번호 관리)
 - Per-client basePath 완료 (자동 감지 + 수동 설정 + commandLine 절대경로 변환)

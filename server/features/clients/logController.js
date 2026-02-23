@@ -94,6 +94,26 @@ async function deleteLogFiles(req, res) {
 }
 
 /**
+ * POST /api/clients/:id/log-files/download
+ */
+async function downloadLogFile(req, res) {
+  const { id } = req.params
+  const { paths } = req.body
+
+  if (!paths || !Array.isArray(paths) || paths.length !== 1) {
+    throw ApiError.badRequest('paths array with exactly one path is required')
+  }
+
+  try {
+    await logService.downloadLogFile(id, paths[0], res)
+  } catch (error) {
+    if (!res.headersSent) {
+      throw ApiError.internal(`Failed to download log file: ${error.message}`)
+    }
+  }
+}
+
+/**
  * POST /api/clients/log-tail-stream
  */
 async function handleLogTailStream(req, res) {
@@ -144,6 +164,7 @@ module.exports = {
   getLogFileList,
   getLogFileContent,
   deleteLogFiles,
+  downloadLogFile,
   handleLogTailStream,
   detectClientBasePath
 }

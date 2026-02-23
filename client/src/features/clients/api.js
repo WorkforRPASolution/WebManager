@@ -96,6 +96,11 @@ export const logApi = {
   getFileList: (eqpId, agentGroup) => api.get(`/clients/${eqpId}/log-files`, { params: { agentGroup } }),
   getFileContent: (eqpId, path) => api.get(`/clients/${eqpId}/log-content`, { params: { path }, timeout: 60000 }),
   deleteFiles: (eqpId, paths) => api.delete(`/clients/${eqpId}/log-files`, { data: { paths } }),
+  downloadFiles: (eqpId, paths) => api.post(
+    `/clients/${eqpId}/log-files/download`,
+    { paths },
+    { responseType: 'blob', timeout: 120000 }
+  ),
 }
 
 // Update Settings API

@@ -13,6 +13,13 @@
       <div v-if="!collapsed" class="flex items-center gap-1">
         <button
           v-if="selectedFiles.size > 0"
+          @click="$emit('download-selected')"
+          class="px-2 py-0.5 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition"
+        >
+          Download ({{ selectedFiles.size }})
+        </button>
+        <button
+          v-if="selectedFiles.size > 0"
           @click="$emit('delete-selected')"
           class="px-2 py-0.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition"
         >
@@ -100,7 +107,7 @@ const props = defineProps({
   tailingFiles: { type: Set, default: () => new Set() }
 })
 
-defineEmits(['file-click', 'toggle-select', 'select-all', 'delete-selected', 'tail-selected'])
+defineEmits(['file-click', 'toggle-select', 'select-all', 'download-selected', 'delete-selected', 'tail-selected'])
 
 const collapsed = ref(false)
 

@@ -257,6 +257,39 @@ export function useLogViewer() {
     clientCache.value[eqpId] = { ...cache, selectedFiles: newSelected }
   }
 
+  async function downloadSelectedFiles(eqpId) {
+    const cache = clientCache.value[eqpId]
+    if (!cache || cache.selectedFiles.size === 0) return
+
+    const paths = [...cache.selectedFiles]
+    let successCount = 0
+    let failCount = 0
+
+    for (const filePath of paths) {
+      try {
+        const res = await logApi.downloadFiles(eqpId, [filePath])
+
+        const disposition = res.headers['content-disposition'] || ''
+        const match = disposition.match(/filename="?(.+?)"?(?:;|$)/)
+        const fileName = match ? match[1] : filePath.split('/').pop()
+
+        const url = URL.createObjectURL(res.data)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = fileName
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        successCount++
+      } catch (err) {
+        failCount++
+      }
+    }
+
+    return { successCount, failCount }
+  }
+
   async function deleteSelectedFiles(eqpId) {
     const cache = clientCache.value[eqpId]
     if (!cache || cache.selectedFiles.size === 0) return
@@ -366,6 +399,7 @@ export function useLogViewer() {
     closeTab,
     toggleFileSelection,
     selectAllFiles,
+    downloadSelectedFiles,
     deleteSelectedFiles,
     selectSource,
     switchClient,

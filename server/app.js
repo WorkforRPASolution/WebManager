@@ -23,7 +23,8 @@ app.use(cors({
     }
     return callback(new Error('Not allowed by CORS'));
   },
-  credentials: true
+  credentials: true,
+  exposedHeaders: ['Content-Disposition']
 }));
 
 // Body parser

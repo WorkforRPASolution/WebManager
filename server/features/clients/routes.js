@@ -168,6 +168,9 @@ router.get('/:id/log-files', authenticate, requireMenuPermission(['arsAgent', 'r
 // GET /api/clients/:id/log-content - Get log file content (FTP)
 router.get('/:id/log-content', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('clientControl', 'read'), requireClientExists(), asyncHandler(logController.getLogFileContent))
 
+// POST /api/clients/:id/log-files/download - Download a log file (FTP)
+router.post('/:id/log-files/download', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('clientControl', 'read'), requireClientExists(), asyncHandler(logController.downloadLogFile))
+
 // DELETE /api/clients/:id/log-files - Delete log files (FTP)
 router.delete('/:id/log-files', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('clientControl', 'write'), requireClientExists(), asyncHandler(logController.deleteLogFiles))
 

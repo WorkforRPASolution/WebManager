@@ -122,6 +122,7 @@
                 @file-click="(file) => logViewer.openFile(logViewer.activeClientId.value, file)"
                 @toggle-select="(path) => logViewer.toggleFileSelection(logViewer.activeClientId.value, path)"
                 @select-all="(val) => logViewer.selectAllFiles(logViewer.activeClientId.value, val)"
+                @download-selected="handleDownloadSelected"
                 @delete-selected="handleDeleteSelected"
                 @tail-selected="handleTailSelected"
               />
@@ -506,6 +507,10 @@ const handleClose = () => {
   tailStream.stopTailing()
   tailStream.clearAllBuffers()
   emit('close')
+}
+
+const handleDownloadSelected = async () => {
+  await props.logViewer.downloadSelectedFiles(props.logViewer.activeClientId.value)
 }
 
 const handleDeleteSelected = async () => {

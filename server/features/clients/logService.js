@@ -7,7 +7,8 @@ const Client = require('./model')
 const { detectBasePath } = require('./controlService')
 const logSettingsService = require('./logSettingsService')
 const strategyRegistry = require('./strategies')
-const { listLogFiles, readLogFile, deleteLogFile } = require('./ftpService')
+const { listLogFiles, readLogFile, downloadLogFileToStream, deleteLogFile } = require('./ftpService')
+const path = require('path')
 const crypto = require('crypto')
 
 const LOG_MAX_FILE_SIZE = parseInt(process.env.LOG_MAX_FILE_SIZE) || 10485760 // 10MB
@@ -78,6 +79,21 @@ async function deleteLogFiles(eqpId, filePaths) {
   }
 
   return results
+}
+
+/**
+ * Download a single log file to HTTP response
+ * @param {string} eqpId - Equipment ID
+ * @param {string} filePath - Remote file path
+ * @param {import('express').Response} res - Express response
+ */
+async function downloadLogFile(eqpId, filePath, res) {
+  const fileName = path.basename(filePath)
+
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
+  res.setHeader('Content-Type', 'application/octet-stream')
+
+  await downloadLogFileToStream(eqpId, filePath, res)
 }
 
 /**
@@ -188,5 +204,6 @@ module.exports = {
   getLogFileList,
   getLogFileContent,
   deleteLogFiles,
+  downloadLogFile,
   tailLogStream
 }
