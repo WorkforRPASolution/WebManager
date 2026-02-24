@@ -406,7 +406,9 @@
             :config-files="configFiles"
             :agent-group="currentAgentGroup"
             :selected-client-ids="otherSelectedClientIds"
+            :active-file-has-changes="activeFileHasChanges"
             @close="showRollout = false"
+            @deploy-complete="(eqpIds) => emit('deploy-complete', eqpIds)"
           />
         </div>
 
@@ -518,7 +520,8 @@ const emit = defineEmits([
   'toggle-view-mode',
   'switch-client',
   'load-backups',
-  'restore-backup'
+  'restore-backup',
+  'deploy-complete'
 ])
 
 // Modal sizing

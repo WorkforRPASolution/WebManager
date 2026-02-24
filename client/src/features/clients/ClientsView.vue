@@ -490,6 +490,7 @@ const handleExportColumnWidths = () => {
       @switch-client="handleSwitchClient"
       @load-backups="configManager.loadBackups()"
       @restore-backup="configManager.restoreBackup($event)"
+      @deploy-complete="configManager.refreshAfterDeploy($event)"
     />
 
     <!-- Permission Settings Dialog -->

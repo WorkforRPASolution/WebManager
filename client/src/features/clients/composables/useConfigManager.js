@@ -105,6 +105,29 @@ export function useConfigManager() {
 
   const activeAgentVersion = computed(() => agentVersions.value[activeClientId.value] || '')
 
+  // Invalidate cache for specific clients so they reload on next access
+  function invalidateClientCaches(eqpIds) {
+    for (const eqpId of eqpIds) {
+      const entry = clientCache.value[eqpId]
+      if (entry) {
+        clientCache.value[eqpId] = {
+          ...entry,
+          loaded: false,
+          loading: false
+        }
+      }
+    }
+  }
+
+  // Refresh configs for deployed target clients (invalidate + reload active)
+  async function refreshAfterDeploy(eqpIds) {
+    invalidateClientCaches(eqpIds)
+    // If active client was a deploy target, reload it immediately
+    if (eqpIds.includes(activeClientId.value)) {
+      await loadClientConfigs(activeClientId.value)
+    }
+  }
+
   // Internal: load configs for a single client into cache
   async function loadClientConfigs(eqpId) {
     const entry = clientCache.value[eqpId]
@@ -251,15 +274,19 @@ export function useConfigManager() {
   async function saveCurrentFile() {
     if (!activeFileId.value || !activeClientId.value) return
 
+    // Capture IDs at call time to avoid race conditions if user switches tab/client during save
+    const eqpId = activeClientId.value
+    const fileId = activeFileId.value
+
     saving.value = true
-    const entry = clientCache.value[activeClientId.value]
+    const entry = clientCache.value[eqpId]
     if (entry) {
       entry.error = null
-      clientCache.value[activeClientId.value] = { ...entry }
+      clientCache.value[eqpId] = { ...entry }
     }
 
     try {
-      const content = entry.editedContents[activeFileId.value]
+      const content = entry.editedContents[fileId]
 
       // Validate JSON before saving
       try {
@@ -268,26 +295,28 @@ export function useConfigManager() {
         const errMsg = 'Invalid JSON format. Please fix syntax errors before saving.'
         if (entry) {
           entry.error = errMsg
-          clientCache.value[activeClientId.value] = { ...entry }
+          clientCache.value[eqpId] = { ...entry }
         }
         saving.value = false
         return
       }
 
-      await clientConfigApi.updateConfig(activeClientId.value, activeFileId.value, content, currentAgentGroup.value)
+      await clientConfigApi.updateConfig(eqpId, fileId, content, currentAgentGroup.value)
 
       // Update original to match saved content
-      if (entry) {
-        entry.originalContents[activeFileId.value] = content
-        clientCache.value[activeClientId.value] = { ...entry }
+      const latestEntry = clientCache.value[eqpId]
+      if (latestEntry) {
+        latestEntry.originalContents[fileId] = content
+        clientCache.value[eqpId] = { ...latestEntry }
       }
 
       return { success: true }
     } catch (err) {
       const errMsg = err.response?.data?.message || err.message || 'Failed to save config'
-      if (entry) {
-        entry.error = errMsg
-        clientCache.value[activeClientId.value] = { ...entry }
+      const latestEntry = clientCache.value[eqpId]
+      if (latestEntry) {
+        latestEntry.error = errMsg
+        clientCache.value[eqpId] = { ...latestEntry }
       }
       return { success: false, error: errMsg }
     } finally {
@@ -400,6 +429,7 @@ export function useConfigManager() {
     toggleDiff,
     toggleRollout,
     loadBackups,
-    restoreBackup
+    restoreBackup,
+    refreshAfterDeploy
   }
 }

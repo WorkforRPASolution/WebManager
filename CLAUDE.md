@@ -81,8 +81,10 @@ DELETE /api/clients/equipment-info         # 다중 삭제
 GET    /api/clients/config/settings        # Config 파일 설정 조회
 GET    /api/clients/by-model               # 횡전개 대상 Client 목록
 GET    /api/clients/:id/config             # 4개 Config 파일 일괄 읽기 (FTP)
-PUT    /api/clients/:id/config/:fileId     # 단일 Config 파일 저장 (FTP)
-POST   /api/clients/config/deploy          # 횡전개 실행 (SSE 진행률)
+PUT    /api/clients/:id/config/:fileId     # 단일 Config 파일 저장 (FTP, 자동 백업)
+POST   /api/clients/config/deploy          # 횡전개 실행 (SSE 진행률, 자동 백업)
+GET    /api/clients/:id/config/:fileId/backups              # Config 백업 목록 조회
+GET    /api/clients/:id/config/:fileId/backups/:backupName  # Config 백업 내용 조회
 
 GET    /api/clients/log-settings/:agentGroup # 로그 소스 설정 조회
 PUT    /api/clients/log-settings/:agentGroup # 로그 소스 설정 저장
@@ -129,6 +131,7 @@ WebManager/
 │   │   │   ├── service.js      # DB 쿼리, 비즈니스 로직
 │   │   │   ├── controlService.js # RPC 제어 (Avro) + basePath 감지
 │   │   │   ├── ftpService.js   # FTP Config 읽기/쓰기/배포
+│   │   │   ├── configBackupService.js # Config 백업 생성/조회/복원 (FTP)
 │   │   │   ├── logService.js       # 로그 파일 조회/삭제/Tail
 │   │   │   ├── logSettingsService.js # 로그 설정 CRUD + 초기화
 │   │   │   ├── updateService.js    # 소프트웨어 배포 엔진 (캐시 + concurrency pool)
@@ -209,6 +212,7 @@ npm run dev
 - User Management 완료 (CRUD/필터/권한 관리/계정 상태/비밀번호 관리)
 - Per-client basePath 완료 (자동 감지 + 수동 설정 + commandLine 절대경로 변환)
 - Software Update 완료 (Source 추상화(Local/FTP/MinIO) + FTP 배포 + SSE 진행률 + UpdateSettings/Update 모달)
+- Config Backup 완료 (저장/횡전개 시 자동 백업 + 백업 목록 조회/복원 UI)
 
 ## Security Configuration
 - **helmet**: 보안 헤더 자동 설정
