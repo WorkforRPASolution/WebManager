@@ -94,7 +94,7 @@
                       @input="changed = true"
                       class="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
                       :class="{ 'border-red-500': item._pathError }"
-                      placeholder="e.g., /log/ARSAgent"
+                      placeholder="e.g., log/ARSAgent"
                     />
                     <p v-if="item._pathError" class="mt-1 text-xs text-red-500">{{ item._pathError }}</p>
                   </td>
@@ -252,9 +252,6 @@ function validate() {
     }
     if (!item.path || !item.path.trim()) {
       item._pathError = 'Path is required'
-      valid = false
-    } else if (!item.path.startsWith('/')) {
-      item._pathError = 'Path must start with /'
       valid = false
     }
     if (!item.keyword || !item.keyword.trim()) {
