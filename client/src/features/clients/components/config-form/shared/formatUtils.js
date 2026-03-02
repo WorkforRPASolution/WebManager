@@ -244,6 +244,41 @@ export function parseDuration(str) {
 
 
 // ---------------------------------------------------------------------------
+// parseGoDuration  (Go time.Duration format: "30s", "1h30m", "100ms")
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a Go duration string into Korean text.
+ * @param {string|null|undefined} str - e.g. "30s", "1h30m", "100ms"
+ * @returns {string|null} Korean duration string or null if empty
+ */
+export function parseGoDuration(str) {
+  if (!str) return null
+  const units = { h: '시간', m: '분', s: '초', ms: '밀리초', us: '마이크로초', ns: '나노초' }
+  const segments = []
+  for (const [, num, unit] of str.matchAll(/(\d+)(ms|us|ns|h|m|s)/g)) {
+    segments.push(`${num}${units[unit]}`)
+  }
+  return segments.length > 0 ? segments.join(' ') : null
+}
+
+/**
+ * Convert a Go duration string to milliseconds.
+ * @param {string|null|undefined} str - e.g. "30s", "1h30m"
+ * @returns {number} milliseconds, or 0 if empty/null
+ */
+export function parseGoDurationMs(str) {
+  if (!str) return 0
+  const multipliers = { h: 3600000, m: 60000, s: 1000, ms: 1, us: 0.001, ns: 0.000001 }
+  let total = 0
+  for (const [, num, unit] of str.matchAll(/(\d+)(ms|us|ns|h|m|s)/g)) {
+    total += parseInt(num) * multipliers[unit]
+  }
+  return total
+}
+
+
+// ---------------------------------------------------------------------------
 // formatFileSize
 // ---------------------------------------------------------------------------
 

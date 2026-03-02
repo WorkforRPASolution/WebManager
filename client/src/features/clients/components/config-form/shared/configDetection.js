@@ -8,6 +8,8 @@ const FILE_TYPE_MAP = {
   'accesslog.json': 'accesslog',
   'trigger.json': 'trigger',
   'arsagent.json': 'arsagent',
+  'resourceagent.json': 'resourceagent',
+  'monitor.json': 'resourceagent_monitor',
 }
 
 export function detectConfigFileType(fileName, filePath) {

@@ -39,6 +39,18 @@
           :suspendableTriggerNames="suspendableTriggerNames"
           @update:modelValue="handleFormChange"
         />
+        <ResourceAgentForm
+          v-else-if="fileType === 'resourceagent'"
+          :modelValue="formDataByType.resourceagent"
+          :readOnly="readOnly"
+          @update:modelValue="handleFormChange"
+        />
+        <MonitorForm
+          v-else-if="fileType === 'resourceagent_monitor'"
+          :modelValue="formDataByType.resourceagent_monitor"
+          :readOnly="readOnly"
+          @update:modelValue="handleFormChange"
+        />
       </KeepAlive>
     </div>
   </div>
@@ -50,6 +62,8 @@ import { detectConfigFileType } from './shared/configDetection'
 import AccessLogForm from './accesslog/AccessLogForm.vue'
 import TriggerForm from './trigger/TriggerForm.vue'
 import ARSAgentForm from './arsagent/ARSAgentForm.vue'
+import ResourceAgentForm from './resourceagent/ResourceAgentForm.vue'
+import MonitorForm from './monitor/MonitorForm.vue'
 
 const props = defineProps({
   content: { type: String, default: '' },
@@ -68,7 +82,9 @@ const emit = defineEmits(['update:content'])
 const formDataByType = reactive({
   accesslog: {},
   trigger: {},
-  arsagent: {}
+  arsagent: {},
+  resourceagent: {},
+  resourceagent_monitor: {}
 })
 const parseErrorByType = reactive({})
 const parseError = computed(() => parseErrorByType[fileType.value] ?? null)

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { jodaSubdirFormat, timestampFormatToRegex, parseDurationMs, parseDuration, formatFileSize, isNoEmailChecked } from '../formatUtils'
+import { jodaSubdirFormat, timestampFormatToRegex, parseDurationMs, parseDuration, parseGoDuration, parseGoDurationMs, formatFileSize, isNoEmailChecked } from '../formatUtils'
 
 // ===========================================================================
 // jodaSubdirFormat
@@ -177,6 +177,68 @@ describe('formatFileSize', () => {
   })
   it('should format fractional KB', () => {
     expect(formatFileSize(1536)).toBe('1.5 KB')
+  })
+})
+
+
+// ===========================================================================
+// isNoEmailChecked
+// ===========================================================================
+
+// ===========================================================================
+// parseGoDuration
+// ===========================================================================
+
+describe('parseGoDuration', () => {
+  it('"30s" → "30초"', () => {
+    expect(parseGoDuration('30s')).toBe('30초')
+  })
+  it('"1m" → "1분"', () => {
+    expect(parseGoDuration('1m')).toBe('1분')
+  })
+  it('"1h" → "1시간"', () => {
+    expect(parseGoDuration('1h')).toBe('1시간')
+  })
+  it('"100ms" → "100밀리초"', () => {
+    expect(parseGoDuration('100ms')).toBe('100밀리초')
+  })
+  it('"1h30m" → "1시간 30분"', () => {
+    expect(parseGoDuration('1h30m')).toBe('1시간 30분')
+  })
+  it('"5m30s" → "5분 30초"', () => {
+    expect(parseGoDuration('5m30s')).toBe('5분 30초')
+  })
+  it('"0s" → "0초"', () => {
+    expect(parseGoDuration('0s')).toBe('0초')
+  })
+  it('empty/null → null', () => {
+    expect(parseGoDuration('')).toBeNull()
+    expect(parseGoDuration(null)).toBeNull()
+    expect(parseGoDuration(undefined)).toBeNull()
+  })
+})
+
+
+// ===========================================================================
+// parseGoDurationMs
+// ===========================================================================
+
+describe('parseGoDurationMs', () => {
+  it('"30s" → 30000', () => {
+    expect(parseGoDurationMs('30s')).toBe(30000)
+  })
+  it('"100ms" → 100', () => {
+    expect(parseGoDurationMs('100ms')).toBe(100)
+  })
+  it('"1h30m" → 5400000', () => {
+    expect(parseGoDurationMs('1h30m')).toBe(5400000)
+  })
+  it('"1m30s" → 90000', () => {
+    expect(parseGoDurationMs('1m30s')).toBe(90000)
+  })
+  it('empty → 0', () => {
+    expect(parseGoDurationMs('')).toBe(0)
+    expect(parseGoDurationMs(null)).toBe(0)
   })
 })
 
