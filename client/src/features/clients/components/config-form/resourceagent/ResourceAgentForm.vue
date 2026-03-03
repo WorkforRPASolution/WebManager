@@ -41,7 +41,7 @@
               :disabled="readOnly"
               class="form-input"
             >
-              <option v-for="opt in schema.fields[fieldName].options" :key="String(opt.value)" :value="opt.value">{{ opt.label }}</option>
+              <option v-for="opt in schema.fields[fieldName].options" :key="String(opt.value)" :value="opt.value" :disabled="opt.disabled">{{ opt.label }}</option>
             </select>
 
             <!-- password → password input -->
@@ -148,7 +148,11 @@ function updateField(fieldName, value) {
 const visibleGroups = computed(() => {
   return schema.fieldGroups.filter(group => {
     if (!group.showWhen) return true
-    return formData.value[group.showWhen.field] === group.showWhen.value
+    const val = formData.value[group.showWhen.field]
+    if (group.showWhen.values) {
+      return group.showWhen.values.includes(val)
+    }
+    return val === group.showWhen.value
   })
 })
 

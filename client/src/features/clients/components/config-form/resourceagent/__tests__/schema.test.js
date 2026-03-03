@@ -13,8 +13,8 @@ describe('RESOURCEAGENT_SCHEMA', () => {
   // ── fields ──
 
   describe('fields', () => {
-    it('has exactly 34 fields', () => {
-      expect(Object.keys(RESOURCEAGENT_SCHEMA.fields)).toHaveLength(34)
+    it('has exactly 33 fields', () => {
+      expect(Object.keys(RESOURCEAGENT_SCHEMA.fields)).toHaveLength(33)
     })
 
     it('every field has type, label, description', () => {
@@ -28,7 +28,7 @@ describe('RESOURCEAGENT_SCHEMA', () => {
     })
 
     it('every field has a valid type', () => {
-      const validTypes = ['text', 'number', 'boolean', 'select', 'password', 'go-duration', 'array']
+      const validTypes = ['text', 'number', 'boolean', 'select', 'password', 'go-duration']
       for (const [name, def] of Object.entries(RESOURCEAGENT_SCHEMA.fields)) {
         expect(validTypes, `${name} has invalid type: ${def.type}`).toContain(def.type)
       }
@@ -38,14 +38,18 @@ describe('RESOURCEAGENT_SCHEMA', () => {
   // ── fieldGroups ──
 
   describe('fieldGroups', () => {
-    it('has 6 groups', () => {
-      expect(RESOURCEAGENT_SCHEMA.fieldGroups).toHaveLength(6)
+    it('has 7 groups', () => {
+      expect(RESOURCEAGENT_SCHEMA.fieldGroups).toHaveLength(7)
     })
 
-    it('covers all 34 fields total', () => {
+    it('covers 25 visible fields (TLS/SASL 8개 숨김)', () => {
       const allFields = RESOURCEAGENT_SCHEMA.fieldGroups.flatMap(g => g.fields)
-      expect(allFields).toHaveLength(34)
-      const schemaFields = Object.keys(RESOURCEAGENT_SCHEMA.fields)
+      expect(allFields).toHaveLength(25)
+      const hiddenFields = [
+        'Kafka.EnableTLS', 'Kafka.TLSCertFile', 'Kafka.TLSKeyFile', 'Kafka.TLSCAFile',
+        'Kafka.SASLEnabled', 'Kafka.SASLMechanism', 'Kafka.SASLUser', 'Kafka.SASLPassword'
+      ]
+      const schemaFields = Object.keys(RESOURCEAGENT_SCHEMA.fields).filter(f => !hiddenFields.includes(f))
       expect(allFields.sort()).toEqual(schemaFields.sort())
     })
 
@@ -63,14 +67,23 @@ describe('RESOURCEAGENT_SCHEMA', () => {
       expect(group.fields).toContain('File.Format')
     })
 
-    it('Kafka 설정 group has showWhen for kafka SenderType', () => {
-      const kafkaGroup = RESOURCEAGENT_SCHEMA.fieldGroups.find(g => g.name === 'Kafka 설정')
+    it('Kafka 연결 group has showWhen for kafka SenderType', () => {
+      const kafkaGroup = RESOURCEAGENT_SCHEMA.fieldGroups.find(g => g.name === 'Kafka 연결')
       expect(kafkaGroup).toBeDefined()
       expect(kafkaGroup.showWhen).toEqual({ field: 'SenderType', value: 'kafka' })
-      expect(kafkaGroup.fields).toContain('Kafka.Brokers')
-      expect(kafkaGroup.fields).toContain('Kafka.EnableTLS')
-      expect(kafkaGroup.fields).toContain('Kafka.SASLEnabled')
+      expect(kafkaGroup.fields).toContain('Kafka.BrokerPort')
       expect(kafkaGroup.fields).toContain('Kafka.Timeout')
+      // TLS/SASL 필드는 보안 이슈 대응 시 추가 예정
+      expect(kafkaGroup.fields).not.toContain('Kafka.EnableTLS')
+      expect(kafkaGroup.fields).not.toContain('Kafka.SASLEnabled')
+    })
+
+    it('배치/재시도 group has showWhen for kafka+kafkarest', () => {
+      const batchGroup = RESOURCEAGENT_SCHEMA.fieldGroups.find(g => g.name === '배치/재시도')
+      expect(batchGroup).toBeDefined()
+      expect(batchGroup.showWhen).toEqual({ field: 'SenderType', values: ['kafka', 'kafkarest'] })
+      expect(batchGroup.fields).toContain('Batch.FlushFrequency')
+      expect(batchGroup.fields).toContain('Batch.MaxBatchSize')
     })
 
     it('Redis, SOCKS Proxy, 네트워크/검색 groups have no showWhen', () => {
@@ -86,9 +99,11 @@ describe('RESOURCEAGENT_SCHEMA', () => {
   // ── select field options ──
 
   describe('select field options', () => {
-    it('SenderType options: kafkarest, kafka, file', () => {
+    it('SenderType options: kafkarest, kafka (disabled), file', () => {
       const values = RESOURCEAGENT_SCHEMA.fields.SenderType.options.map(o => o.value)
       expect(values).toEqual(['kafkarest', 'kafka', 'file'])
+      const kafkaOpt = RESOURCEAGENT_SCHEMA.fields.SenderType.options.find(o => o.value === 'kafka')
+      expect(kafkaOpt.disabled).toBe(true)
     })
 
     it('Kafka.Compression options: none, gzip, snappy, lz4, zstd', () => {
@@ -111,9 +126,9 @@ describe('RESOURCEAGENT_SCHEMA', () => {
       expect(values).toEqual(['process', 'model', 'all'])
     })
 
-    it('File.Format options: "", json, legacy', () => {
+    it('File.Format options: grok, json', () => {
       const values = RESOURCEAGENT_SCHEMA.fields['File.Format'].options.map(o => o.value)
-      expect(values).toEqual(['', 'json', 'legacy'])
+      expect(values).toEqual(['grok', 'json'])
     })
   })
 
@@ -132,12 +147,12 @@ describe('RESOURCEAGENT_SCHEMA', () => {
   // ── go-duration fields ──
 
   describe('go-duration fields', () => {
-    it('Kafka.RetryBackoff is go-duration type', () => {
-      expect(RESOURCEAGENT_SCHEMA.fields['Kafka.RetryBackoff'].type).toBe('go-duration')
+    it('Batch.RetryBackoff is go-duration type', () => {
+      expect(RESOURCEAGENT_SCHEMA.fields['Batch.RetryBackoff'].type).toBe('go-duration')
     })
 
-    it('Kafka.FlushFrequency is go-duration type', () => {
-      expect(RESOURCEAGENT_SCHEMA.fields['Kafka.FlushFrequency'].type).toBe('go-duration')
+    it('Batch.FlushFrequency is go-duration type', () => {
+      expect(RESOURCEAGENT_SCHEMA.fields['Batch.FlushFrequency'].type).toBe('go-duration')
     })
 
     it('Kafka.Timeout is go-duration type', () => {
@@ -171,22 +186,22 @@ describe('RESOURCEAGENT_SCHEMA', () => {
     })
 
     it('non-conditional fields do not have conditional property', () => {
-      const nonConditional = ['SenderType', 'Kafka.Brokers', 'Kafka.EnableTLS', 'Kafka.SASLEnabled', 'Redis.Port']
+      const nonConditional = ['SenderType', 'Kafka.BrokerPort', 'Kafka.EnableTLS', 'Kafka.SASLEnabled', 'Redis.Port']
       for (const name of nonConditional) {
         expect(RESOURCEAGENT_SCHEMA.fields[name].conditional, `${name} should not have conditional`).toBeUndefined()
       }
     })
   })
 
-  // ── array field ──
+  // ── Kafka.BrokerPort field ──
 
-  describe('array field', () => {
-    it('Kafka.Brokers is array type', () => {
-      expect(RESOURCEAGENT_SCHEMA.fields['Kafka.Brokers'].type).toBe('array')
+  describe('Kafka.BrokerPort field', () => {
+    it('Kafka.BrokerPort is number type', () => {
+      expect(RESOURCEAGENT_SCHEMA.fields['Kafka.BrokerPort'].type).toBe('number')
     })
 
-    it('Kafka.Brokers default is ["localhost:9092"]', () => {
-      expect(RESOURCEAGENT_SCHEMA.fields['Kafka.Brokers'].default).toEqual(['localhost:9092'])
+    it('Kafka.BrokerPort default is 9092', () => {
+      expect(RESOURCEAGENT_SCHEMA.fields['Kafka.BrokerPort'].default).toBe(9092)
     })
   })
 })
@@ -196,21 +211,23 @@ describe('RESOURCEAGENT_SCHEMA', () => {
 // ===========================================================================
 
 describe('buildResourceAgentOutput', () => {
-  it('kafka mode: includes Kafka, excludes File', () => {
+  it('kafka mode: includes Kafka + Batch, excludes File', () => {
     const formData = {
       SenderType: 'kafka',
-      'Kafka.Brokers': ['broker1:9092'],
-      'Redis.Port': 50001,
+      'Kafka.BrokerPort': 9092,
+      'Batch.FlushMessages': 100,
+      'Redis.Port': 6379,
       'Redis.DB': 10,
     }
     const out = buildResourceAgentOutput(formData)
     expect(out.SenderType).toBe('kafka')
-    expect(out.Kafka.Brokers).toEqual(['broker1:9092'])
-    expect(out.Redis.Port).toBe(50001)
+    expect(out.Kafka.BrokerPort).toBe(9092)
+    expect(out.Batch.FlushMessages).toBe(100)
+    expect(out.Redis.Port).toBe(6379)
     expect(out.File).toBeUndefined()
   })
 
-  it('file mode: includes File, excludes Kafka', () => {
+  it('file mode: includes File, excludes Kafka + Batch', () => {
     const formData = {
       SenderType: 'file',
       'File.FilePath': 'custom/path.jsonl',
@@ -221,14 +238,16 @@ describe('buildResourceAgentOutput', () => {
     expect(out.File.FilePath).toBe('custom/path.jsonl')
     expect(out.File.MaxSizeMB).toBe(20)
     expect(out.Kafka).toBeUndefined()
+    expect(out.Batch).toBeUndefined()
   })
 
-  it('kafkarest mode: excludes both Kafka and File', () => {
+  it('kafkarest mode: includes Batch, excludes Kafka and File', () => {
     const formData = { SenderType: 'kafkarest' }
     const out = buildResourceAgentOutput(formData)
     expect(out.SenderType).toBe('kafkarest')
     expect(out.Kafka).toBeUndefined()
     expect(out.File).toBeUndefined()
+    expect(out.Batch).toBeDefined()
     expect(out.Redis).toBeDefined()
     expect(out.SocksProxy).toBeDefined()
   })
@@ -240,10 +259,11 @@ describe('buildResourceAgentOutput', () => {
       'Redis.DB': '5',
       ServiceDiscoveryPort: '50010',
       TimeDiffSyncInterval: '7200',
-      'Kafka.MaxRetries': '5',
-      'Kafka.FlushMessages': '200',
-      'Kafka.BatchSize': '32768',
+      'Kafka.BrokerPort': '9093',
       'Kafka.RequiredAcks': '1',
+      'Batch.MaxRetries': '3',
+      'Batch.FlushMessages': '200',
+      'Batch.MaxBatchSize': '1000',
       'SocksProxy.Port': '30000',
     }
     const out = buildResourceAgentOutput(formData)
@@ -252,56 +272,49 @@ describe('buildResourceAgentOutput', () => {
     expect(out.Redis.DB).toBe(5)
     expect(out.ServiceDiscoveryPort).toBe(50010)
     expect(out.TimeDiffSyncInterval).toBe(7200)
-    expect(out.Kafka.MaxRetries).toBe(5)
-    expect(out.Kafka.FlushMessages).toBe(200)
-    expect(out.Kafka.BatchSize).toBe(32768)
+    expect(out.Kafka.BrokerPort).toBe(9093)
     expect(out.Kafka.RequiredAcks).toBe(1)
+    expect(out.Batch.MaxRetries).toBe(3)
+    expect(out.Batch.FlushMessages).toBe(200)
+    expect(out.Batch.MaxBatchSize).toBe(1000)
     expect(out.SocksProxy.Port).toBe(30000)
   })
 
-  it('coerces boolean fields (kafka mode)', () => {
+  it('TLS/SASL fields are excluded from output (hidden)', () => {
     const formData = {
       SenderType: 'kafka',
       'Kafka.EnableTLS': true,
-      'Kafka.SASLEnabled': false,
+      'Kafka.SASLEnabled': true,
+      'Kafka.SASLMechanism': 'PLAIN',
     }
     const out = buildResourceAgentOutput(formData)
-    expect(out.Kafka.EnableTLS).toBe(true)
-    expect(typeof out.Kafka.EnableTLS).toBe('boolean')
-    expect(out.Kafka.SASLEnabled).toBe(false)
+    expect(out.Kafka.EnableTLS).toBeUndefined()
+    expect(out.Kafka.SASLEnabled).toBeUndefined()
+    expect(out.Kafka.SASLMechanism).toBeUndefined()
   })
 
   it('coerces boolean fields (file mode)', () => {
     const formData = {
       SenderType: 'file',
-      'File.Console': true,
       'File.Pretty': false,
     }
     const out = buildResourceAgentOutput(formData)
-    expect(out.File.Console).toBe(true)
     expect(out.File.Pretty).toBe(false)
   })
 
-  it('preserves array fields', () => {
-    const formData = {
-      SenderType: 'kafka',
-      'Kafka.Brokers': ['broker1:9092', 'broker2:9092']
-    }
-    const out = buildResourceAgentOutput(formData)
-    expect(out.Kafka.Brokers).toEqual(['broker1:9092', 'broker2:9092'])
-    expect(Array.isArray(out.Kafka.Brokers)).toBe(true)
-  })
-
-  it('empty formData defaults to kafka (includes Kafka, excludes File)', () => {
+  it('empty formData defaults to kafkarest (includes Batch, excludes Kafka + File)', () => {
     const out = buildResourceAgentOutput({})
-    expect(out.SenderType).toBe('kafka')
-    expect(out.Kafka.Brokers).toEqual(['localhost:9092'])
-    expect(out.Kafka.Compression).toBe('snappy')
-    expect(out.Kafka.RequiredAcks).toBe(1)
+    expect(out.SenderType).toBe('kafkarest')
+    expect(out.Kafka).toBeUndefined()
+    expect(out.File).toBeUndefined()
+    expect(out.Batch.FlushFrequency).toBe('30s')
+    expect(out.Batch.FlushMessages).toBe(100)
+    expect(out.Batch.MaxBatchSize).toBe(500)
+    expect(out.Batch.MaxRetries).toBe(2)
+    expect(out.Batch.RetryBackoff).toBe('500ms')
     expect(out.Redis.Port).toBe(50001)
     expect(out.Redis.DB).toBe(10)
     expect(out.SocksProxy.Host).toBe('')
-    expect(out.File).toBeUndefined()
     expect(out.VirtualAddressList).toBe('')
     expect(out.ServiceDiscoveryPort).toBe(50009)
     expect(out.ResourceMonitorTopic).toBe('process')
@@ -340,14 +353,9 @@ describe('parseResourceAgentInput', () => {
     const config = {
       SenderType: 'kafka',
       Kafka: {
-        Brokers: ['b1:9092'],
+        BrokerPort: 9093,
         Compression: 'gzip',
         RequiredAcks: -1,
-        MaxRetries: 5,
-        RetryBackoff: '200ms',
-        FlushFrequency: '1s',
-        FlushMessages: 200,
-        BatchSize: 32768,
         Timeout: '30s',
         EnableTLS: true,
         TLSCertFile: '/cert.pem',
@@ -358,13 +366,19 @@ describe('parseResourceAgentInput', () => {
         SASLUser: 'admin',
         SASLPassword: 'secret'
       },
+      Batch: {
+        FlushFrequency: '1m',
+        FlushMessages: 200,
+        MaxBatchSize: 1000,
+        MaxRetries: 5,
+        RetryBackoff: '1s'
+      },
       Redis: { Port: 6380, Password: 'redis-pass', DB: 5 },
       SocksProxy: { Host: '192.168.1.100', Port: 30000 },
       File: {
         FilePath: 'custom/path.jsonl',
         MaxSizeMB: 100,
         MaxBackups: 5,
-        Console: false,
         Pretty: true,
         Format: 'json'
       },
@@ -376,7 +390,7 @@ describe('parseResourceAgentInput', () => {
     }
     const result = parseResourceAgentInput(config)
     expect(result.SenderType).toBe('kafka')
-    expect(result['Kafka.Brokers']).toEqual(['b1:9092'])
+    expect(result['Kafka.BrokerPort']).toBe(9093)
     expect(result['Kafka.Compression']).toBe('gzip')
     expect(result['Kafka.RequiredAcks']).toBe(-1)
     expect(result['Kafka.EnableTLS']).toBe(true)
@@ -385,6 +399,11 @@ describe('parseResourceAgentInput', () => {
     expect(result['Kafka.SASLMechanism']).toBe('SCRAM-SHA-256')
     expect(result['Kafka.SASLUser']).toBe('admin')
     expect(result['Kafka.SASLPassword']).toBe('secret')
+    expect(result['Batch.FlushFrequency']).toBe('1m')
+    expect(result['Batch.FlushMessages']).toBe(200)
+    expect(result['Batch.MaxBatchSize']).toBe(1000)
+    expect(result['Batch.MaxRetries']).toBe(5)
+    expect(result['Batch.RetryBackoff']).toBe('1s')
     expect(result['Redis.Port']).toBe(6380)
     expect(result['Redis.Password']).toBe('redis-pass')
     expect(result['Redis.DB']).toBe(5)
@@ -392,7 +411,6 @@ describe('parseResourceAgentInput', () => {
     expect(result['SocksProxy.Port']).toBe(30000)
     expect(result['File.FilePath']).toBe('custom/path.jsonl')
     expect(result['File.MaxSizeMB']).toBe(100)
-    expect(result['File.Console']).toBe(false)
     expect(result['File.Pretty']).toBe(true)
     expect(result['File.Format']).toBe('json')
     expect(result.VirtualAddressList).toBe('10.0.0.1')
@@ -404,15 +422,10 @@ describe('parseResourceAgentInput', () => {
 
   it('missing fields get defaults', () => {
     const result = parseResourceAgentInput({})
-    expect(result.SenderType).toBe('kafka')
-    expect(result['Kafka.Brokers']).toEqual(['localhost:9092'])
+    expect(result.SenderType).toBe('kafkarest')
+    expect(result['Kafka.BrokerPort']).toBe(9092)
     expect(result['Kafka.Compression']).toBe('snappy')
     expect(result['Kafka.RequiredAcks']).toBe(1)
-    expect(result['Kafka.MaxRetries']).toBe(3)
-    expect(result['Kafka.RetryBackoff']).toBe('100ms')
-    expect(result['Kafka.FlushFrequency']).toBe('500ms')
-    expect(result['Kafka.FlushMessages']).toBe(100)
-    expect(result['Kafka.BatchSize']).toBe(16384)
     expect(result['Kafka.Timeout']).toBe('10s')
     expect(result['Kafka.EnableTLS']).toBe(false)
     expect(result['Kafka.TLSCertFile']).toBe('')
@@ -422,17 +435,21 @@ describe('parseResourceAgentInput', () => {
     expect(result['Kafka.SASLMechanism']).toBe('')
     expect(result['Kafka.SASLUser']).toBe('')
     expect(result['Kafka.SASLPassword']).toBe('')
+    expect(result['Batch.FlushFrequency']).toBe('30s')
+    expect(result['Batch.FlushMessages']).toBe(100)
+    expect(result['Batch.MaxBatchSize']).toBe(500)
+    expect(result['Batch.MaxRetries']).toBe(2)
+    expect(result['Batch.RetryBackoff']).toBe('500ms')
     expect(result['Redis.Port']).toBe(50001)
     expect(result['Redis.Password']).toBe('')
     expect(result['Redis.DB']).toBe(10)
     expect(result['SocksProxy.Host']).toBe('')
     expect(result['SocksProxy.Port']).toBe(0)
-    expect(result['File.FilePath']).toBe('log/ResourceAgent/metrics.jsonl')
+    expect(result['File.FilePath']).toBe('log/ResourceAgent/metrics.log')
     expect(result['File.MaxSizeMB']).toBe(10)
     expect(result['File.MaxBackups']).toBe(3)
-    expect(result['File.Console']).toBe(true)
     expect(result['File.Pretty']).toBe(false)
-    expect(result['File.Format']).toBe('')
+    expect(result['File.Format']).toBe('grok')
     expect(result.VirtualAddressList).toBe('')
     expect(result.ServiceDiscoveryPort).toBe(50009)
     expect(result.ResourceMonitorTopic).toBe('process')
@@ -442,7 +459,6 @@ describe('parseResourceAgentInput', () => {
 
   it('empty config produces all defaults', () => {
     const result = parseResourceAgentInput({})
-    // Verify all 35 fields are present
     const schemaFields = Object.keys(RESOURCEAGENT_SCHEMA.fields)
     for (const fieldName of schemaFields) {
       expect(result, `${fieldName} should be in result`).toHaveProperty(fieldName)
@@ -456,7 +472,7 @@ describe('parseResourceAgentInput', () => {
     }
     const result = parseResourceAgentInput(config)
     expect(result['Kafka.Compression']).toBe('gzip')
-    expect(result['Kafka.Brokers']).toEqual(['localhost:9092']) // default
+    expect(result['Kafka.BrokerPort']).toBe(9092) // default
     expect(result['Redis.DB']).toBe(15)
     expect(result['Redis.Port']).toBe(50001) // default
   })
@@ -467,53 +483,50 @@ describe('parseResourceAgentInput', () => {
 // ===========================================================================
 
 describe('Roundtrip: build(parse(config))', () => {
-  it('kafka mode: Kafka included, File excluded', () => {
+  it('kafka mode: Kafka (no TLS/SASL) + Batch included, File excluded', () => {
     const inputConfig = {
       SenderType: 'kafka',
       Kafka: {
-        Brokers: ['localhost:9092'],
+        BrokerPort: 9092,
         Compression: 'snappy',
         RequiredAcks: 1,
-        MaxRetries: 3,
-        RetryBackoff: '100ms',
-        FlushFrequency: '500ms',
+        Timeout: '10s'
+      },
+      Batch: {
+        FlushFrequency: '30s',
         FlushMessages: 100,
-        BatchSize: 16384,
-        Timeout: '10s',
-        EnableTLS: false,
-        TLSCertFile: '',
-        TLSKeyFile: '',
-        TLSCAFile: '',
-        SASLEnabled: false,
-        SASLMechanism: 'PLAIN',
-        SASLUser: '',
-        SASLPassword: ''
+        MaxBatchSize: 500,
+        MaxRetries: 2,
+        RetryBackoff: '500ms'
       },
       VirtualAddressList: '',
       ServiceDiscoveryPort: 50009,
       ResourceMonitorTopic: '',
       TimeDiffSyncInterval: 3600,
-      Redis: { Port: 50001, Password: '', DB: 10 },
+      Redis: { Port: 6379, Password: '', DB: 10 },
       PrivateIPAddressPattern: '',
       SocksProxy: { Host: '', Port: 0 }
     }
 
     const parsed = parseResourceAgentInput(inputConfig)
     const rebuilt = buildResourceAgentOutput(parsed)
+    // TLS/SASL fields excluded from output
     expect(rebuilt.Kafka).toEqual(inputConfig.Kafka)
+    expect(rebuilt.Kafka.EnableTLS).toBeUndefined()
+    expect(rebuilt.Kafka.SASLEnabled).toBeUndefined()
+    expect(rebuilt.Batch).toEqual(inputConfig.Batch)
     expect(rebuilt.File).toBeUndefined()
     expect(rebuilt.SenderType).toBe('kafka')
     expect(rebuilt.Redis).toEqual(inputConfig.Redis)
   })
 
-  it('file mode: File included, Kafka excluded', () => {
+  it('file mode: File included, Kafka + Batch excluded', () => {
     const inputConfig = {
       SenderType: 'file',
       File: {
-        FilePath: 'custom/metrics.jsonl',
+        FilePath: 'custom/metrics.log',
         MaxSizeMB: 100,
         MaxBackups: 5,
-        Console: false,
         Pretty: true,
         Format: 'json'
       },
@@ -530,6 +543,7 @@ describe('Roundtrip: build(parse(config))', () => {
     const rebuilt = buildResourceAgentOutput(parsed)
     expect(rebuilt.File).toEqual(inputConfig.File)
     expect(rebuilt.Kafka).toBeUndefined()
+    expect(rebuilt.Batch).toBeUndefined()
     expect(rebuilt.SenderType).toBe('file')
   })
 

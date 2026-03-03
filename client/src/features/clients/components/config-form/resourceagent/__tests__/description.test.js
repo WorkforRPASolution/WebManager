@@ -7,35 +7,25 @@ describe('describeResourceAgent', () => {
   it('kafka sender → "Kafka 직접 전송"', () => {
     const desc = describeResourceAgent({
       SenderType: 'kafka',
-      Kafka: {
-        Brokers: ['broker1:9092', 'broker2:9092'],
-        Topic: 'factory-metrics'
-      }
+      Kafka: { BrokerPort: 9092 }
     })
     expect(desc).toContain('Kafka 직접 전송')
   })
 
-  it('kafka sender shows broker count and addresses', () => {
+  it('kafka sender shows broker port', () => {
     const desc = describeResourceAgent({
       SenderType: 'kafka',
-      Kafka: {
-        Brokers: ['broker1:9092', 'broker2:9092']
-      }
+      Kafka: { BrokerPort: 9093 }
     })
-    expect(desc).toContain('브로커: 2개')
-    expect(desc).toContain('broker1:9092')
-    expect(desc).toContain('broker2:9092')
+    expect(desc).toContain('브로커 포트: 9093')
   })
 
-  it('kafka sender with single broker', () => {
+  it('kafka sender with default port', () => {
     const desc = describeResourceAgent({
       SenderType: 'kafka',
-      Kafka: {
-        Brokers: ['localhost:9092']
-      }
+      Kafka: {}
     })
-    expect(desc).toContain('브로커: 1개')
-    expect(desc).toContain('localhost:9092')
+    expect(desc).toContain('브로커 포트: 9092')
   })
 
   // ── file sender ──
@@ -63,6 +53,13 @@ describe('describeResourceAgent', () => {
       SenderType: 'kafkarest'
     })
     expect(desc).toContain('KafkaRest Proxy')
+  })
+
+  it('kafkarest sender does not show broker port', () => {
+    const desc = describeResourceAgent({
+      SenderType: 'kafkarest'
+    })
+    expect(desc).not.toContain('브로커 포트')
   })
 
   // ── TLS/SASL display ──
@@ -107,7 +104,7 @@ describe('describeResourceAgent', () => {
     const desc = describeResourceAgent({
       SenderType: 'kafka',
       Kafka: {
-        Brokers: ['localhost:9092'],
+        BrokerPort: 9092,
         EnableTLS: false,
         SASLEnabled: false
       }
@@ -172,19 +169,16 @@ describe('describeResourceAgent', () => {
     const desc = describeResourceAgent({
       SenderType: 'kafka',
       Kafka: {
-        Brokers: ['broker1:9092', 'broker2:9092'],
-        Topic: 'factory-metrics',
+        BrokerPort: 9092,
         EnableTLS: true,
         SASLEnabled: true,
-        SASLMechanism: 'SCRAM-SHA-256',
-        Timeout: '30s',
-        FlushFrequency: '1s'
+        SASLMechanism: 'SCRAM-SHA-256'
       },
       Redis: { Port: 6379, DB: 10 },
       SocksProxy: { Host: '192.168.1.100', Port: 30000 }
     })
     expect(desc).toContain('Kafka 직접 전송')
-    expect(desc).toContain('브로커: 2개')
+    expect(desc).toContain('브로커 포트: 9092')
     expect(desc).toContain('TLS: 사용')
     expect(desc).toContain('SASL: SCRAM-SHA-256')
     expect(desc).toContain('Redis: 포트 6379, DB 10')

@@ -25,13 +25,11 @@ export function describeResourceAgent(config) {
     lines.push(`전송 방식: ${senderLabel}`)
   }
 
-  // Kafka broker info (kafka sender only)
-  if (senderType === 'kafka' || senderType === 'kafkarest') {
+  // Kafka broker port (kafka sender only)
+  if (senderType === 'kafka') {
     const kafka = config.Kafka || {}
-    const brokers = kafka.Brokers || []
-    if (brokers.length > 0) {
-      lines.push(`브로커: ${brokers.length}개 (${brokers.join(', ')})`)
-    }
+    const port = kafka.BrokerPort || 9092
+    lines.push(`브로커 포트: ${port}`)
   }
 
   // File path info (file sender only)
@@ -60,7 +58,7 @@ export function describeResourceAgent(config) {
   // Redis
   const redis = config.Redis
   if (redis && (redis.Port || redis.DB !== undefined)) {
-    const port = redis.Port || 50001
+    const port = redis.Port || 6379
     const db = redis.DB !== undefined ? redis.DB : 10
     lines.push(`Redis: 포트 ${port}, DB ${db}`)
   }
