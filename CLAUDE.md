@@ -192,7 +192,7 @@ cd server && npm run dev
 npm run dev
 ```
 
-## Current Status (2026-03-03)
+## Current Status (2026-03-05)
 - 메가 메뉴 + 사이드바 + 탭 바 레이아웃 완료
 - 다크/라이트 모드 지원
 - MongoDB API 연동 완료
@@ -211,7 +211,7 @@ npm run dev
 - Log Settings UI 완료 (LogSettingsModal)
 - User Management 완료 (CRUD/필터/권한 관리/계정 상태/비밀번호 관리)
 - Per-client basePath 완료 (자동 감지 + 수동 설정 + commandLine 절대경로 변환)
-- Software Update 완료 (Source 추상화(Local/FTP/MinIO) + FTP 배포 + SSE 진행률 + 다중 프로필(OS별/버전별) 관리 + UpdateSettings 2패널 모달 + Update 모달 프로필 자동 필터링)
+- Software Update 완료 (Source 추상화(Local/FTP/MinIO) + FTP 배포 + SSE 진행률 + 다중 프로필(OS별/버전별) 관리 + UpdateSettings 2패널 모달 + Update 모달 프로필 자동 필터링 + exec 태스크(원격 명령) + stopOnFail + eqpId별 순차실행 + 상대경로 해석)
 - Config Backup 완료 (저장/횡전개 시 자동 백업 + 백업 목록 조회/복원 UI)
 
 ## Security Configuration
