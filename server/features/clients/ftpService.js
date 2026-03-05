@@ -106,6 +106,8 @@ async function connectFtp(eqpId) {
     })
   }
 
+  ftpClient.ftp.useBinaryTransfer = true
+
   return { client: ftpClient, ipInfo }
 }
 
