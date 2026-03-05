@@ -58,6 +58,12 @@ module.exports = {
 
   _parseScQuery(rpcResult) {
     const output = rpcResult.output || ''
+    const error = rpcResult.error || ''
+
+    // 서비스 미설치 감지: sc query → error 1060
+    if (!rpcResult.success && /1060|does not exist|지정된 서비스가/i.test(output + ' ' + error)) {
+      return { running: false, state: 'NOT_INSTALLED', raw: output }
+    }
 
     const STATE_NAMES = 'STOPPED|START_PENDING|STOP_PENDING|RUNNING|CONTINUE_PENDING|PAUSE_PENDING|PAUSED'
     const stateMatch = output.match(new RegExp(`:\\s+([1-7])\\s+(${STATE_NAMES})`))

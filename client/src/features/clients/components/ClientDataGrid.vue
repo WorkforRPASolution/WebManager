@@ -151,6 +151,22 @@ const serviceCellRenderer = (params) => {
     </span>`
   }
 
+  // UNREACHABLE state (ManagerAgent 연결 불가)
+  if (value.state === 'UNREACHABLE') {
+    return `<span class="inline-flex items-center text-xs text-gray-500 dark:text-gray-400 font-medium">
+      <span class="w-2 h-2 mr-1.5 rounded-full bg-gray-400"></span>
+      Unreachable
+    </span>`
+  }
+
+  // NOT_INSTALLED state (서비스 미설치)
+  if (value.state === 'NOT_INSTALLED') {
+    return `<span class="inline-flex items-center text-xs text-amber-600 dark:text-amber-400 font-medium">
+      <span class="w-2 h-2 mr-1.5 rounded-full bg-amber-500"></span>
+      Not Installed
+    </span>`
+  }
+
   // Running state
   if (value.running === true) {
     return `<span class="inline-flex items-center text-xs text-green-600 dark:text-green-400 font-medium">

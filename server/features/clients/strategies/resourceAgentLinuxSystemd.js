@@ -54,6 +54,13 @@ module.exports = {
 
   _parseSystemctlStatus(rpcResult) {
     const output = rpcResult.output || ''
+    const error = rpcResult.error || ''
+
+    // 서비스 미설치 감지: systemctl → "could not be found" / "not found"
+    if (!rpcResult.success && /could not be found|not found/i.test(output + ' ' + error)) {
+      return { running: false, state: 'NOT_INSTALLED', pid: 0, raw: output }
+    }
+
     const running = /Active:\s+active\s+\(running\)/i.test(output)
     const stopped = /Active:\s+inactive|Active:\s+failed/i.test(output)
     const stateStr = running ? 'RUNNING' : (stopped ? 'STOPPED' : 'UNKNOWN')

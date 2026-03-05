@@ -1,7 +1,20 @@
 const { AvroRpcClient } = require('../../shared/avro/avroClient')
 const execCommandService = require('../exec-commands/service')
-const Client = require('./model')
-const strategyRegistry = require('./strategies')
+let Client = require('./model')
+let strategyRegistry = require('./strategies')
+
+function isConnectionError(err) {
+  const msg = err.message || ''
+  return /ECONNREFUSED|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|ENOTFOUND|Connection timeout|connection failed|SOCKS connection failed/i.test(msg)
+}
+
+// 테스트 DI: 내부 의존성 교체
+let _executeRawFn = null
+function _setDeps(deps) {
+  if (deps.Client) Client = deps.Client
+  if (deps.strategyRegistry) strategyRegistry = deps.strategyRegistry
+  if (deps.executeRawFn) _executeRawFn = deps.executeRawFn
+}
 
 /**
  * 클라이언트 IP 정보 조회
@@ -193,10 +206,17 @@ async function executeAction(eqpId, agentGroup, action) {
   }
 
   let rpcResult
+  const rawFn = _executeRawFn || executeRaw
   try {
-    rpcResult = await executeRaw(eqpId, commandLine, cmd.args, cmd.timeout)
+    rpcResult = await rawFn(eqpId, commandLine, cmd.args, cmd.timeout)
   } catch (err) {
-    console.error(`[DEBUG] ${eqpId} ${action} executeRaw THREW:`, err.message)
+    if (action === 'status' && isConnectionError(err)) {
+      return {
+        displayType: strategy.displayType,
+        action,
+        data: { running: false, state: 'UNREACHABLE', raw: err.message }
+      }
+    }
     throw err
   }
   console.log(`[DEBUG] ${eqpId} ${action} rpcResult:`, JSON.stringify(rpcResult))
@@ -357,5 +377,7 @@ module.exports = {
   batchExecuteActionStream,
   detectBasePath,
   listRemoteFiles,
-  resolveCommandPath
+  resolveCommandPath,
+  isConnectionError,
+  _setDeps
 }
