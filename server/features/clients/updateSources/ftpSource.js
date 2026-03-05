@@ -28,7 +28,6 @@ class FtpSource extends BaseSource {
         password: this.pass,
         secure: false
       })
-      this.client.ftp.useBinaryTransfer = true
     }
     return this.client
   }
@@ -57,7 +56,6 @@ class FtpSource extends BaseSource {
       password: this.pass,
       secure: false
     })
-    dlClient.ftp.useBinaryTransfer = true
     dlClient.downloadTo(passthrough, fullPath)
       .then(() => dlClient.close())
       .catch(err => {

@@ -76,6 +76,9 @@ async function connectFtp(eqpId) {
 
       // Login after establishing connection
       await ftpClient.login(FTP_USER, FTP_PASS)
+      // Set binary mode (TYPE I) — access() calls useDefaultSettings() internally,
+      // but SOCKS path bypasses access(), so we must call it explicitly
+      await ftpClient.useDefaultSettings()
       // Override prepareTransfer to route PASV data connections through SOCKS tunnel
       ftpClient.prepareTransfer = async (ftp) => {
         const res = await ftp.request('PASV')
@@ -105,8 +108,6 @@ async function connectFtp(eqpId) {
       secure: false
     })
   }
-
-  ftpClient.ftp.useBinaryTransfer = true
 
   return { client: ftpClient, ipInfo }
 }
