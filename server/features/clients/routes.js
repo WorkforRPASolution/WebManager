@@ -133,6 +133,9 @@ router.put('/update-settings/:agentGroup', authenticate, requireRole(1), asyncHa
 // POST /api/clients/update-source/list
 router.post('/update-source/list', authenticate, requireRole(1), asyncHandler(updateController.listUpdateSourceFiles))
 
+// POST /api/clients/update-source/test
+router.post('/update-source/test', authenticate, requireRole(1), asyncHandler(updateController.testSourceConnection))
+
 // POST /api/clients/update/deploy
 router.post('/update/deploy', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']),
   requireFeaturePermission('clientControl', 'delete'), asyncHandler(updateController.deployUpdate))

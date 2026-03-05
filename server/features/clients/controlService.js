@@ -321,6 +321,28 @@ async function listRemoteFiles(eqpId, agentGroup, directory) {
   }
 }
 
+/**
+ * Resolve relative command path (./ or .\) to absolute using client basePath.
+ * Non-relative paths are returned as-is.
+ */
+async function resolveCommandPath(eqpId, agentGroup, commandLine) {
+  if (!commandLine.startsWith('./') && !commandLine.startsWith('.\\')) {
+    return commandLine
+  }
+  const client = await Client.findOne({ eqpId }).select('basePath').lean()
+  let basePath = client?.basePath
+  if (!basePath) {
+    try {
+      basePath = await detectBasePath(eqpId, agentGroup)
+    } catch (e) {
+      console.warn(`[resolveCommandPath] detectBasePath failed for ${eqpId}, proceeding with relative path: ${e.message}`)
+      return commandLine
+    }
+  }
+  const cleanBase = basePath.replace(/\/+$/, '')
+  return `${cleanBase}/${commandLine.substring(2).replace(/\\/g, '/')}`
+}
+
 module.exports = {
   getClientStatus,
   startClient,
@@ -334,5 +356,6 @@ module.exports = {
   batchExecuteAction,
   batchExecuteActionStream,
   detectBasePath,
-  listRemoteFiles
+  listRemoteFiles,
+  resolveCommandPath
 }

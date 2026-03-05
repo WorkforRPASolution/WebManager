@@ -112,10 +112,12 @@ export const logApi = {
 // Update Settings API
 export const updateSettingsApi = {
   getSettings: (agentGroup) => api.get(`/clients/update-settings/${agentGroup}`),
-  saveSettings: (agentGroup, packages, source) =>
-    api.put(`/clients/update-settings/${agentGroup}`, { packages, source }),
+  saveSettings: (agentGroup, profiles) =>
+    api.put(`/clients/update-settings/${agentGroup}`, { profiles }),
   listSourceFiles: (source, relativePath) =>
     api.post('/clients/update-source/list', { source, relativePath }),
+  testSourceConnection: (source) =>
+    api.post('/clients/update-source/test', { source }, { timeout: 15000 }),
 }
 
 // Config Test API

@@ -7,7 +7,7 @@ export function useUpdateDeploy() {
   const result = ref(null)
   let abortController = null
 
-  async function deploy(agentGroup, packageIds, targetEqpIds, onProgress) {
+  async function deploy(agentGroup, profileId, taskIds, targetEqpIds, onProgress) {
     if (abortController) {
       abortController.abort()
     }
@@ -19,7 +19,7 @@ export function useUpdateDeploy() {
     try {
       await fetchSSEStream(
         '/clients/update/deploy',
-        { agentGroup, packageIds, targetEqpIds },
+        { agentGroup, profileId, taskIds, targetEqpIds },
         {
           onMessage: (data) => {
             progress.value.push(data)
@@ -32,7 +32,9 @@ export function useUpdateDeploy() {
         }
       )
     } catch (err) {
-      if (err.name !== 'AbortError') {
+      if (err.name === 'AbortError') {
+        result.value = { done: true, cancelled: true }
+      } else {
         result.value = { done: true, error: err.message }
       }
     } finally {
@@ -46,6 +48,7 @@ export function useUpdateDeploy() {
       abortController.abort()
       abortController = null
       deploying.value = false
+      result.value = { done: true, cancelled: true }
     }
   }
 

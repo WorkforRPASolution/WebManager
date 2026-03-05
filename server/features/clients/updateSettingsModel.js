@@ -8,35 +8,33 @@
 const { Schema } = require('mongoose')
 const { webManagerConnection } = require('../../shared/db/connection')
 
-const packageSchema = new Schema({
-  packageId: { type: String, required: true },
+const taskSchema = new Schema({
+  taskId: { type: String, required: true },
+  type: { type: String, enum: ['copy', 'exec'], default: 'copy' },
   name: { type: String, required: true, trim: true },
-  targetPath: { type: String, required: true, trim: true },
-  targetType: { type: String, enum: ['file', 'directory'], default: 'file' },
-  description: { type: String, default: '', trim: true }
+  sourcePath: { type: String, default: '', trim: true },
+  targetPath: { type: String, default: '', trim: true },
+  description: { type: String, default: '', trim: true },
+  stopOnFail: { type: Boolean, default: false },
+  commandLine: { type: String, default: '', trim: true },
+  args: { type: [String], default: undefined },
+  timeout: { type: Number, default: 30000 }
 }, { _id: false })
 
-const sourceSchema = new Schema({
-  type: { type: String, enum: ['local', 'ftp', 'minio'], default: 'local' },
-  localPath: { type: String, default: '', trim: true },
-  ftpHost: { type: String, default: '', trim: true },
-  ftpPort: { type: Number, default: 21 },
-  ftpUser: { type: String, default: '', trim: true },
-  ftpPass: { type: String, default: '', trim: true },
-  ftpBasePath: { type: String, default: '', trim: true },
-  minioEndpoint: { type: String, default: '', trim: true },
-  minioPort: { type: Number },
-  minioBucket: { type: String, default: '', trim: true },
-  minioAccessKey: { type: String, default: '', trim: true },
-  minioSecretKey: { type: String, default: '', trim: true },
-  minioUseSSL: { type: Boolean, default: false },
-  minioBasePath: { type: String, default: '', trim: true }
+const profileSchema = new Schema({
+  profileId: { type: String, required: true },
+  name: { type: String, required: true, trim: true },
+  osVer: { type: String, default: '', trim: true },
+  version: { type: String, default: '', trim: true },
+  tasks: [taskSchema],
+  source: { type: Schema.Types.Mixed, default: () => ({ type: 'local' }) }
 }, { _id: false })
 
 const updateSettingsSchema = new Schema({
   agentGroup: { type: String, required: true, unique: true, trim: true },
-  packages: [packageSchema],
-  source: { type: sourceSchema, default: () => ({}) },
+  profiles: [profileSchema],
+  packages: { type: [Schema.Types.Mixed], default: undefined },
+  source: { type: Schema.Types.Mixed, default: () => ({ type: 'local' }) },
   updatedBy: { type: String, default: 'system' }
 }, {
   collection: 'UPDATE_SETTINGS',

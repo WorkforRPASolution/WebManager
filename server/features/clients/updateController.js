@@ -3,10 +3,17 @@
  * Handles software update settings and deployment
  */
 
-const updateSettingsService = require('./updateSettingsService')
-const updateService = require('./updateService')
+let updateSettingsService = require('./updateSettingsService')
+let updateService = require('./updateService')
 const { ApiError } = require('../../shared/middleware/errorHandler')
-const { setupSSE } = require('../../shared/utils/sseHelper')
+let _setupSSE = require('../../shared/utils/sseHelper').setupSSE
+
+/** @internal Replace dependencies for testing */
+function _setDeps(deps) {
+  if (deps.updateSettingsService) updateSettingsService = deps.updateSettingsService
+  if (deps.updateService) updateService = deps.updateService
+  if (deps.setupSSE) _setupSSE = deps.setupSSE
+}
 
 /**
  * GET /api/clients/update-settings/:agentGroup
@@ -14,7 +21,7 @@ const { setupSSE } = require('../../shared/utils/sseHelper')
 async function getUpdateSettings(req, res) {
   const { agentGroup } = req.params
   const doc = await updateSettingsService.getDocument(agentGroup)
-  res.json(doc || { agentGroup, packages: [], source: {} })
+  res.json(doc || { agentGroup, profiles: [] })
 }
 
 /**
@@ -22,19 +29,25 @@ async function getUpdateSettings(req, res) {
  */
 async function saveUpdateSettings(req, res) {
   const { agentGroup } = req.params
-  const { packages, source } = req.body
+  const { profiles } = req.body
 
-  if (!packages || !Array.isArray(packages)) {
-    throw ApiError.badRequest('packages array is required')
-  }
+  if (!Array.isArray(profiles)) throw ApiError.badRequest('profiles must be an array')
 
-  for (const p of packages) {
-    if (!p.name || !p.name.trim()) throw ApiError.badRequest('Package name is required')
-    if (!p.targetPath || !p.targetPath.trim()) throw ApiError.badRequest('Package targetPath is required')
+  for (const p of profiles) {
+    if (!p.name?.trim()) throw ApiError.badRequest('Each profile must have a name')
+    for (const task of (p.tasks || [])) {
+      if (!task.name?.trim()) throw ApiError.badRequest('Each task requires a name')
+      if (task.type === 'exec') {
+        if (!task.commandLine?.trim()) throw ApiError.badRequest('Exec task requires commandLine')
+      } else {
+        if (!task.sourcePath?.trim() || !task.targetPath?.trim())
+          throw ApiError.badRequest('Copy task requires sourcePath and targetPath')
+      }
+    }
   }
 
   const updatedBy = req.user?.username || 'unknown'
-  const doc = await updateSettingsService.saveUpdateSettings(agentGroup, packages, source || {}, updatedBy)
+  const doc = await updateSettingsService.saveUpdateSettings(agentGroup, profiles, updatedBy)
   res.json(doc)
 }
 
@@ -60,37 +73,57 @@ async function listUpdateSourceFiles(req, res) {
  * POST /api/clients/update/deploy
  */
 async function deployUpdate(req, res) {
-  const { agentGroup, packageIds, targetEqpIds } = req.body
+  const { agentGroup, profileId, taskIds, targetEqpIds } = req.body
 
   if (!agentGroup) throw ApiError.badRequest('agentGroup is required')
-  if (!packageIds || !Array.isArray(packageIds) || packageIds.length === 0) {
-    throw ApiError.badRequest('packageIds array is required')
+  if (!profileId) throw ApiError.badRequest('profileId is required')
+  if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+    throw ApiError.badRequest('taskIds array is required')
   }
   if (!targetEqpIds || !Array.isArray(targetEqpIds) || targetEqpIds.length === 0) {
     throw ApiError.badRequest('targetEqpIds array is required')
   }
 
-  const sse = setupSSE(res)
+  const sse = _setupSSE(res)
 
   try {
-    const result = await updateService.deployUpdate(agentGroup, packageIds, targetEqpIds, (progress) => {
+    const result = await updateService.deployUpdate(agentGroup, profileId, taskIds, targetEqpIds, (progress) => {
       sse.send(progress)
     })
     if (!sse.isAborted()) {
       sse.send({ done: true, ...result })
     }
   } catch (error) {
+    console.error(`[deployUpdate] Error deploying ${profileId} to [${targetEqpIds.join(',')}]:`, error.message)
     if (!sse.isAborted()) {
       sse.send({ done: true, error: error.message })
     }
   }
 
+  if (sse.isAborted()) {
+    console.error(`[deployUpdate] SSE aborted: ${profileId} → [${targetEqpIds.join(',')}]`)
+  }
   sse.end()
+}
+
+/**
+ * POST /api/clients/update-source/test
+ */
+async function testSourceConnection(req, res) {
+  const { source } = req.body
+  if (!source || !source.type) {
+    throw ApiError.badRequest('source with type is required')
+  }
+
+  const result = await updateService.testSourceConnection(source)
+  res.json(result)
 }
 
 module.exports = {
   getUpdateSettings,
   saveUpdateSettings,
   listUpdateSourceFiles,
-  deployUpdate
+  testSourceConnection,
+  deployUpdate,
+  _setDeps
 }
