@@ -169,14 +169,30 @@
                           :placeholder="task.type === 'exec' ? 'Stop Agent' : 'Agent Binary'" />
                         <p v-if="task._nameError" class="mt-0.5 text-xs text-red-500">{{ task._nameError }}</p>
                       </div>
-                      <div class="flex items-end gap-2 pt-3.5">
-                        <label class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap cursor-pointer">
+                      <div class="flex items-end gap-1 pt-3.5">
+                        <label class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap cursor-pointer mr-1">
                           <input type="checkbox" v-model="task.stopOnFail" @change="changed = true"
                             class="rounded border-gray-300 dark:border-dark-border text-orange-500 focus:ring-orange-500" />
                           Stop on Fail
                         </label>
+                        <button @click="moveTask(index, 'top')" :disabled="index === 0"
+                          class="p-1 rounded transition-colors" :class="index === 0 ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'" title="Move to top">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><polyline points="5 9 12 2 19 9" /><line x1="5" y1="21" x2="19" y2="21" /></svg>
+                        </button>
+                        <button @click="moveTask(index, 'up')" :disabled="index === 0"
+                          class="p-1 rounded transition-colors" :class="index === 0 ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'" title="Move up">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><polyline points="18 15 12 9 6 15" /></svg>
+                        </button>
+                        <button @click="moveTask(index, 'down')" :disabled="index === selectedProfile.tasks.length - 1"
+                          class="p-1 rounded transition-colors" :class="index === selectedProfile.tasks.length - 1 ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'" title="Move down">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><polyline points="6 9 12 15 18 9" /></svg>
+                        </button>
+                        <button @click="moveTask(index, 'bottom')" :disabled="index === selectedProfile.tasks.length - 1"
+                          class="p-1 rounded transition-colors" :class="index === selectedProfile.tasks.length - 1 ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'" title="Move to bottom">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><polyline points="5 15 12 22 19 15" /><line x1="5" y1="3" x2="19" y2="3" /></svg>
+                        </button>
                         <button @click="removeTask(index)"
-                          class="p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors">
+                          class="p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors" title="Delete">
                           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
@@ -668,6 +684,23 @@ function onSourceTypeChange() {
 function removeTask(index) {
   if (!selectedProfile.value) return
   selectedProfile.value.tasks.splice(index, 1)
+  changed.value = true
+}
+
+function moveTask(index, direction) {
+  if (!selectedProfile.value) return
+  const tasks = selectedProfile.value.tasks
+  let newIndex
+  switch (direction) {
+    case 'top': newIndex = 0; break
+    case 'up': newIndex = index - 1; break
+    case 'down': newIndex = index + 1; break
+    case 'bottom': newIndex = tasks.length - 1; break
+    default: return
+  }
+  if (newIndex < 0 || newIndex >= tasks.length || newIndex === index) return
+  const [task] = tasks.splice(index, 1)
+  tasks.splice(newIndex, 0, task)
   changed.value = true
 }
 
