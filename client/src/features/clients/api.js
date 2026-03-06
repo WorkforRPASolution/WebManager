@@ -6,6 +6,7 @@ export const clientListApi = {
     const params = { page, pageSize }
     if (filters.processes?.length) params.process = filters.processes.join(',')
     if (filters.models?.length) params.model = filters.models.join(',')
+    if (filters.eqpIdSearch) params.eqpIdSearch = filters.eqpIdSearch
     if (filters.ipSearch) params.ipSearch = filters.ipSearch
     if (filters.status?.length) params.status = filters.status.join(',')
     // 키워드 검색 시 process 권한 필터링

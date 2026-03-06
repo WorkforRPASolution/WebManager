@@ -46,13 +46,13 @@ async function getClients(req, res) {
  * GET /api/clients/list
  */
 async function getClientsList(req, res) {
-  const { process, model, status, ipSearch, page, pageSize, userProcesses } = req.query
+  const { process, model, status, eqpIdSearch, ipSearch, page, pageSize, userProcesses } = req.query
   // Parse userProcesses parameter (comma-separated string → array)
   const userProcessesArray = userProcesses
     ? userProcesses.split(',').map(p => p.trim()).filter(p => p)
     : null
   const result = await service.getClientsPaginated(
-    { process, model, status, ipSearch, userProcesses: userProcessesArray },
+    { process, model, status, eqpIdSearch, ipSearch, userProcesses: userProcessesArray },
     { page, pageSize }
   )
   res.json(result)

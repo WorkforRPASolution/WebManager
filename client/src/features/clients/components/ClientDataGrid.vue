@@ -224,6 +224,15 @@ const columnDefs = ref([
     filter: true,
     cellStyle: { fontFamily: 'monospace' }
   },
+  {
+    field: 'innerIp',
+    headerName: 'Inner IP',
+    width: 160,
+    minWidth: 160,
+    sortable: true,
+    filter: true,
+    cellStyle: { fontFamily: 'monospace' }
+  },
   { field: 'line', headerName: 'Line', width: 100, minWidth: 100, sortable: true, filter: true },
   { field: 'category', headerName: 'Category', width: 130, minWidth: 130, sortable: true, filter: true },
   { field: 'osVersion', headerName: 'OS Version', width: 180, minWidth: 180, sortable: true, filter: true },

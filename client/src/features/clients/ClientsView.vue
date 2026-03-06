@@ -327,8 +327,8 @@ const handleExportColumnWidths = () => {
     <!-- Header -->
     <div class="mb-4 flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Clients</h1>
-        <p class="text-gray-500 dark:text-gray-400 mt-1">Manage and monitor your clients</p>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ agentGroup === 'resource_agent' ? 'Resource Agent' : 'ARS Agent' }}</h1>
+        <p class="text-gray-500 dark:text-gray-400 mt-1">Manage and monitor your {{ agentGroup === 'resource_agent' ? 'resource agents' : 'ARS agents' }}</p>
       </div>
       <div class="flex items-center gap-2">
         <!-- Export Column Widths (Admin only) -->

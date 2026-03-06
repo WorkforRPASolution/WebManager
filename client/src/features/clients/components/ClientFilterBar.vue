@@ -30,12 +30,12 @@
         placeholder="Select Model..."
       />
 
-      <!-- Status Filter -->
+      <!-- OnOff Filter -->
       <MultiSelect
         v-model="selectedStatus"
         :options="statusOptions"
-        label="Status"
-        placeholder="Select Status..."
+        label="OnOff"
+        placeholder="Select OnOff..."
       />
 
       <!-- IP Search -->
@@ -45,6 +45,18 @@
           v-model="ipSearch"
           type="text"
           placeholder="Search IP..."
+          class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm w-[150px]"
+          @keyup.enter="handleSearch"
+        />
+      </div>
+
+      <!-- EqpId Search -->
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">EQPID</label>
+        <input
+          v-model="eqpIdSearch"
+          type="text"
+          placeholder="Search Eqp ID..."
           class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm w-[150px]"
           @keyup.enter="handleSearch"
         />
@@ -87,6 +99,7 @@ const {
 const selectedProcesses = ref([])
 const selectedModels = ref([])
 const selectedStatus = ref([])
+const eqpIdSearch = ref('')
 const ipSearch = ref('')
 
 const statusOptions = ['online', 'offline']
@@ -100,6 +113,7 @@ const filterSummary = computed(() => {
   if (selectedProcesses.value.length) parts.push(`Process: ${selectedProcesses.value.length}`)
   if (selectedModels.value.length) parts.push(`Model: ${selectedModels.value.length}`)
   if (selectedStatus.value.length) parts.push(`Status: ${selectedStatus.value.length}`)
+  if (eqpIdSearch.value) parts.push(`EqpId: "${eqpIdSearch.value}"`)
   if (ipSearch.value) parts.push(`IP: "${ipSearch.value}"`)
   return parts.length ? parts.join(', ') : 'No filters'
 })
@@ -109,6 +123,7 @@ const hasActiveFilters = computed(() =>
   selectedProcesses.value.length > 0 ||
   selectedModels.value.length > 0 ||
   selectedStatus.value.length > 0 ||
+  eqpIdSearch.value ||
   ipSearch.value
 )
 
@@ -122,6 +137,7 @@ const handleSearch = () => {
     processes: selectedProcesses.value,
     models: selectedModels.value,
     status: selectedStatus.value,
+    eqpIdSearch: eqpIdSearch.value,
     ipSearch: ipSearch.value
   })
 
@@ -132,6 +148,7 @@ const handleClear = () => {
   selectedProcesses.value = []
   selectedModels.value = []
   selectedStatus.value = []
+  eqpIdSearch.value = ''
   ipSearch.value = ''
   filteredModels.value = []
   emit('filter-change', null)
@@ -142,6 +159,7 @@ const handleSaveBookmark = (name) => {
     processes: selectedProcesses.value,
     models: selectedModels.value,
     status: selectedStatus.value,
+    eqpIdSearch: eqpIdSearch.value,
     ipSearch: ipSearch.value
   })
 }
@@ -150,6 +168,7 @@ const handleApplyBookmark = async (bookmark) => {
   selectedProcesses.value = bookmark.filters.processes || []
   selectedModels.value = bookmark.filters.models || []
   selectedStatus.value = bookmark.filters.status || []
+  eqpIdSearch.value = bookmark.filters.eqpIdSearch || ''
   ipSearch.value = bookmark.filters.ipSearch || ''
 
   // Fetch models for selected processes

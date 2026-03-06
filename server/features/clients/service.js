@@ -97,6 +97,7 @@ function transformClient(client) {
     eqpModel: client.eqpModel,
     process: client.process,
     ipAddress: client.ipAddr,
+    innerIp: client.ipAddrL || null,
     status: client.onoff === 1 ? 'online' : 'offline',
     osVersion: client.osVer,
     category: client.category,
@@ -209,7 +210,7 @@ async function getClientsPaginated(filters, paginationQuery) {
 
   const [clients, total] = await Promise.all([
     Client.find(query)
-      .select('eqpId eqpModel process ipAddr onoff osVer category line')
+      .select('eqpId eqpModel process ipAddr ipAddrL onoff osVer category line')
       .sort({ eqpId: 1 })
       .skip(skip)
       .limit(limit)
