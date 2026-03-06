@@ -198,8 +198,7 @@ const columnDefs = ref([
   {
     field: 'serviceStatus',
     headerName: 'Status',
-    width: 180,
-    minWidth: 180,
+    width: 105,
     cellRenderer: serviceCellRenderer,
     sortable: false,
     filter: false,
@@ -207,19 +206,15 @@ const columnDefs = ref([
   {
     field: 'eqpId',
     headerName: 'Eqp ID',
-    width: 150,
-    minWidth: 150,
+    width: 180,
     cellRenderer: eqpIdCellRenderer,
     sortable: true,
     filter: true,
   },
-  { field: 'eqpModel', headerName: 'Model', width: 180, minWidth: 180, sortable: true, filter: true },
-  { field: 'process', headerName: 'Process', width: 120, minWidth: 120, sortable: true, filter: true },
   {
     field: 'ipAddress',
     headerName: 'IP Address',
-    width: 160,
-    minWidth: 160,
+    width: 110,
     sortable: true,
     filter: true,
     cellStyle: { fontFamily: 'monospace' }
@@ -227,20 +222,20 @@ const columnDefs = ref([
   {
     field: 'innerIp',
     headerName: 'Inner IP',
-    width: 160,
-    minWidth: 160,
+    width: 110,
     sortable: true,
     filter: true,
     cellStyle: { fontFamily: 'monospace' }
   },
-  { field: 'line', headerName: 'Line', width: 100, minWidth: 100, sortable: true, filter: true },
-  { field: 'category', headerName: 'Category', width: 130, minWidth: 130, sortable: true, filter: true },
-  { field: 'osVersion', headerName: 'OS Version', width: 180, minWidth: 180, sortable: true, filter: true },
+  { field: 'line', headerName: 'Line', width: 85, sortable: true, filter: true },
+  { field: 'process', headerName: 'Process', width: 120, sortable: true, filter: true },
+  { field: 'eqpModel', headerName: 'Model', width: 180, sortable: true, filter: true },
+  { field: 'category', headerName: 'Category', width: 110, sortable: true, filter: true },
+  { field: 'osVersion', headerName: 'OS Version', width: 100, sortable: true, filter: true },
   {
     field: 'status',
     headerName: 'OnOff',
     width: 100,
-    minWidth: 100,
     cellRenderer: onOffCellRenderer,
     sortable: true,
     filter: true,
@@ -249,6 +244,7 @@ const columnDefs = ref([
 
 const defaultColDef = ref({
   resizable: true,
+  minWidth: 80,
 })
 
 const getRowId = (params) => {
