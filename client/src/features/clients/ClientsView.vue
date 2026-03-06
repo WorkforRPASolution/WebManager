@@ -82,6 +82,40 @@ const clientsWithStatus = computed(() => {
   }))
 })
 
+// Status counts for Select by Status dropdown
+const statusCounts = computed(() => {
+  const counts = { running: 0, stopped: 0, unreachable: 0, notInstalled: 0 }
+  clientsWithStatus.value.forEach(client => {
+    const ss = client.serviceStatus
+    if (!ss || ss.loading || ss.error) return
+    if (ss.state === 'UNREACHABLE') counts.unreachable++
+    else if (ss.state === 'NOT_INSTALLED') counts.notInstalled++
+    else if (ss.running === true) counts.running++
+    else if (ss.running === false) counts.stopped++
+  })
+  return counts
+})
+
+// Select by status handler
+const handleSelectByStatus = (statusType) => {
+  if (statusType === 'clear') {
+    gridRef.value?.clearSelection()
+    return
+  }
+  const ids = clientsWithStatus.value
+    .filter(client => {
+      const ss = client.serviceStatus
+      if (!ss) return false
+      if (statusType === 'running') return ss.running === true
+      if (statusType === 'stopped') return ss.running === false && !['UNREACHABLE', 'NOT_INSTALLED'].includes(ss.state)
+      if (statusType === 'unreachable') return ss.state === 'UNREACHABLE'
+      if (statusType === 'not_installed') return ss.state === 'NOT_INSTALLED'
+      return false
+    })
+    .map(c => c.eqpId || c.id)
+  gridRef.value?.restoreSelection(ids)
+}
+
 // Component refs
 const filterBarRef = ref(null)
 const gridRef = ref(null)
@@ -343,6 +377,46 @@ const handleExportColumnWidths = () => {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 14h10m-3-3l3 3-3 3" />
           </svg>
         </button>
+
+        <!-- Update Settings Button -->
+        <button
+          v-if="isAdmin"
+          @click="handleUpdateSettings"
+          class="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-card border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition"
+          title="Update Settings"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          Update
+        </button>
+
+        <!-- Config Settings Button -->
+        <button
+          v-if="isAdmin"
+          @click="handleConfigSettings"
+          class="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-card border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition"
+          title="Config File Settings"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+          </svg>
+          Config
+        </button>
+
+        <!-- Log Settings Button -->
+        <button
+          v-if="isAdmin"
+          @click="handleLogSettings"
+          class="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-dark-card border border-gray-300 dark:border-dark-border rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition"
+          title="Log Source Settings"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Log
+        </button>
+
         <button
           v-if="isAdmin"
           @click="showPermissionDialog = true"
@@ -371,7 +445,6 @@ const handleExportColumnWidths = () => {
       :can-read="canRead"
       :can-write="canWrite"
       :can-delete="canDelete"
-      :is-admin="isAdmin"
       :selected-count="selectedIds.length"
       :operating="operating"
       :loading="loading"
@@ -379,13 +452,12 @@ const handleExportColumnWidths = () => {
       :page-size="pageSize"
       :current-page="currentPage"
       :total-pages="totalPages"
+      :status-counts="statusCounts"
+      @select-by-status="handleSelectByStatus"
       @control="handleControl"
       @update="handleUpdate"
       @config="handleConfig"
       @log="handleLog"
-      @config-settings="handleConfigSettings"
-      @log-settings="handleLogSettings"
-      @update-settings="handleUpdateSettings"
       @refresh="handleRefresh"
       @page-size-change="handlePageSizeChange"
       @page-change="handlePageChange"

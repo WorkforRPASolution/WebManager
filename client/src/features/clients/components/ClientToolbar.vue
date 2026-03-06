@@ -14,6 +14,60 @@
         All Status
       </button>
 
+      <!-- Select by Status Dropdown -->
+      <div class="relative" ref="dropdownRef">
+        <button
+          @click="toggleDropdown"
+          :disabled="operating"
+          :class="[
+            'flex items-center gap-1.5 px-3 py-2 font-medium rounded-lg transition text-sm',
+            isDropdownOpen
+              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+              : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300',
+            'disabled:opacity-50 disabled:cursor-not-allowed'
+          ]"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+          Select
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        <div
+          v-if="isDropdownOpen"
+          class="absolute left-0 top-full mt-1 w-52 bg-white dark:bg-dark-card rounded-lg shadow-xl border border-gray-200 dark:border-dark-border z-50 overflow-hidden"
+        >
+          <button
+            v-for="item in statusItems"
+            :key="item.key"
+            @click="handleSelectStatus(item.key)"
+            :disabled="item.count === 0"
+            class="w-full text-left px-3 py-2 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent dark:disabled:hover:bg-transparent"
+          >
+            <div class="flex items-center gap-2">
+              <span :class="['w-2 h-2 rounded-full', item.dotColor]"></span>
+              <span class="text-sm text-gray-700 dark:text-gray-300">{{ item.label }}</span>
+            </div>
+            <span class="text-xs text-gray-400 dark:text-gray-500 tabular-nums">({{ item.count }})</span>
+          </button>
+
+          <div class="border-t border-gray-200 dark:border-dark-border">
+            <button
+              @click="handleSelectStatus('clear')"
+              class="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-gray-100 dark:hover:bg-dark-hover transition-colors text-sm text-gray-500 dark:text-gray-400"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Clear Selection
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Status Button -->
       <button
         @click="$emit('control', 'status')"
@@ -63,7 +117,7 @@
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 11-12.728 0M12 3v9" />
         </svg>
-        Force Kill
+        Kill
       </button>
 
       <!-- Restart Button -->
@@ -94,19 +148,6 @@
         Update
       </button>
 
-      <!-- Update Settings Button -->
-      <button
-        v-if="isAdmin"
-        @click="$emit('update-settings')"
-        :disabled="operating"
-        class="flex items-center p-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        title="Update Settings"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-        </svg>
-      </button>
-
       <!-- Config Button -->
       <button
         v-if="canWrite"
@@ -121,19 +162,6 @@
         Config
       </button>
 
-      <!-- Config Settings Button -->
-      <button
-        v-if="isAdmin"
-        @click="$emit('config-settings')"
-        :disabled="operating"
-        class="flex items-center p-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        title="Config File Settings"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-        </svg>
-      </button>
-
       <!-- Log Button -->
       <button
         v-if="canRead"
@@ -145,19 +173,6 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
         Log
-      </button>
-
-      <!-- Log Settings Button -->
-      <button
-        v-if="isAdmin"
-        @click="$emit('log-settings')"
-        :disabled="operating"
-        class="flex items-center p-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        title="Log Source Settings"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
       </button>
 
     </div>
@@ -236,7 +251,9 @@
 </template>
 
 <script setup>
-defineProps({
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+
+const props = defineProps({
   canRead: {
     type: Boolean,
     default: false
@@ -246,10 +263,6 @@ defineProps({
     default: false
   },
   canDelete: {
-    type: Boolean,
-    default: false
-  },
-  isAdmin: {
     type: Boolean,
     default: false
   },
@@ -280,8 +293,40 @@ defineProps({
   totalPages: {
     type: Number,
     default: 1
+  },
+  statusCounts: {
+    type: Object,
+    default: () => ({ running: 0, stopped: 0, unreachable: 0, notInstalled: 0 })
   }
 })
 
-defineEmits(['control', 'update', 'config', 'config-settings', 'log', 'log-settings', 'update-settings', 'refresh', 'page-size-change', 'page-change'])
+const emit = defineEmits(['control', 'update', 'config', 'log', 'refresh', 'page-size-change', 'page-change', 'select-by-status'])
+
+const dropdownRef = ref(null)
+const isDropdownOpen = ref(false)
+
+const statusItems = computed(() => [
+  { key: 'running', label: 'Running', dotColor: 'bg-green-500', count: props.statusCounts.running },
+  { key: 'stopped', label: 'Stopped', dotColor: 'bg-red-500', count: props.statusCounts.stopped },
+  { key: 'unreachable', label: 'Unreachable', dotColor: 'bg-gray-400', count: props.statusCounts.unreachable },
+  { key: 'not_installed', label: 'Not Installed', dotColor: 'bg-amber-500', count: props.statusCounts.notInstalled },
+])
+
+function toggleDropdown() {
+  isDropdownOpen.value = !isDropdownOpen.value
+}
+
+function handleSelectStatus(statusType) {
+  emit('select-by-status', statusType)
+  isDropdownOpen.value = false
+}
+
+function handleClickOutside(e) {
+  if (dropdownRef.value && !dropdownRef.value.contains(e.target)) {
+    isDropdownOpen.value = false
+  }
+}
+
+onMounted(() => document.addEventListener('mousedown', handleClickOutside))
+onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
 </script>
