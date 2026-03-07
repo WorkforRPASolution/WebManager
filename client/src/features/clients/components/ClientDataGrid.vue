@@ -189,6 +189,54 @@ const serviceCellRenderer = (params) => {
   </span>`
 }
 
+// Uptime Cell Renderer (Redis-based alive status)
+const uptimeCellRenderer = (params) => {
+  const value = params.value
+
+  // No data
+  if (!value) {
+    return `<span class="inline-flex items-center text-xs text-gray-400 dark:text-gray-500">
+      <span class="mr-1">&#8213;</span>
+    </span>`
+  }
+
+  // Redis unavailable
+  if (value.redisUnavailable) {
+    return `<span class="inline-flex items-center text-xs text-gray-400 dark:text-gray-500">
+      <span class="mr-1">&#8213;</span>
+    </span>`
+  }
+
+  // Alive + OK
+  if (value.alive && value.health === 'OK') {
+    return `<span class="inline-flex items-center text-xs text-green-600 dark:text-green-400 font-medium">
+      <span class="w-2 h-2 mr-1.5 rounded-full bg-green-500"></span>
+      ${value.uptimeFormatted || '\u2014'}
+    </span>`
+  }
+
+  // Alive + WARN (future)
+  if (value.alive && value.health === 'WARN') {
+    return `<span class="inline-flex items-center text-xs text-amber-600 dark:text-amber-400 font-medium" title="${value.reason || ''}">
+      <span class="w-2 h-2 mr-1.5 rounded-full bg-amber-500"></span>
+      ${value.uptimeFormatted || '\u2014'}
+    </span>`
+  }
+
+  // Not alive
+  if (value.alive === false) {
+    return `<span class="inline-flex items-center text-xs text-gray-400 dark:text-gray-500">
+      <span class="w-2 h-2 mr-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></span>
+      <span>&#8213;</span>
+    </span>`
+  }
+
+  // Fallback
+  return `<span class="inline-flex items-center text-xs text-gray-400 dark:text-gray-500">
+    <span class="mr-1">&#8213;</span>
+  </span>`
+}
+
 // Clickable EqpId Cell Renderer
 const eqpIdCellRenderer = (params) => {
   return `<span class="text-primary-600 dark:text-primary-400 hover:underline cursor-pointer font-medium">${params.value || ''}</span>`
@@ -200,6 +248,14 @@ const columnDefs = ref([
     headerName: 'Status',
     width: 105,
     cellRenderer: serviceCellRenderer,
+    sortable: false,
+    filter: false,
+  },
+  {
+    field: 'aliveStatus',
+    headerName: 'Uptime',
+    width: 95,
+    cellRenderer: uptimeCellRenderer,
     sortable: false,
     filter: false,
   },

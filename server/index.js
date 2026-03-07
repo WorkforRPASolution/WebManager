@@ -1,6 +1,7 @@
 require('dotenv').config();
 const app = require('./app');
 const { connectDB, closeConnections } = require('./shared/db/connection');
+const { connectRedis, closeRedis } = require('./shared/db/redisConnection');
 const { initializeDefaultPermissions } = require('./features/permissions/service');
 const { initializeRolePermissions } = require('./features/users/service');
 const { initializeOSVersions } = require('./features/os-version/service');
@@ -16,6 +17,7 @@ const PORT = process.env.PORT || 3000;
 const startServer = async () => {
   try {
     await connectDB();
+    await connectRedis();
 
     // Sync permissions and initialize data
     console.log('Syncing permissions...');
@@ -62,6 +64,7 @@ const startServer = async () => {
 
         // 4. DB 연결 종료
         await closeConnections()
+        await closeRedis()
 
         process.exit(0)
       } catch (err) {

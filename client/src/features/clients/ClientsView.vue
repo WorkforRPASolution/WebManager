@@ -6,6 +6,7 @@ import { useConfigManager } from './composables/useConfigManager'
 import { useBatchActionStream } from './composables/useBatchActionStream'
 import { useLogViewer } from './composables/useLogViewer'
 import { serviceApi } from './api'
+import { aliveApi } from './api'
 import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
 import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDialog.vue'
 import ClientFilterBar from './components/ClientFilterBar.vue'
@@ -50,6 +51,7 @@ const { streaming, execute: executeStream, cancel: cancelStream } = useBatchActi
 
 // Service status state (RPC-based real-time status)
 const serviceStatuses = ref({})  // { [eqpId]: { running, state, uptime, loading, error } }
+const aliveStatuses = ref({})  // { [eqpId]: { alive, uptimeSeconds, uptimeFormatted, health } }
 
 // Composable state
 const {
@@ -76,10 +78,14 @@ const {
 
 // Computed: merge clients with service statuses
 const clientsWithStatus = computed(() => {
-  return clients.value.map(client => ({
-    ...client,
-    serviceStatus: serviceStatuses.value[client.eqpId || client.id] || null
-  }))
+  return clients.value.map(client => {
+    const eqpId = client.eqpId || client.id
+    return {
+      ...client,
+      serviceStatus: serviceStatuses.value[eqpId] || null,
+      aliveStatus: aliveStatuses.value[eqpId] || null,
+    }
+  })
 })
 
 // Status counts for Select by Status dropdown
@@ -149,11 +155,13 @@ const showToast = (message, type = 'success') => {
 const handleFilterChange = async (filters) => {
   if (filters === null) {
     resetAllData()
+    aliveStatuses.value = {}
     hasSearched.value = false
     return
   }
 
   hasSearched.value = true
+  aliveStatuses.value = {}
   try {
     await fetchClients(filters, 1, pageSize.value)
   } catch (err) {
@@ -207,6 +215,11 @@ const handleRefresh = async () => {
   }
 
   await executeStream('status', eqpIds, agentGroup.value, (result) => {
+    // alive statuses from server (sent before done)
+    if (result.aliveStatuses) {
+      aliveStatuses.value = { ...aliveStatuses.value, ...result.aliveStatuses }
+      return
+    }
     if (result.error) {
       serviceStatuses.value[result.eqpId] = { error: result.error }
     } else {
@@ -240,6 +253,10 @@ const handleControl = async (action) => {
   let failCount = 0
 
   await executeStream(action, eqpIds, agentGroup.value, (result) => {
+    if (result.aliveStatuses) {
+      aliveStatuses.value = { ...aliveStatuses.value, ...result.aliveStatuses }
+      return
+    }
     if (result.error) {
       serviceStatuses.value[result.eqpId] = { error: result.error }
       failCount++

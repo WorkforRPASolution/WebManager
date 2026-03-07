@@ -126,3 +126,8 @@ export const configTestApi = {
   testAccessLog: (eqpId, sourceConfig, agentGroup) =>
     api.post(`/clients/${eqpId}/test-accesslog`, { ...sourceConfig, agentGroup }, { timeout: 30000 }),
 }
+
+// Agent Alive Status API (Redis-based)
+export const aliveApi = {
+  getBatchStatus: (eqpIds) => api.post('/clients/alive-status', { eqpIds }),
+}

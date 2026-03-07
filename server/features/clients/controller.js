@@ -4,6 +4,7 @@
 
 const service = require('./service')
 const controlService = require('./controlService')
+const { getBatchAliveStatus } = require('./agentAliveService')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 const strategyRegistry = require('./strategies')
 const { setupSSE } = require('../../shared/utils/sseHelper')
@@ -391,7 +392,12 @@ async function handleBatchActionStream(req, res) {
     await controlService.batchExecuteActionStream(eqpIds, agentGroup, action, (progress) => {
       sse.send(progress)
     })
+    // Append alive statuses before done (non-fatal)
     if (!sse.isAborted()) {
+      try {
+        const aliveStatuses = await getBatchAliveStatus(eqpIds)
+        sse.send({ aliveStatuses })
+      } catch (_) { /* alive fetch failure is non-fatal */ }
       sse.send({ done: true })
     }
   } catch (error) {
@@ -402,6 +408,21 @@ async function handleBatchActionStream(req, res) {
   sse.end()
 }
 
+
+/**
+ * POST /api/clients/alive-status
+ * Batch alive status query (Redis only, no RPC)
+ */
+async function getBatchAliveStatusHandler(req, res) {
+  const { eqpIds } = req.body
+
+  if (!eqpIds || !Array.isArray(eqpIds) || eqpIds.length === 0) {
+    throw ApiError.badRequest('eqpIds array is required')
+  }
+
+  const statuses = await getBatchAliveStatus(eqpIds)
+  res.json(statuses)
+}
 
 module.exports = {
   // Filter & List
@@ -432,6 +453,8 @@ module.exports = {
   handleExecuteAction,
   handleBatchExecuteAction,
   handleBatchActionStream,
+  // Alive Status (Redis)
+  getBatchAliveStatusHandler,
   // Re-export from split controllers for backward compatibility
   ...require('./configController'),
   ...require('./logController'),

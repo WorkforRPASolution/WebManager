@@ -58,6 +58,8 @@ router.post('/batch-action/:action', authenticate, requireMenuPermission(['arsAg
 // POST /api/clients/batch-action-stream/:action - Strategy-based batch action (SSE streaming)
 router.post('/batch-action-stream/:action', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireActionPermission(), asyncHandler(controller.handleBatchActionStream))
 
+// POST /api/clients/alive-status - Batch alive status (Redis)
+router.post('/alive-status', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(controller.getBatchAliveStatusHandler))
 
 // POST /api/clients/batch-status - Get batch client service status (RPC)
 router.post('/batch-status', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('clientControl', 'read'), asyncHandler(controller.getBatchClientStatus))
