@@ -16,6 +16,10 @@ function buildAgentRunningKey(process, eqpModel, eqpId) {
   return `AgentRunning:${process}-${eqpModel}-${eqpId}`
 }
 
+function buildAgentHealthKey(process, eqpModel, eqpId) {
+  return `AgentHealth:${process}-${eqpModel}-${eqpId}`
+}
+
 function parseAliveValue(value) {
   if (value === null || value === undefined || value === '') {
     return { alive: false, uptimeSeconds: null, health: null }
@@ -85,31 +89,47 @@ async function getBatchAliveStatus(eqpIds) {
     clientMap[c.eqpId] = c
   }
 
-  // Redis 키 생성
-  const keys = eqpIds.map(id => {
+  // Redis 키 생성: AgentHealth 키 + AgentRunning 키
+  const healthKeys = eqpIds.map(id => {
+    const c = clientMap[id]
+    if (!c) return null
+    return buildAgentHealthKey(c.process, c.eqpModel, id)
+  })
+  const runningKeys = eqpIds.map(id => {
     const c = clientMap[id]
     if (!c) return null
     return buildAgentRunningKey(c.process, c.eqpModel, id)
   })
 
-  // null 키는 빈 결과로 처리
-  const validKeys = keys.filter(k => k !== null)
+  // null 키 제거하여 유효 키만 모아서 한 번에 mget
+  const validHealthKeys = healthKeys.filter(k => k !== null)
+  const validRunningKeys = runningKeys.filter(k => k !== null)
+  const validKeys = [...validHealthKeys, ...validRunningKeys]
 
   let values = []
   if (validKeys.length > 0) {
     values = await redis.mget(...validKeys)
   }
 
+  // 결과 분리: health values, running values
+  const healthValues = values.slice(0, validHealthKeys.length)
+  const runningValues = values.slice(validHealthKeys.length)
+
   // 결과 매핑
   const result = {}
-  let valueIdx = 0
+  let healthIdx = 0
+  let runningIdx = 0
   for (let i = 0; i < eqpIds.length; i++) {
     const eqpId = eqpIds[i]
-    if (keys[i] === null) {
+    if (healthKeys[i] === null) {
       result[eqpId] = { alive: false, uptimeSeconds: null, health: null, uptimeFormatted: null }
       continue
     }
-    const parsed = parseAliveValue(values[valueIdx++])
+    const healthValue = healthValues[healthIdx++]
+    const runningValue = runningValues[runningIdx++]
+    // AgentHealth 우선, 없으면 AgentRunning fallback
+    const rawValue = (healthValue !== null && healthValue !== undefined) ? healthValue : runningValue
+    const parsed = parseAliveValue(rawValue)
     result[eqpId] = {
       ...parsed,
       uptimeFormatted: formatUptime(parsed.uptimeSeconds),
@@ -121,6 +141,7 @@ async function getBatchAliveStatus(eqpIds) {
 
 module.exports = {
   buildAgentRunningKey,
+  buildAgentHealthKey,
   parseAliveValue,
   formatUptime,
   getBatchAliveStatus,
