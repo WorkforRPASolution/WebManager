@@ -298,7 +298,7 @@ Windows Server 직접 배포 대신 **Docker 이미지 → Kubernetes (CentOS 7,
 ```
 [ Windows PC ]
   git pull
-  → ./scripts/build-package.sh
+  → .\scripts\build-package.ps1  (또는 Git Bash: ./scripts/build-package.sh)
   → WebManager-YYYY-MM-DD.zip
   → FTP로 Linux PC에 업로드
 
@@ -316,6 +316,15 @@ Windows Server 직접 배포 대신 **Docker 이미지 → Kubernetes (CentOS 7,
 
 ### 1. 소스 패키징 (Windows PC)
 
+**PowerShell** (권장):
+```powershell
+cd WebManager
+.\scripts\build-package.ps1
+```
+
+> PowerShell 실행 정책 오류 시: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` 후 재실행
+
+**Git Bash** (대안):
 ```bash
 cd WebManager
 ./scripts/build-package.sh
@@ -361,8 +370,9 @@ kubectl get svc webmanager
 ### 5. 업데이트 배포
 
 ```bash
-# 1. Windows PC: 소스 패키징
-./scripts/build-package.sh
+# 1. Windows PC: 소스 패키징 (PowerShell 또는 Git Bash)
+.\scripts\build-package.ps1    # PowerShell
+# ./scripts/build-package.sh   # Git Bash
 
 # 2. Linux PC: 이미지 빌드 (server/package.json 버전 올린 후)
 ./scripts/build-image.sh [--proxy ...]
