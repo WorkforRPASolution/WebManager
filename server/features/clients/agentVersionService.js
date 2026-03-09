@@ -26,6 +26,18 @@ function parseAgentMetaInfoVersion(value) {
   return colonIndex === -1 ? value : value.substring(0, colonIndex)
 }
 
+function groupByKey(targets, keyBuilder) {
+  const groups = new Map()
+  for (const t of targets) {
+    const key = keyBuilder(t.process, t.eqpModel)
+    if (!groups.has(key)) {
+      groups.set(key, [])
+    }
+    groups.get(key).push(t.eqpId)
+  }
+  return groups
+}
+
 async function getBatchAgentVersions(eqpIds) {
   if (!eqpIds || eqpIds.length === 0) return {}
 
@@ -66,26 +78,36 @@ async function getBatchAgentVersions(eqpIds) {
   const redis = getClient()
   const totalTargets = arsRedisTargets.length + resRedisTargets.length
   if (redis && totalTargets > 0) {
+    const arsGroups = groupByKey(arsRedisTargets, buildAgentMetaInfoKey)
+    const resGroups = groupByKey(resRedisTargets, buildResourceAgentMetaInfoKey)
+
     const pipeline = redis.pipeline()
-    for (const t of arsRedisTargets) {
-      pipeline.hget(buildAgentMetaInfoKey(t.process, t.eqpModel), t.eqpId)
+    const pipelineEntries = []
+
+    for (const [key, eqpIds] of arsGroups) {
+      pipeline.hmget(key, ...eqpIds)
+      pipelineEntries.push({ type: 'ars', eqpIds })
     }
-    for (const t of resRedisTargets) {
-      pipeline.hget(buildResourceAgentMetaInfoKey(t.process, t.eqpModel), t.eqpId)
+    for (const [key, eqpIds] of resGroups) {
+      pipeline.hmget(key, ...eqpIds)
+      pipelineEntries.push({ type: 'res', eqpIds })
     }
+
     const responses = await pipeline.exec()
 
-    for (let i = 0; i < arsRedisTargets.length; i++) {
-      const [err, value] = responses[i]
-      if (!err && value) {
-        result[arsRedisTargets[i].eqpId].arsAgent = parseAgentMetaInfoVersion(value)
-      }
-    }
-    const offset = arsRedisTargets.length
-    for (let i = 0; i < resRedisTargets.length; i++) {
-      const [err, value] = responses[offset + i]
-      if (!err && value) {
-        result[resRedisTargets[i].eqpId].resourceAgent = parseAgentMetaInfoVersion(value)
+    for (let i = 0; i < pipelineEntries.length; i++) {
+      const [err, values] = responses[i]
+      if (err) continue
+      const entry = pipelineEntries[i]
+      for (let j = 0; j < entry.eqpIds.length; j++) {
+        const value = values[j]
+        if (!value) continue
+        const eqpId = entry.eqpIds[j]
+        if (entry.type === 'ars') {
+          result[eqpId].arsAgent = parseAgentMetaInfoVersion(value)
+        } else {
+          result[eqpId].resourceAgent = parseAgentMetaInfoVersion(value)
+        }
       }
     }
   }
