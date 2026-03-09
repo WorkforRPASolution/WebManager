@@ -1,0 +1,13 @@
+node_modules
+client/node_modules
+.git
+.gitignore
+*.md
+docs/
+UI-refer/
+server/.env
+server/.env.example
+server/uploads/
+scripts/
+**/*.zip
+**/*.tar
