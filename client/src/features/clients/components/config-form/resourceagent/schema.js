@@ -184,10 +184,6 @@ export const RESOURCEAGENT_SCHEMA = {
     'Redis.Password': {
       type: 'password', label: 'Redis 비밀번호', default: '',
       description: 'Redis 비밀번호입니다. 비어있으면 내부 기본값을 사용합니다.'
-    },
-    'Redis.DB': {
-      type: 'number', label: 'Redis DB', default: 10,
-      description: 'Redis DB 번호(0~15)입니다.'
     }
   },
 
@@ -215,7 +211,7 @@ export const RESOURCEAGENT_SCHEMA = {
     },
     { name: '네트워크/검색', fields: ['VirtualAddressList', 'ServiceDiscoveryPort', 'ResourceMonitorTopic', 'TimeDiffSyncInterval'] },
     { name: 'SOCKS Proxy', fields: ['SocksProxy.Host', 'SocksProxy.Port', 'PrivateIPAddressPattern'] },
-    { name: 'Redis', fields: ['Redis.Port', 'Redis.Password', 'Redis.DB'] }
+    { name: 'Redis', fields: ['Redis.Port', 'Redis.Password'] }
   ]
 }
 

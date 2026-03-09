@@ -57,10 +57,8 @@ export function describeResourceAgent(config) {
 
   // Redis
   const redis = config.Redis
-  if (redis && (redis.Port || redis.DB !== undefined)) {
-    const port = redis.Port || 6379
-    const db = redis.DB !== undefined ? redis.DB : 10
-    lines.push(`Redis: 포트 ${port}, DB ${db}`)
+  if (redis && redis.Port) {
+    lines.push(`Redis: 포트 ${redis.Port}`)
   }
 
   // SOCKS Proxy
