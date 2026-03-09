@@ -158,8 +158,7 @@ export function useConfigManager() {
         error: null,
         loaded: true
       }
-      // TODO: RPC로 실제 버전 조회 (현재 mock)
-      agentVersions.value[eqpId] = '6.8.5.24'
+      // agentVersion은 openConfig 시 alive status에서 초기화됨
     } catch (err) {
       clientCache.value[eqpId] = {
         ...clientCache.value[eqpId],
@@ -180,7 +179,7 @@ export function useConfigManager() {
     showRollout.value = false
     activeFileId.value = null
 
-    // Initialize cache entries
+    // Initialize cache entries + populate version from alive status data
     clientCache.value = {}
     for (const c of clientList) {
       const id = c.eqpId || c.id
@@ -192,6 +191,7 @@ export function useConfigManager() {
         error: null,
         loaded: false
       }
+      agentVersions.value[id] = c.agentVersion?.arsAgent || ''
     }
 
     try {

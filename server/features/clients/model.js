@@ -23,7 +23,10 @@ const clientSchema = new Schema({
     socks: { type: Number },
   },
   basePath: { type: String },
-  agentVersion: { type: String },
+  agentVersion: {
+    arsAgent: { type: String },
+    resourceAgent: { type: String },
+  },
   localpc: { type: Number, required: true },
   emailcategory: { type: String, required: true },
   osVer: { type: String, required: true },

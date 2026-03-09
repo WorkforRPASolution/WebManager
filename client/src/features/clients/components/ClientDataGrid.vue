@@ -237,6 +237,22 @@ const uptimeCellRenderer = (params) => {
   </span>`
 }
 
+// Agent Version Cell Renderer
+const versionCellRenderer = (params) => {
+  const version = params.value
+  if (!version) return '<span class="text-gray-400 dark:text-gray-500">&#8213;</span>'
+
+  const lines = []
+  if (version.arsAgent) {
+    lines.push(`<span class="text-blue-600 dark:text-blue-400 font-medium">ARS</span> ${version.arsAgent}`)
+  }
+  if (version.resourceAgent) {
+    lines.push(`<span class="text-teal-600 dark:text-teal-400 font-medium">RES</span> ${version.resourceAgent}`)
+  }
+  if (lines.length === 0) return '<span class="text-gray-400 dark:text-gray-500">&#8213;</span>'
+  return `<div class="leading-tight text-xs font-mono">${lines.join('<br>')}</div>`
+}
+
 // Clickable EqpId Cell Renderer
 const eqpIdCellRenderer = (params) => {
   return `<span class="text-primary-600 dark:text-primary-400 hover:underline cursor-pointer font-medium">${params.value || ''}</span>`
@@ -288,6 +304,14 @@ const columnDefs = ref([
   { field: 'eqpModel', headerName: 'Model', width: 180, sortable: true, filter: true },
   { field: 'category', headerName: 'Category', width: 110, sortable: true, filter: true },
   { field: 'osVersion', headerName: 'OS Version', width: 100, sortable: true, filter: true },
+  {
+    field: 'agentVersion',
+    headerName: 'Version',
+    width: 130,
+    cellRenderer: versionCellRenderer,
+    sortable: false,
+    filter: false,
+  },
   {
     field: 'status',
     headerName: 'OnOff',

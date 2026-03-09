@@ -80,10 +80,12 @@ const {
 const clientsWithStatus = computed(() => {
   return clients.value.map(client => {
     const eqpId = client.eqpId || client.id
+    const alive = aliveStatuses.value[eqpId] || null
     return {
       ...client,
       serviceStatus: serviceStatuses.value[eqpId] || null,
-      aliveStatus: aliveStatuses.value[eqpId] || null,
+      aliveStatus: alive,
+      agentVersion: alive?.agentVersion || null,
     }
   })
 })
@@ -308,9 +310,9 @@ const handleConfig = async () => {
     return
   }
 
-  // Pass all selected clients
+  // Pass all selected clients (with agentVersion from alive status)
   const selectedClientData = selectedIds.value
-    .map(id => clients.value.find(c => (c.eqpId || c.id) === id))
+    .map(id => clientsWithStatus.value.find(c => (c.eqpId || c.id) === id))
     .filter(Boolean)
 
   if (selectedClientData.length === 0) {
