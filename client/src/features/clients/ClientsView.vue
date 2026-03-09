@@ -85,7 +85,9 @@ const clientsWithStatus = computed(() => {
       ...client,
       serviceStatus: serviceStatuses.value[eqpId] || null,
       aliveStatus: alive,
-      agentVersion: alive?.agentVersion || null,
+      agentVersion: agentGroup.value === 'resource_agent'
+        ? (alive?.agentVersion?.resourceAgent || null)
+        : (alive?.agentVersion?.arsAgent || null),
     }
   })
 })

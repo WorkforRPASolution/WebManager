@@ -241,16 +241,7 @@ const uptimeCellRenderer = (params) => {
 const versionCellRenderer = (params) => {
   const version = params.value
   if (!version) return '<span class="text-gray-400 dark:text-gray-500">&#8213;</span>'
-
-  const lines = []
-  if (version.arsAgent) {
-    lines.push(`<span class="text-blue-600 dark:text-blue-400 font-medium">ARS</span> ${version.arsAgent}`)
-  }
-  if (version.resourceAgent) {
-    lines.push(`<span class="text-teal-600 dark:text-teal-400 font-medium">RES</span> ${version.resourceAgent}`)
-  }
-  if (lines.length === 0) return '<span class="text-gray-400 dark:text-gray-500">&#8213;</span>'
-  return `<div class="leading-tight text-xs font-mono">${lines.join('<br>')}</div>`
+  return `<span class="text-xs font-mono">${version}</span>`
 }
 
 // Clickable EqpId Cell Renderer
@@ -307,7 +298,7 @@ const columnDefs = ref([
   {
     field: 'agentVersion',
     headerName: 'Version',
-    width: 130,
+    width: 110,
     cellRenderer: versionCellRenderer,
     sortable: false,
     filter: false,

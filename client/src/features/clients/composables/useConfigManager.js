@@ -191,7 +191,7 @@ export function useConfigManager() {
         error: null,
         loaded: false
       }
-      agentVersions.value[id] = c.agentVersion?.arsAgent || ''
+      agentVersions.value[id] = c.agentVersion || ''
     }
 
     try {
