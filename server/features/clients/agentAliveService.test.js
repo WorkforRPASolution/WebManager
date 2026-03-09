@@ -18,9 +18,14 @@ describe('buildAgentRunningKey', () => {
 
 // --- buildAgentHealthKey ---
 describe('buildAgentHealthKey', () => {
-  it('creates key in format AgentHealth:process-model-eqpId', () => {
-    expect(buildAgentHealthKey('ARS', 'M1', 'EQP01'))
-      .toBe('AgentHealth:ARS-M1-EQP01')
+  it('creates key in format AgentHealth:agentGroup:process-model-eqpId', () => {
+    expect(buildAgentHealthKey('ars_agent', 'ARS', 'M1', 'EQP01'))
+      .toBe('AgentHealth:ars_agent:ARS-M1-EQP01')
+  })
+
+  it('creates key with resource_agent agentGroup', () => {
+    expect(buildAgentHealthKey('resource_agent', 'ARS', 'M1', 'EQP01'))
+      .toBe('AgentHealth:resource_agent:ARS-M1-EQP01')
   })
 })
 
@@ -105,12 +110,12 @@ describe('getBatchAliveStatus', () => {
 
   it('returns redisUnavailable when redis is null', async () => {
     _setDeps({ redisClient: null, ClientModel: mockClientModel })
-    const result = await getBatchAliveStatus(['EQP01'])
+    const result = await getBatchAliveStatus(['EQP01'], 'ars_agent')
     expect(result.EQP01.alive).toBeNull()
     expect(result.EQP01.redisUnavailable).toBe(true)
   })
 
-  it('maps eqpIds to alive statuses via mget (both health and running keys)', async () => {
+  it('ars_agent: queries both AgentHealth and AgentRunning keys', async () => {
     mockClientModel.find.mockReturnValue({
       select: vi.fn().mockReturnValue({
         lean: vi.fn().mockResolvedValue([
@@ -120,14 +125,14 @@ describe('getBatchAliveStatus', () => {
       })
     })
     // mget returns: [health1, health2, running1, running2]
-    // AgentHealth keys return null (no ResourceAgent), AgentRunning keys have values
+    // AgentHealth keys return null, AgentRunning keys have values
     mockRedis.mget.mockResolvedValue([null, null, '3600', null])
 
-    const result = await getBatchAliveStatus(['EQP01', 'EQP02'])
+    const result = await getBatchAliveStatus(['EQP01', 'EQP02'], 'ars_agent')
 
     expect(mockRedis.mget).toHaveBeenCalledWith(
-      'AgentHealth:ARS-M1-EQP01',
-      'AgentHealth:ARS-M2-EQP02',
+      'AgentHealth:ars_agent:ARS-M1-EQP01',
+      'AgentHealth:ars_agent:ARS-M2-EQP02',
       'AgentRunning:ARS-M1-EQP01',
       'AgentRunning:ARS-M2-EQP02'
     )
@@ -137,7 +142,7 @@ describe('getBatchAliveStatus', () => {
     expect(result.EQP02.alive).toBe(false)
   })
 
-  it('uses AgentHealth value when only AgentHealth key exists (ResourceAgent)', async () => {
+  it('ars_agent: uses AgentHealth value when present', async () => {
     mockClientModel.find.mockReturnValue({
       select: vi.fn().mockReturnValue({
         lean: vi.fn().mockResolvedValue([
@@ -148,14 +153,14 @@ describe('getBatchAliveStatus', () => {
     // AgentHealth has value, AgentRunning is null
     mockRedis.mget.mockResolvedValue(['OK:7200', null])
 
-    const result = await getBatchAliveStatus(['EQP01'])
+    const result = await getBatchAliveStatus(['EQP01'], 'ars_agent')
 
     expect(result.EQP01.alive).toBe(true)
     expect(result.EQP01.uptimeSeconds).toBe(7200)
     expect(result.EQP01.health).toBe('OK')
   })
 
-  it('falls back to AgentRunning when AgentHealth key is absent (legacy ARSAgent)', async () => {
+  it('ars_agent: falls back to AgentRunning when AgentHealth is absent', async () => {
     mockClientModel.find.mockReturnValue({
       select: vi.fn().mockReturnValue({
         lean: vi.fn().mockResolvedValue([
@@ -166,14 +171,14 @@ describe('getBatchAliveStatus', () => {
     // AgentHealth is null, AgentRunning has value
     mockRedis.mget.mockResolvedValue([null, '3600'])
 
-    const result = await getBatchAliveStatus(['EQP01'])
+    const result = await getBatchAliveStatus(['EQP01'], 'ars_agent')
 
     expect(result.EQP01.alive).toBe(true)
     expect(result.EQP01.uptimeSeconds).toBe(3600)
     expect(result.EQP01.health).toBe('OK')
   })
 
-  it('prefers AgentHealth over AgentRunning when both exist', async () => {
+  it('ars_agent: prefers AgentHealth over AgentRunning when both exist', async () => {
     mockClientModel.find.mockReturnValue({
       select: vi.fn().mockReturnValue({
         lean: vi.fn().mockResolvedValue([
@@ -184,7 +189,7 @@ describe('getBatchAliveStatus', () => {
     // Both have values: AgentHealth='WARN:1800:high_cpu', AgentRunning='3600'
     mockRedis.mget.mockResolvedValue(['WARN:1800:high_cpu', '3600'])
 
-    const result = await getBatchAliveStatus(['EQP01'])
+    const result = await getBatchAliveStatus(['EQP01'], 'ars_agent')
 
     expect(result.EQP01.alive).toBe(true)
     expect(result.EQP01.uptimeSeconds).toBe(1800)
@@ -192,8 +197,48 @@ describe('getBatchAliveStatus', () => {
     expect(result.EQP01.reason).toBe('high_cpu')
   })
 
+  it('resource_agent: queries only AgentHealth keys, no AgentRunning fallback', async () => {
+    mockClientModel.find.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([
+          { eqpId: 'EQP01', process: 'ARS', eqpModel: 'M1' },
+          { eqpId: 'EQP02', process: 'ARS', eqpModel: 'M2' },
+        ])
+      })
+    })
+    // mget returns only health values (no running keys queried)
+    mockRedis.mget.mockResolvedValue(['OK:3600', null])
+
+    const result = await getBatchAliveStatus(['EQP01', 'EQP02'], 'resource_agent')
+
+    // Should NOT include AgentRunning keys
+    expect(mockRedis.mget).toHaveBeenCalledWith(
+      'AgentHealth:resource_agent:ARS-M1-EQP01',
+      'AgentHealth:resource_agent:ARS-M2-EQP02'
+    )
+    expect(result.EQP01.alive).toBe(true)
+    expect(result.EQP01.uptimeSeconds).toBe(3600)
+    expect(result.EQP02.alive).toBe(false)
+  })
+
+  it('resource_agent: does not fall back to AgentRunning', async () => {
+    mockClientModel.find.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([
+          { eqpId: 'EQP01', process: 'ARS', eqpModel: 'M1' },
+        ])
+      })
+    })
+    // AgentHealth is null — no fallback should happen
+    mockRedis.mget.mockResolvedValue([null])
+
+    const result = await getBatchAliveStatus(['EQP01'], 'resource_agent')
+
+    expect(result.EQP01.alive).toBe(false)
+  })
+
   it('handles empty eqpIds array', async () => {
-    const result = await getBatchAliveStatus([])
+    const result = await getBatchAliveStatus([], 'ars_agent')
     expect(result).toEqual({})
   })
 })

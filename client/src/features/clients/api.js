@@ -129,5 +129,5 @@ export const configTestApi = {
 
 // Agent Alive Status API (Redis-based)
 export const aliveApi = {
-  getBatchStatus: (eqpIds) => api.post('/clients/alive-status', { eqpIds }),
+  getBatchStatus: (eqpIds, agentGroup) => api.post('/clients/alive-status', { eqpIds, agentGroup }),
 }

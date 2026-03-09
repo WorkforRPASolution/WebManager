@@ -397,7 +397,7 @@ async function handleBatchActionStream(req, res) {
     if (!sse.isAborted()) {
       try {
         const [aliveStatuses, agentVersions] = await Promise.all([
-          getBatchAliveStatus(eqpIds),
+          getBatchAliveStatus(eqpIds, agentGroup),
           getBatchAgentVersions(eqpIds),
         ])
         for (const eqpId of Object.keys(aliveStatuses)) {
@@ -421,14 +421,14 @@ async function handleBatchActionStream(req, res) {
  * Batch alive status + agent version query (Redis, no RPC)
  */
 async function getBatchAliveStatusHandler(req, res) {
-  const { eqpIds } = req.body
+  const { eqpIds, agentGroup } = req.body
 
   if (!eqpIds || !Array.isArray(eqpIds) || eqpIds.length === 0) {
     throw ApiError.badRequest('eqpIds array is required')
   }
 
   const [statuses, versions] = await Promise.all([
-    getBatchAliveStatus(eqpIds),
+    getBatchAliveStatus(eqpIds, agentGroup),
     getBatchAgentVersions(eqpIds),
   ])
 

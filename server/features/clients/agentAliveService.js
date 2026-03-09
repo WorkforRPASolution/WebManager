@@ -16,8 +16,8 @@ function buildAgentRunningKey(process, eqpModel, eqpId) {
   return `AgentRunning:${process}-${eqpModel}-${eqpId}`
 }
 
-function buildAgentHealthKey(process, eqpModel, eqpId) {
-  return `AgentHealth:${process}-${eqpModel}-${eqpId}`
+function buildAgentHealthKey(agentGroup, process, eqpModel, eqpId) {
+  return `AgentHealth:${agentGroup}:${process}-${eqpModel}-${eqpId}`
 }
 
 function parseAliveValue(value) {
@@ -66,8 +66,11 @@ function formatUptime(seconds) {
   return `${days}d ${hrs}h`
 }
 
-async function getBatchAliveStatus(eqpIds) {
+async function getBatchAliveStatus(eqpIds, agentGroup) {
   if (!eqpIds || eqpIds.length === 0) return {}
+
+  const effectiveGroup = agentGroup || 'ars_agent'
+  const needRunningFallback = effectiveGroup !== 'resource_agent'
 
   const redis = getClient()
   if (!redis) {
@@ -89,21 +92,25 @@ async function getBatchAliveStatus(eqpIds) {
     clientMap[c.eqpId] = c
   }
 
-  // Redis 키 생성: AgentHealth 키 + AgentRunning 키
+  // Redis 키 생성: AgentHealth 키 (agentGroup 포함)
   const healthKeys = eqpIds.map(id => {
     const c = clientMap[id]
     if (!c) return null
-    return buildAgentHealthKey(c.process, c.eqpModel, id)
+    return buildAgentHealthKey(effectiveGroup, c.process, c.eqpModel, id)
   })
-  const runningKeys = eqpIds.map(id => {
-    const c = clientMap[id]
-    if (!c) return null
-    return buildAgentRunningKey(c.process, c.eqpModel, id)
-  })
+
+  // ars_agent일 때만 AgentRunning fallback 키 생성
+  const runningKeys = needRunningFallback
+    ? eqpIds.map(id => {
+        const c = clientMap[id]
+        if (!c) return null
+        return buildAgentRunningKey(c.process, c.eqpModel, id)
+      })
+    : eqpIds.map(() => null)
 
   // null 키 제거하여 유효 키만 모아서 한 번에 mget
   const validHealthKeys = healthKeys.filter(k => k !== null)
-  const validRunningKeys = runningKeys.filter(k => k !== null)
+  const validRunningKeys = needRunningFallback ? runningKeys.filter(k => k !== null) : []
   const validKeys = [...validHealthKeys, ...validRunningKeys]
 
   let values = []
@@ -113,7 +120,7 @@ async function getBatchAliveStatus(eqpIds) {
 
   // 결과 분리: health values, running values
   const healthValues = values.slice(0, validHealthKeys.length)
-  const runningValues = values.slice(validHealthKeys.length)
+  const runningValues = needRunningFallback ? values.slice(validHealthKeys.length) : []
 
   // 결과 매핑
   const result = {}
@@ -126,9 +133,14 @@ async function getBatchAliveStatus(eqpIds) {
       continue
     }
     const healthValue = healthValues[healthIdx++]
-    const runningValue = runningValues[runningIdx++]
-    // AgentHealth 우선, 없으면 AgentRunning fallback
-    const rawValue = (healthValue !== null && healthValue !== undefined) ? healthValue : runningValue
+    let rawValue = healthValue
+    // AgentHealth 우선, ars_agent일 때만 AgentRunning fallback
+    if (needRunningFallback) {
+      const runningValue = runningValues[runningIdx++]
+      if (rawValue === null || rawValue === undefined) {
+        rawValue = runningValue
+      }
+    }
     const parsed = parseAliveValue(rawValue)
     result[eqpId] = {
       ...parsed,
