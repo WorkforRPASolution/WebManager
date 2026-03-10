@@ -1,4 +1,4 @@
-const { getRedisClient } = require('../../shared/db/redisConnection')
+const { getRedisClient, isRedisAvailable } = require('../../shared/db/redisConnection')
 const Client = require('./model')
 
 // Test DI
@@ -7,6 +7,10 @@ function _setDeps(d) { deps = d }
 
 function getClient() {
   return deps.redisClient !== undefined ? deps.redisClient : getRedisClient()
+}
+function isAvailable() {
+  if (deps.isRedisAvailable !== undefined) return deps.isRedisAvailable
+  return isRedisAvailable()
 }
 function getModel() {
   return deps.ClientModel || Client
@@ -75,9 +79,9 @@ async function getBatchAgentVersions(eqpIds) {
     }
   }
 
-  const redis = getClient()
   const totalTargets = arsRedisTargets.length + resRedisTargets.length
-  if (redis && totalTargets > 0) {
+  if (isAvailable() && totalTargets > 0) {
+    const redis = getClient()
     const arsGroups = groupByKey(arsRedisTargets, buildAgentMetaInfoKey)
     const resGroups = groupByKey(resRedisTargets, buildResourceAgentMetaInfoKey)
 

@@ -1,4 +1,4 @@
-const { getRedisClient } = require('../../shared/db/redisConnection')
+const { getRedisClient, isRedisAvailable } = require('../../shared/db/redisConnection')
 const Client = require('./model')
 
 // Test DI
@@ -7,6 +7,10 @@ function _setDeps(d) { deps = d }
 
 function getClient() {
   return deps.redisClient !== undefined ? deps.redisClient : getRedisClient()
+}
+function isAvailable() {
+  if (deps.isRedisAvailable !== undefined) return deps.isRedisAvailable
+  return isRedisAvailable()
 }
 function getModel() {
   return deps.ClientModel || Client
@@ -72,14 +76,15 @@ async function getBatchAliveStatus(eqpIds, agentGroup) {
   const effectiveGroup = agentGroup || 'ars_agent'
   const needRunningFallback = effectiveGroup !== 'resource_agent'
 
-  const redis = getClient()
-  if (!redis) {
+  if (!isAvailable()) {
     const result = {}
     for (const id of eqpIds) {
       result[id] = { alive: null, redisUnavailable: true }
     }
     return result
   }
+
+  const redis = getClient()
 
   // MongoDB에서 process, eqpModel 조회
   const ClientModel = getModel()

@@ -105,11 +105,22 @@ describe('getBatchAliveStatus', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    _setDeps({ redisClient: mockRedis, ClientModel: mockClientModel })
+    _setDeps({ redisClient: mockRedis, isRedisAvailable: true, ClientModel: mockClientModel })
   })
 
   it('returns redisUnavailable when redis is null', async () => {
-    _setDeps({ redisClient: null, ClientModel: mockClientModel })
+    _setDeps({ redisClient: null, isRedisAvailable: false, ClientModel: mockClientModel })
+    const result = await getBatchAliveStatus(['EQP01'], 'ars_agent')
+    expect(result.EQP01.alive).toBeNull()
+    expect(result.EQP01.redisUnavailable).toBe(true)
+  })
+
+  it('returns redisUnavailable when redis exists but isRedisAvailable is false', async () => {
+    _setDeps({
+      redisClient: { status: 'connecting' },
+      isRedisAvailable: false,
+      ClientModel: mockClientModel,
+    })
     const result = await getBatchAliveStatus(['EQP01'], 'ars_agent')
     expect(result.EQP01.alive).toBeNull()
     expect(result.EQP01.redisUnavailable).toBe(true)

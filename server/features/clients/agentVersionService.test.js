@@ -68,7 +68,7 @@ describe('getBatchAgentVersions', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    _setDeps({ redisClient: mockRedisClient, ClientModel: mockClientModel })
+    _setDeps({ redisClient: mockRedisClient, isRedisAvailable: true, ClientModel: mockClientModel })
   })
 
   it('returns version from MongoDB when agentVersion.arsAgent exists (still queries Redis for resourceAgent)', async () => {
@@ -142,7 +142,23 @@ describe('getBatchAgentVersions', () => {
   })
 
   it('handles redisClient unavailable gracefully', async () => {
-    _setDeps({ redisClient: null, ClientModel: mockClientModel })
+    _setDeps({ redisClient: null, isRedisAvailable: false, ClientModel: mockClientModel })
+    setupMockFind([
+      { eqpId: 'EQP01', process: 'ARS', eqpModel: 'M1' },
+    ])
+
+    const result = await getBatchAgentVersions(['EQP01'])
+
+    expect(result.EQP01.arsAgent).toBeNull()
+    expect(result.EQP01.resourceAgent).toBeNull()
+  })
+
+  it('skips Redis when redis exists but isRedisAvailable is false', async () => {
+    _setDeps({
+      redisClient: { status: 'connecting' },
+      isRedisAvailable: false,
+      ClientModel: mockClientModel,
+    })
     setupMockFind([
       { eqpId: 'EQP01', process: 'ARS', eqpModel: 'M1' },
     ])
