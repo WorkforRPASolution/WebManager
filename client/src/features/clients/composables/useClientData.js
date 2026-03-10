@@ -15,7 +15,7 @@ export function useClientData() {
   const pageSize = ref(25)
   const currentFilters = ref({})
 
-  // Control/Update/Config operation state
+  // Operation state (used by toolbar to disable buttons during async ops)
   const operating = ref(false)
 
   const hasSelection = computed(() => selectedIds.value.length > 0)
@@ -70,49 +70,6 @@ export function useClientData() {
     selectedIds.value = []
   }
 
-  // Control Actions (Mock for Phase 2, Akka in Phase 3)
-  const controlClients = async (action) => {
-    if (selectedIds.value.length === 0) return { success: false, message: 'No clients selected' }
-
-    operating.value = true
-    try {
-      const response = await clientListApi.controlClients(selectedIds.value, action)
-      return { success: true, ...response.data }
-    } catch (err) {
-      return { success: false, message: err.response?.data?.error || `Failed to ${action} clients` }
-    } finally {
-      operating.value = false
-    }
-  }
-
-  const updateClients = async (version) => {
-    if (selectedIds.value.length === 0) return { success: false, message: 'No clients selected' }
-
-    operating.value = true
-    try {
-      const response = await clientListApi.updateClients(selectedIds.value, version)
-      return { success: true, ...response.data }
-    } catch (err) {
-      return { success: false, message: err.response?.data?.error || 'Failed to update clients' }
-    } finally {
-      operating.value = false
-    }
-  }
-
-  const configClients = async (settings) => {
-    if (selectedIds.value.length === 0) return { success: false, message: 'No clients selected' }
-
-    operating.value = true
-    try {
-      const response = await clientListApi.configClients(selectedIds.value, settings)
-      return { success: true, ...response.data }
-    } catch (err) {
-      return { success: false, message: err.response?.data?.error || 'Failed to configure clients' }
-    } finally {
-      operating.value = false
-    }
-  }
-
   // Reset all data (for Clear button)
   const resetAllData = () => {
     clients.value = []
@@ -148,9 +105,5 @@ export function useClientData() {
     clearSelection,
     resetAllData,
 
-    // Control operations
-    controlClients,
-    updateClients,
-    configClients,
   }
 }

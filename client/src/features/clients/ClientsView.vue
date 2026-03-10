@@ -71,9 +71,6 @@ const {
   refreshCurrentPage,
   setSelectedIds,
   resetAllData,
-  controlClients,
-  updateClients,
-  configClients,
 } = useClientData()
 
 // Computed: merge clients with service statuses
