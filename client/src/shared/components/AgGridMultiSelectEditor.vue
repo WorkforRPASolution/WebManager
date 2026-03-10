@@ -89,6 +89,7 @@ function toggleOption(option) {
   } else {
     selectedValues.value.splice(index, 1)
   }
+  nextTick(() => searchInputRef.value?.focus())
 }
 
 function toggleAll() {
@@ -97,6 +98,7 @@ function toggleAll() {
   } else {
     selectedValues.value = [...filteredOptions.value]
   }
+  nextTick(() => searchInputRef.value?.focus())
 }
 
 function handleKeyDown(event) {
@@ -105,6 +107,8 @@ function handleKeyDown(event) {
     event.preventDefault()
     if (allowCustomInput.value && searchQuery.value) {
       addNewValue()
+      confirmed.value = true
+      props.params.stopEditing()
     } else {
       confirmed.value = true
       props.params.stopEditing()

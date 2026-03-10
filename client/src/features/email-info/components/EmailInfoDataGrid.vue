@@ -246,7 +246,10 @@ const columnDefs = computed(() => [
       fetchModels: fetchModelsForCategory,
       prefix: 'EMAIL-'
     },
-    cellEditorPopup: true
+    cellEditorPopup: true,
+    suppressKeyboardEvent: (params) => {
+      return params.editing && (params.event.key === 'Enter' || params.event.key === 'Escape')
+    }
   },
   {
     field: 'account',
@@ -260,7 +263,10 @@ const columnDefs = computed(() => [
     cellEditorParams: {
       placeholder: 'Enter email and press Enter...'
     },
-    cellEditorPopup: true
+    cellEditorPopup: true,
+    suppressKeyboardEvent: (params) => {
+      return params.editing && (params.event.key === 'Enter' || params.event.key === 'Escape')
+    }
   },
   {
     field: 'departments',
@@ -274,7 +280,10 @@ const columnDefs = computed(() => [
     cellEditorParams: {
       placeholder: 'Enter department and press Enter...'
     },
-    cellEditorPopup: true
+    cellEditorPopup: true,
+    suppressKeyboardEvent: (params) => {
+      return params.editing && (params.event.key === 'Enter' || params.event.key === 'Escape')
+    }
   }
 ])
 

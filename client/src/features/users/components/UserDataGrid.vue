@@ -231,6 +231,10 @@ const columnDefs = ref([
       allowCustomInput: true  // Allow adding custom values (A-Z, _ only)
     }),
     cellEditorPopup: true,
+    // AG Grid가 Enter/Escape를 가로채지 않도록 에디터에 위임
+    suppressKeyboardEvent: (params) => {
+      return params.editing && (params.event.key === 'Enter' || params.event.key === 'Escape')
+    },
     // Handle array value from editor
     valueSetter: (params) => {
       const newValue = params.newValue

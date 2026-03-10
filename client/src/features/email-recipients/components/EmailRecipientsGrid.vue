@@ -244,7 +244,10 @@ const columnDefs = computed(() => [
     cellEditorParams: hasMasterAccess.value
       ? { fieldType: 'process', fetchOptions: fetchAllProcesses }
       : { fieldType: 'process', options: userProcesses.value },
-    cellEditorPopup: true
+    cellEditorPopup: true,
+    suppressKeyboardEvent: (params) => {
+      return params.editing && (params.event.key === 'Enter' || params.event.key === 'Escape')
+    }
   },
   {
     field: 'model',
@@ -258,7 +261,10 @@ const columnDefs = computed(() => [
         ? () => fetchAllModels(params.data?.process)
         : () => fetchModelsForProcess(params.data?.process)
     }),
-    cellEditorPopup: true
+    cellEditorPopup: true,
+    suppressKeyboardEvent: (params) => {
+      return params.editing && (params.event.key === 'Enter' || params.event.key === 'Escape')
+    }
   },
   { field: 'code', headerName: 'Code', width: 180, editable: true },
   {
@@ -270,7 +276,10 @@ const columnDefs = computed(() => [
     cellEditorParams: {
       fetchCategories: fetchEmailCategories
     },
-    cellEditorPopup: true
+    cellEditorPopup: true,
+    suppressKeyboardEvent: (params) => {
+      return params.editing && (params.event.key === 'Enter' || params.event.key === 'Escape')
+    }
   }
 ])
 

@@ -50,6 +50,7 @@ const addTag = () => {
 // Remove tag by index
 const removeTag = (index) => {
   tags.value.splice(index, 1)
+  nextTick(() => inputRef.value?.focus())
 }
 
 // Handle backspace when input is empty
