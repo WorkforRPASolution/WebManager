@@ -8,6 +8,7 @@ const { getAliveStatusWithVersions } = require('./aliveStatusHelper')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 const strategyRegistry = require('./strategies')
 const { setupSSE } = require('../../shared/utils/sseHelper')
+const { parseCommaSeparated } = require('../../shared/utils/parseUtils')
 
 // ============================================
 // Filter & List Controllers
@@ -26,10 +27,7 @@ async function getProcesses(req, res) {
  */
 async function getModels(req, res) {
   const { process, userProcesses } = req.query
-  // Parse userProcesses parameter (comma-separated string → array)
-  const userProcessesArray = userProcesses
-    ? userProcesses.split(',').map(p => p.trim()).filter(p => p)
-    : null
+  const userProcessesArray = parseCommaSeparated(userProcesses)
   const models = await service.getModels(process, userProcessesArray)
   res.json(models)
 }
@@ -48,10 +46,7 @@ async function getClients(req, res) {
  */
 async function getClientsList(req, res) {
   const { process, model, status, eqpIdSearch, ipSearch, page, pageSize, userProcesses } = req.query
-  // Parse userProcesses parameter (comma-separated string → array)
-  const userProcessesArray = userProcesses
-    ? userProcesses.split(',').map(p => p.trim()).filter(p => p)
-    : null
+  const userProcessesArray = parseCommaSeparated(userProcesses)
   const result = await service.getClientsPaginated(
     { process, model, status, eqpIdSearch, ipSearch, userProcesses: userProcessesArray },
     { page, pageSize }
@@ -251,10 +246,7 @@ async function getBatchClientStatus(req, res) {
  */
 async function getMasterData(req, res) {
   const { process, model, ipSearch, eqpIdSearch, page, pageSize, userProcesses } = req.query
-  // Parse userProcesses parameter (comma-separated string → array)
-  const userProcessesArray = userProcesses
-    ? userProcesses.split(',').map(p => p.trim()).filter(p => p)
-    : null
+  const userProcessesArray = parseCommaSeparated(userProcesses)
   const result = await service.getMasterData(
     { process, model, ipSearch, eqpIdSearch, userProcesses: userProcessesArray },
     { page, pageSize }
@@ -418,6 +410,9 @@ async function getBatchAliveStatusHandler(req, res) {
 
   if (!eqpIds || !Array.isArray(eqpIds) || eqpIds.length === 0) {
     throw ApiError.badRequest('eqpIds array is required')
+  }
+  if (!agentGroup) {
+    throw ApiError.badRequest('agentGroup is required')
   }
 
   const statuses = await getAliveStatusWithVersions(eqpIds, agentGroup)
