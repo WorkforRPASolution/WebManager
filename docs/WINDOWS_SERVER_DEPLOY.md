@@ -256,6 +256,8 @@ D:\tools\nssm.exe remove WebManager confirm
 
 ## 문제 해결
 
+### Windows Server 직접 배포
+
 | 증상 | 원인 | 해결 |
 |------|------|------|
 | `node`를 찾을 수 없음 | Node.js 미설치 또는 PATH 미등록 | Node.js `.msi` 재설치 |
@@ -264,6 +266,19 @@ D:\tools\nssm.exe remove WebManager confirm
 | CORS 에러 | `ALLOWED_ORIGINS` 미설정 | `.env`에 접속 URL 추가 |
 | 빈 화면 (API 실패) | `VITE_API_URL` 미설정 | `client/.env`를 `/api`로 설정 후 재빌드 |
 | `MODULE_NOT_FOUND` | node_modules 누락 | 개인 PC에서 `npm install --production` 후 재전송 |
+
+### Docker / K8s 배포
+
+| 증상 | 원인 | 해결 |
+|------|------|------|
+| `vite: not found` (Docker 빌드) | npm 의존성 설치 실패 | `--proxy` 옵션으로 프록시 설정, 사내 레지스트리 확인 |
+| `UNABLE_TO_VERIFY_LEAF_SIGNATURE` | 사내 프록시 SSL 검사 | Dockerfile에 `NODE_TLS_REJECT_UNAUTHORIZED=0` + `strict-ssl false` |
+| `403 Forbidden` (npm install) | 프록시가 사내 레지스트리 가로막음 | `--proxy` + `--registry` 함께 사용 (자동 `no_proxy` 설정) |
+| `cannot find module 'dotenv'` | 서버 의존성 설치 실패 | Dockerfile 서버 스테이지도 사내 레지스트리 + SSL 비활성화 적용 |
+| `Authentication failed` (MongoDB) | DB 인증 오류 | `WEBMANAGER_DB_URI`에 `?authSource=EARS` 추가 |
+| Pod 미기동 | ConfigMap/Secret 누락 | 동일 네임스페이스에 `configmap.yaml`, `secret.yaml` 먼저 apply |
+| PowerShell 스크립트 한글 깨짐 | UTF-8 BOM 없음 | 스크립트 파일을 UTF-8 with BOM으로 저장 |
+| PowerShell `$변수 검색 불가` 에러 | PS 5.1 StrictMode 버그 | `Set-StrictMode` 제거됨 (현재 버전에서 해결) |
 
 > 기타 문제는 [DEPLOYMENT.md](./DEPLOYMENT.md)의 문제 해결 섹션을 참고하세요.
 
@@ -282,9 +297,10 @@ Node.js 18+는 Windows Server 2012 R2 지원을 공식 종료했으나, Express 
 
 Windows Server 직접 배포 대신 **Docker 이미지 → Kubernetes (CentOS 7, K8s 1.17.4)** 배포로 전환.
 
-- `Dockerfile`: 멀티 스테이지 빌드 (Node.js 18-alpine)
+- `Dockerfile`: 멀티 스테이지 빌드 (Node.js 20-alpine)
 - `k8s/`: Deployment + Service (NodePort 30080) + ConfigMap + Secret
-- `scripts/build-package.sh`: 소스 zip 패키징 (Windows/Mac)
+- `scripts/build-package.ps1`: 소스 zip 패키징 (PowerShell)
+- `scripts/build-package.sh`: 소스 zip 패키징 (Git Bash/Mac)
 - `scripts/build-image.sh`: Docker 이미지 빌드 + tar 저장 (Linux)
 
 상세 배포 절차는 아래 Docker/K8s 배포 섹션 참고.
@@ -305,7 +321,7 @@ Windows Server 직접 배포 대신 **Docker 이미지 → Kubernetes (CentOS 7,
 [ Linux PC (CentOS 7.4) ]
   unzip WebManager-YYYY-MM-DD.zip
   cd WebManager
-  → ./scripts/build-image.sh [--proxy http://ip:port]
+  → ./scripts/build-image.sh --proxy http://프록시IP:포트
   → WebManager@1.0.0.tar
   → K8s 클러스터로 전송
 
@@ -332,25 +348,62 @@ cd WebManager
 
 ### 2. Docker 이미지 빌드 (Linux PC)
 
+> Linux PC에 Node.js/npm이 설치되어 있지 않아도 됩니다. Docker 컨테이너 안에서 빌드됩니다.
+
 ```bash
 cd WebManager
 
-# 프록시 없이
-./scripts/build-image.sh
+# 프록시 사용 (사내 npm 레지스트리가 Dockerfile에 기본 설정됨)
+./scripts/build-image.sh --proxy http://프록시IP:포트
 
-# 프록시 사용
-./scripts/build-image.sh --proxy http://192.168.1.100:3128
+# 프록시 + npm 레지스트리 직접 지정
+./scripts/build-image.sh --proxy http://프록시IP:포트 --registry https://nexus-url/npm-all/
+
+# 프록시 없이 (외부 네트워크 직접 접근 가능한 환경)
+./scripts/build-image.sh
 ```
 
-### 3. K8s 배포
+> `--proxy` 사용 시 사내 레지스트리 호스트는 자동으로 `no_proxy`에 추가되어 프록시를 우회합니다.
+
+### 3. K8s 환경 설정 (최초 1회)
+
+배포 전 `k8s/` 디렉토리의 설정 파일을 환경에 맞게 수정합니다.
+
+#### configmap.yaml
+
+| 항목 | 설명 | 예시 |
+|------|------|------|
+| `MONGODB_URI` | EARS DB 주소 (기존 headless URL 그대로 사용) | `mongodb://user:pass@host1,host2/EARS` |
+| `WEBMANAGER_DB_URI` | WEB_MANAGER DB 주소 | `mongodb://user:pass@host1,host2/WEB_MANAGER?authSource=EARS` |
+| `REDIS_URL` | Redis 주소 (headless 단일 주소) | `redis://redis-host:6379` |
+| `ALLOWED_ORIGINS` | 브라우저 접속 주소 (VIP 사용 시 VIP 입력) | `http://VIP주소:30080` |
+
+> **MongoDB 주의사항**:
+> - 기존 서비스의 headless URL을 그대로 사용하면 됩니다
+> - `WEBMANAGER_DB_URI`에서 인증 실패 시 `?authSource=EARS` (또는 계정이 생성된 DB명) 추가
+> - `directConnection=true`는 Replica Set 환경에서는 불필요 (기존 설정과 동일하게)
+
+> **Redis 주의사항**:
+> - 현재 ioredis가 Sentinel URL(`redis-sentinel://...#mymaster`)을 직접 지원하지 않음
+> - headless 단일 주소로 먼저 테스트 후 필요 시 Sentinel 지원 추가
+
+#### secret.yaml
+
+| 항목 | 설명 |
+|------|------|
+| `JWT_SECRET` | JWT 서명용 시크릿 (반드시 변경) |
+| `FTP_USER` | ManagerAgent FTP 계정 |
+| `FTP_PASS` | ManagerAgent FTP 비밀번호 |
+
+> ConfigMap, Secret, Deployment, Service 모두 **동일 네임스페이스**에 배포해야 합니다.
+
+### 4. K8s 배포
 
 ```bash
 # 이미지 로드
 docker load -i WebManager@1.0.0.tar
 
-# 환경 설정 (최초 1회 — 실제 값으로 수정 후 적용)
-# k8s/configmap.yaml: MongoDB/Redis DNS, ALLOWED_ORIGINS 등
-# k8s/secret.yaml: JWT_SECRET, FTP 계정
+# 설정 적용 (최초 1회, 이후 변경 시만)
 kubectl apply -f k8s/configmap.yaml
 kubectl apply -f k8s/secret.yaml
 
@@ -360,14 +413,24 @@ kubectl apply -f k8s/service.yaml
 
 # 확인
 kubectl get pods -l app=webmanager
+kubectl logs -l app=webmanager
 kubectl get svc webmanager
 ```
 
-### 4. 접속 확인
+정상 시작 로그:
+```
+MongoDB EARS Connected: mongodb-headless...
+MongoDB WEBMANAGER Connected: mongodb-headless...
+Syncing permissions...
+Permissions synced
+Server running on http://localhost:3000
+```
 
-`http://NODE_IP:30080` 접속 → 로그인 페이지 확인
+### 5. 접속 확인
 
-### 5. 업데이트 배포
+`http://VIP주소:30080` (또는 `http://노드IP:30080`) 접속 → 로그인 페이지 확인
+
+### 6. 업데이트 배포
 
 ```bash
 # 1. Windows PC: 소스 패키징 (PowerShell 또는 Git Bash)
@@ -375,7 +438,7 @@ kubectl get svc webmanager
 # ./scripts/build-package.sh   # Git Bash
 
 # 2. Linux PC: 이미지 빌드 (server/package.json 버전 올린 후)
-./scripts/build-image.sh [--proxy ...]
+./scripts/build-image.sh --proxy http://프록시IP:포트
 
 # 3. K8s: 이미지 로드 + 재배포
 docker load -i WebManager@새버전.tar

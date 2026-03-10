@@ -1,28 +1,31 @@
 # ─── Stage 1: Client Build ───
-FROM node:18-alpine AS client-build
+FROM node:20-alpine AS client-build
 
 WORKDIR /build/client
 
-# 의존성 먼저 설치 (캐시 활용)
-COPY client/package.json client/package-lock.json* ./
-RUN npm ci
-
-# 소스 복사 후 빌드
+# 소스 복사 → 의존성 설치 → 빌드
 COPY client/ ./
 ENV VITE_API_URL=/api
-RUN npm run build
+ARG NPM_REGISTRY=https://scpnexus.itplatform.samsungdisplay.net:8081/nexus/repository/npm-all/
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+RUN rm -f package-lock.json \
+    && npm config set registry ${NPM_REGISTRY} \
+    && npm config set strict-ssl false \
+    && npm install \
+    && npm run build
 
 # ─── Stage 2: Production ───
-FROM node:18-alpine
+FROM node:20-alpine
 
 WORKDIR /app/server
 
-# 서버 의존성 설치
-COPY server/package.json server/package-lock.json* ./
-RUN npm ci --production
-
-# 서버 소스 복사
+# 서버 소스 복사 → 의존성 설치
 COPY server/ ./
+ARG NPM_REGISTRY=https://scpnexus.itplatform.samsungdisplay.net:8081/nexus/repository/npm-all/
+RUN rm -f package-lock.json \
+    && npm config set registry ${NPM_REGISTRY} \
+    && npm config set strict-ssl false \
+    && npm install --production
 
 # 클라이언트 빌드 결과물 복사 (app.js의 ../client/dist 경로에 맞춤)
 COPY --from=client-build /build/client/dist /app/client/dist

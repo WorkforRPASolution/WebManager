@@ -22,7 +22,7 @@ Write-Host "[INFO] 패키징 중... → $Output" -ForegroundColor Blue
 if (Test-Path $Output) { Remove-Item $Output }
 
 # ─── 포함할 파일 수집 (제외 패턴 적용) ───
-$IncludePaths = @("client", "server", "Dockerfile", ".dockerignore")
+$IncludePaths = @("client", "server", "scripts", "k8s", "Dockerfile", ".dockerignore")
 $ExcludePatterns = @(
     "client\node_modules\*",
     "server\node_modules\*",

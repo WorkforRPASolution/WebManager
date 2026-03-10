@@ -15,25 +15,37 @@ fail() { echo -e "${RED}[FAIL]${NC} $1"; exit 1; }
 
 # ─── 옵션 파싱 ───
 PROXY=""
+NPM_REGISTRY=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     --proxy)
       PROXY="$2"
       shift 2
       ;;
+    --registry)
+      NPM_REGISTRY="$2"
+      shift 2
+      ;;
     -h|--help)
-      echo "사용법: $0 [--proxy http://ip:port]"
+      echo "사용법: $0 [--proxy http://ip:port] [--registry https://nexus-url/npm-all/]"
       echo ""
       echo "옵션:"
-      echo "  --proxy URL    Docker 빌드 시 HTTP/HTTPS 프록시 설정"
-      echo "  -h, --help     도움말 표시"
+      echo "  --proxy URL       Docker 빌드 시 HTTP/HTTPS 프록시 설정"
+      echo "  --registry URL    npm 레지스트리 URL (사내 Nexus 등)"
+      echo "  -h, --help        도움말 표시"
       exit 0
       ;;
     *)
-      fail "알 수 없는 옵션: $1\n사용법: $0 [--proxy http://ip:port]"
+      fail "알 수 없는 옵션: $1\n사용법: $0 [--proxy http://ip:port] [--registry URL]"
       ;;
   esac
 done
+
+# ─── 기본 npm 레지스트리 (Dockerfile ARG 기본값과 동일) ───
+DEFAULT_NPM_REGISTRY="https://scpnexus.itplatform.samsungdisplay.net:8081/nexus/repository/npm-all/"
+if [ -z "$NPM_REGISTRY" ]; then
+  NPM_REGISTRY="$DEFAULT_NPM_REGISTRY"
+fi
 
 # ─── 프로젝트 디렉토리 확인 ───
 if [ ! -f "Dockerfile" ]; then
@@ -59,7 +71,20 @@ log "출력: ${TAR_NAME}"
 BUILD_ARGS=""
 if [ -n "$PROXY" ]; then
   log "프록시: ${PROXY}"
+  # 사내 레지스트리 호스트는 프록시를 거치지 않도록 no_proxy 설정
+  NO_PROXY_HOSTS=""
+  if [ -n "$NPM_REGISTRY" ]; then
+    NO_PROXY_HOSTS=$(echo "$NPM_REGISTRY" | sed -E 's|https?://([^:/]+).*|\1|')
+  fi
   BUILD_ARGS="--build-arg http_proxy=${PROXY} --build-arg https_proxy=${PROXY}"
+  if [ -n "$NO_PROXY_HOSTS" ]; then
+    log "no_proxy: ${NO_PROXY_HOSTS}"
+    BUILD_ARGS="${BUILD_ARGS} --build-arg no_proxy=${NO_PROXY_HOSTS}"
+  fi
+fi
+if [ -n "$NPM_REGISTRY" ]; then
+  log "npm 레지스트리: ${NPM_REGISTRY}"
+  BUILD_ARGS="${BUILD_ARGS} --build-arg NPM_REGISTRY=${NPM_REGISTRY}"
 fi
 
 log "Docker 빌드 시작..."
