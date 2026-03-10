@@ -67,14 +67,13 @@ async function updateClientConfig(req, res) {
     throw ApiError.notFound(`Config file not found: ${fileId}`)
   }
 
-  const { client: ftpClient } = await ftpService.connectFtp(id)
   try {
-    await configBackupService.writeConfigWithBackup(ftpClient, config.path, content)
+    await ftpService.withFtp(id, async (ftpClient) => {
+      await configBackupService.writeConfigWithBackup(ftpClient, config.path, content)
+    })
     res.json({ success: true, message: 'Config saved successfully' })
   } catch (error) {
     throw ApiError.internal(`Failed to save config: ${error.message}`)
-  } finally {
-    ftpClient.close()
   }
 }
 
@@ -174,14 +173,13 @@ async function listConfigBackups(req, res) {
     throw ApiError.notFound(`Config file not found: ${fileId}`)
   }
 
-  const { client: ftpClient } = await ftpService.connectFtp(id)
   try {
-    const backups = await configBackupService.listBackups(ftpClient, config.path)
+    const backups = await ftpService.withFtp(id, async (ftpClient) => {
+      return configBackupService.listBackups(ftpClient, config.path)
+    })
     res.json(backups)
   } catch (error) {
     throw ApiError.internal(`Failed to list backups: ${error.message}`)
-  } finally {
-    ftpClient.close()
   }
 }
 
@@ -203,17 +201,16 @@ async function readConfigBackup(req, res) {
     throw ApiError.notFound(`Config file not found: ${fileId}`)
   }
 
-  const { client: ftpClient } = await ftpService.connectFtp(id)
   try {
-    const content = await configBackupService.readBackup(ftpClient, config.path, backupName)
+    const content = await ftpService.withFtp(id, async (ftpClient) => {
+      return configBackupService.readBackup(ftpClient, config.path, backupName)
+    })
     res.json({ content })
   } catch (error) {
     if (isFtpNotFoundError(error)) {
       throw ApiError.notFound(`Backup not found: ${backupName}`)
     }
     throw ApiError.internal(`Failed to read backup: ${error.message}`)
-  } finally {
-    ftpClient.close()
   }
 }
 
