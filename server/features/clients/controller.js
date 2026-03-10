@@ -90,7 +90,8 @@ async function getClientLogs(req, res) {
 }
 
 // ============================================
-// Control Controllers (Batch Operations - Mock for Phase 3)
+// Control Controllers (Batch Operations)
+// TODO: Phase 3 구현 시 실제 batch control 로직으로 교체
 // ============================================
 
 /**
@@ -107,7 +108,7 @@ async function controlClients(req, res) {
     throw ApiError.badRequest('action must be start, stop, or restart')
   }
 
-  // Mock response (will connect to Akka server in Phase 3)
+  // TODO: Phase 3 — 실제 Akka 서버 연동으로 교체
   res.json({
     success: true,
     message: `${action} command sent to ${ids.length} client(s)`,
@@ -126,7 +127,7 @@ async function updateClientsSoftware(req, res) {
     throw ApiError.badRequest('ids array is required')
   }
 
-  // Mock response (will connect to Akka server in Phase 3)
+  // TODO: Phase 3 — 실제 Akka 서버 연동으로 교체
   res.json({
     success: true,
     message: `Update command sent to ${ids.length} client(s)`,
@@ -146,7 +147,7 @@ async function configureClients(req, res) {
     throw ApiError.badRequest('ids array is required')
   }
 
-  // Mock response (will connect to Akka server in Phase 3)
+  // TODO: Phase 3 — 실제 Akka 서버 연동으로 교체
   res.json({
     success: true,
     message: `Config command sent to ${ids.length} client(s)`,
@@ -450,8 +451,4 @@ module.exports = {
   handleBatchActionStream,
   // Alive Status (Redis)
   getBatchAliveStatusHandler,
-  // Re-export from split controllers for backward compatibility
-  ...require('./configController'),
-  ...require('./logController'),
-  ...require('./updateController')
 }
