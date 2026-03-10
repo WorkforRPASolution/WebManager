@@ -1,6 +1,5 @@
 const ftp = require('basic-ftp')
 const path = require('path')
-const { Readable } = require('stream')
 const { createConnection, createSocksConnection } = require('../../shared/utils/socksHelper')
 const { parsePasvResponse } = require('basic-ftp/dist/transfer')
 const Client = require('./model')
@@ -126,28 +125,6 @@ async function readConfigFile(eqpId, remotePath) {
     const collector = createBufferCollector()
     await ftpClient.downloadTo(collector.writable, remotePath)
     return collector.toString()
-  } finally {
-    ftpClient.close()
-  }
-}
-
-/**
- * Write content to a config file via FTP
- * @param {string} eqpId - Equipment ID
- * @param {string} remotePath - Remote file path
- * @param {string} content - File content to write
- */
-async function writeConfigFile(eqpId, remotePath, content) {
-  const { client: ftpClient } = await connectFtp(eqpId)
-
-  try {
-    const dir = path.posix.dirname(remotePath)
-    if (dir && dir !== '/' && dir !== '.') {
-      await ftpClient.ensureDir(dir)
-      await ftpClient.cd('/')
-    }
-    const readable = Readable.from(Buffer.from(content, 'utf-8'))
-    await ftpClient.uploadFrom(readable, remotePath)
   } finally {
     ftpClient.close()
   }
@@ -537,7 +514,6 @@ module.exports = {
   getConfigSettings,
   connectFtp,
   readConfigFile,
-  writeConfigFile,
   readAllConfigs,
   deployConfig,
   deployConfigSelective,
