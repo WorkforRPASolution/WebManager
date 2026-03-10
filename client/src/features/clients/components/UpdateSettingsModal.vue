@@ -485,9 +485,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { updateSettingsApi } from '../api'
 import { osVersionApi } from '../../equipment-info/api'
+import { useResizableModal } from '@/shared/composables/useResizableModal'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -498,47 +499,18 @@ const emit = defineEmits(['update:modelValue', 'saved'])
 
 // Modal sizing
 const modalRef = ref(null)
-const isMaximized = ref(false)
-const modalPos = reactive({ x: null, y: null })
-const customWidth = ref(null)
-const customHeight = ref(null)
-const DEFAULT_WIDTH = 1024
-const DEFAULT_HEIGHT = 650
+const { customWidth, customHeight, modalPos, isMaximized, startDrag, startResize, toggleMaximize } = useResizableModal(modalRef, { defaultWidth: 1024, defaultHeight: 650 })
 
 const modalStyle = computed(() => {
   if (isMaximized.value) return { left: '2.5vw', top: '2.5vh', width: '95vw', height: '95vh' }
-  const w = customWidth.value || DEFAULT_WIDTH
-  const h = customHeight.value || DEFAULT_HEIGHT
+  const w = customWidth.value
+  const h = customHeight.value
   return {
     left: modalPos.x !== null ? `${modalPos.x}px` : `calc(50vw - ${w / 2}px)`,
     top: modalPos.y !== null ? `${modalPos.y}px` : `calc(50vh - ${h / 2}px)`,
     width: `${w}px`, height: `${h}px`, maxWidth: '95vw', maxHeight: '95vh'
   }
 })
-const toggleMaximize = () => { isMaximized.value = !isMaximized.value }
-
-let isDragging = false, dragStartX = 0, dragStartY = 0, dragStartPosX = 0, dragStartPosY = 0
-const startDrag = (e) => {
-  if (isMaximized.value) return
-  isDragging = true; dragStartX = e.clientX; dragStartY = e.clientY
-  const rect = modalRef.value.getBoundingClientRect(); dragStartPosX = rect.left; dragStartPosY = rect.top; e.preventDefault()
-}
-const doDrag = (e) => { if (!isDragging) return; modalPos.x = Math.max(0, Math.min(window.innerWidth - 100, dragStartPosX + (e.clientX - dragStartX))); modalPos.y = Math.max(0, Math.min(window.innerHeight - 50, dragStartPosY + (e.clientY - dragStartY))) }
-const stopDrag = () => { isDragging = false }
-
-let isResizing = false, resizeStartX = 0, resizeStartY = 0, resizeStartW = 0, resizeStartH = 0
-const startResize = (e) => {
-  isResizing = true; resizeStartX = e.clientX; resizeStartY = e.clientY
-  const rect = modalRef.value.getBoundingClientRect(); resizeStartW = rect.width; resizeStartH = rect.height
-  modalPos.x = rect.left; modalPos.y = rect.top; e.preventDefault()
-}
-const doResize = (e) => { if (!isResizing) return; customWidth.value = Math.max(500, Math.min(window.innerWidth * 0.95, resizeStartW + (e.clientX - resizeStartX))); customHeight.value = Math.max(400, Math.min(window.innerHeight * 0.95, resizeStartH + (e.clientY - resizeStartY))) }
-const stopResize = () => { isResizing = false }
-
-const onMouseMove = (e) => { doDrag(e); doResize(e) }
-const onMouseUp = () => { stopDrag(); stopResize() }
-onMounted(() => { document.addEventListener('mousemove', onMouseMove); document.addEventListener('mouseup', onMouseUp) })
-onUnmounted(() => { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp) })
 
 const loading = ref(false)
 const saving = ref(false)
