@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, reactive } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useClientData } from './composables/useClientData'
 import { useConfigManager } from './composables/useConfigManager'
@@ -9,6 +9,7 @@ import { serviceApi } from './api'
 import { aliveApi } from './api'
 import { classifyServiceState } from './utils/serviceState.js'
 import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
+import { useToast } from '@/shared/composables/useToast'
 import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDialog.vue'
 import ClientFilterBar from './components/ClientFilterBar.vue'
 import ClientToolbar from './components/ClientToolbar.vue'
@@ -128,21 +129,9 @@ const handleFilterToggle = () => {
   filterCollapsed.value = !filterCollapsed.value
 }
 
-// Toast notification
-const toast = reactive({
-  show: false,
-  message: '',
-  type: 'success'
-})
-
-const showToast = (message, type = 'success') => {
-  toast.show = true
-  toast.message = message
-  toast.type = type
-  setTimeout(() => {
-    toast.show = false
-  }, 3000)
-}
+// Toast notification (shared composable)
+const { toast, showToast: _showToast } = useToast()
+const showToast = (message, type = 'success') => _showToast(type, message)
 
 // Filter change handler
 const handleFilterChange = async (filters) => {
