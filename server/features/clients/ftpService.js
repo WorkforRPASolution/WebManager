@@ -8,6 +8,7 @@ const configSettingsService = require('./configSettingsService')
 const { createBufferCollector } = require('../../shared/utils/streamCollector')
 const { runConcurrently } = require('../../shared/utils/concurrencyPool')
 const configBackupService = require('./configBackupService')
+const { deepMerge } = require('../../shared/utils/mergeUtils')
 
 const FTP_PORT = parseInt(process.env.FTP_PORT) || 21
 const FTP_USER = process.env.FTP_USER || 'ftpuser'
@@ -410,21 +411,6 @@ function mergeSelectedKeys(target, source, keys) {
   return result
 }
 
-/**
- * Deep merge two objects
- */
-function deepMerge(target, source) {
-  const result = { ...target }
-  for (const key in source) {
-    if (typeof source[key] === 'object' && source[key] !== null && !Array.isArray(source[key]) &&
-        typeof result[key] === 'object' && result[key] !== null && !Array.isArray(result[key])) {
-      result[key] = deepMerge(result[key], source[key])
-    } else {
-      result[key] = JSON.parse(JSON.stringify(source[key]))
-    }
-  }
-  return result
-}
 
 // ============================================
 // Log File Operations (FTP)
