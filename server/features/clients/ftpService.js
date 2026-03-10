@@ -99,21 +99,32 @@ async function connectFtp(eqpId) {
 }
 
 /**
+ * FTP 연결 생성 → 작업 실행 → 항상 close
+ * @param {string} eqpId
+ * @param {function(ftp.Client): Promise<T>} fn
+ * @returns {Promise<T>}
+ */
+async function withFtp(eqpId, fn) {
+  const { client: ftpClient } = await connectFtp(eqpId)
+  try {
+    return await fn(ftpClient)
+  } finally {
+    ftpClient.close()
+  }
+}
+
+/**
  * Read a config file content via FTP
  * @param {string} eqpId - Equipment ID
  * @param {string} remotePath - Remote file path
  * @returns {Promise<string>} File content
  */
 async function readConfigFile(eqpId, remotePath) {
-  const { client: ftpClient } = await connectFtp(eqpId)
-
-  try {
+  return withFtp(eqpId, async (ftpClient) => {
     const collector = createBufferCollector()
     await ftpClient.downloadTo(collector.writable, remotePath)
     return collector.toString()
-  } finally {
-    ftpClient.close()
-  }
+  })
 }
 
 /**
@@ -123,9 +134,7 @@ async function readConfigFile(eqpId, remotePath) {
  */
 async function readAllConfigs(eqpId, agentGroup) {
   const configs = await getConfigSettings(agentGroup)
-  const { client: ftpClient } = await connectFtp(eqpId)
-
-  try {
+  return withFtp(eqpId, async (ftpClient) => {
     const results = []
 
     for (const config of configs) {
@@ -165,9 +174,7 @@ async function readAllConfigs(eqpId, agentGroup) {
     }
 
     return results
-  } finally {
-    ftpClient.close()
-  }
+  })
 }
 
 /**
@@ -389,9 +396,7 @@ const LOG_MAX_FILE_SIZE_DEFAULT = 10485760 // 10MB
  * @returns {Promise<Array<{name, size, modifiedAt, path}>>}
  */
 async function listLogFiles(eqpId, dirPath, keyword) {
-  const { client: ftpClient } = await connectFtp(eqpId)
-
-  try {
+  return withFtp(eqpId, async (ftpClient) => {
     const listing = await ftpClient.list(dirPath)
 
     // Filter: files only (type === 1 in basic-ftp), keyword match
@@ -413,9 +418,7 @@ async function listLogFiles(eqpId, dirPath, keyword) {
       })
 
     return files
-  } finally {
-    ftpClient.close()
-  }
+  })
 }
 
 /**
@@ -427,9 +430,7 @@ async function listLogFiles(eqpId, dirPath, keyword) {
  */
 async function readLogFile(eqpId, filePath, maxSize) {
   const maxFileSize = maxSize || parseInt(process.env.LOG_MAX_FILE_SIZE) || LOG_MAX_FILE_SIZE_DEFAULT
-  const { client: ftpClient } = await connectFtp(eqpId)
-
-  try {
+  return withFtp(eqpId, async (ftpClient) => {
     const fileSize = await ftpClient.size(filePath)
     if (fileSize > maxFileSize) {
       throw new Error(`File too large: ${fileSize} bytes (max ${maxFileSize} bytes)`)
@@ -438,9 +439,7 @@ async function readLogFile(eqpId, filePath, maxSize) {
     const collector = createBufferCollector()
     await ftpClient.downloadTo(collector.writable, filePath)
     return collector.toString()
-  } finally {
-    ftpClient.close()
-  }
+  })
 }
 
 /**
@@ -450,13 +449,9 @@ async function readLogFile(eqpId, filePath, maxSize) {
  * @param {import('stream').Writable} destStream - Destination writable stream
  */
 async function downloadLogFileToStream(eqpId, filePath, destStream) {
-  const { client: ftpClient } = await connectFtp(eqpId)
-
-  try {
+  return withFtp(eqpId, async (ftpClient) => {
     await ftpClient.downloadTo(destStream, filePath)
-  } finally {
-    ftpClient.close()
-  }
+  })
 }
 
 /**
@@ -465,13 +460,9 @@ async function downloadLogFileToStream(eqpId, filePath, destStream) {
  * @param {string} filePath - Remote file path
  */
 async function deleteLogFile(eqpId, filePath) {
-  const { client: ftpClient } = await connectFtp(eqpId)
-
-  try {
+  return withFtp(eqpId, async (ftpClient) => {
     await ftpClient.remove(filePath)
-  } finally {
-    ftpClient.close()
-  }
+  })
 }
 
 
@@ -482,23 +473,21 @@ async function deleteLogFile(eqpId, filePath) {
  * @param {string} remotePath - Remote file path (absolute)
  */
 async function uploadStreamToFile(eqpId, readableStream, remotePath) {
-  const { client: ftpClient } = await connectFtp(eqpId)
-  try {
+  return withFtp(eqpId, async (ftpClient) => {
     const dir = path.posix.dirname(remotePath)
     if (dir && dir !== '/' && dir !== '.') {
       await ftpClient.ensureDir(dir)
       await ftpClient.cd('/')
     }
     await ftpClient.uploadFrom(readableStream, remotePath)
-  } finally {
-    ftpClient.close()
-  }
+  })
 }
 
 
 module.exports = {
   getConfigSettings,
   connectFtp,
+  withFtp,
   readConfigFile,
   readAllConfigs,
   deployConfig,
