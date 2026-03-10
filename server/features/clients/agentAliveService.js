@@ -115,7 +115,7 @@ async function getBatchAliveStatus(eqpIds, agentGroup) {
 
   let values = []
   if (validKeys.length > 0) {
-    values = await redis.mget(...validKeys)
+    values = await redis.mget(validKeys)
   }
 
   // 결과 분리: health values, running values

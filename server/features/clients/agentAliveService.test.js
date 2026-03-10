@@ -130,12 +130,12 @@ describe('getBatchAliveStatus', () => {
 
     const result = await getBatchAliveStatus(['EQP01', 'EQP02'], 'ars_agent')
 
-    expect(mockRedis.mget).toHaveBeenCalledWith(
+    expect(mockRedis.mget).toHaveBeenCalledWith([
       'AgentHealth:ars_agent:ARS-M1-EQP01',
       'AgentHealth:ars_agent:ARS-M2-EQP02',
       'AgentRunning:ARS-M1-EQP01',
-      'AgentRunning:ARS-M2-EQP02'
-    )
+      'AgentRunning:ARS-M2-EQP02',
+    ])
     expect(result.EQP01.alive).toBe(true)
     expect(result.EQP01.uptimeSeconds).toBe(3600)
     expect(result.EQP01.uptimeFormatted).toBe('1h 0m')
@@ -212,10 +212,10 @@ describe('getBatchAliveStatus', () => {
     const result = await getBatchAliveStatus(['EQP01', 'EQP02'], 'resource_agent')
 
     // Should NOT include AgentRunning keys
-    expect(mockRedis.mget).toHaveBeenCalledWith(
+    expect(mockRedis.mget).toHaveBeenCalledWith([
       'AgentHealth:resource_agent:ARS-M1-EQP01',
-      'AgentHealth:resource_agent:ARS-M2-EQP02'
-    )
+      'AgentHealth:resource_agent:ARS-M2-EQP02',
+    ])
     expect(result.EQP01.alive).toBe(true)
     expect(result.EQP01.uptimeSeconds).toBe(3600)
     expect(result.EQP02.alive).toBe(false)
