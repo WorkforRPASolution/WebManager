@@ -1,5 +1,4 @@
-#Requires -Version 5.0
-Set-StrictMode -Version Latest
+﻿#Requires -Version 5.0
 $ErrorActionPreference = "Stop"
 
 # ─── 프로젝트 루트 이동 ───
@@ -61,10 +60,10 @@ foreach ($path in $IncludePaths) {
 Write-Host "[INFO] 파일 수: $($FilesToInclude.Count)개" -ForegroundColor Blue
 
 # ─── ZIP 생성 ───
-$TempDir = Join-Path $env:TEMP "WebManager-pack-$(Get-Date -Format 'yyyyMMddHHmmss')"
-New-Item -ItemType Directory -Path $TempDir | Out-Null
-
 try {
+    $TempDir = Join-Path ([System.IO.Path]::GetTempPath()) "WebManager-pack-$(Get-Date -Format 'yyyyMMddHHmmss')"
+    New-Item -ItemType Directory -Path $TempDir | Out-Null
+
     foreach ($file in $FilesToInclude) {
         $relativePath = $file.Substring($ProjectRoot.Length + 1)
         $destPath = Join-Path $TempDir $relativePath
@@ -79,7 +78,9 @@ try {
     Compress-Archive -Path "$TempDir\*" -DestinationPath $OutputPath -Force
 }
 finally {
-    Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+    if ($TempDir -and (Test-Path $TempDir)) {
+        Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 $Size = "{0:N1} MB" -f ((Get-Item $Output).Length / 1MB)
