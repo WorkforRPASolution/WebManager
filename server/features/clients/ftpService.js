@@ -27,22 +27,6 @@ async function getConfigSettings(agentGroup) {
 }
 
 /**
- * Get client IP info from DB
- */
-async function getClientIpInfo(eqpId) {
-  const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL eqpModel agentPorts').lean()
-  if (!client) {
-    throw new Error(`Client not found: ${eqpId}`)
-  }
-  return {
-    ipAddr: client.ipAddr,
-    ipAddrL: client.ipAddrL || null,
-    eqpModel: client.eqpModel,
-    agentPorts: client.agentPorts || null
-  }
-}
-
-/**
  * Connect to FTP server on a client machine
  * Uses direct connection or SOCKS tunnel depending on ipAddrL
  * @param {string} eqpId - Equipment ID

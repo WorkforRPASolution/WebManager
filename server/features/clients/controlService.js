@@ -1,5 +1,6 @@
 const { AvroRpcClient } = require('../../shared/avro/avroClient')
 const execCommandService = require('../exec-commands/service')
+const { getClientIpInfo } = require('./clientRepository')
 let Client = require('./model')
 let strategyRegistry = require('./strategies')
 
@@ -14,23 +15,6 @@ function _setDeps(deps) {
   if (deps.Client) Client = deps.Client
   if (deps.strategyRegistry) strategyRegistry = deps.strategyRegistry
   if (deps.executeRawFn) _executeRawFn = deps.executeRawFn
-}
-
-/**
- * 클라이언트 IP 정보 조회
- * @param {string} eqpId - 장비 ID
- * @returns {Promise<{ipAddr: string, ipAddrL: string|null, agentPorts: object|null}>}
- */
-async function getClientIpInfo(eqpId) {
-  const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL agentPorts').lean()
-  if (!client) {
-    throw new Error(`Client not found: ${eqpId}`)
-  }
-  return {
-    ipAddr: client.ipAddr,
-    ipAddrL: client.ipAddrL || null,
-    agentPorts: client.agentPorts || null
-  }
 }
 
 /**
