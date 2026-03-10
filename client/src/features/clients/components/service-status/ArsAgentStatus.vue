@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { classifyServiceState } from '../../utils/serviceState.js'
 
 const props = defineProps({
   data: { type: Object, default: null },
@@ -7,36 +8,14 @@ const props = defineProps({
 })
 
 const stateConfig = computed(() => {
-  if (!props.data) return null
-  const state = props.data.state
-  if (state === 'UNREACHABLE') return {
-    bg: 'bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-dark-border',
-    dot: 'bg-gray-400',
-    text: 'text-gray-600 dark:text-gray-400',
-    label: 'UNREACHABLE',
-    pulse: false
+  const state = classifyServiceState(props.data)
+  const configs = {
+    unreachable: { bg: 'bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-dark-border', dot: 'bg-gray-400', text: 'text-gray-600 dark:text-gray-400', label: 'UNREACHABLE', pulse: false },
+    not_installed: { bg: 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800', dot: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-400', label: 'NOT_INSTALLED', pulse: false },
+    running: { bg: 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800', dot: 'bg-green-500', text: 'text-green-700 dark:text-green-400', label: props.data?.state || 'RUNNING', pulse: true },
+    stopped: { bg: 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800', dot: 'bg-red-500', text: 'text-red-700 dark:text-red-400', label: props.data?.state || 'STOPPED', pulse: false },
   }
-  if (state === 'NOT_INSTALLED') return {
-    bg: 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800',
-    dot: 'bg-amber-500',
-    text: 'text-amber-700 dark:text-amber-400',
-    label: 'NOT_INSTALLED',
-    pulse: false
-  }
-  if (props.data.running) return {
-    bg: 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800',
-    dot: 'bg-green-500',
-    text: 'text-green-700 dark:text-green-400',
-    label: state || 'RUNNING',
-    pulse: true
-  }
-  return {
-    bg: 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800',
-    dot: 'bg-red-500',
-    text: 'text-red-700 dark:text-red-400',
-    label: state || 'STOPPED',
-    pulse: false
-  }
+  return configs[state] || null
 })
 </script>
 

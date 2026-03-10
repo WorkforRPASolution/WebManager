@@ -32,6 +32,7 @@ import { ref, computed, watch } from 'vue'
 import { AgGridVue } from 'ag-grid-vue3'
 import { ModuleRegistry, AllCommunityModule, themeQuartz } from 'ag-grid-community'
 import { useTheme } from '../../../shared/composables/useTheme'
+import { classifyServiceState } from '../utils/serviceState.js'
 import { useCustomScrollbar } from '../../../shared/composables/useCustomScrollbar'
 import { useColumnWidthExporter } from '../../../shared/composables/useColumnWidthExporter'
 import CustomHorizontalScrollbar from '../../../shared/components/CustomHorizontalScrollbar.vue'
@@ -128,65 +129,19 @@ const onOffCellRenderer = (params) => {
 // Service Status Cell Renderer (RPC-based real-time status)
 const serviceCellRenderer = (params) => {
   const value = params.value
+  const state = classifyServiceState(value)
 
-  // No data or null
-  if (!value) {
-    return `<span class="inline-flex items-center text-xs text-gray-400 dark:text-gray-500">
-      <span class="mr-1.5">&#8213;</span> Unknown
-    </span>`
+  const configs = {
+    loading: { icon: '<span class="inline-block w-3 h-3 mr-1.5 border-2 border-gray-300 dark:border-gray-600 border-t-gray-500 dark:border-t-gray-400 rounded-full" style="animation: spin 1s linear infinite;"></span>', label: 'Loading...', cls: 'text-gray-400 dark:text-gray-500' },
+    unreachable: { icon: '<span class="w-2 h-2 mr-1.5 rounded-full bg-gray-400"></span>', label: 'Unreachable', cls: 'text-gray-500 dark:text-gray-400 font-medium' },
+    not_installed: { icon: '<span class="w-2 h-2 mr-1.5 rounded-full bg-amber-500"></span>', label: 'Not Installed', cls: 'text-amber-600 dark:text-amber-400 font-medium' },
+    running: { icon: '<span class="w-2 h-2 mr-1.5 rounded-full bg-green-500 animate-pulse"></span>', label: 'Running', cls: 'text-green-600 dark:text-green-400 font-medium' },
+    stopped: { icon: '<span class="w-2 h-2 mr-1.5 rounded-full bg-red-500"></span>', label: 'Stopped', cls: 'text-red-600 dark:text-red-400 font-medium' },
+    unknown: { icon: '<span class="mr-1.5">&#8213;</span>', label: 'Unknown', cls: 'text-gray-400 dark:text-gray-500' },
   }
 
-  // Loading state
-  if (value.loading === true) {
-    return `<span class="inline-flex items-center text-xs text-gray-400 dark:text-gray-500">
-      <span class="inline-block w-3 h-3 mr-1.5 border-2 border-gray-300 dark:border-gray-600 border-t-gray-500 dark:border-t-gray-400 rounded-full" style="animation: spin 1s linear infinite;"></span>
-      Loading...
-    </span>`
-  }
-
-  // Error state
-  if (value.error) {
-    return `<span class="inline-flex items-center text-xs text-gray-400 dark:text-gray-500">
-      <span class="mr-1.5">&#8213;</span> Unknown
-    </span>`
-  }
-
-  // UNREACHABLE state (ManagerAgent 연결 불가)
-  if (value.state === 'UNREACHABLE') {
-    return `<span class="inline-flex items-center text-xs text-gray-500 dark:text-gray-400 font-medium">
-      <span class="w-2 h-2 mr-1.5 rounded-full bg-gray-400"></span>
-      Unreachable
-    </span>`
-  }
-
-  // NOT_INSTALLED state (서비스 미설치)
-  if (value.state === 'NOT_INSTALLED') {
-    return `<span class="inline-flex items-center text-xs text-amber-600 dark:text-amber-400 font-medium">
-      <span class="w-2 h-2 mr-1.5 rounded-full bg-amber-500"></span>
-      Not Installed
-    </span>`
-  }
-
-  // Running state
-  if (value.running === true) {
-    return `<span class="inline-flex items-center text-xs text-green-600 dark:text-green-400 font-medium">
-      <span class="w-2 h-2 mr-1.5 rounded-full bg-green-500 animate-pulse"></span>
-      Running
-    </span>`
-  }
-
-  // Stopped state
-  if (value.running === false) {
-    return `<span class="inline-flex items-center text-xs text-red-600 dark:text-red-400 font-medium">
-      <span class="w-2 h-2 mr-1.5 rounded-full bg-red-500"></span>
-      Stopped
-    </span>`
-  }
-
-  // Fallback
-  return `<span class="inline-flex items-center text-xs text-gray-400 dark:text-gray-500">
-    <span class="mr-1.5">&#8213;</span> Unknown
-  </span>`
+  const cfg = configs[state]
+  return `<span class="inline-flex items-center text-xs ${cfg.cls}">${cfg.icon} ${cfg.label}</span>`
 }
 
 // Uptime Cell Renderer (Redis-based alive status)

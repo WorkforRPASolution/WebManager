@@ -7,6 +7,7 @@ import { useBatchActionStream } from './composables/useBatchActionStream'
 import { useLogViewer } from './composables/useLogViewer'
 import { serviceApi } from './api'
 import { aliveApi } from './api'
+import { classifyServiceState } from './utils/serviceState.js'
 import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
 import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDialog.vue'
 import ClientFilterBar from './components/ClientFilterBar.vue'
@@ -93,31 +94,22 @@ const clientsWithStatus = computed(() => {
 const statusCounts = computed(() => {
   const counts = { running: 0, stopped: 0, unreachable: 0, notInstalled: 0 }
   clientsWithStatus.value.forEach(client => {
-    const ss = client.serviceStatus
-    if (!ss || ss.loading || ss.error) return
-    if (ss.state === 'UNREACHABLE') counts.unreachable++
-    else if (ss.state === 'NOT_INSTALLED') counts.notInstalled++
-    else if (ss.running === true) counts.running++
-    else if (ss.running === false) counts.stopped++
+    const state = classifyServiceState(client.serviceStatus)
+    if (state === 'unreachable') counts.unreachable++
+    else if (state === 'not_installed') counts.notInstalled++
+    else if (state === 'running') counts.running++
+    else if (state === 'stopped') counts.stopped++
   })
   return counts
 })
 
 // Select by status handler
 const handleSelectByStatus = (statusType) => {
-  if (statusType === 'clear') {
-    gridRef.value?.clearSelection()
-    return
-  }
+  if (statusType === 'clear') { gridRef.value?.clearSelection(); return }
   const ids = clientsWithStatus.value
     .filter(client => {
-      const ss = client.serviceStatus
-      if (!ss) return false
-      if (statusType === 'running') return ss.running === true
-      if (statusType === 'stopped') return ss.running === false && !['UNREACHABLE', 'NOT_INSTALLED'].includes(ss.state)
-      if (statusType === 'unreachable') return ss.state === 'UNREACHABLE'
-      if (statusType === 'not_installed') return ss.state === 'NOT_INSTALLED'
-      return false
+      const state = classifyServiceState(client.serviceStatus)
+      return state === statusType
     })
     .map(c => c.eqpId || c.id)
   gridRef.value?.restoreSelection(ids)
