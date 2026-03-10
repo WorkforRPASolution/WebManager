@@ -4,8 +4,7 @@
 
 const service = require('./service')
 const controlService = require('./controlService')
-const { getBatchAliveStatus } = require('./agentAliveService')
-const { getBatchAgentVersions } = require('./agentVersionService')
+const { getAliveStatusWithVersions } = require('./aliveStatusHelper')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 const strategyRegistry = require('./strategies')
 const { setupSSE } = require('../../shared/utils/sseHelper')
@@ -396,13 +395,7 @@ async function handleBatchActionStream(req, res) {
     // Append alive statuses before done (non-fatal)
     if (!sse.isAborted()) {
       try {
-        const [aliveStatuses, agentVersions] = await Promise.all([
-          getBatchAliveStatus(eqpIds, agentGroup),
-          getBatchAgentVersions(eqpIds),
-        ])
-        for (const eqpId of Object.keys(aliveStatuses)) {
-          aliveStatuses[eqpId].agentVersion = agentVersions[eqpId] || { arsAgent: null, resourceAgent: null }
-        }
+        const aliveStatuses = await getAliveStatusWithVersions(eqpIds, agentGroup)
         sse.send({ aliveStatuses })
       } catch (_) { /* alive fetch failure is non-fatal */ }
       sse.send({ done: true })
@@ -427,15 +420,7 @@ async function getBatchAliveStatusHandler(req, res) {
     throw ApiError.badRequest('eqpIds array is required')
   }
 
-  const [statuses, versions] = await Promise.all([
-    getBatchAliveStatus(eqpIds, agentGroup),
-    getBatchAgentVersions(eqpIds),
-  ])
-
-  for (const eqpId of Object.keys(statuses)) {
-    statuses[eqpId].agentVersion = versions[eqpId] || { arsAgent: null, resourceAgent: null }
-  }
-
+  const statuses = await getAliveStatusWithVersions(eqpIds, agentGroup)
   res.json(statuses)
 }
 
