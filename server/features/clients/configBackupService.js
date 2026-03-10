@@ -8,6 +8,7 @@
 const path = require('path')
 const { Readable } = require('stream')
 const { createBufferCollector } = require('../../shared/utils/streamCollector')
+const { isFtpNotFoundError } = require('../../shared/utils/ftpErrors')
 
 const DEFAULT_MAX_BACKUPS = 5
 
@@ -98,7 +99,7 @@ async function backupConfigFile(ftpClient, configPath, maxBackups = DEFAULT_MAX_
     currentContent = collector.toString()
   } catch (err) {
     // File doesn't exist yet — nothing to backup
-    if (err.code === 550 || err.message?.includes('No such file')) {
+    if (isFtpNotFoundError(err)) {
       return { backed: false, backupPath: null }
     }
     throw err
@@ -147,7 +148,7 @@ async function listBackups(ftpClient, configPath) {
   try {
     listing = await ftpClient.list(backupDir)
   } catch (err) {
-    if (err.code === 550 || err.message?.includes('No such file')) {
+    if (isFtpNotFoundError(err)) {
       return []
     }
     throw err

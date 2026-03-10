@@ -9,6 +9,7 @@ const configSettingsService = require('./configSettingsService')
 const configBackupService = require('./configBackupService')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 const { setupSSE } = require('../../shared/utils/sseHelper')
+const { isFtpNotFoundError } = require('../../shared/utils/ftpErrors')
 
 /**
  * GET /api/clients/config/settings
@@ -207,7 +208,7 @@ async function readConfigBackup(req, res) {
     const content = await configBackupService.readBackup(ftpClient, config.path, backupName)
     res.json({ content })
   } catch (error) {
-    if (error.code === 550 || error.message?.includes('No such file')) {
+    if (isFtpNotFoundError(error)) {
       throw ApiError.notFound(`Backup not found: ${backupName}`)
     }
     throw ApiError.internal(`Failed to read backup: ${error.message}`)

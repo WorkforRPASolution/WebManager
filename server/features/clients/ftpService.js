@@ -3,11 +3,13 @@ const path = require('path')
 const { createConnection, createSocksConnection } = require('../../shared/utils/socksHelper')
 const { parsePasvResponse } = require('basic-ftp/dist/transfer')
 const Client = require('./model')
+const { getClientIpInfo } = require('./clientRepository')
 const configSettingsService = require('./configSettingsService')
 const { createBufferCollector } = require('../../shared/utils/streamCollector')
 const { runConcurrently } = require('../../shared/utils/concurrencyPool')
 const configBackupService = require('./configBackupService')
 const { deepMerge } = require('../../shared/utils/mergeUtils')
+const { isFtpNotFoundError } = require('../../shared/utils/ftpErrors')
 
 const FTP_PORT = parseInt(process.env.FTP_PORT) || 21
 const FTP_USER = process.env.FTP_USER || 'ftpuser'
@@ -156,7 +158,7 @@ async function readAllConfigs(eqpId, agentGroup) {
           error: null
         })
       } catch (err) {
-        const isNotFound = err.code === 550 || err.message?.includes('No such file')
+        const isNotFound = isFtpNotFoundError(err)
         if (isNotFound) {
           results.push({
             fileId: config.fileId,
