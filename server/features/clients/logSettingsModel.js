@@ -12,7 +12,8 @@ const logSourceSchema = new Schema({
   sourceId: { type: String, required: true },
   name: { type: String, required: true, trim: true },
   path: { type: String, required: true, trim: true },
-  keyword: { type: String, required: true, trim: true }
+  keyword: { type: String, required: true, trim: true },
+  encoding: { type: String, default: 'utf-8', trim: true }
 }, { _id: false })
 
 const logSettingsSchema = new Schema({

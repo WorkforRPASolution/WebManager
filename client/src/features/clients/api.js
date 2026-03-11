@@ -101,7 +101,7 @@ export const logApi = {
   getSettings: (agentGroup) => api.get(`/clients/log-settings/${agentGroup}`),
   saveSettings: (agentGroup, data) => api.put(`/clients/log-settings/${agentGroup}`, data),
   getFileList: (eqpId, agentGroup) => api.get(`/clients/${eqpId}/log-files`, { params: { agentGroup } }),
-  getFileContent: (eqpId, path) => api.get(`/clients/${eqpId}/log-content`, { params: { path }, timeout: 60000 }),
+  getFileContent: (eqpId, path, agentGroup) => api.get(`/clients/${eqpId}/log-content`, { params: { path, agentGroup }, timeout: 60000 }),
   deleteFiles: (eqpId, paths) => api.delete(`/clients/${eqpId}/log-files`, { data: { paths } }),
   downloadFiles: (eqpId, paths) => api.post(
     `/clients/${eqpId}/log-files/download`,

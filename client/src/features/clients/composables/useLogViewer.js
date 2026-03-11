@@ -207,7 +207,23 @@ export function useLogViewer() {
 
     // Lazy download
     try {
-      const res = await logApi.getFileContent(eqpId, file.path)
+      const res = await logApi.getFileContent(eqpId, file.path, currentAgentGroup.value)
+      globalContents.value = { ...globalContents.value, [tabKey]: res.data.content || '' }
+    } catch (err) {
+      globalContents.value = { ...globalContents.value, [tabKey]: `Error loading file: ${err.message}` }
+    } finally {
+      globalContentLoading.value = { ...globalContentLoading.value, [tabKey]: false }
+    }
+  }
+
+  async function reloadFile(eqpId, filePath) {
+    const tabKey = makeTabKey(eqpId, filePath)
+    const tab = globalOpenTabs.value.find(t => makeTabKey(t.eqpId, t.filePath) === tabKey)
+    if (!tab) return
+
+    globalContentLoading.value = { ...globalContentLoading.value, [tabKey]: true }
+    try {
+      const res = await logApi.getFileContent(eqpId, filePath, currentAgentGroup.value)
       globalContents.value = { ...globalContents.value, [tabKey]: res.data.content || '' }
     } catch (err) {
       globalContents.value = { ...globalContents.value, [tabKey]: `Error loading file: ${err.message}` }
@@ -396,6 +412,7 @@ export function useLogViewer() {
     openLogViewer,
     loadFileList,
     openFile,
+    reloadFile,
     closeTab,
     toggleFileSelection,
     selectAllFiles,

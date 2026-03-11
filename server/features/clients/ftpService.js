@@ -6,6 +6,7 @@ const Client = require('./model')
 const { getClientIpInfo } = require('./clientRepository')
 const configSettingsService = require('./configSettingsService')
 const { createBufferCollector } = require('../../shared/utils/streamCollector')
+const { decodeBuffer } = require('../../shared/utils/decodeBuffer')
 const { runConcurrently } = require('../../shared/utils/concurrencyPool')
 const configBackupService = require('./configBackupService')
 const { deepMerge } = require('../../shared/utils/mergeUtils')
@@ -428,7 +429,7 @@ async function listLogFiles(eqpId, dirPath, keyword) {
  * @param {number} [maxSize] - Maximum file size in bytes
  * @returns {Promise<string>} File content
  */
-async function readLogFile(eqpId, filePath, maxSize) {
+async function readLogFile(eqpId, filePath, maxSize, encoding) {
   const maxFileSize = maxSize || parseInt(process.env.LOG_MAX_FILE_SIZE) || LOG_MAX_FILE_SIZE_DEFAULT
   return withFtp(eqpId, async (ftpClient) => {
     const fileSize = await ftpClient.size(filePath)
@@ -438,7 +439,7 @@ async function readLogFile(eqpId, filePath, maxSize) {
 
     const collector = createBufferCollector()
     await ftpClient.downloadTo(collector.writable, filePath)
-    return collector.toString()
+    return decodeBuffer(collector.toBuffer(), encoding || 'utf-8')
   })
 }
 

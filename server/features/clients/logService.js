@@ -57,8 +57,14 @@ async function getLogFileList(eqpId, agentGroup) {
  * Get log file content via FTP
  * Checks file size before reading
  */
-async function getLogFileContent(eqpId, filePath) {
-  const content = await readLogFile(eqpId, filePath, LOG_MAX_FILE_SIZE)
+async function getLogFileContent(eqpId, filePath, agentGroup) {
+  let encoding = 'utf-8'
+  if (agentGroup) {
+    const logSources = await logSettingsService.getByAgentGroup(agentGroup)
+    const match = logSources.find(s => filePath.includes(s.path))
+    if (match?.encoding) encoding = match.encoding
+  }
+  const content = await readLogFile(eqpId, filePath, LOG_MAX_FILE_SIZE, encoding)
   return content
 }
 

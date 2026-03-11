@@ -138,6 +138,18 @@
                   </button>
                   <span class="text-xs font-medium text-gray-600 dark:text-gray-400 mr-2 shrink-0">Content</span>
 
+                  <!-- Reload button for active file tab -->
+                  <button
+                    v-if="activeFileTab && !isActiveTabLoading"
+                    @click="handleReloadActiveTab"
+                    class="p-0.5 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition shrink-0 mr-1"
+                    title="Reload file"
+                  >
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+
                   <!-- Tab bar with scroll navigation -->
                   <div v-if="!fileViewCollapsed && (logViewer.openTabs.value.length > 0 || tailTabKeys.length > 0)" class="flex items-center flex-1 min-w-0">
                     <!-- Left scroll button -->
@@ -453,6 +465,18 @@ const clientLabel = computed(() => {
 const isActiveTabLoading = computed(() => {
   return props.logViewer.activeTabLoading?.value || false
 })
+
+const activeFileTab = computed(() => {
+  const tabId = props.logViewer.activeTabId.value
+  if (!tabId || tabId.startsWith('tail:')) return null
+  return props.logViewer.parseTabKey(tabId)
+})
+
+const handleReloadActiveTab = () => {
+  if (!activeFileTab.value) return
+  const { eqpId, filePath } = activeFileTab.value
+  props.logViewer.reloadFile(eqpId, filePath)
+}
 
 // Tail-related computed properties
 const tailTabKeys = computed(() => {

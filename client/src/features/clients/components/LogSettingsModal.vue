@@ -81,6 +81,9 @@
                   <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider w-1/5">
                     Keyword
                   </th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider w-28">
+                    Encoding
+                  </th>
                   <th class="px-4 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider w-20">
                     Actions
                   </th>
@@ -122,6 +125,17 @@
                     />
                     <p v-if="item._keywordError" class="mt-1 text-xs text-red-500">{{ item._keywordError }}</p>
                   </td>
+                  <td class="px-4 py-2">
+                    <select
+                      v-model="item.encoding"
+                      @change="changed = true"
+                      class="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="utf-8">UTF-8</option>
+                      <option value="euc-kr">EUC-KR</option>
+                      <option value="cp949">CP949</option>
+                    </select>
+                  </td>
                   <td class="px-4 py-2 text-center">
                     <button
                       @click="removeItem(index)"
@@ -135,7 +149,7 @@
                   </td>
                 </tr>
                 <tr v-if="items.length === 0">
-                  <td colspan="4" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colspan="5" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No log sources. Click "Add" to create one.
                   </td>
                 </tr>
@@ -273,6 +287,7 @@ async function loadData() {
       name: s.name,
       path: s.path,
       keyword: s.keyword || '',
+      encoding: s.encoding || 'utf-8',
       _nameError: null,
       _pathError: null,
       _keywordError: null
@@ -292,6 +307,7 @@ function addNewRow() {
     name: '',
     path: '',
     keyword: '',
+    encoding: 'utf-8',
     _nameError: null,
     _pathError: null,
     _keywordError: null
@@ -337,7 +353,8 @@ async function handleSave() {
       sourceId: item.sourceId,
       name: item.name.trim(),
       path: item.path.trim(),
-      keyword: item.keyword.trim()
+      keyword: item.keyword.trim(),
+      encoding: item.encoding || 'utf-8'
     }))
     await logApi.saveSettings(props.agentGroup, { logSources })
     changed.value = false

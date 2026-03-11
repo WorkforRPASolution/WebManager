@@ -62,12 +62,12 @@ async function getLogFileList(req, res) {
  */
 async function getLogFileContent(req, res) {
   const { id } = req.params
-  const { path: filePath } = req.query
+  const { path: filePath, agentGroup } = req.query
 
   if (!filePath) throw ApiError.badRequest('path query parameter is required')
 
   try {
-    const content = await logService.getLogFileContent(id, filePath)
+    const content = await logService.getLogFileContent(id, filePath, agentGroup)
     res.json({ content })
   } catch (error) {
     throw ApiError.internal(`Failed to read log file: ${error.message}`)

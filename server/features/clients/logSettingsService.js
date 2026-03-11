@@ -63,7 +63,8 @@ async function saveLogSettings(agentGroup, logSources, updatedBy = 'system') {
     sourceId: s.sourceId || `log_${i + 1}`,
     name: s.name.trim(),
     path: s.path.trim(),
-    keyword: s.keyword.trim()
+    keyword: s.keyword.trim(),
+    encoding: (s.encoding || 'utf-8').trim().toLowerCase()
   }))
 
   return LogSettings.findOneAndUpdate(
