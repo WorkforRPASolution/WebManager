@@ -51,9 +51,18 @@ describe('arsAgentWinSc.parseListFilesResponse', () => {
     expect(result.error).toMatch(/찾을 수 없습니다/)
   })
 
-  it('기타 에러 — throw', () => {
+  it('기타 에러 — graceful 빈 결과 반환', () => {
     const rpcResult = { success: false, output: '', error: 'Access denied' }
-    expect(() => arsWinSc.parseListFilesResponse(rpcResult)).toThrow('Access denied')
+    const result = arsWinSc.parseListFilesResponse(rpcResult)
+    expect(result.files).toEqual([])
+    expect(result.error).toBe('Access denied')
+  })
+
+  it('ManagerAgent exit code만 전달 — graceful 처리', () => {
+    const rpcResult = { success: false, output: '', error: 'Process exited with an error: 1 (Exit value:1)' }
+    const result = arsWinSc.parseListFilesResponse(rpcResult)
+    expect(result.files).toEqual([])
+    expect(result.error).toBeTruthy()
   })
 })
 
@@ -127,9 +136,18 @@ describe('arsAgentLinuxSystemd.parseListFilesResponse', () => {
     expect(result.error).toBeTruthy()
   })
 
-  it('기타 에러 — throw', () => {
+  it('기타 에러 — graceful 빈 결과 반환', () => {
     const rpcResult = { success: false, output: '', error: 'Permission denied' }
-    expect(() => arsLinux.parseListFilesResponse(rpcResult)).toThrow('Permission denied')
+    const result = arsLinux.parseListFilesResponse(rpcResult)
+    expect(result.files).toEqual([])
+    expect(result.error).toBe('Permission denied')
+  })
+
+  it('ManagerAgent exit code만 전달 — graceful 처리', () => {
+    const rpcResult = { success: false, output: '', error: 'Process exited with an error: 1 (Exit value:1)' }
+    const result = arsLinux.parseListFilesResponse(rpcResult)
+    expect(result.files).toEqual([])
+    expect(result.error).toBeTruthy()
   })
 })
 

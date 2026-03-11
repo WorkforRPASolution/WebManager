@@ -154,7 +154,9 @@ module.exports = {
       const combined = (rpcResult.output || '') + ' ' + (rpcResult.error || '')
       if (/file not found|cannot find|does not exist|찾을 수 없/i.test(combined))
         return { files: [], error: '디렉토리를 찾을 수 없습니다' }
-      throw new Error(rpcResult.error || 'List files command failed')
+      // dir /A-D /B: exit code 1 = 파일 없음 또는 디렉토리 없음
+      // ManagerAgent가 실제 stderr 대신 exit code만 전달하는 경우 대비
+      return { files: [], error: rpcResult.error || '파일 목록 조회 실패' }
     }
     const output = (rpcResult.output || '').trim()
     if (!output) return { files: [] }
