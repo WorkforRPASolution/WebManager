@@ -8,9 +8,6 @@
  *
  * [Log Tail] getTailCommand(filePath, lines, basePath)
  *   - logService.js에서 호출 — 런타임 인자(파일경로, 줄 수)가 필요하여 별도 메서드
- *
- * [BasePath Detection] getDetectBasePathCommand() + parseBasePath(rpcResult)
- *   - controlService.detectBasePath()에서 호출 — 반환 형식(단순 문자열)이 parseResponse와 다름
  */
 
 module.exports = {
@@ -84,27 +81,6 @@ module.exports = {
   // --- Log Tail (logService.js) ---
   getTailCommand(filePath, lines, basePath) {
     return { commandLine: 'tail', args: ['-n', String(lines), filePath], timeout: 10000 }
-  },
-
-  // --- BasePath Detection (controlService.js) ---
-  getDetectBasePathCommand() {
-    return { commandLine: 'systemctl', args: ['show', 'ResourceAgent', '-p', 'ExecStart'], timeout: 10000 }
-  },
-
-  parseBasePath(rpcResult) {
-    const output = rpcResult.output || ''
-    // ExecStart 라인에서 실행 경로 추출
-    // Format: ExecStart={ path=/opt/ResourceAgent/bin/start.sh ; ... }
-    const match = output.match(/path=([^\s;]+)/)
-    if (!match) {
-      throw new Error('ExecStart path not found in systemctl show output')
-    }
-    const binaryPath = match[1].trim()
-    const binIdx = binaryPath.search(/[\\\/]bin[\\\/]/i)
-    if (binIdx <= 0) {
-      throw new Error(`Cannot extract basePath from: ${binaryPath}`)
-    }
-    return binaryPath.substring(0, binIdx)
   },
 
   // --- List Files (configTestController.js) ---

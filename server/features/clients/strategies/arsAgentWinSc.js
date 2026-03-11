@@ -1,6 +1,6 @@
 /**
  * ARS Agent (Windows SC) Strategy
- * net 명령 (start/stop), sc 명령 (status/basePath)을 사용한 서비스 관리
+ * net 명령 (start/stop), sc 명령 (status)을 사용한 서비스 관리
  *
  * [Service Control] actions + getCommand(action) + parseResponse(action, result)
  *   - controlService.executeAction()에서 호출
@@ -10,9 +10,6 @@
  *
  * [Log Tail] getTailCommand(filePath, lines, basePath)
  *   - logService.js에서 호출 — 런타임 인자(파일경로, 줄 수)가 필요하여 별도 메서드
- *
- * [BasePath Detection] getDetectBasePathCommand() + parseBasePath(rpcResult)
- *   - controlService.detectBasePath()에서 호출 — 반환 형식(단순 문자열)이 parseResponse와 다름
  */
 
 module.exports = {
@@ -119,25 +116,6 @@ module.exports = {
   getTailCommand(filePath, lines, basePath) {
     const tailBin = basePath ? `${basePath}/utils/tail` : 'tail'
     return { commandLine: tailBin, args: ['-n', String(lines), filePath], timeout: 10000 }
-  },
-
-  // --- BasePath Detection (controlService.js) ---
-  getDetectBasePathCommand() {
-    return { commandLine: 'sc', args: ['qc', 'ARSAgent'], timeout: 10000 }
-  },
-
-  parseBasePath(rpcResult) {
-    const output = rpcResult.output || ''
-    const match = output.match(/BINARY_PATH_NAME\s*:\s*(.+)/)
-    if (!match) {
-      throw new Error('BINARY_PATH_NAME not found in sc qc output')
-    }
-    const binaryLine = match[1].trim()
-    const binIdx = binaryLine.search(/[\\\/]bin[\\\/]/i)
-    if (binIdx <= 0) {
-      throw new Error(`Cannot extract basePath from: ${binaryLine}`)
-    }
-    return binaryLine.substring(0, binIdx).replace(/\\\\/g, '/')
   },
 
   // --- List Files (configTestController.js) ---

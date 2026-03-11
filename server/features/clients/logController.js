@@ -147,11 +147,10 @@ async function handleLogTailStream(req, res) {
  */
 async function detectClientBasePath(req, res) {
   const { id } = req.params
-  const agentGroup = req.body.agentGroup || req.query.agentGroup
-  if (!agentGroup) throw ApiError.badRequest('agentGroup is required')
+  // agentGroup은 더 이상 사용하지 않지만 호환성을 위해 수용
 
   try {
-    const basePath = await controlService.detectBasePath(id, agentGroup)
+    const basePath = await controlService.detectBasePath(id)
     res.json({ basePath })
   } catch (error) {
     throw ApiError.internal(`Failed to detect base path: ${error.message}`)

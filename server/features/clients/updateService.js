@@ -81,6 +81,13 @@ async function deployUpdate(agentGroup, profileId, taskIds, targetEqpIds, onProg
   const selectedTasks = (profile.tasks || []).filter(t => taskIds.includes(t.taskId))
   if (selectedTasks.length === 0) throw new Error('No matching tasks found')
 
+  // 2.5. exec 태스크에 상대경로가 있으면 basePath 일괄 사전 감지
+  const hasRelativeExec = selectedTasks.some(t =>
+    t.type === 'exec' && (t.commandLine.startsWith('./') || t.commandLine.startsWith('.\\')))
+  if (hasRelativeExec) {
+    await controlService.ensureBasePaths(targetEqpIds)
+  }
+
   // 3. Cache source files to temp directory (download once)
   const source = createUpdateSource(profile.source)
   let tempDir
@@ -151,7 +158,7 @@ async function deployUpdate(agentGroup, profileId, taskIds, targetEqpIds, onProg
  */
 async function deployTaskToClient(eqpId, agentGroup, taskDef, source) {
   if (taskDef.type === 'exec') {
-    const commandLine = await controlService.resolveCommandPath(eqpId, agentGroup, taskDef.commandLine)
+    const commandLine = await controlService.resolveCommandPath(eqpId, taskDef.commandLine)
     const result = await controlService.executeRaw(
       eqpId, commandLine, taskDef.args || [], taskDef.timeout || 30000
     )

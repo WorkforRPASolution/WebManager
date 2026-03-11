@@ -19,27 +19,29 @@ const mockGetProfile = vi.fn()
 const mockCreateUpdateSource = vi.fn()
 const mockUploadStreamToFile = vi.fn()
 const mockExecuteRaw = vi.fn()
-const mockResolveCommandPath = vi.fn(async (eqpId, agentGroup, cmd) => cmd)
+const mockResolveCommandPath = vi.fn(async (eqpId, cmd) => cmd)
+const mockEnsureBasePaths = vi.fn(async () => {})
 
 _setDeps({
   updateSettingsService: { getProfile: mockGetProfile },
   createUpdateSource: mockCreateUpdateSource,
   ftpService: { uploadStreamToFile: mockUploadStreamToFile },
-  controlService: { executeRaw: mockExecuteRaw, resolveCommandPath: mockResolveCommandPath }
+  controlService: { executeRaw: mockExecuteRaw, resolveCommandPath: mockResolveCommandPath, ensureBasePaths: mockEnsureBasePaths }
 })
 
 describe('updateService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     // Restore default passthrough (clearAllMocks does not reset mockResolvedValue)
-    mockResolveCommandPath.mockImplementation(async (eqpId, agentGroup, cmd) => cmd)
+    mockResolveCommandPath.mockImplementation(async (eqpId, cmd) => cmd)
+    mockEnsureBasePaths.mockImplementation(async () => {})
 
     // Restore deps (some tests override ftpService)
     _setDeps({
       updateSettingsService: { getProfile: mockGetProfile },
       createUpdateSource: mockCreateUpdateSource,
       ftpService: { uploadStreamToFile: mockUploadStreamToFile },
-      controlService: { executeRaw: mockExecuteRaw, resolveCommandPath: mockResolveCommandPath }
+      controlService: { executeRaw: mockExecuteRaw, resolveCommandPath: mockResolveCommandPath, ensureBasePaths: mockEnsureBasePaths }
     })
 
     // Default: createUpdateSource returns a source with required methods
@@ -327,7 +329,7 @@ describe('updateService', () => {
 
       await deployUpdate('ars', 'prof_1', ['task_1'], ['EQP_01'], null)
 
-      expect(mockResolveCommandPath).toHaveBeenCalledWith('EQP_01', 'ars', './bin/install.bat')
+      expect(mockResolveCommandPath).toHaveBeenCalledWith('EQP_01', './bin/install.bat')
       expect(mockExecuteRaw).toHaveBeenCalledWith('EQP_01', 'C:/ARS/bin/install.bat', [], 30000)
     })
 
@@ -344,7 +346,7 @@ describe('updateService', () => {
 
       await deployUpdate('ars', 'prof_1', ['task_1'], ['EQP_01'], null)
 
-      expect(mockResolveCommandPath).toHaveBeenCalledWith('EQP_01', 'ars', 'C:/Windows/taskkill.exe')
+      expect(mockResolveCommandPath).toHaveBeenCalledWith('EQP_01', 'C:/Windows/taskkill.exe')
       expect(mockExecuteRaw).toHaveBeenCalledWith('EQP_01', 'C:/Windows/taskkill.exe', ['/f'], 30000)
     })
 
@@ -361,7 +363,7 @@ describe('updateService', () => {
 
       await deployUpdate('ars', 'prof_1', ['task_1'], ['EQP_01'], null)
 
-      expect(mockResolveCommandPath).toHaveBeenCalledWith('EQP_01', 'ars', 'net')
+      expect(mockResolveCommandPath).toHaveBeenCalledWith('EQP_01', 'net')
       expect(mockExecuteRaw).toHaveBeenCalledWith('EQP_01', 'net', ['stop', 'svc'], 30000)
     })
   })
@@ -478,6 +480,74 @@ describe('updateService', () => {
         'EQP_01:copy',
         'EQP_01:exec:net start svc'
       ])
+    })
+  })
+
+  describe('deployUpdate — basePath 사전 해석', () => {
+    it('exec 태스크(상대경로) 포함 → ensureBasePaths 호출', async () => {
+      const profile = {
+        profileId: 'prof_1',
+        tasks: [
+          { taskId: 'task_1', type: 'exec', name: 'Install', commandLine: '.\\install.bat', args: [], timeout: 30000 }
+        ],
+        source: { type: 'local', localPath: '/tmp/src' }
+      }
+      mockGetProfile.mockResolvedValue(profile)
+      mockExecuteRaw.mockResolvedValue({ success: true, output: 'ok', error: null })
+
+      await deployUpdate('ars', 'prof_1', ['task_1'], ['EQP_01', 'EQP_02'], null)
+
+      expect(mockEnsureBasePaths).toHaveBeenCalledWith(['EQP_01', 'EQP_02'])
+    })
+
+    it('exec 태스크(절대경로) → ensureBasePaths 미호출', async () => {
+      const profile = {
+        profileId: 'prof_1',
+        tasks: [
+          { taskId: 'task_1', type: 'exec', name: 'Kill', commandLine: 'C:/EEG/install.bat', args: [], timeout: 30000 }
+        ],
+        source: { type: 'local', localPath: '/tmp/src' }
+      }
+      mockGetProfile.mockResolvedValue(profile)
+      mockExecuteRaw.mockResolvedValue({ success: true, output: 'ok', error: null })
+
+      await deployUpdate('ars', 'prof_1', ['task_1'], ['EQP_01'], null)
+
+      expect(mockEnsureBasePaths).not.toHaveBeenCalled()
+    })
+
+    it('copy 태스크만 → ensureBasePaths 미호출', async () => {
+      const profile = {
+        profileId: 'prof_1',
+        tasks: [
+          { taskId: 'task_1', type: 'copy', name: 'Binary', sourcePath: 'bin/a.exe', targetPath: 'bin/a.exe' }
+        ],
+        source: { type: 'local', localPath: '/tmp/src' }
+      }
+      mockGetProfile.mockResolvedValue(profile)
+      mockUploadStreamToFile.mockResolvedValue()
+
+      await deployUpdate('ars', 'prof_1', ['task_1'], ['EQP_01'], null)
+
+      expect(mockEnsureBasePaths).not.toHaveBeenCalled()
+    })
+
+    it('exec + copy 혼합, exec에 상대경로 → ensureBasePaths 호출', async () => {
+      const profile = {
+        profileId: 'prof_1',
+        tasks: [
+          { taskId: 'task_1', type: 'copy', name: 'Binary', sourcePath: 'bin/a.exe', targetPath: 'bin/a.exe' },
+          { taskId: 'task_2', type: 'exec', name: 'Cleanup', commandLine: './cleanup.sh', args: [], timeout: 30000 }
+        ],
+        source: { type: 'local', localPath: '/tmp/src' }
+      }
+      mockGetProfile.mockResolvedValue(profile)
+      mockUploadStreamToFile.mockResolvedValue()
+      mockExecuteRaw.mockResolvedValue({ success: true, output: 'ok', error: null })
+
+      await deployUpdate('ars', 'prof_1', ['task_1', 'task_2'], ['EQP_01'], null)
+
+      expect(mockEnsureBasePaths).toHaveBeenCalledWith(['EQP_01'])
     })
   })
 

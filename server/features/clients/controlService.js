@@ -17,6 +17,8 @@ function _setDeps(deps) {
   if (deps.executeRawFn) _executeRawFn = deps.executeRawFn
 }
 
+const BASEPATH_CONCURRENCY = 5
+
 /**
  * DB에서 명령어 조회 후 RPC 실행
  * @param {string} eqpId - 장비 ID
@@ -178,7 +180,7 @@ async function executeAction(eqpId, agentGroup, action) {
     let basePath = client.basePath
     if (!basePath) {
       try {
-        basePath = await detectBasePath(eqpId, agentGroup)
+        basePath = await detectBasePath(eqpId)
       } catch (e) {
         console.warn(`[executeAction] detectBasePath failed for ${eqpId}, proceeding with relative path: ${e.message}`)
       }
@@ -264,35 +266,65 @@ async function batchExecuteActionStream(eqpIds, agentGroup, action, onProgress) 
 
 
 /**
- * Detect basePath via strategy-specific RPC command
- * Strategy module provides the command and parsing logic
+ * Detect basePath via ManagerAgent service query (sc qc / systemctl show).
+ * basePath = EEG_BASE = 모든 에이전트의 공통 루트.
+ * ManagerAgent는 모든 클라이언트 관리의 전제조건이므로 항상 존재.
  * @param {string} eqpId - Equipment ID
- * @param {string} agentGroup - Agent group for strategy lookup
  */
-async function detectBasePath(eqpId, agentGroup) {
-  const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL agentPorts serviceType').lean()
+async function detectBasePath(eqpId) {
+  const client = await Client.findOne({ eqpId }).select('serviceType').lean()
   if (!client) throw new Error(`Client not found: ${eqpId}`)
 
-  const strategy = client.serviceType
-    ? strategyRegistry.get(agentGroup, client.serviceType)
-    : strategyRegistry.getDefault(agentGroup)
-  if (!strategy) throw new Error(`No strategy found for ${agentGroup}`)
-  if (!strategy.getDetectBasePathCommand) throw new Error(`Strategy ${agentGroup}:${strategy.serviceType} does not support detectBasePath`)
+  const isLinux = client.serviceType === 'linux_systemd'
+  const commandLine = isLinux ? 'systemctl' : 'sc'
+  const args = isLinux
+    ? ['show', 'ManagerAgent', '-p', 'ExecStart']
+    : ['qc', 'ManagerAgent']
 
-  const cmd = strategy.getDetectBasePathCommand()
-  const rpcClient = new AvroRpcClient(client.ipAddr, client.ipAddrL, client.agentPorts)
-  try {
-    await rpcClient.connect()
-    const response = await rpcClient.runCommand(cmd.commandLine, cmd.args, cmd.timeout)
-    if (!response.success) {
-      throw new Error(response.error || 'detectBasePath command failed')
-    }
+  const rawFn = _executeRawFn || executeRaw
+  const response = await rawFn(eqpId, commandLine, args, 10000)
 
-    const basePath = strategy.parseBasePath(response)
-    await Client.updateOne({ eqpId }, { basePath })
-    return basePath
-  } finally {
-    rpcClient.disconnect()
+  if (!response.success) {
+    throw new Error(response.error || 'detectBasePath: ManagerAgent query failed')
+  }
+
+  const output = response.output || ''
+  const pathMatch = isLinux
+    ? output.match(/path=([^\s;]+)/)
+    : output.match(/BINARY_PATH_NAME\s*:\s*(.+)/)
+  if (!pathMatch) throw new Error('Cannot parse basePath from ManagerAgent output')
+
+  const binaryPath = pathMatch[1].trim()
+  const binIdx = binaryPath.search(/[\\\/]bin[\\\/]/i)
+  if (binIdx <= 0) throw new Error(`Cannot extract basePath from: ${binaryPath}`)
+
+  const basePath = binaryPath.substring(0, binIdx).replace(/\\/g, '/')
+  await Client.updateOne({ eqpId }, { basePath })
+  return basePath
+}
+
+/**
+ * Batch pre-resolve basePaths for multiple clients.
+ * Only queries clients that don't have basePath in DB.
+ * @param {string[]} eqpIds - Equipment IDs
+ */
+async function ensureBasePaths(eqpIds) {
+  const clients = await Client.find(
+    { eqpId: { $in: eqpIds }, $or: [{ basePath: null }, { basePath: '' }] }
+  ).select('eqpId').lean()
+
+  const needDetection = clients.map(c => c.eqpId)
+  if (needDetection.length === 0) return
+
+  for (let i = 0; i < needDetection.length; i += BASEPATH_CONCURRENCY) {
+    const chunk = needDetection.slice(i, i + BASEPATH_CONCURRENCY)
+    await Promise.allSettled(chunk.map(async (eqpId) => {
+      try {
+        await detectBasePath(eqpId)
+      } catch (e) {
+        console.warn(`[ensureBasePaths] ${eqpId}: ${e.message}`)
+      }
+    }))
   }
 }
 
@@ -329,7 +361,7 @@ async function listRemoteFiles(eqpId, agentGroup, directory) {
  * Resolve relative command path (./ or .\) to absolute using client basePath.
  * Non-relative paths are returned as-is.
  */
-async function resolveCommandPath(eqpId, agentGroup, commandLine) {
+async function resolveCommandPath(eqpId, commandLine) {
   if (!commandLine.startsWith('./') && !commandLine.startsWith('.\\')) {
     return commandLine
   }
@@ -337,10 +369,9 @@ async function resolveCommandPath(eqpId, agentGroup, commandLine) {
   let basePath = client?.basePath
   if (!basePath) {
     try {
-      basePath = await detectBasePath(eqpId, agentGroup)
+      basePath = await detectBasePath(eqpId)
     } catch (e) {
-      console.warn(`[resolveCommandPath] detectBasePath failed for ${eqpId}, proceeding with relative path: ${e.message}`)
-      return commandLine
+      throw new Error(`basePath를 감지할 수 없습니다 (${eqpId}): ${e.message}`)
     }
   }
   const cleanBase = basePath.replace(/\/+$/, '')
@@ -360,6 +391,7 @@ module.exports = {
   batchExecuteAction,
   batchExecuteActionStream,
   detectBasePath,
+  ensureBasePaths,
   listRemoteFiles,
   resolveCommandPath,
   isConnectionError,
