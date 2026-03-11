@@ -61,6 +61,7 @@
             :options="filteredModels"
             label="Model"
             placeholder="Select Model..."
+            width="270px"
           />
 
           <!-- Category Search -->

@@ -52,6 +52,7 @@
             :options="availableModels"
             label="Model"
             placeholder="Select Model..."
+            width="270px"
             @update:model-value="handleModelChange"
           />
 

@@ -22,6 +22,10 @@ const props = defineProps({
   disabled: {
     type: Boolean,
     default: false
+  },
+  width: {
+    type: String,
+    default: '180px'
   }
 })
 
@@ -119,7 +123,8 @@ onUnmounted(() => {
     <!-- Input Field -->
     <div
       @click="toggleDropdown"
-      class="flex items-center justify-between px-3 py-2 rounded-lg border cursor-pointer transition-colors w-[180px]"
+      class="flex items-center justify-between px-3 py-2 rounded-lg border cursor-pointer transition-colors"
+      :style="{ width: width }"
       :class="[
         disabled
           ? 'bg-gray-100 dark:bg-dark-border cursor-not-allowed opacity-50'
