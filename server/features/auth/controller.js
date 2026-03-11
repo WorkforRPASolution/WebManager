@@ -38,7 +38,7 @@ async function login(req, res) {
       ...clientInfo
     }).catch(err => console.error('Failed to save auth log:', err.message))
 
-    throw ApiError.unauthorized('Invalid credentials')
+    throw ApiError.unauthorized('아이디 또는 비밀번호가 올바르지 않습니다')
   }
 
   if (result.error) {
@@ -49,7 +49,9 @@ async function login(req, res) {
       ...clientInfo
     }).catch(err => console.error('Failed to save auth log:', err.message))
 
-    throw ApiError.unauthorized(result.error)
+    const err = ApiError.unauthorized(result.error)
+    if (result.code) err.code = result.code
+    throw err
   }
 
   // Log successful login
@@ -125,7 +127,7 @@ async function me(req, res) {
  * Register a new user
  */
 async function signup(req, res) {
-  const { name, singleid, password, email, line, process, department, note, authorityManager, authority } = req.body
+  const { name, singleid, password, email, line, process, processes, department, note, authorityManager, authority } = req.body
 
   // Validation
   const errors = []
@@ -150,11 +152,20 @@ async function signup(req, res) {
     errors.push({ field: 'email', message: '유효한 이메일을 입력해주세요' })
   }
 
-  // Process validation: 영문 대문자, 언더바만 허용
-  if (!process || process.trim().length === 0) {
-    errors.push({ field: 'process', message: 'Process를 입력해주세요' })
-  } else if (!/^[A-Z_]+$/.test(process.trim())) {
-    errors.push({ field: 'process', message: 'Process는 영문 대문자와 언더바(_)만 사용 가능합니다' })
+  // Process validation: 배열 형태, 각 항목은 영문 대문자/언더바만
+  // 호환성: processes (배열) 우선, process (문자열) fallback
+  const processArray = Array.isArray(processes) ? processes.map(p => p.trim()).filter(Boolean)
+    : (process ? process.split(';').map(p => p.trim()).filter(Boolean) : [])
+
+  if (processArray.length === 0) {
+    errors.push({ field: 'process', message: 'Process를 하나 이상 선택해주세요' })
+  } else {
+    for (const p of processArray) {
+      if (!/^[A-Z_]+$/.test(p)) {
+        errors.push({ field: 'process', message: `Process "${p}"는 영문 대문자와 언더바(_)만 사용 가능합니다` })
+        break
+      }
+    }
   }
 
   // Line validation: 한글 제외
@@ -187,7 +198,7 @@ async function signup(req, res) {
     password,
     email: email.trim(),
     line: line.trim(),
-    process: process.trim(),
+    processes: processArray,
     department: department?.trim() || '',
     note: note?.trim() || '',
     authorityManager: authorityManager !== undefined && authorityManager !== '' ? Number(authorityManager) : 0,
@@ -306,18 +317,30 @@ async function setNewPassword(req, res) {
 }
 
 /**
+ * GET /api/auth/check-id
+ * Check if a user ID is available (public)
+ */
+async function checkId(req, res) {
+  const { singleid } = req.query
+
+  if (!singleid || singleid.trim().length < 3) {
+    throw ApiError.badRequest('ID는 3자 이상이어야 합니다')
+  }
+
+  const result = await authService.checkIdAvailability(singleid.trim())
+  res.json(result)
+}
+
+/**
  * GET /api/auth/signup-options
  * Get processes, lines, roles, and authorities for signup form (public)
  * Uses EQP_INFO collection for process/line data
  */
 async function getSignupOptions(req, res) {
-  const { getProcesses, getLines } = require('../clients/service')
+  const { getProcesses } = require('../clients/service')
   const { DEFAULT_ROLE_PERMISSIONS } = require('../users/model')
 
-  const [processes, lines] = await Promise.all([
-    getProcesses(),
-    getLines()
-  ])
+  const processes = await getProcesses()
 
   // Map roles from DEFAULT_ROLE_PERMISSIONS
   const roles = DEFAULT_ROLE_PERMISSIONS.map(r => ({
@@ -332,7 +355,22 @@ async function getSignupOptions(req, res) {
     { value: 'WRITE', label: '쓰기 권한' }
   ]
 
-  res.json({ processes, lines, roles, authorities })
+  res.json({ processes, roles, authorities })
+}
+
+/**
+ * GET /api/auth/search-clients
+ * Search EQP_INFO by keyword (eqpId or IP) to help Process selection (public)
+ */
+async function searchClients(req, res) {
+  const { keyword } = req.query
+
+  if (!keyword || keyword.trim().length < 2) {
+    throw ApiError.badRequest('검색어는 2자 이상이어야 합니다')
+  }
+
+  const result = await authService.searchClientsByKeyword(keyword.trim())
+  res.json(result)
 }
 
 module.exports = {
@@ -341,6 +379,8 @@ module.exports = {
   logout,
   me,
   signup,
+  checkId,
+  searchClients,
   requestPasswordReset,
   changePassword,
   setNewPassword,

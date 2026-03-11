@@ -144,6 +144,7 @@ async function errorHandler(err, req, res, next) {
   if (err instanceof ApiError) {
     return res.status(err.statusCode).json({
       error: err.message,
+      ...(err.code && { code: err.code }),
       ...(err.details && { details: err.details })
     })
   }

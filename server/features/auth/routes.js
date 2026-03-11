@@ -32,6 +32,12 @@ router.post('/change-password', authenticate, asyncHandler(controller.changePass
 // POST /api/auth/set-new-password - Set new password after reset approval
 router.post('/set-new-password', authenticate, asyncHandler(controller.setNewPassword))
 
+// GET /api/auth/check-id - Check if user ID is available (public)
+router.get('/check-id', asyncHandler(controller.checkId))
+
+// GET /api/auth/search-clients - Search EQP_INFO by keyword for Process help (public)
+router.get('/search-clients', asyncHandler(controller.searchClients))
+
 // GET /api/auth/signup-options - Get processes and lines for signup form (public)
 router.get('/signup-options', asyncHandler(controller.getSignupOptions))
 

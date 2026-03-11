@@ -12,6 +12,7 @@ const username = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const error = ref('')
+const errorCode = ref(null)
 
 /**
  * Find the first route the user has permission for
@@ -50,6 +51,7 @@ const handleLogin = async () => {
   }
 
   error.value = ''
+  errorCode.value = null
 
   const result = await authStore.login(username.value, password.value)
 
@@ -68,6 +70,7 @@ const handleLogin = async () => {
     router.push(targetPath)
   } else {
     error.value = result.error
+    errorCode.value = result.code
   }
 }
 </script>
@@ -91,8 +94,17 @@ const handleLogin = async () => {
       </div>
 
       <!-- Error Message -->
-      <div v-if="error" class="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm">
-        {{ error }}
+      <div v-if="error" class="mb-4 p-3 rounded-lg text-sm" :class="errorCode === 'NO_PASSWORD'
+        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+        : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'">
+        <p>{{ error }}</p>
+        <router-link
+          v-if="errorCode === 'NO_PASSWORD'"
+          to="/request-password-reset"
+          class="inline-block mt-2 text-sm font-medium text-amber-800 dark:text-amber-300 underline hover:no-underline"
+        >
+          비밀번호 초기화 요청하기
+        </router-link>
       </div>
 
       <!-- Form -->

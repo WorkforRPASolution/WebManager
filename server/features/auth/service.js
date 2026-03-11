@@ -6,8 +6,17 @@ const bcrypt = require('bcryptjs')
 const { generateToken, generateRefreshToken, verifyToken } = require('../../shared/utils/jwt')
 const { getUserBySingleId, getRolePermissionByLevel } = require('../users/service')
 const { User } = require('../users/model')
+const Client = require('../clients/model')
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
+
+// --- DI for testing ---
+let _User = User
+let _Client = Client
+function _setDeps(deps) {
+  if (deps.User) _User = deps.User
+  if (deps.Client) _Client = deps.Client
+}
 
 /**
  * Authenticate user with credentials
@@ -21,6 +30,14 @@ async function login(singleid, password) {
 
   if (!user) {
     return null
+  }
+
+  // Check if password is set (existing user without WebManager password)
+  if (!user.password) {
+    return {
+      error: 'WebManager 비밀번호가 설정되지 않았습니다. 비밀번호 초기화를 요청해주세요.',
+      code: 'NO_PASSWORD'
+    }
   }
 
   // Check account status
@@ -158,7 +175,7 @@ async function getCurrentUser(tokenPayload) {
  * @returns {Object} - Result with success status
  */
 async function signup(userData) {
-  const { name, singleid, password, email, line, process, department, note, authorityManager, authority } = userData
+  const { name, singleid, password, email, line, processes, department, note, authorityManager, authority } = userData
 
   // Check if singleid already exists
   const existingUser = await User.findOne({ singleid }).lean()
@@ -177,6 +194,10 @@ async function signup(userData) {
   // Hash password
   const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS)
 
+  // Sync processes (array) → process (`;` separated string)
+  const processArray = Array.isArray(processes) ? processes.filter(Boolean) : []
+  const processStr = processArray.join(';')
+
   // Create user with pending status
   // Note: authorityManager and authority are requested values that admin can modify on approval
   const newUser = new User({
@@ -185,7 +206,8 @@ async function signup(userData) {
     password: hashedPassword,
     email: email?.toLowerCase() || '',
     line,
-    process,
+    process: processStr,
+    processes: processArray,
     department: department || '',
     note: note || '',
     accountStatus: 'pending',
@@ -360,11 +382,54 @@ async function approveUserAccount(userId) {
   }
 }
 
+/**
+ * Check if a singleid is available
+ * @param {string} singleid - User ID to check
+ * @returns {Object} - { available: true } or { available: false, message }
+ */
+async function checkIdAvailability(singleid) {
+  if (!singleid || singleid.trim().length < 3) {
+    throw new Error('ID는 3자 이상이어야 합니다')
+  }
+
+  const existing = await _User.findOne({ singleid: singleid.trim() }).select('singleid').lean()
+  if (existing) {
+    return { available: false, message: '이미 사용 중인 ID입니다' }
+  }
+  return { available: true }
+}
+
+/**
+ * Search clients by keyword (eqpId or ipAddr partial match)
+ * @param {string} keyword - Search keyword
+ * @returns {Object} - { clients, processes }
+ */
+async function searchClientsByKeyword(keyword) {
+  if (!keyword || keyword.trim().length < 2) {
+    throw new Error('검색어는 2자 이상이어야 합니다')
+  }
+
+  const escaped = keyword.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const regex = { $regex: escaped, $options: 'i' }
+
+  const clients = await _Client.find({
+    $or: [{ eqpId: regex }, { ipAddr: regex }]
+  }).select('eqpId ipAddr process').lean()
+
+  const limited = clients.slice(0, 50)
+  const processes = [...new Set(limited.map(c => c.process))].sort()
+
+  return { clients: limited, processes }
+}
+
 module.exports = {
   login,
   refreshAccessToken,
   getCurrentUser,
   signup,
+  checkIdAvailability,
+  searchClientsByKeyword,
+  _setDeps,
   requestPasswordReset,
   changePassword,
   setNewPassword,
