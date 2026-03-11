@@ -316,14 +316,25 @@ async function approvePasswordReset(userId) {
     return { error: 'User not found' }
   }
 
-  // Set password status to must_change
+  // Generate temporary password (8 chars: letters + numbers)
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  let tempPassword = ''
+  for (let i = 0; i < 8; i++) {
+    tempPassword += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+
+  // Hash and save temporary password
+  const hashedPassword = await bcrypt.hash(tempPassword, SALT_ROUNDS)
+  user.password = hashedPassword
   user.passwordStatus = 'must_change'
   user.passwordResetRequestedAt = null
   await user.save()
 
   return {
     success: true,
-    message: '비밀번호 초기화가 승인되었습니다.'
+    message: '비밀번호 초기화가 승인되었습니다.',
+    singleid: user.singleid,
+    tempPassword
   }
 }
 

@@ -294,7 +294,7 @@ const columnDefs = ref([
     field: 'password',
     headerName: 'Password',
     width: 120,
-    editable: true,
+    editable: false,
     valueFormatter: (params) => params.value ? '********' : '',
   },
   {

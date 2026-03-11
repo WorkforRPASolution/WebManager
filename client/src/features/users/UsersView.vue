@@ -159,6 +159,52 @@
       @error="handlePermissionsError"
     />
 
+    <!-- Temporary Password Modal -->
+    <Teleport to="body">
+      <div v-if="showTempPasswordModal" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/50" />
+        <div class="relative bg-white dark:bg-dark-card rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Password Reset Approved</h3>
+          <div class="space-y-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">User ID</label>
+              <div class="px-3 py-2 bg-gray-100 dark:bg-dark-border rounded-lg text-gray-900 dark:text-white font-mono">
+                {{ tempPasswordData.singleid }}
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Temporary Password</label>
+              <div class="flex items-center gap-2">
+                <div class="flex-1 px-3 py-2 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg text-amber-800 dark:text-amber-200 font-mono text-lg tracking-wider">
+                  {{ tempPasswordData.tempPassword }}
+                </div>
+                <button
+                  @click="copyTempPassword"
+                  class="p-2 bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                  title="Copy password"
+                >
+                  <svg class="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <p class="text-sm text-amber-600 dark:text-amber-400">
+              Please share this temporary password with the user. They will be required to change it on next login.
+            </p>
+          </div>
+          <div class="mt-6 flex justify-end">
+            <button
+              @click="showTempPasswordModal = false"
+              class="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- Toast Notification -->
     <Teleport to="body">
       <div
@@ -206,6 +252,8 @@ const selectedIds = ref([])
 const showDeleteModal = ref(false)
 const showRoleDialog = ref(false)
 const showPermissionDialog = ref(false)
+const showTempPasswordModal = ref(false)
+const tempPasswordData = ref({ singleid: '', tempPassword: '' })
 const hasSearched = ref(false)
 const filterCollapsed = ref(false)
 const availableProcesses = ref([])
@@ -458,11 +506,22 @@ const handleExportColumnWidths = () => {
 
 const handleApprovePasswordReset = async (userId) => {
   try {
-    await usersApi.approvePasswordReset(userId)
-    showToast('success', 'Password reset approved')
+    const response = await usersApi.approvePasswordReset(userId)
+    const { singleid, tempPassword } = response.data
+    tempPasswordData.value = { singleid, tempPassword }
+    showTempPasswordModal.value = true
     await refreshCurrentPage()
   } catch (err) {
     showToast('error', err.response?.data?.error || 'Failed to approve password reset')
+  }
+}
+
+const copyTempPassword = async () => {
+  try {
+    await navigator.clipboard.writeText(tempPasswordData.value.tempPassword)
+    showToast('success', 'Temporary password copied')
+  } catch {
+    showToast('error', 'Failed to copy')
   }
 }
 </script>

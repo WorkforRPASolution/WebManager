@@ -136,8 +136,8 @@ async function signup(req, res) {
 
   if (!singleid || singleid.trim().length < 3) {
     errors.push({ field: 'singleid', message: 'ID는 3자 이상이어야 합니다' })
-  } else if (!/^[A-Za-z0-9_-]+$/.test(singleid)) {
-    errors.push({ field: 'singleid', message: 'ID는 영문, 숫자, _, -만 사용 가능합니다' })
+  } else if (!/^[A-Za-z0-9._-]+$/.test(singleid)) {
+    errors.push({ field: 'singleid', message: 'ID는 영문, 숫자, _, -, .만 사용 가능합니다' })
   }
 
   if (!password || password.length < 8) {

@@ -32,6 +32,8 @@ const processInputMode = ref('select') // 'select' or 'custom'
 const lineInputMode = ref('select') // 'select' or 'custom'
 
 // State
+const showPassword = ref(false)
+const showPasswordConfirm = ref(false)
 const loading = ref(false)
 const error = ref('')
 const success = ref(false)
@@ -124,8 +126,8 @@ const validateField = (field) => {
   if (field === 'singleid' || !field) {
     if (form.value.singleid.trim().length < 3) {
       errors.singleid = 'ID는 3자 이상이어야 합니다'
-    } else if (!/^[A-Za-z0-9_-]+$/.test(form.value.singleid)) {
-      errors.singleid = 'ID는 영문, 숫자, _, -만 사용 가능합니다'
+    } else if (!/^[A-Za-z0-9._-]+$/.test(form.value.singleid)) {
+      errors.singleid = 'ID는 영문, 숫자, _, -, .만 사용 가능합니다'
     }
   }
 
@@ -313,28 +315,60 @@ const getRoleLabel = (role) => {
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Password <span class="text-red-500">*</span>
             </label>
-            <input
-              v-model="form.password"
-              type="password"
-              @blur="validateField('password')"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-              :class="{ 'border-red-500 dark:border-red-500': fieldErrors.password }"
-              placeholder="Min 8 characters"
-            />
+            <div class="relative">
+              <input
+                v-model="form.password"
+                :type="showPassword ? 'text' : 'password'"
+                @blur="validateField('password')"
+                class="w-full px-4 py-2.5 pr-11 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                :class="{ 'border-red-500 dark:border-red-500': fieldErrors.password }"
+                placeholder="Min 8 characters"
+              />
+              <button
+                type="button"
+                @click="showPassword = !showPassword"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                tabindex="-1"
+              >
+                <svg v-if="showPassword" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                </svg>
+                <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </button>
+            </div>
             <p v-if="fieldErrors.password" class="mt-1 text-xs text-red-500">{{ fieldErrors.password }}</p>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Confirm <span class="text-red-500">*</span>
             </label>
-            <input
-              v-model="form.passwordConfirm"
-              type="password"
-              @blur="validateField('passwordConfirm')"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-              :class="{ 'border-red-500 dark:border-red-500': fieldErrors.passwordConfirm }"
-              placeholder="Confirm password"
-            />
+            <div class="relative">
+              <input
+                v-model="form.passwordConfirm"
+                :type="showPasswordConfirm ? 'text' : 'password'"
+                @blur="validateField('passwordConfirm')"
+                class="w-full px-4 py-2.5 pr-11 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                :class="{ 'border-red-500 dark:border-red-500': fieldErrors.passwordConfirm }"
+                placeholder="Confirm password"
+              />
+              <button
+                type="button"
+                @click="showPasswordConfirm = !showPasswordConfirm"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                tabindex="-1"
+              >
+                <svg v-if="showPasswordConfirm" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                </svg>
+                <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </button>
+            </div>
             <p v-if="fieldErrors.passwordConfirm" class="mt-1 text-xs text-red-500">{{ fieldErrors.passwordConfirm }}</p>
           </div>
         </div>
