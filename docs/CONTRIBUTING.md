@@ -234,15 +234,33 @@ const socksPort = client.agentPorts?.socks || null             // null → socks
 
 ### basePath 경로 해석
 
-Strategy 모듈의 `commandLine`이 상대경로(`./bin/sc`)일 경우, Java 서비스 모드에서 CWD ≠ 설치 경로이므로 실행 실패합니다. `controlService.executeAction()`에서 자동으로 절대경로로 변환합니다.
+상대경로(`./bin/sc`)의 `commandLine`은 Java 서비스 모드에서 CWD ≠ 설치 경로이므로 실행 실패합니다. `controlService.resolveCommandPath()`에서 basePath 기반 절대경로로 변환합니다.
 
 ```javascript
-// 변환 패턴 (controlService.js executeAction)
+// resolveCommandPath(eqpId, commandLine)
 // ./bin/sc → /app/ManagerAgent/bin/sc (basePath 적용)
-// basePath 조회 우선순위: client.basePath (DB) → detectBasePath (RPC 자동감지) → fallback (상대경로 유지)
+// basePath 조회: client.basePath (DB) → detectBasePath (RPC 자동감지) → 실패 시 throw
 ```
 
-basePath는 `POST /api/clients/:id/detect-base-path`로 자동 감지하거나, Equipment Info Grid에서 직접 입력합니다.
+### basePath 자동 감지 (`detectBasePath`)
+
+ManagerAgent의 서비스 등록 정보를 RPC로 조회하여 설치 경로를 자동 감지합니다.
+- **Linux** (`systemctl show ManagerAgent -p ExecStart`): ExecStart 경로에서 추출
+- **Windows** (`sc qc ManagerAgent`): BINARY_PATH_NAME에서 추출
+- strategy 패턴 없이 `controlService.js`에서 직접 처리
+
+### basePath 사전 감지 (`ensureBasePaths`)
+
+소프트웨어 배포(`deployUpdate`) 시 exec 태스크에 상대경로가 포함되어 있으면, 배포 전에 basePath가 없는 클라이언트를 일괄 감지합니다.
+
+```javascript
+// ensureBasePaths(eqpIds)
+// 1. DB에서 basePath가 비어있는 클라이언트 조회
+// 2. BASEPATH_CONCURRENCY(5)씩 병렬 RPC 감지
+// 3. 감지 실패 시 개별 경고 (전체 배포는 계속 진행)
+```
+
+basePath는 `POST /api/clients/:id/detect-base-path`로 수동 감지하거나, Equipment Info Grid에서 직접 입력합니다.
 
 ### 기존 연동 패턴
 
