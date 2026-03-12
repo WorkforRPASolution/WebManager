@@ -131,3 +131,8 @@ export const configTestApi = {
 export const aliveApi = {
   getBatchStatus: (eqpIds, agentGroup) => api.post('/clients/alive-status', { eqpIds, agentGroup }),
 }
+
+export const configCompareApi = {
+  // SSE endpoint — use fetchSSEStream directly
+  url: '/clients/config/compare',
+}

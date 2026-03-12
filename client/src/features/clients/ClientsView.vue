@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useClientData } from './composables/useClientData'
 import { useConfigManager } from './composables/useConfigManager'
+import { useConfigCompare } from './composables/useConfigCompare'
 import { useBatchActionStream } from './composables/useBatchActionStream'
 import { useLogViewer } from './composables/useLogViewer'
 import { serviceApi } from './api'
@@ -20,6 +21,7 @@ import ConfigSettingsModal from './components/ConfigSettingsModal.vue'
 import LogSettingsModal from './components/LogSettingsModal.vue'
 import UpdateSettingsModal from './components/UpdateSettingsModal.vue'
 import UpdateModal from './components/UpdateModal.vue'
+import ConfigCompareModal from './components/ConfigCompareModal.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -31,6 +33,9 @@ const showPermissionDialog = ref(false)
 
 // Config Manager
 const configManager = useConfigManager()
+
+// Config Compare
+const configCompare = useConfigCompare()
 
 // Log Viewer
 const logViewer = useLogViewer()
@@ -308,6 +313,26 @@ const handleConfig = async () => {
   }
 }
 
+// Compare configs handler
+const handleCompare = () => {
+  if (selectedIds.value.length < 2) {
+    showToast('Please select at least 2 clients to compare', 'warning')
+    return
+  }
+  if (selectedIds.value.length > 25) {
+    showToast('Maximum 25 clients can be compared at once', 'warning')
+    return
+  }
+  const selectedClientData = selectedIds.value
+    .map(id => clientsWithStatus.value.find(c => (c.eqpId || c.id) === id))
+    .filter(Boolean)
+  if (selectedClientData.length < 2) {
+    showToast('Client data not found', 'error')
+    return
+  }
+  configCompare.open(selectedClientData, agentGroup.value)
+}
+
 // Switch client in config manager
 const handleSwitchClient = (eqpId) => {
   configManager.switchClient(eqpId)
@@ -456,6 +481,7 @@ const handleExportColumnWidths = () => {
       @control="handleControl"
       @update="handleUpdate"
       @config="handleConfig"
+      @compare="handleCompare"
       @log="handleLog"
       @refresh="handleRefresh"
       @page-size-change="handlePageSizeChange"
@@ -517,6 +543,9 @@ const handleExportColumnWidths = () => {
         class="h-full bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border"
       />
     </div>
+
+    <!-- Config Compare Modal -->
+    <ConfigCompareModal :compare="configCompare" />
 
     <!-- Config Manager Modal -->
     <ConfigManagerModal
