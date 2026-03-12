@@ -21,5 +21,7 @@ data:
   FTP_TIMEOUT: "30000"
   # 이미지 저장소
   IMAGE_STORAGE: "httpwebserver"
-  # Redis (headless 서비스 DNS — 실제 서비스명으로 변경 필요, DB 0)
-  REDIS_URL: "redis://redis-headless.default.svc.cluster.local:6379/0"
+  # Redis (실제 주소/마스터명으로 변경 필요)
+  # Simple: redis://redis-host:6379/0
+  # Sentinel: {sentinel1:26379},{sentinel2:26379},{sentinel3:26379}#masterName
+  REDIS_URL: "{redis-sentinel-0:26379},{redis-sentinel-1:26379},{redis-sentinel-2:26379}#mymaster"
