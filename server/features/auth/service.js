@@ -7,15 +7,25 @@ const { generateToken, generateRefreshToken, verifyToken } = require('../../shar
 const { getUserBySingleId, getRolePermissionByLevel } = require('../users/service')
 const { User } = require('../users/model')
 const Client = require('../clients/model')
+const { sendEmailTo: _defaultSendEmailTo } = require('../../shared/services/emailNotificationService')
+const { resolveEmail: _defaultResolveEmail } = require('../../shared/services/userEmailResolver')
+const { buildTempPasswordEmail: _defaultBuildTempPasswordEmail } = require('../../shared/services/emailTemplates')
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
 
 // --- DI for testing ---
 let _User = User
 let _Client = Client
+let _resolveEmail = _defaultResolveEmail
+let _sendEmailTo = _defaultSendEmailTo
+let _buildTempPasswordEmail = _defaultBuildTempPasswordEmail
+
 function _setDeps(deps) {
   if (deps.User) _User = deps.User
   if (deps.Client) _Client = deps.Client
+  if (deps.resolveEmail) _resolveEmail = deps.resolveEmail
+  if (deps.sendEmailTo) _sendEmailTo = deps.sendEmailTo
+  if (deps.buildTempPasswordEmail) _buildTempPasswordEmail = deps.buildTempPasswordEmail
 }
 
 /**
@@ -332,7 +342,7 @@ async function setNewPassword(userId, newPassword) {
  * @returns {Object} - Result
  */
 async function approvePasswordReset(userId) {
-  const user = await User.findById(userId)
+  const user = await _User.findById(userId)
 
   if (!user) {
     return { error: 'User not found' }
@@ -352,11 +362,21 @@ async function approvePasswordReset(userId) {
   user.passwordResetRequestedAt = null
   await user.save()
 
+  // Send email notification
+  let emailSent = false
+  const email = await _resolveEmail(user.singleid)
+  if (email) {
+    const emailBody = _buildTempPasswordEmail(user.singleid, tempPassword)
+    const result = await _sendEmailTo(email, '[WebManager] 비밀번호 초기화 안내', emailBody)
+    emailSent = result.sent
+  }
+
   return {
     success: true,
     message: '비밀번호 초기화가 승인되었습니다.',
     singleid: user.singleid,
-    tempPassword
+    tempPassword,
+    emailSent
   }
 }
 

@@ -192,6 +192,18 @@
             <p class="text-sm text-amber-600 dark:text-amber-400">
               Please share this temporary password with the user. They will be required to change it on next login.
             </p>
+            <div v-if="tempPasswordData.emailSent" class="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg">
+              <svg class="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <span class="text-sm text-green-700 dark:text-green-300">Email notification sent to the user.</span>
+            </div>
+            <div v-else class="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg">
+              <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              <span class="text-sm text-gray-500 dark:text-gray-400">Email not sent (no email on file or service unavailable).</span>
+            </div>
           </div>
           <div class="mt-6 flex justify-end">
             <button
@@ -253,7 +265,7 @@ const showDeleteModal = ref(false)
 const showRoleDialog = ref(false)
 const showPermissionDialog = ref(false)
 const showTempPasswordModal = ref(false)
-const tempPasswordData = ref({ singleid: '', tempPassword: '' })
+const tempPasswordData = ref({ singleid: '', tempPassword: '', emailSent: false })
 const hasSearched = ref(false)
 const filterCollapsed = ref(false)
 const availableProcesses = ref([])
@@ -507,8 +519,8 @@ const handleExportColumnWidths = () => {
 const handleApprovePasswordReset = async (userId) => {
   try {
     const response = await usersApi.approvePasswordReset(userId)
-    const { singleid, tempPassword } = response.data
-    tempPasswordData.value = { singleid, tempPassword }
+    const { singleid, tempPassword, emailSent } = response.data
+    tempPasswordData.value = { singleid, tempPassword, emailSent: !!emailSent }
     showTempPasswordModal.value = true
     await refreshCurrentPage()
   } catch (err) {
