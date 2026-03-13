@@ -101,4 +101,32 @@ describe('approvePasswordReset — email integration', () => {
     expect(result.tempPassword).toHaveLength(8)
     expect(result.message).toBeTruthy()
   })
+
+  it('수동 email 전달 시 → resolveEmail 스킵, 전달된 email로 발송', async () => {
+    mockUser()
+
+    const result = await approvePasswordReset('user123', { email: 'manual@test.com' })
+
+    expect(result.emailSent).toBe(true)
+    expect(mockResolveEmail).not.toHaveBeenCalled()
+    expect(mockSendEmailTo).toHaveBeenCalledWith(
+      'manual@test.com',
+      '[WebManager] 비밀번호 초기화 안내',
+      '<html>email body</html>'
+    )
+  })
+
+  it('수동 email 빈 문자열 → resolveEmail fallback', async () => {
+    mockUser()
+    mockResolveEmail.mockResolvedValue('db@test.com')
+
+    const result = await approvePasswordReset('user123', { email: '' })
+
+    expect(mockResolveEmail).toHaveBeenCalledWith('testuser')
+    expect(mockSendEmailTo).toHaveBeenCalledWith(
+      'db@test.com',
+      expect.any(String),
+      expect.any(String)
+    )
+  })
 })

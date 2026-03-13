@@ -341,7 +341,7 @@ async function setNewPassword(userId, newPassword) {
  * @param {string} userId - User ID to approve
  * @returns {Object} - Result
  */
-async function approvePasswordReset(userId) {
+async function approvePasswordReset(userId, { email: manualEmail } = {}) {
   const user = await _User.findById(userId)
 
   if (!user) {
@@ -362,9 +362,9 @@ async function approvePasswordReset(userId) {
   user.passwordResetRequestedAt = null
   await user.save()
 
-  // Send email notification
+  // Send email notification (manual email takes priority over DB lookup)
   let emailSent = false
-  const email = await _resolveEmail(user.singleid)
+  const email = manualEmail || await _resolveEmail(user.singleid)
   if (email) {
     const emailBody = _buildTempPasswordEmail(user.singleid, tempPassword)
     const result = await _sendEmailTo(email, '[WebManager] 비밀번호 초기화 안내', emailBody)

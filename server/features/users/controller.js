@@ -216,8 +216,9 @@ async function approveUser(req, res) {
  */
 async function approvePasswordReset(req, res) {
   const { id } = req.params
+  const { email } = req.body || {}
 
-  const result = await authService.approvePasswordReset(id)
+  const result = await authService.approvePasswordReset(id, { email })
 
   if (result.error) {
     throw ApiError.notFound(result.error)

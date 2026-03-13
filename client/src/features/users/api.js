@@ -64,5 +64,5 @@ export const usersApi = {
   approveUser: (id, data = {}) => api.put(`/users/${id}/approve`, data),
 
   // Approve password reset (Admin only)
-  approvePasswordReset: (id) => api.put(`/users/${id}/approve-reset`)
+  approvePasswordReset: (id, email) => api.put(`/users/${id}/approve-reset`, { email })
 }

@@ -159,6 +159,45 @@
       @error="handlePermissionsError"
     />
 
+    <!-- Password Reset Confirm Modal (with email input) -->
+    <Teleport to="body">
+      <div v-if="showResetConfirmModal" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/50" @click="showResetConfirmModal = false" />
+        <div class="relative bg-white dark:bg-dark-card rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Approve Password Reset</h3>
+          <div class="space-y-3">
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              A temporary password will be generated. Enter the user's email to send it automatically.
+            </p>
+            <div>
+              <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Email (optional)</label>
+              <input
+                v-model="resetConfirmEmail"
+                type="email"
+                placeholder="user@example.com"
+                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-dark-border text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                @keyup.enter="confirmPasswordReset"
+              />
+            </div>
+          </div>
+          <div class="mt-6 flex justify-end gap-2">
+            <button
+              @click="showResetConfirmModal = false"
+              class="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600 font-medium rounded-lg transition"
+            >
+              Cancel
+            </button>
+            <button
+              @click="confirmPasswordReset"
+              class="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg transition"
+            >
+              Approve
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- Temporary Password Modal -->
     <Teleport to="body">
       <div v-if="showTempPasswordModal" class="fixed inset-0 z-50 flex items-center justify-center">
@@ -266,6 +305,9 @@ const showRoleDialog = ref(false)
 const showPermissionDialog = ref(false)
 const showTempPasswordModal = ref(false)
 const tempPasswordData = ref({ singleid: '', tempPassword: '', emailSent: false })
+const showResetConfirmModal = ref(false)
+const resetConfirmEmail = ref('')
+const resetConfirmUserId = ref(null)
 const hasSearched = ref(false)
 const filterCollapsed = ref(false)
 const availableProcesses = ref([])
@@ -516,9 +558,16 @@ const handleExportColumnWidths = () => {
   if (text) showToast('success', 'Column widths copied to clipboard')
 }
 
-const handleApprovePasswordReset = async (userId) => {
+const handleApprovePasswordReset = (userId) => {
+  resetConfirmUserId.value = userId
+  resetConfirmEmail.value = ''
+  showResetConfirmModal.value = true
+}
+
+const confirmPasswordReset = async () => {
+  showResetConfirmModal.value = false
   try {
-    const response = await usersApi.approvePasswordReset(userId)
+    const response = await usersApi.approvePasswordReset(resetConfirmUserId.value, resetConfirmEmail.value || undefined)
     const { singleid, tempPassword, emailSent } = response.data
     tempPasswordData.value = { singleid, tempPassword, emailSent: !!emailSent }
     showTempPasswordModal.value = true
