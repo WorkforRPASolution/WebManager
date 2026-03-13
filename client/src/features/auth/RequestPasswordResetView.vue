@@ -1,14 +1,26 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { authApi } from '@/shared/api'
 
 const router = useRouter()
 
 const singleid = ref('')
+const email = ref('')
 const loading = ref(false)
 const error = ref('')
 const success = ref(false)
+const successMessage = ref('')
+const operationMode = ref('standalone')
+
+onMounted(async () => {
+  try {
+    const res = await authApi.getOperationMode()
+    operationMode.value = res.data.mode
+  } catch {
+    // fallback to standalone
+  }
+})
 
 const handleSubmit = async () => {
   if (!singleid.value.trim()) {
@@ -16,13 +28,20 @@ const handleSubmit = async () => {
     return
   }
 
+  if (operationMode.value === 'integrated' && !email.value.trim()) {
+    error.value = '이메일을 입력해주세요'
+    return
+  }
+
   loading.value = true
   error.value = ''
 
   try {
-    const response = await authApi.requestPasswordReset(singleid.value.trim())
+    const emailParam = operationMode.value === 'integrated' ? email.value.trim() : undefined
+    const response = await authApi.requestPasswordReset(singleid.value.trim(), emailParam)
     if (response.data.success) {
       success.value = true
+      successMessage.value = response.data.message
     }
   } catch (err) {
     error.value = err.response?.data?.error || '요청에 실패했습니다'
@@ -63,7 +82,10 @@ const goToLogin = () => {
         </div>
         <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Request Submitted</h2>
         <p class="text-gray-600 dark:text-gray-400 mb-6">
-          Your password reset request has been submitted. Once approved by an administrator, you can log in and set a new password.
+          {{ successMessage || (operationMode === 'integrated'
+            ? 'A temporary password has been sent to your email.'
+            : 'Your password reset request has been submitted. Once approved by an administrator, you can log in and set a new password.')
+          }}
         </p>
         <button
           @click="goToLogin"
@@ -82,7 +104,12 @@ const goToLogin = () => {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p class="text-sm text-blue-700 dark:text-blue-300">
-              Enter your user ID below. Once your request is approved by an administrator, you'll be able to set a new password when you log in.
+              <template v-if="operationMode === 'integrated'">
+                Enter your user ID and email below. A temporary password will be sent to your email.
+              </template>
+              <template v-else>
+                Enter your user ID below. Once your request is approved by an administrator, you'll be able to set a new password when you log in.
+              </template>
             </p>
           </div>
         </div>
@@ -106,10 +133,23 @@ const goToLogin = () => {
           />
         </div>
 
+        <!-- Email (integrated mode only) -->
+        <div v-if="operationMode === 'integrated'">
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Email
+          </label>
+          <input
+            v-model="email"
+            type="email"
+            class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+            placeholder="Enter your email"
+          />
+        </div>
+
         <!-- Submit -->
         <button
           type="submit"
-          :disabled="loading || !singleid.trim()"
+          :disabled="loading || !singleid.trim() || (operationMode === 'integrated' && !email.trim())"
           class="w-full py-3 px-4 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span v-if="loading">Submitting...</span>

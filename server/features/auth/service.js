@@ -13,6 +13,20 @@ const { buildTempPasswordEmail: _defaultBuildTempPasswordEmail } = require('../.
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
 
+const VALID_OPERATION_MODES = ['standalone', 'integrated']
+
+/**
+ * Get current operation mode from environment
+ * @returns {'standalone'|'integrated'}
+ */
+function getOperationMode() {
+  const mode = process.env.OPERATION_MODE
+  if (mode && VALID_OPERATION_MODES.includes(mode)) {
+    return mode
+  }
+  return 'standalone'
+}
+
 // --- DI for testing ---
 let _User = User
 let _Client = Client
@@ -245,22 +259,42 @@ async function signup(userData) {
 }
 
 /**
+ * Generate temporary password (8 chars: letters + numbers, no ambiguous chars)
+ * Shared by requestPasswordReset (integrated) and approvePasswordReset
+ */
+function _generateTempPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  let tempPassword = ''
+  for (let i = 0; i < 8; i++) {
+    tempPassword += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return tempPassword
+}
+
+/**
  * Request password reset
  * @param {string} singleid - User ID
+ * @param {Object} [options]
+ * @param {string} [options.email] - Email (required in integrated mode)
  * @returns {Object} - Result
  */
-async function requestPasswordReset(singleid) {
-  const user = await User.findOne({ singleid })
+async function requestPasswordReset(singleid, { email } = {}) {
+  const mode = getOperationMode()
+
+  if (mode === 'integrated') {
+    return _requestPasswordResetIntegrated(singleid, email)
+  }
+
+  // standalone mode: 기존 동작
+  const user = await _User.findOne({ singleid })
 
   if (!user) {
-    // Return success even if user not found (security)
     return {
       success: true,
       message: '비밀번호 초기화 요청이 접수되었습니다. 관리자 승인 후 로그인 시 새 비밀번호를 설정할 수 있습니다.'
     }
   }
 
-  // Set password status to reset_requested
   user.passwordStatus = 'reset_requested'
   user.passwordResetRequestedAt = new Date()
   await user.save()
@@ -268,6 +302,43 @@ async function requestPasswordReset(singleid) {
   return {
     success: true,
     message: '비밀번호 초기화 요청이 접수되었습니다. 관리자 승인 후 로그인 시 새 비밀번호를 설정할 수 있습니다.'
+  }
+}
+
+/**
+ * Request password reset — integrated mode
+ * Generates temp password immediately + sends email
+ */
+async function _requestPasswordResetIntegrated(singleid, email) {
+  if (!email) {
+    return { error: '이메일을 입력해주세요' }
+  }
+
+  const user = await _User.findOne({ singleid })
+
+  if (!user) {
+    // 보안: 사용자 미존재 시에도 동일한 성공 메시지
+    return {
+      success: true,
+      message: '이메일로 임시 비밀번호가 발송되었습니다.'
+    }
+  }
+
+  // 임시 비밀번호 생성 + 해시 + 저장
+  const tempPassword = _generateTempPassword()
+  const hashedPassword = await bcrypt.hash(tempPassword, SALT_ROUNDS)
+  user.password = hashedPassword
+  user.passwordStatus = 'must_change'
+  user.passwordResetRequestedAt = null
+  await user.save()
+
+  // 이메일 발송 (실패해도 비밀번호 초기화는 유지)
+  const emailBody = _buildTempPasswordEmail(user.singleid, tempPassword)
+  await _sendEmailTo(email, '[WebManager] 비밀번호 초기화 안내', emailBody)
+
+  return {
+    success: true,
+    message: '이메일로 임시 비밀번호가 발송되었습니다.'
   }
 }
 
@@ -348,12 +419,8 @@ async function approvePasswordReset(userId, { email: manualEmail } = {}) {
     return { error: 'User not found' }
   }
 
-  // Generate temporary password (8 chars: letters + numbers)
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-  let tempPassword = ''
-  for (let i = 0; i < 8; i++) {
-    tempPassword += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
+  // Generate temporary password
+  const tempPassword = _generateTempPassword()
 
   // Hash and save temporary password
   const hashedPassword = await bcrypt.hash(tempPassword, SALT_ROUNDS)
@@ -362,13 +429,16 @@ async function approvePasswordReset(userId, { email: manualEmail } = {}) {
   user.passwordResetRequestedAt = null
   await user.save()
 
-  // Send email notification (manual email takes priority over DB lookup)
+  // Send email notification (only in integrated mode)
   let emailSent = false
-  const email = manualEmail || await _resolveEmail(user.singleid)
-  if (email) {
-    const emailBody = _buildTempPasswordEmail(user.singleid, tempPassword)
-    const result = await _sendEmailTo(email, '[WebManager] 비밀번호 초기화 안내', emailBody)
-    emailSent = result.sent
+  const mode = getOperationMode()
+  if (mode === 'integrated') {
+    const email = manualEmail || await _resolveEmail(user.singleid)
+    if (email) {
+      const emailBody = _buildTempPasswordEmail(user.singleid, tempPassword)
+      const result = await _sendEmailTo(email, '[WebManager] 비밀번호 초기화 안내', emailBody)
+      emailSent = result.sent
+    }
   }
 
   return {
@@ -450,6 +520,7 @@ module.exports = {
   checkIdAvailability,
   searchClientsByKeyword,
   _setDeps,
+  getOperationMode,
   requestPasswordReset,
   changePassword,
   setNewPassword,

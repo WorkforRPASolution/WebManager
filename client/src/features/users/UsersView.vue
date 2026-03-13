@@ -128,6 +128,7 @@
         :new-rows="newRowsSet"
         :deleted-rows="deletedRowsSet"
         :available-processes="availableProcesses"
+        :operation-mode="operationMode"
         @cell-edit="handleCellEdit"
         @selection-change="handleSelectionChange"
         @paste-rows="handlePasteRows"
@@ -159,7 +160,7 @@
       @error="handlePermissionsError"
     />
 
-    <!-- Password Reset Confirm Modal (with email input) -->
+    <!-- Password Reset Confirm Modal -->
     <Teleport to="body">
       <div v-if="showResetConfirmModal" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="absolute inset-0 bg-black/50" @click="showResetConfirmModal = false" />
@@ -167,9 +168,14 @@
           <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Approve Password Reset</h3>
           <div class="space-y-3">
             <p class="text-sm text-gray-600 dark:text-gray-400">
-              A temporary password will be generated. Enter the user's email to send it automatically.
+              <template v-if="operationMode === 'integrated'">
+                A temporary password will be generated. Enter the user's email to send it automatically.
+              </template>
+              <template v-else>
+                A temporary password will be generated. Please share it with the user manually.
+              </template>
             </p>
-            <div>
+            <div v-if="operationMode === 'integrated'">
               <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Email (optional)</label>
               <input
                 v-model="resetConfirmEmail"
@@ -231,18 +237,20 @@
             <p class="text-sm text-amber-600 dark:text-amber-400">
               Please share this temporary password with the user. They will be required to change it on next login.
             </p>
-            <div v-if="tempPasswordData.emailSent" class="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg">
-              <svg class="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-              <span class="text-sm text-green-700 dark:text-green-300">Email notification sent to the user.</span>
-            </div>
-            <div v-else class="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg">
-              <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-              <span class="text-sm text-gray-500 dark:text-gray-400">Email not sent (no email on file or service unavailable).</span>
-            </div>
+            <template v-if="operationMode === 'integrated'">
+              <div v-if="tempPasswordData.emailSent" class="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg">
+                <svg class="w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <span class="text-sm text-green-700 dark:text-green-300">Email notification sent to the user.</span>
+              </div>
+              <div v-else class="flex items-center gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg">
+                <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                <span class="text-sm text-gray-500 dark:text-gray-400">Email not sent (no email on file or service unavailable).</span>
+              </div>
+            </template>
           </div>
           <div class="mt-6 flex justify-end">
             <button
@@ -296,6 +304,7 @@ import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
 import { useProcessPermission } from '@/shared/composables/useProcessPermission'
 import { usersApi } from './api'
 import { clientListApi } from '../clients/api'
+import { authApi } from '@/shared/api'
 
 const gridRef = ref(null)
 const filterBarRef = ref(null)
@@ -311,7 +320,19 @@ const resetConfirmUserId = ref(null)
 const hasSearched = ref(false)
 const filterCollapsed = ref(false)
 const availableProcesses = ref([])
+const operationMode = ref('standalone')
 const { toast, showToast } = useToast()
+
+// Fetch operation mode
+const fetchOperationMode = async () => {
+  try {
+    const res = await authApi.getOperationMode()
+    operationMode.value = res.data.mode
+  } catch {
+    // fallback to standalone
+  }
+}
+fetchOperationMode()
 
 // Fetch available processes from EQP_INFO for the multi-select editor
 const fetchAvailableProcesses = async () => {

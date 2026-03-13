@@ -75,7 +75,8 @@ export const authApi = {
   signup: (data) => api.post('/auth/signup', data),
   checkId: (singleid) => api.get('/auth/check-id', { params: { singleid } }),
   searchClients: (keyword) => api.get('/auth/search-clients', { params: { keyword } }),
-  requestPasswordReset: (singleid) => api.post('/auth/request-password-reset', { singleid }),
+  requestPasswordReset: (singleid, email) => api.post('/auth/request-password-reset', { singleid, email }),
+  getOperationMode: () => api.get('/auth/operation-mode'),
   changePassword: (currentPassword, newPassword) => api.post('/auth/change-password', { currentPassword, newPassword }),
   setNewPassword: (newPassword) => api.post('/auth/set-new-password', { newPassword }),
 }

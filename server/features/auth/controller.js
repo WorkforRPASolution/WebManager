@@ -225,13 +225,13 @@ async function signup(req, res) {
  * Request password reset
  */
 async function requestPasswordReset(req, res) {
-  const { singleid } = req.body
+  const { singleid, email } = req.body
 
   if (!singleid) {
     throw ApiError.badRequest('사용자 ID를 입력해주세요')
   }
 
-  const result = await authService.requestPasswordReset(singleid)
+  const result = await authService.requestPasswordReset(singleid, { email })
 
   // Log password reset request
   const clientInfo = getClientInfo(req)
@@ -373,6 +373,15 @@ async function searchClients(req, res) {
   res.json(result)
 }
 
+/**
+ * GET /api/auth/operation-mode
+ * Get current operation mode (public)
+ */
+async function getOperationMode(req, res) {
+  const mode = authService.getOperationMode()
+  res.json({ mode })
+}
+
 module.exports = {
   login,
   refresh,
@@ -384,5 +393,6 @@ module.exports = {
   requestPasswordReset,
   changePassword,
   setNewPassword,
-  getSignupOptions
+  getSignupOptions,
+  getOperationMode
 }

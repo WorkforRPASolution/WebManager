@@ -113,6 +113,10 @@ const props = defineProps({
   availableProcesses: {
     type: Array,
     default: () => []
+  },
+  operationMode: {
+    type: String,
+    default: 'standalone'
   }
 })
 
@@ -331,8 +335,13 @@ const columnDefs = ref([
         buttons.push(`<button class="approve-user-btn px-2 py-1 text-xs bg-green-500 hover:bg-green-600 text-white rounded mr-1" data-id="${data._id}">Approve</button>`)
       }
 
-      // Show approve reset button for users with password reset requested
-      if (data.passwordStatus === 'reset_requested') {
+      // Show approve reset button
+      // standalone: only when reset_requested
+      // integrated: when account is active (admin fallback for email failure)
+      const showResetBtn = props.operationMode === 'integrated'
+        ? data.accountStatus === 'active'
+        : data.passwordStatus === 'reset_requested'
+      if (showResetBtn) {
         buttons.push(`<button class="approve-reset-btn px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded" data-id="${data._id}">Reset PW</button>`)
       }
 

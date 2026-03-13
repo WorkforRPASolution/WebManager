@@ -41,4 +41,7 @@ router.get('/search-clients', asyncHandler(controller.searchClients))
 // GET /api/auth/signup-options - Get processes and lines for signup form (public)
 router.get('/signup-options', asyncHandler(controller.getSignupOptions))
 
+// GET /api/auth/operation-mode - Get current operation mode (public)
+router.get('/operation-mode', asyncHandler(controller.getOperationMode))
+
 module.exports = router

@@ -4,7 +4,7 @@
  * Uses _setDeps() dependency injection for User model and email services.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { approvePasswordReset, _setDeps } from './service.js'
 
 // --- Mock dependencies ---
@@ -20,10 +20,21 @@ _setDeps({
   buildTempPasswordEmail: mockBuildTempPasswordEmail
 })
 
+let originalMode
+
 beforeEach(() => {
   vi.clearAllMocks()
+  originalMode = process.env.OPERATION_MODE
   mockBuildTempPasswordEmail.mockReturnValue('<html>email body</html>')
   mockSendEmailTo.mockResolvedValue({ sent: true, subscribers: 1 })
+})
+
+afterEach(() => {
+  if (originalMode === undefined) {
+    delete process.env.OPERATION_MODE
+  } else {
+    process.env.OPERATION_MODE = originalMode
+  }
 })
 
 function mockUser(overrides = {}) {
@@ -40,7 +51,11 @@ function mockUser(overrides = {}) {
   return user
 }
 
-describe('approvePasswordReset — email integration', () => {
+describe('approvePasswordReset — email integration (integrated mode)', () => {
+  beforeEach(() => {
+    process.env.OPERATION_MODE = 'integrated'
+  })
+
   it('사용자 존재 + email 있음 → sendEmailTo 호출됨, emailSent: true', async () => {
     mockUser()
     mockResolveEmail.mockResolvedValue('user@test.com')
@@ -128,5 +143,52 @@ describe('approvePasswordReset — email integration', () => {
       expect.any(String),
       expect.any(String)
     )
+  })
+})
+
+describe('approvePasswordReset — standalone mode', () => {
+  beforeEach(() => {
+    delete process.env.OPERATION_MODE
+  })
+
+  it('standalone → 이메일 서비스 미호출, emailSent: false 고정', async () => {
+    mockUser()
+    mockResolveEmail.mockResolvedValue('user@test.com')
+
+    const result = await approvePasswordReset('user123')
+
+    expect(result.success).toBe(true)
+    expect(result.tempPassword).toHaveLength(8)
+    expect(result.emailSent).toBe(false)
+    expect(mockResolveEmail).not.toHaveBeenCalled()
+    expect(mockSendEmailTo).not.toHaveBeenCalled()
+  })
+
+  it('standalone + 수동 email → 이메일 서비스 미호출', async () => {
+    mockUser()
+
+    const result = await approvePasswordReset('user123', { email: 'manual@test.com' })
+
+    expect(result.success).toBe(true)
+    expect(result.emailSent).toBe(false)
+    expect(mockSendEmailTo).not.toHaveBeenCalled()
+  })
+})
+
+describe('approvePasswordReset — integrated mode', () => {
+  beforeEach(() => {
+    process.env.OPERATION_MODE = 'integrated'
+  })
+
+  it('integrated → 기존 이메일 발송 로직 동작', async () => {
+    mockUser()
+    mockResolveEmail.mockResolvedValue('user@test.com')
+
+    const result = await approvePasswordReset('user123')
+
+    expect(result.success).toBe(true)
+    expect(result.emailSent).toBe(true)
+    expect(mockResolveEmail).toHaveBeenCalledWith('testuser')
+    expect(mockSendEmailTo).toHaveBeenCalled()
   })
 })
