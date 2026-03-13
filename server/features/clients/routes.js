@@ -9,6 +9,7 @@ const configController = require('./configController')
 const logController = require('./logController')
 const updateController = require('./updateController')
 const configTestController = require('./configTestController')
+const configCompareController = require('./configCompareController')
 const { asyncHandler } = require('../../shared/middleware/errorHandler')
 const { authenticate, requireRole, requireMenuPermission } = require('../../shared/middleware/authMiddleware')
 const { requireFeaturePermission, requireActionPermission } = require('../permissions/middleware')
@@ -98,6 +99,9 @@ router.get('/by-model', authenticate, requireMenuPermission(['arsAgent', 'resour
 
 // POST /api/clients/config/deploy - Deploy config to multiple clients (SSE)
 router.post('/config/deploy', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('clientControl', 'write'), asyncHandler(configController.deployConfig))
+
+// POST /api/clients/config/compare - N-way config comparison (SSE)
+router.post('/config/compare', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), requireFeaturePermission('clientControl', 'read'), asyncHandler(configCompareController.handleCompareConfigs))
 
 // ============================================
 // Log Settings Routes

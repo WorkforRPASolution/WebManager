@@ -162,6 +162,20 @@
         Config
       </button>
 
+      <!-- Compare Config Button -->
+      <button
+        v-if="canRead"
+        @click="$emit('compare')"
+        :disabled="selectedCount < 2 || operating"
+        class="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        :title="selectedCount < 2 ? 'Select at least 2 clients' : 'Compare configs'"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
+        </svg>
+        Compare
+      </button>
+
       <!-- Log Button -->
       <button
         v-if="canRead"
@@ -300,7 +314,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['control', 'update', 'config', 'log', 'refresh', 'page-size-change', 'page-change', 'select-by-status'])
+const emit = defineEmits(['control', 'update', 'config', 'compare', 'log', 'refresh', 'page-size-change', 'page-change', 'select-by-status'])
 
 const dropdownRef = ref(null)
 const isDropdownOpen = ref(false)
