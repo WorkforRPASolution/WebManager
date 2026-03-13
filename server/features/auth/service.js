@@ -9,7 +9,9 @@ const { User } = require('../users/model')
 const Client = require('../clients/model')
 const { sendEmailTo: _defaultSendEmailTo } = require('../../shared/services/emailNotificationService')
 const { resolveEmail: _defaultResolveEmail } = require('../../shared/services/userEmailResolver')
-const { buildTempPasswordEmail: _defaultBuildTempPasswordEmail } = require('../../shared/services/emailTemplates')
+const { buildTempPasswordEmail: _defaultBuildTempPasswordEmail, buildVerificationCodeEmail: _defaultBuildVerificationCodeEmail } = require('../../shared/services/emailTemplates')
+const { searchUsers: _defaultSearchUsers } = require('../../shared/services/earsService')
+const { storeCode: _defaultStoreCode, verifyCode: _defaultVerifyCode, checkCode: _defaultCheckCode } = require('../../shared/services/verificationCodeService')
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
 
@@ -33,6 +35,11 @@ let _Client = Client
 let _resolveEmail = _defaultResolveEmail
 let _sendEmailTo = _defaultSendEmailTo
 let _buildTempPasswordEmail = _defaultBuildTempPasswordEmail
+let _buildVerificationCodeEmail = _defaultBuildVerificationCodeEmail
+let _searchUsers = _defaultSearchUsers
+let _storeCode = _defaultStoreCode
+let _verifyCode = _defaultVerifyCode
+let _checkCode = _defaultCheckCode
 
 function _setDeps(deps) {
   if (deps.User) _User = deps.User
@@ -40,6 +47,11 @@ function _setDeps(deps) {
   if (deps.resolveEmail) _resolveEmail = deps.resolveEmail
   if (deps.sendEmailTo) _sendEmailTo = deps.sendEmailTo
   if (deps.buildTempPasswordEmail) _buildTempPasswordEmail = deps.buildTempPasswordEmail
+  if (deps.buildVerificationCodeEmail) _buildVerificationCodeEmail = deps.buildVerificationCodeEmail
+  if (deps.searchUsers) _searchUsers = deps.searchUsers
+  if (deps.storeCode) _storeCode = deps.storeCode
+  if (deps.verifyCode) _verifyCode = deps.verifyCode
+  if (deps.checkCode) _checkCode = deps.checkCode
 }
 
 /**
@@ -282,7 +294,7 @@ async function requestPasswordReset(singleid, { email } = {}) {
   const mode = getOperationMode()
 
   if (mode === 'integrated') {
-    return _requestPasswordResetIntegrated(singleid, email)
+    return { error: 'integrated 모드에서는 인증 코드 기반 비밀번호 초기화를 사용해주세요.' }
   }
 
   // standalone mode: 기존 동작
@@ -306,40 +318,76 @@ async function requestPasswordReset(singleid, { email } = {}) {
 }
 
 /**
- * Request password reset — integrated mode
- * Generates temp password immediately + sends email
+ * Search EARS users by name
+ * @param {string} name - Name to search
+ * @returns {Promise<Object>} - { success, data } or { success: false, error }
  */
-async function _requestPasswordResetIntegrated(singleid, email) {
-  if (!email) {
-    return { error: '이메일을 입력해주세요' }
+async function searchEarsUsers(name) {
+  return _searchUsers(name)
+}
+
+/**
+ * Send verification code to email
+ * @param {string} mail - Email address
+ * @returns {Promise<Object>} - { success } or { success: false, error }
+ */
+async function sendVerificationCode(mail) {
+  const storeResult = await _storeCode(mail)
+
+  if (storeResult.error) {
+    return { success: false, error: storeResult.error }
   }
 
+  const emailBody = _buildVerificationCodeEmail(storeResult.code, 5)
+  const sendResult = await _sendEmailTo(mail, '[WebManager] 인증 코드 안내', emailBody)
+
+  if (!sendResult.sent) {
+    return { success: false, error: '인증 코드 이메일 발송에 실패했습니다.' }
+  }
+
+  return { success: true, message: '인증 코드가 이메일로 발송되었습니다.' }
+}
+
+/**
+ * Check verification code (without consuming it)
+ * @param {string} mail - Email address
+ * @param {string} code - 6-digit verification code
+ * @returns {Promise<Object>} - { success } or { success: false, error }
+ */
+async function checkVerificationCode(mail, code) {
+  return _checkCode(mail, code)
+}
+
+/**
+ * Verify code and reset password (integrated mode)
+ * @param {string} mail - Email address (singleid = mail.split('@')[0])
+ * @param {string} code - 6-digit verification code
+ * @param {string} newPassword - User's new password
+ * @returns {Promise<Object>} - { success } or { success: false, error }
+ */
+async function verifyCodeAndResetPassword(mail, code, newPassword) {
+  const verifyResult = await _verifyCode(mail, code)
+
+  if (!verifyResult.success) {
+    return { success: false, error: verifyResult.error }
+  }
+
+  // singleid = mail의 @ 앞부분
+  const singleid = mail.split('@')[0]
   const user = await _User.findOne({ singleid })
 
   if (!user) {
-    // 보안: 사용자 미존재 시에도 동일한 성공 메시지
-    return {
-      success: true,
-      message: '이메일로 임시 비밀번호가 발송되었습니다.'
-    }
+    return { success: false, error: '등록된 사용자를 찾을 수 없습니다.' }
   }
 
-  // 임시 비밀번호 생성 + 해시 + 저장
-  const tempPassword = _generateTempPassword()
-  const hashedPassword = await bcrypt.hash(tempPassword, SALT_ROUNDS)
+  // 사용자 입력 비밀번호로 직접 저장
+  const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS)
   user.password = hashedPassword
-  user.passwordStatus = 'must_change'
+  user.passwordStatus = 'normal'
   user.passwordResetRequestedAt = null
   await user.save()
 
-  // 이메일 발송 (실패해도 비밀번호 초기화는 유지)
-  const emailBody = _buildTempPasswordEmail(user.singleid, tempPassword)
-  await _sendEmailTo(email, '[WebManager] 비밀번호 초기화 안내', emailBody)
-
-  return {
-    success: true,
-    message: '이메일로 임시 비밀번호가 발송되었습니다.'
-  }
+  return { success: true, message: '비밀번호가 변경되었습니다.' }
 }
 
 /**
@@ -525,5 +573,9 @@ module.exports = {
   changePassword,
   setNewPassword,
   approvePasswordReset,
-  approveUserAccount
+  approveUserAccount,
+  searchEarsUsers,
+  sendVerificationCode,
+  checkVerificationCode,
+  verifyCodeAndResetPassword
 }

@@ -164,7 +164,7 @@
     <Teleport to="body">
       <div v-if="showResetConfirmModal" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="absolute inset-0 bg-black/50" @click="showResetConfirmModal = false" />
-        <div class="relative bg-white dark:bg-dark-card rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+        <div class="relative bg-white dark:bg-dark-card rounded-xl shadow-2xl w-full max-w-lg mx-4 p-6">
           <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Approve Password Reset</h3>
           <div class="space-y-3">
             <p class="text-sm text-gray-600 dark:text-gray-400">
@@ -176,14 +176,45 @@
               </template>
             </p>
             <div v-if="operationMode === 'integrated'">
-              <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Email (optional)</label>
-              <input
-                v-model="resetConfirmEmail"
-                type="email"
-                placeholder="user@example.com"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-dark-border text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                @keyup.enter="confirmPasswordReset"
-              />
+              <!-- Email input mode toggle -->
+              <div class="flex gap-2 mb-2">
+                <button
+                  @click="resetEmailMode = 'manual'"
+                  class="px-3 py-1 text-xs font-medium rounded-lg transition"
+                  :class="resetEmailMode === 'manual'
+                    ? 'bg-primary-500 text-white'
+                    : 'bg-gray-100 dark:bg-dark-border text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'"
+                >
+                  Manual Input
+                </button>
+                <button
+                  @click="resetEmailMode = 'ears'"
+                  class="px-3 py-1 text-xs font-medium rounded-lg transition"
+                  :class="resetEmailMode === 'ears'
+                    ? 'bg-primary-500 text-white'
+                    : 'bg-gray-100 dark:bg-dark-border text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'"
+                >
+                  EARS Search
+                </button>
+              </div>
+              <!-- Manual email input -->
+              <div v-if="resetEmailMode === 'manual'">
+                <label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Email (optional)</label>
+                <input
+                  v-model="resetConfirmEmail"
+                  type="email"
+                  placeholder="user@example.com"
+                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-dark-border text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  @keyup.enter="confirmPasswordReset"
+                />
+              </div>
+              <!-- EARS search -->
+              <div v-else>
+                <EarsUserSearch
+                  @select="handleEarsUserSelect"
+                  @clear="resetConfirmEmail = ''"
+                />
+              </div>
             </div>
           </div>
           <div class="mt-6 flex justify-end gap-2">
@@ -298,6 +329,7 @@ import UserDataGrid from './components/UserDataGrid.vue'
 import DeleteConfirmModal from './components/DeleteConfirmModal.vue'
 import RolePermissionDialog from './components/RolePermissionDialog.vue'
 import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDialog.vue'
+import EarsUserSearch from '@/shared/components/EarsUserSearch.vue'
 import { useUserData } from './composables/useUserData'
 import { useToast } from '@/shared/composables/useToast'
 import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
@@ -317,6 +349,7 @@ const tempPasswordData = ref({ singleid: '', tempPassword: '', emailSent: false 
 const showResetConfirmModal = ref(false)
 const resetConfirmEmail = ref('')
 const resetConfirmUserId = ref(null)
+const resetEmailMode = ref('manual')
 const hasSearched = ref(false)
 const filterCollapsed = ref(false)
 const availableProcesses = ref([])
@@ -582,7 +615,12 @@ const handleExportColumnWidths = () => {
 const handleApprovePasswordReset = (userId) => {
   resetConfirmUserId.value = userId
   resetConfirmEmail.value = ''
+  resetEmailMode.value = 'manual'
   showResetConfirmModal.value = true
+}
+
+const handleEarsUserSelect = (user) => {
+  resetConfirmEmail.value = user.mail || ''
 }
 
 const confirmPasswordReset = async () => {

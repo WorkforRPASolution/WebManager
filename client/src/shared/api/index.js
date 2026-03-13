@@ -79,6 +79,10 @@ export const authApi = {
   getOperationMode: () => api.get('/auth/operation-mode'),
   changePassword: (currentPassword, newPassword) => api.post('/auth/change-password', { currentPassword, newPassword }),
   setNewPassword: (newPassword) => api.post('/auth/set-new-password', { newPassword }),
+  searchEarsUsers: (name) => api.post('/auth/ears/search-users', { name }),
+  sendVerificationCode: (mail) => api.post('/auth/send-verification-code', { mail }),
+  checkVerificationCode: (mail, code) => api.post('/auth/check-verification-code', { mail, code }),
+  verifyAndReset: (mail, code, newPassword) => api.post('/auth/verify-and-reset', { mail, code, newPassword }),
 }
 
 // Users API

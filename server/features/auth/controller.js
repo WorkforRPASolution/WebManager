@@ -382,6 +382,102 @@ async function getOperationMode(req, res) {
   res.json({ mode })
 }
 
+/**
+ * POST /api/auth/ears/search-users
+ * Search EARS InterfaceServer users by name (public)
+ */
+async function searchEarsUsers(req, res) {
+  const { name } = req.body
+
+  if (!name || !name.trim()) {
+    throw ApiError.badRequest('이름을 입력해주세요')
+  }
+
+  const result = await authService.searchEarsUsers(name.trim())
+
+  if (!result.success) {
+    throw ApiError.badRequest(result.error)
+  }
+
+  res.json(result)
+}
+
+/**
+ * POST /api/auth/send-verification-code
+ * Send verification code to email (public)
+ */
+async function sendVerificationCode(req, res) {
+  const { mail } = req.body
+
+  if (!mail || !mail.trim()) {
+    throw ApiError.badRequest('이메일을 입력해주세요')
+  }
+
+  const result = await authService.sendVerificationCode(mail.trim())
+
+  if (!result.success) {
+    throw ApiError.badRequest(result.error)
+  }
+
+  res.json(result)
+}
+
+/**
+ * POST /api/auth/check-verification-code
+ * Check verification code without consuming it (public)
+ */
+async function checkVerificationCode(req, res) {
+  const { mail, code } = req.body
+
+  if (!mail || !code) {
+    throw ApiError.badRequest('이메일과 인증 코드를 입력해주세요')
+  }
+
+  const result = await authService.checkVerificationCode(mail.trim(), code.trim())
+
+  if (!result.success) {
+    throw ApiError.badRequest(result.error)
+  }
+
+  res.json(result)
+}
+
+/**
+ * POST /api/auth/verify-and-reset
+ * Verify code and reset password (public)
+ */
+async function verifyAndResetPassword(req, res) {
+  const { mail, code, newPassword } = req.body
+
+  if (!mail || !code || !newPassword) {
+    throw ApiError.badRequest('이메일, 인증 코드, 새 비밀번호를 입력해주세요')
+  }
+
+  if (newPassword.length < 8) {
+    throw ApiError.badRequest('새 비밀번호는 8자 이상이어야 합니다')
+  }
+
+  if (!/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+    throw ApiError.badRequest('새 비밀번호는 영문과 숫자를 포함해야 합니다')
+  }
+
+  const result = await authService.verifyCodeAndResetPassword(mail.trim(), code.trim(), newPassword)
+
+  if (!result.success) {
+    throw ApiError.badRequest(result.error)
+  }
+
+  // Log verification-based password reset
+  const clientInfo = getClientInfo(req)
+  createAuthLog({
+    authAction: 'password_reset_verified',
+    userId: mail.split('@')[0],
+    ...clientInfo
+  }).catch(err => console.error('Failed to save auth log:', err.message))
+
+  res.json(result)
+}
+
 module.exports = {
   login,
   refresh,
@@ -394,5 +490,9 @@ module.exports = {
   changePassword,
   setNewPassword,
   getSignupOptions,
-  getOperationMode
+  getOperationMode,
+  searchEarsUsers,
+  sendVerificationCode,
+  checkVerificationCode,
+  verifyAndResetPassword
 }

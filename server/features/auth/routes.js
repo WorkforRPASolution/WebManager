@@ -44,4 +44,16 @@ router.get('/signup-options', asyncHandler(controller.getSignupOptions))
 // GET /api/auth/operation-mode - Get current operation mode (public)
 router.get('/operation-mode', asyncHandler(controller.getOperationMode))
 
+// POST /api/auth/ears/search-users - Search EARS users by name (public)
+router.post('/ears/search-users', asyncHandler(controller.searchEarsUsers))
+
+// POST /api/auth/send-verification-code - Send verification code (public)
+router.post('/send-verification-code', asyncHandler(controller.sendVerificationCode))
+
+// POST /api/auth/check-verification-code - Check code without consuming (public)
+router.post('/check-verification-code', asyncHandler(controller.checkVerificationCode))
+
+// POST /api/auth/verify-and-reset - Verify code and reset password (public)
+router.post('/verify-and-reset', asyncHandler(controller.verifyAndResetPassword))
+
 module.exports = router

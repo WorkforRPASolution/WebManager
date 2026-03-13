@@ -29,9 +29,21 @@ function buildTempPasswordEmail(singleid, tempPassword) {
     </p>`)
 }
 
-// TODO [Phase 2] 장기 미접속자 알림 템플릿
-// function buildInactiveUserEmail(singleid, lastLoginAt, daysSince) {
-//   return _wrapLayout(`...`)
-// }
+function buildVerificationCodeEmail(code, expiresMinutes) {
+  return _wrapLayout(`
+    <h2 style="color:#1f2937;margin:0 0 16px;">인증 코드 안내</h2>
+    <p style="color:#374151;margin:0 0 12px;">
+      비밀번호 초기화를 위한 인증 코드입니다.
+    </p>
+    <div style="background:#eff6ff;border:1px solid #3b82f6;border-radius:8px;padding:16px;margin:0 0 12px;">
+      <p style="color:#1e40af;margin:0 0 4px;font-size:13px;">인증 코드</p>
+      <p style="color:#1e40af;margin:0;font-size:28px;font-family:monospace;letter-spacing:4px;font-weight:bold;">
+        ${code}
+      </p>
+    </div>
+    <p style="color:#6b7280;font-size:13px;margin:0;">
+      이 코드는 ${expiresMinutes}분 후 만료됩니다. 본인이 요청하지 않았다면 이 메일을 무시해주세요.
+    </p>`)
+}
 
-module.exports = { buildTempPasswordEmail }
+module.exports = { buildTempPasswordEmail, buildVerificationCodeEmail }

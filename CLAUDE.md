@@ -79,6 +79,9 @@ GET    /api/auth/check-id          # User ID 중복확인
 GET    /api/auth/search-clients    # 클라이언트 검색 (회원가입 Process 도우미)
 GET    /api/auth/signup-options     # 회원가입 옵션 (Process/Line 목록)
 GET    /api/auth/operation-mode     # 운영 모드 조회 (standalone/integrated)
+POST   /api/auth/ears/search-users         # EARS 사용자 이름 검색 (integrated)
+POST   /api/auth/send-verification-code    # 인증 코드 이메일 발송 (integrated)
+POST   /api/auth/verify-and-reset          # 인증 코드 검증 + 비밀번호 초기화 (integrated)
 
 GET    /api/dashboard/summary      # 대시보드 KPI
 
@@ -209,7 +212,7 @@ cd server && npm run dev
 npm run dev
 ```
 
-## Current Status (2026-03-12)
+## Current Status (2026-03-13)
 - 메가 메뉴 + 사이드바 + 탭 바 레이아웃 완료
 - 다크/라이트 모드 지원
 - MongoDB API 연동 완료
@@ -234,6 +237,20 @@ npm run dev
 - Redis Sentinel 연결 지원 (기존 단순 모드 호환, `REDIS_URL` 형식 자동 감지)
 - basePath 감지 ManagerAgent 기반 전환 (strategy 제거, ensureBasePaths 사전 감지)
 - Config Compare 완료 (N-way Matrix View 비교 + SSE 병렬 로딩 + Baseline diff + 접기/펼치기 + 검색)
+- Email Notification Phase 1 완료 (임시 비밀번호 이메일 발송, Operation Mode standalone/integrated)
+- Email Notification Phase 2 완료 (EARS 이름 검색 + 인증 코드 본인 확인 + 비밀번호 초기화 위저드)
+
+## Redis Key 구조 (인증 코드)
+
+| Key | TTL | 용도 |
+|-----|-----|------|
+| `wm:vcode:<mail>` | 300초 (5분) | 인증 코드 값 |
+| `wm:vcode:cooldown:<mail>` | 60초 (1분) | 재발송 쿨다운 |
+| `wm:vcode:attempts:<mail>` | 300초 (5분) | 실패 시도 횟수 (5회 초과 시 코드 무효화) |
+
+- 모두 `SET key value EX ttl`로 저장, TTL 만료 시 자동 삭제
+- 인증 성공 또는 5회 초과 시 관련 키 즉시 `DEL`
+- 구현: `server/shared/services/verificationCodeService.js`
 
 ## Security Configuration
 - **helmet**: 보안 헤더 자동 설정
