@@ -365,7 +365,11 @@ await initializeUpdateSettings();
 | roleLevel | Number | Required (Unique) | 역할 레벨 (0-3) |
 | roleName | String | Required | 역할 이름 |
 | description | String | Optional | 역할 설명 |
-| permissions.dashboard | Boolean | Required | Dashboard 접근 권한 |
+| permissions.dashboardOverview | Boolean | Required | Dashboard Overview 접근 권한 |
+| permissions.dashboardArsMonitor | Boolean | Required | ARSAgent Status 접근 권한 |
+| permissions.dashboardArsVersion | Boolean | Required | ARSAgent Version 접근 권한 |
+| permissions.dashboardResStatus | Boolean | Required | ResourceAgent Status 접근 권한 |
+| permissions.dashboardResVersion | Boolean | Required | ResourceAgent Version 접근 권한 |
 | permissions.arsAgent | Boolean | Required | ARS Agent Clients 접근 권한 |
 | permissions.resourceAgent | Boolean | Required | Resource Agent Clients 접근 권한 |
 | permissions.equipmentInfo | Boolean | Required | Equipment Info 접근 권한 |
@@ -373,6 +377,7 @@ await initializeUpdateSettings();
 | permissions.popupTemplate | Boolean | Required | Popup Template 접근 권한 |
 | permissions.emailRecipients | Boolean | Required | Email Recipients 접근 권한 |
 | permissions.emailInfo | Boolean | Required | Email Info 접근 권한 |
+| permissions.emailImage | Boolean | Required | Email Image 접근 권한 |
 | permissions.alerts | Boolean | Required | Alerts 접근 권한 |
 | permissions.settings | Boolean | Required | Settings 접근 권한 |
 | permissions.users | Boolean | Required | Users 접근 권한 |
@@ -383,7 +388,11 @@ await initializeUpdateSettings();
 
 | 메뉴 | User (0) | Admin (1) | Conductor (2) | Manager (3) |
 |------|:--------:|:---------:|:-------------:|:-----------:|
-| dashboard | O | O | O | O |
+| dashboardOverview | O | O | O | O |
+| dashboardArsMonitor | O | O | O | O |
+| dashboardArsVersion | O | O | O | O |
+| dashboardResStatus | O | O | O | O |
+| dashboardResVersion | O | O | O | O |
 | arsAgent | - | O | - | - |
 | resourceAgent | - | O | - | - |
 | equipmentInfo | - | O | - | - |
@@ -391,6 +400,7 @@ await initializeUpdateSettings();
 | popupTemplate | - | O | - | - |
 | emailRecipients | - | O | - | - |
 | emailInfo | - | O | - | - |
+| emailImage | - | O | - | - |
 | alerts | - | O | - | - |
 | settings | - | O | - | - |
 | users | - | O | - | - |

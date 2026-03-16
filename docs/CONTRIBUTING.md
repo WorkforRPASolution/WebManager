@@ -188,9 +188,10 @@ const formatPermissionName = (key) => {
 2. **`permissionGroups`**: 적절한 카테고리에 permission 키 추가
 ```javascript
 const permissionGroups = [
+  { label: 'Dashboard', keys: ['dashboardOverview', 'dashboardArsMonitor', 'dashboardArsVersion', 'dashboardResStatus', 'dashboardResVersion'] },
   { label: 'Clients', keys: ['arsAgent', 'resourceAgent'] },
-  { label: '기준정보 관리', keys: ['equipmentInfo', 'emailTemplate', 'popupTemplate', 'emailRecipients', 'emailInfo'] },
-  { label: 'System', keys: ['dashboard', 'alerts', 'settings', 'users', 'newFeature'] }  // ⬅️ 추가
+  { label: '기준정보 관리', keys: ['equipmentInfo', 'emailTemplate', 'popupTemplate', 'emailRecipients', 'emailInfo', 'emailImage', 'users'] },
+  { label: 'System', keys: ['alerts', 'settings', 'newFeature'] }  // ⬅️ 추가
 ]
 ```
 

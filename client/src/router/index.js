@@ -106,6 +106,48 @@ const routes = [
     }
   },
   {
+    path: '/resource-agent-status',
+    name: 'ResourceAgentStatus',
+    component: () => import('../features/dashboard/ResourceAgentStatusView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'dashboardResStatus',
+      menu: {
+        mainMenu: 'dashboard',
+        mainMenuLabel: 'Dashboard',
+        mainMenuIcon: 'dashboard',
+        mainMenuOrder: 1,
+        subMenu: 'resource-agent-status',
+        subMenuLabel: 'ResAgent Status',
+        subMenuIcon: 'memory',
+        subMenuOrder: 4,
+        permission: 'dashboardResStatus'
+      }
+    }
+  },
+  {
+    path: '/resource-agent-version',
+    name: 'ResourceAgentVersion',
+    component: () => import('../features/dashboard/ResourceAgentVersionView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'dashboardResVersion',
+      menu: {
+        mainMenu: 'dashboard',
+        mainMenuLabel: 'Dashboard',
+        mainMenuIcon: 'dashboard',
+        mainMenuOrder: 1,
+        subMenu: 'resource-agent-version',
+        subMenuLabel: 'ResAgent Version',
+        subMenuIcon: 'system_update_alt',
+        subMenuOrder: 5,
+        permission: 'dashboardResVersion'
+      }
+    }
+  },
+  {
     path: '/clients',
     name: 'Clients',
     component: () => import('../features/clients/ClientsView.vue'),

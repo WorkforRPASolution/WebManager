@@ -18,18 +18,27 @@ WebManager는 두 에이전트 타입을 동시에 지원하기 위해 **dual ke
 
 | 에이전트 | Redis 키 | 값 형식 | 예시 |
 |----------|----------|---------|------|
-| ResourceAgent | `AgentHealth:{Process}-{EqpModel}-{EqpID}` | `{Status}:{Uptime}` 또는 `{Status}:{Uptime}:{Reason}` | `OK:3600`, `WARN:1800:high_cpu` |
+| ResourceAgent | `AgentHealth:resource_agent:{Process}-{EqpModel}-{EqpID}` | `{Status}:{Uptime}` 또는 `{Status}:{Uptime}:{Reason}` | `OK:3600`, `WARN:1800:high_cpu` |
 | ARSAgent | `AgentRunning:{Process}-{EqpModel}-{EqpID}` | `{Uptime}` (순수 숫자) | `3600` |
+| ARSAgent (확장) | `AgentHealth:ars_agent:{Process}-{EqpModel}-{EqpID}` | `{Status}:{Uptime}` | `OK:3600` |
 
 키 생성 함수:
 
 ```javascript
-buildAgentHealthKey(process, eqpModel, eqpId)
-// => "AgentHealth:ARS-M1-EQP01"
+buildAgentHealthKey(agentGroup, process, eqpModel, eqpId)
+// => "AgentHealth:resource_agent:CVD-M1-EQP01"
+// => "AgentHealth:ars_agent:CVD-M1-EQP01"
 
 buildAgentRunningKey(process, eqpModel, eqpId)
-// => "AgentRunning:ARS-M1-EQP01"
+// => "AgentRunning:CVD-M1-EQP01"
 ```
+
+### 버전 메타정보 키
+
+| 에이전트 | Redis 키 | 타입 | 용도 |
+|----------|----------|------|------|
+| ARSAgent | `AgentMetaInfo:{Process}-{EqpModel}` | Hash | 버전 메타 (field: eqpId, 값: `version:port:...`) |
+| ResourceAgent | `ResourceAgentMetaInfo:{Process}-{EqpModel}` | Hash | 버전 메타 (field: eqpId, 값: `version:port:...`) |
 
 ### getBatchAliveStatus() 동작
 
@@ -131,7 +140,37 @@ POST /api/clients/alive-status
 
 SSE 스트림에서도 `aliveStatuses`를 전송하여 실시간 상태 업데이트를 지원한다.
 
-## 프론트엔드 영향
+## ResourceAgent Dashboard 페이지
+
+ResourceAgent 전용 대시보드 2개 페이지가 추가되어, `AgentHealth:resource_agent:` 키를 직접 조회하여 5상태를 분류한다.
+
+### ResourceAgent Status (`/resource-agent-status`)
+
+- **5상태 분류**: OK / WARN / SHUTDOWN / Stopped / Never Started
+- **가동률**: (OK + WARN) / Total
+- **알고리즘**:
+  1. MongoDB에서 clients 조회
+  2. `buildAgentHealthKey('resource_agent', p, m, id)` 로 Redis 키 생성
+  3. MGET 배치 조회 → `parseAliveValue()`로 파싱
+  4. alive + health=OK → OK, alive + health=WARN → WARN, alive + health=SHUTDOWN → SHUTDOWN
+  5. not-alive → `ResourceAgentMetaInfo` Hash로 Stopped/Never Started 구분
+- **API**: `GET /api/dashboard/resource-agent-status` (권한: `dashboardResStatus`)
+- **컴포넌트**: 5조각 도넛 차트 / 5스택 바 차트 / 9컬럼 테이블 / CSV 내보내기(요약+상세)
+
+### ResourceAgent Version (`/resource-agent-version`)
+
+- **버전 소스**: MongoDB `agentVersion.resourceAgent` 우선, `ResourceAgentMetaInfo` Redis fallback
+- **Running Only**: `AgentHealth:resource_agent:` 키로 필터링 (ARSAgent의 `AgentRunning` 키와 다름)
+- **API**: `GET /api/dashboard/resource-agent-version` (권한: `dashboardResVersion`)
+- **컴포넌트**: 기존 `VersionDonutChart`, `VersionBarChart`, `VersionGroupedTable` 100% 재사용
+
+### 시뮬레이터
+
+`server/scripts/simulateAgentStatus.js`에서 ARSAgent와 ResourceAgent 키를 동시 생성:
+- `AgentHealth:resource_agent:` 키: OK(70%) / WARN(20%) / SHUTDOWN(10%) 확률
+- `ResourceAgentMetaInfo:` Hash: 버전 정보 (2.0.0, 1.5.0, 1.1.0, 1.0.0)
+
+## 프론트엔드 영향 (Client Detail)
 
 프론트엔드는 **변경 없이** 두 에이전트 형식을 모두 지원한다.
 

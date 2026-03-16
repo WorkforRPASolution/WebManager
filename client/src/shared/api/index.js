@@ -66,6 +66,8 @@ export const dashboardApi = {
   getSummary: () => api.get('/dashboard/summary'),
   getAgentStatus: (params = {}) => api.get('/dashboard/agent-status', { params }),
   getAgentVersionDistribution: (params = {}) => api.get('/dashboard/agent-version', { params }),
+  getResourceAgentStatus: (params = {}) => api.get('/dashboard/resource-agent-status', { params }),
+  getResourceAgentVersionDistribution: (params = {}) => api.get('/dashboard/resource-agent-version', { params }),
 }
 
 // Auth API

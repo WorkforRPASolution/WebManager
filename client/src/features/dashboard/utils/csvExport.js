@@ -96,3 +96,80 @@ export function exportVersionDetailCsv(details) {
   const rows = details.map(d => [d.process, d.eqpModel, d.eqpId, d.version])
   downloadCsv(filename, headers, rows)
 }
+
+// ===================================================
+// ResourceAgent CSV Export Functions
+// ===================================================
+
+/**
+ * ResourceAgent Status 요약 CSV (5상태)
+ */
+export function exportResourceAgentStatusCsv(data, groupByModel) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `ResourceAgent_Status_${timestamp}.csv`
+
+  const headers = groupByModel
+    ? ['Process', 'Model', 'Agent Count', 'OK', 'WARN', 'SHUTDOWN', 'Stopped', 'Never Started', 'Rate']
+    : ['Process', 'Agent Count', 'OK', 'WARN', 'SHUTDOWN', 'Stopped', 'Never Started', 'Rate']
+
+  const rows = data.map(row => {
+    const neverStarted = row.agentCount - row.okCount - row.warnCount - row.shutdownCount - (row.stoppedCount || 0)
+    const active = row.okCount + row.warnCount
+    const rate = row.agentCount > 0 ? ((active / row.agentCount) * 100).toFixed(0) + '%' : '—'
+    const base = [row.agentCount, row.okCount, row.warnCount, row.shutdownCount, row.stoppedCount || 0, neverStarted, rate]
+    return groupByModel
+      ? [row.process, row.eqpModel, ...base]
+      : [row.process, ...base]
+  })
+
+  downloadCsv(filename, headers, rows)
+}
+
+/**
+ * ResourceAgent Status 상세 CSV (설비별)
+ */
+export function exportResourceAgentStatusDetailCsv(details) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `ResourceAgent_Status_Detail_${timestamp}.csv`
+  const headers = ['Process', 'Model', 'Eqp ID', 'Status']
+  const rows = details.map(d => [d.process, d.eqpModel, d.eqpId, d.status])
+  downloadCsv(filename, headers, rows)
+}
+
+/**
+ * ResourceAgent Version 요약 CSV
+ */
+export function exportResourceAgentVersionCsv(data, allVersions, groupByModel) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `ResourceAgent_Version_${timestamp}.csv`
+
+  const headers = groupByModel
+    ? ['Process', 'Model', 'Version', 'Count', 'Rate']
+    : ['Process', 'Version', 'Count', 'Rate']
+
+  const rows = []
+  for (const row of data) {
+    const versions = allVersions.filter(v => (row.versionCounts?.[v] || 0) > 0)
+    for (const ver of versions) {
+      const count = row.versionCounts[ver]
+      const rate = row.agentCount > 0 ? ((count / row.agentCount) * 100).toFixed(0) + '%' : '—'
+      rows.push(groupByModel
+        ? [row.process, row.eqpModel, ver, count, rate]
+        : [row.process, ver, count, rate]
+      )
+    }
+  }
+
+  downloadCsv(filename, headers, rows)
+}
+
+/**
+ * ResourceAgent Version 상세 CSV (설비별)
+ */
+export function exportResourceAgentVersionDetailCsv(details) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `ResourceAgent_Version_Detail_${timestamp}.csv`
+  const headers = ['Process', 'Model', 'Eqp ID', 'Version']
+  const rows = details.map(d => [d.process, d.eqpModel, d.eqpId, d.version])
+  downloadCsv(filename, headers, rows)
+}
