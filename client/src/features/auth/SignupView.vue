@@ -119,22 +119,23 @@ const isFormValid = computed(() => {
   return base
 })
 
-// Load signup options + operation mode on mount
+// Load signup options + operation mode on mount (독립 호출 — 하나 실패해도 나머지 정상 동작)
 onMounted(async () => {
-  try {
-    const [optionsRes, modeRes] = await Promise.all([
-      api.get('/auth/signup-options'),
-      authApi.getOperationMode()
-    ])
-    processes.value = optionsRes.data.processes || []
-    roles.value = optionsRes.data.roles || []
-    authorities.value = optionsRes.data.authorities || []
-    operationMode.value = modeRes.data.mode
-  } catch (err) {
-    console.error('Failed to load signup options:', err)
-    processes.value = []
-    roles.value = []
-    authorities.value = []
+  const [optionsResult, modeResult] = await Promise.allSettled([
+    api.get('/auth/signup-options'),
+    authApi.getOperationMode()
+  ])
+
+  if (optionsResult.status === 'fulfilled') {
+    processes.value = optionsResult.value.data.processes || []
+    roles.value = optionsResult.value.data.roles || []
+    authorities.value = optionsResult.value.data.authorities || []
+  } else {
+    console.error('Failed to load signup options:', optionsResult.reason)
+  }
+
+  if (modeResult.status === 'fulfilled') {
+    operationMode.value = modeResult.value.data.mode
   }
 })
 
