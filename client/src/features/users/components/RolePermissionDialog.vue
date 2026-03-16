@@ -107,7 +107,8 @@ const hasChanges = computed(() => {
 
 const formatPermissionName = (key) => {
   const names = {
-    dashboard: 'Dashboard',
+    dashboardOverview: 'Overview',
+    dashboardArsMonitor: 'ARSAgent Monitor',
     arsAgent: 'ARS Agent',
     resourceAgent: 'Resource Agent',
     equipmentInfo: 'Equipment Info',
@@ -125,6 +126,10 @@ const formatPermissionName = (key) => {
 
 const permissionGroups = [
   {
+    label: 'Dashboard',
+    keys: ['dashboardOverview', 'dashboardArsMonitor']
+  },
+  {
     label: 'Clients',
     keys: ['arsAgent', 'resourceAgent']
   },
@@ -134,7 +139,7 @@ const permissionGroups = [
   },
   {
     label: 'System',
-    keys: ['dashboard', 'alerts', 'settings']
+    keys: ['alerts', 'settings']
   }
 ]
 

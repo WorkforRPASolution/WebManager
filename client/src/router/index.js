@@ -49,7 +49,7 @@ const routes = [
     meta: {
       layout: 'default',
       requiresAuth: true,
-      permission: 'dashboard',
+      permission: 'dashboardOverview',
       menu: {
         mainMenu: 'dashboard',
         mainMenuLabel: 'Dashboard',
@@ -59,7 +59,28 @@ const routes = [
         subMenuLabel: 'Overview',
         subMenuIcon: 'grid_view',
         subMenuOrder: 1,
-        permission: 'dashboard'
+        permission: 'dashboardOverview'
+      }
+    }
+  },
+  {
+    path: '/agent-monitor',
+    name: 'AgentMonitor',
+    component: () => import('../features/dashboard/AgentMonitorView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'dashboardArsMonitor',
+      menu: {
+        mainMenu: 'dashboard',
+        mainMenuLabel: 'Dashboard',
+        mainMenuIcon: 'dashboard',
+        mainMenuOrder: 1,
+        subMenu: 'agent-monitor',
+        subMenuLabel: 'ARSAgent Monitor',
+        subMenuIcon: 'monitor',
+        subMenuOrder: 2,
+        permission: 'dashboardArsMonitor'
       }
     }
   },

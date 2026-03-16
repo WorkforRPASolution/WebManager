@@ -143,7 +143,8 @@ const rolePermissionSchema = new Schema({
     default: ''
   },
   permissions: {
-    dashboard: { type: Boolean, default: true },
+    dashboardOverview: { type: Boolean, default: true },
+    dashboardArsMonitor: { type: Boolean, default: true },
     arsAgent: { type: Boolean, default: true },
     resourceAgent: { type: Boolean, default: true },
     equipmentInfo: { type: Boolean, default: false },
@@ -170,7 +171,8 @@ const DEFAULT_ROLE_PERMISSIONS = [
     roleName: 'User',
     description: '일반 유저',
     permissions: {
-      dashboard: true,
+      dashboardOverview: true,
+      dashboardArsMonitor: true,
       arsAgent: false,
       resourceAgent: false,
       equipmentInfo: false,
@@ -189,7 +191,8 @@ const DEFAULT_ROLE_PERMISSIONS = [
     roleName: 'Admin',
     description: '시스템 관리자',
     permissions: {
-      dashboard: true,
+      dashboardOverview: true,
+      dashboardArsMonitor: true,
       arsAgent: true,
       resourceAgent: true,
       equipmentInfo: true,
@@ -208,7 +211,8 @@ const DEFAULT_ROLE_PERMISSIONS = [
     roleName: 'Conductor',
     description: '유저 중 최고 관리자',
     permissions: {
-      dashboard: true,
+      dashboardOverview: true,
+      dashboardArsMonitor: true,
       arsAgent: false,
       resourceAgent: false,
       equipmentInfo: false,
@@ -227,7 +231,8 @@ const DEFAULT_ROLE_PERMISSIONS = [
     roleName: 'Manager',
     description: '유저 중 관리자',
     permissions: {
-      dashboard: true,
+      dashboardOverview: true,
+      dashboardArsMonitor: true,
       arsAgent: false,
       resourceAgent: false,
       equipmentInfo: false,

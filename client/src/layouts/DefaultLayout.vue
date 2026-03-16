@@ -35,7 +35,7 @@ watch(
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col bg-gray-100 dark:bg-dark-bg">
+  <div class="h-screen flex flex-col bg-gray-100 dark:bg-dark-bg">
     <!-- Header -->
     <Header />
 

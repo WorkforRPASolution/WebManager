@@ -64,7 +64,7 @@ export const clientsApi = {
 // Dashboard API
 export const dashboardApi = {
   getSummary: () => api.get('/dashboard/summary'),
-  getAgentStatus: () => api.get('/dashboard/agent-status'),
+  getAgentStatus: (params = {}) => api.get('/dashboard/agent-status', { params }),
 }
 
 // Auth API

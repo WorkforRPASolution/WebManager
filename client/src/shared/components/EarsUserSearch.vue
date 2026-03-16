@@ -90,9 +90,9 @@ const clearSelection = () => {
         <table class="w-full text-sm">
           <thead class="sticky top-0 bg-gray-50 dark:bg-dark-card">
             <tr>
-              <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style="width: 36%">이름</th>
-              <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style="width: 36%">부서</th>
-              <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style="width: 28%">이메일</th>
+              <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style="width: 15%">이름</th>
+              <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style="width: 40%">부서</th>
+              <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style="width: 45%">이메일</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-200 dark:divide-dark-border">
