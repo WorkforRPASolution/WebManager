@@ -55,6 +55,14 @@ function buildMetaInfoKey(process, eqpModel) {
 
 const META_RATE = parseInt(getArg('meta-rate') || '60', 10) // not-running 중 MetaInfo 비율 (Stopped vs NeverStarted)
 
+// 버전 시뮬레이션용
+const DEFAULT_VERSIONS = ['7.1.0.0', '7.0.0.0', '6.8.5.24', '6.8.4.0', '6.8.3.0']
+const SIM_VERSIONS = getArg('versions') ? getArg('versions').split(',') : DEFAULT_VERSIONS
+
+function randomVersion() {
+  return SIM_VERSIONS[Math.floor(Math.random() * SIM_VERSIONS.length)]
+}
+
 async function main() {
   // 1. Connect
   await connectDB()
@@ -138,6 +146,7 @@ async function simulate(redis, clients) {
   }
 
   const pipeline = redis.pipeline()
+  const versionMap = {} // eqpId → version (출력용)
   for (const c of clients) {
     const key = buildKey(c.process, c.eqpModel, c.eqpId)
     if (runningSet.has(c.eqpId)) {
@@ -150,7 +159,9 @@ async function simulate(redis, clients) {
     // AgentMetaInfo Hash 설정
     const metaKey = buildMetaInfoKey(c.process, c.eqpModel)
     if (metaSet.has(c.eqpId)) {
-      pipeline.hset(metaKey, c.eqpId, '6.8.5.24:7180:' + c.eqpId + ':127.0.0.1:1')
+      const ver = randomVersion()
+      versionMap[c.eqpId] = ver
+      pipeline.hset(metaKey, c.eqpId, ver + ':7180:' + c.eqpId + ':127.0.0.1:1')
     } else {
       pipeline.hdel(metaKey, c.eqpId)
     }
@@ -159,10 +170,11 @@ async function simulate(redis, clients) {
 
   // 집계
   const summary = {}
+  const versionSummary = {} // 전체 버전별 카운트
   let totalStopped = 0
   let totalNeverStarted = 0
   for (const c of clients) {
-    if (!summary[c.process]) summary[c.process] = { total: 0, running: 0, stopped: 0, neverStarted: 0 }
+    if (!summary[c.process]) summary[c.process] = { total: 0, running: 0, stopped: 0, neverStarted: 0, versions: {} }
     summary[c.process].total++
     if (runningSet.has(c.eqpId)) {
       summary[c.process].running++
@@ -173,6 +185,10 @@ async function simulate(redis, clients) {
       summary[c.process].neverStarted++
       totalNeverStarted++
     }
+    // 버전 집계
+    const ver = versionMap[c.eqpId] || 'Unknown'
+    summary[c.process].versions[ver] = (summary[c.process].versions[ver] || 0) + 1
+    versionSummary[ver] = (versionSummary[ver] || 0) + 1
   }
 
   const now = new Date().toLocaleTimeString()
@@ -190,6 +206,16 @@ async function simulate(redis, clients) {
   }
 
   console.log(`TTL: ${TTL}초`)
+
+  // 버전 분포 출력
+  console.log('')
+  console.log('버전 분포:')
+  console.log('─'.repeat(40))
+  const sortedVersions = Object.entries(versionSummary).sort((a, b) => b[1] - a[1])
+  for (const [ver, count] of sortedVersions) {
+    const pct = Math.round(count / clients.length * 100)
+    console.log(`  ${ver.padEnd(14)} ${String(count).padStart(4)}  (${pct}%)`)
+  }
 }
 
 async function cleanup(redis) {

@@ -38,4 +38,7 @@ router.get('/summary', authenticate, requireMenuPermission('dashboardOverview'),
 // GET /api/dashboard/agent-status - 프로세스별 ARSAgent 수량 및 Running 상태 조회
 router.get('/agent-status', authenticate, requireMenuPermission('dashboardArsMonitor'), asyncHandler(controller.getAgentStatus));
 
+// GET /api/dashboard/agent-version - 프로세스별 ARSAgent 버전 분포 조회
+router.get('/agent-version', authenticate, requireMenuPermission('dashboardArsVersion'), asyncHandler(controller.getAgentVersionDistribution));
+
 module.exports = router;

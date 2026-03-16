@@ -10,4 +10,15 @@ async function getAgentStatus(req, res) {
   res.json(result)
 }
 
-module.exports = { getAgentStatus }
+async function getAgentVersionDistribution(req, res) {
+  const { process, eqpModel, groupByModel, runningOnly } = req.query
+  const result = await service.getAgentVersionDistribution({
+    process: process || null,
+    eqpModel: eqpModel || null,
+    groupByModel: groupByModel === 'true',
+    runningOnly: runningOnly === 'true'
+  })
+  res.json(result)
+}
+
+module.exports = { getAgentStatus, getAgentVersionDistribution }

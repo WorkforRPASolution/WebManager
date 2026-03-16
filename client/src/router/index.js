@@ -85,6 +85,27 @@ const routes = [
     }
   },
   {
+    path: '/agent-version',
+    name: 'AgentVersion',
+    component: () => import('../features/dashboard/AgentVersionView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'dashboardArsVersion',
+      menu: {
+        mainMenu: 'dashboard',
+        mainMenuLabel: 'Dashboard',
+        mainMenuIcon: 'dashboard',
+        mainMenuOrder: 1,
+        subMenu: 'agent-version',
+        subMenuLabel: 'ARSAgent Version',
+        subMenuIcon: 'update',
+        subMenuOrder: 3,
+        permission: 'dashboardArsVersion'
+      }
+    }
+  },
+  {
     path: '/clients',
     name: 'Clients',
     component: () => import('../features/clients/ClientsView.vue'),

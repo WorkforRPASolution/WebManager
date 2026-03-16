@@ -6,11 +6,13 @@ import { BarChart } from 'echarts/charts'
 import { TooltipComponent, LegendComponent, GridComponent, DataZoomComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useTheme } from '../../../shared/composables/useTheme'
+import { buildVersionColorMap } from '../utils/versionColors'
 
 use([BarChart, TooltipComponent, LegendComponent, GridComponent, DataZoomComponent, CanvasRenderer])
 
 const props = defineProps({
   data: { type: Array, default: () => [] },
+  allVersions: { type: Array, default: () => [] },
   groupByModel: { type: Boolean, default: false }
 })
 
@@ -21,13 +23,24 @@ const needsZoom = computed(() => props.data.length > MAX_VISIBLE)
 
 const option = computed(() => {
   const dark = isDark.value
+  const colorMap = buildVersionColorMap(props.allVersions, dark)
+
   const categories = props.data.map(d =>
     props.groupByModel ? `${d.process} / ${d.eqpModel}` : d.process
   )
 
-  const runningData = props.data.map(d => d.runningCount)
-  const stoppedData = props.data.map(d => d.stoppedCount || 0)
-  const neverStartedData = props.data.map(d => d.agentCount - d.runningCount - (d.stoppedCount || 0))
+  const series = props.allVersions.map((ver, idx) => ({
+    name: ver,
+    type: 'bar',
+    stack: 'total',
+    data: props.data.map(d => (d.versionCounts || {})[ver] || 0),
+    itemStyle: {
+      color: colorMap[ver],
+      borderRadius: idx === props.allVersions.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]
+    },
+    emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } },
+    barMaxWidth: 32
+  }))
 
   return {
     tooltip: {
@@ -38,13 +51,14 @@ const option = computed(() => {
       textStyle: { color: dark ? '#e5e7eb' : '#111827' }
     },
     legend: {
+      type: 'scroll',
       top: 0,
-      textStyle: { color: dark ? '#9ca3af' : '#6b7280' }
+      textStyle: { color: dark ? '#9ca3af' : '#6b7280', fontSize: 11 }
     },
     grid: {
       left: 10,
       right: 20,
-      top: 32,
+      top: 40,
       bottom: needsZoom.value ? 50 : 10,
       containLabel: true
     },
@@ -97,44 +111,7 @@ const option = computed(() => {
     animationEasing: 'elasticOut',
     animationDuration: 1000,
     animationDelay: (idx) => idx * 80,
-    series: [
-      {
-        name: 'Running',
-        type: 'bar',
-        stack: 'total',
-        data: runningData,
-        itemStyle: {
-          color: dark ? '#4ade80' : '#22c55e',
-          borderRadius: [0, 0, 0, 0]
-        },
-        emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } },
-        barMaxWidth: 32
-      },
-      {
-        name: 'Stopped',
-        type: 'bar',
-        stack: 'total',
-        data: stoppedData,
-        itemStyle: {
-          color: dark ? '#f97316' : '#f59e0b',
-          borderRadius: [0, 0, 0, 0]
-        },
-        emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } },
-        barMaxWidth: 32
-      },
-      {
-        name: 'Never Started',
-        type: 'bar',
-        stack: 'total',
-        data: neverStartedData,
-        itemStyle: {
-          color: dark ? '#374151' : '#d1d5db',
-          borderRadius: [4, 4, 0, 0]
-        },
-        emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } },
-        barMaxWidth: 32
-      }
-    ]
+    series
   }
 })
 </script>

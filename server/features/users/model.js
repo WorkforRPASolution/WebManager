@@ -145,6 +145,7 @@ const rolePermissionSchema = new Schema({
   permissions: {
     dashboardOverview: { type: Boolean, default: true },
     dashboardArsMonitor: { type: Boolean, default: true },
+    dashboardArsVersion: { type: Boolean, default: true },
     arsAgent: { type: Boolean, default: true },
     resourceAgent: { type: Boolean, default: true },
     equipmentInfo: { type: Boolean, default: false },
@@ -173,6 +174,7 @@ const DEFAULT_ROLE_PERMISSIONS = [
     permissions: {
       dashboardOverview: true,
       dashboardArsMonitor: true,
+      dashboardArsVersion: true,
       arsAgent: false,
       resourceAgent: false,
       equipmentInfo: false,
@@ -193,6 +195,7 @@ const DEFAULT_ROLE_PERMISSIONS = [
     permissions: {
       dashboardOverview: true,
       dashboardArsMonitor: true,
+      dashboardArsVersion: true,
       arsAgent: true,
       resourceAgent: true,
       equipmentInfo: true,
@@ -213,6 +216,7 @@ const DEFAULT_ROLE_PERMISSIONS = [
     permissions: {
       dashboardOverview: true,
       dashboardArsMonitor: true,
+      dashboardArsVersion: true,
       arsAgent: false,
       resourceAgent: false,
       equipmentInfo: false,
@@ -233,6 +237,7 @@ const DEFAULT_ROLE_PERMISSIONS = [
     permissions: {
       dashboardOverview: true,
       dashboardArsMonitor: true,
+      dashboardArsVersion: true,
       arsAgent: false,
       resourceAgent: false,
       equipmentInfo: false,

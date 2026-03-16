@@ -1,7 +1,7 @@
 const Client = require('../clients/model')
 const { getRedisClient, isRedisAvailable } = require('../../shared/db/redisConnection')
 const { buildAgentRunningKey, parseAliveValue } = require('../clients/agentAliveService')
-const { buildAgentMetaInfoKey } = require('../clients/agentVersionService')
+const { buildAgentMetaInfoKey, parseAgentMetaInfoVersion } = require('../clients/agentVersionService')
 
 // Test DI
 let deps = {}
@@ -123,4 +123,152 @@ async function getAgentStatus(options = {}) {
   return { data, redisAvailable: redisUp }
 }
 
-module.exports = { getAgentStatus, _setDeps }
+/**
+ * 버전 문자열 내림차순 정렬 (semver-like), "Unknown" 항상 마지막
+ */
+function sortVersionsDesc(versions) {
+  return [...versions].sort((a, b) => {
+    if (a === 'Unknown') return 1
+    if (b === 'Unknown') return -1
+    const aParts = a.split('.').map(Number)
+    const bParts = b.split('.').map(Number)
+    for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+      const av = aParts[i] || 0
+      const bv = bParts[i] || 0
+      if (bv !== av) return bv - av
+    }
+    return 0
+  })
+}
+
+async function getAgentVersionDistribution(options = {}) {
+  const { process, eqpModel, groupByModel, runningOnly } = options
+  const ClientModel = getModel()
+
+  // 1. MongoDB 쿼리 빌드
+  const query = {}
+  if (process) {
+    const arr = process.split(',').map(s => s.trim()).filter(Boolean)
+    query.process = arr.length === 1 ? arr[0] : { $in: arr }
+  }
+  if (eqpModel) {
+    const arr = eqpModel.split(',').map(s => s.trim()).filter(Boolean)
+    query.eqpModel = arr.length === 1 ? arr[0] : { $in: arr }
+  }
+
+  const clients = await ClientModel.find(query)
+    .select('process eqpModel eqpId agentVersion')
+    .lean()
+
+  if (clients.length === 0) {
+    return { data: [], allVersions: [], redisAvailable: isAvailable() }
+  }
+
+  const redisUp = isAvailable()
+
+  // 2. runningOnly 필터링
+  let targetClients = clients
+  if (runningOnly) {
+    if (!redisUp) {
+      // Redis 미연결 → running 판단 불가
+      const groupMap = {}
+      for (const c of clients) {
+        const groupKey = groupByModel ? `${c.process}\0${c.eqpModel}` : c.process
+        if (!groupMap[groupKey]) {
+          const entry = { process: c.process, agentCount: 0, versionCounts: {} }
+          if (groupByModel) entry.eqpModel = c.eqpModel
+          groupMap[groupKey] = entry
+        }
+      }
+      const data = Object.values(groupMap).sort((a, b) => a.process.localeCompare(b.process))
+      return { data, allVersions: [], redisAvailable: false }
+    }
+
+    const redis = getClient()
+    const runningKeys = clients.map(c => buildAgentRunningKey(c.process, c.eqpModel, c.eqpId))
+    const allValues = []
+    for (let i = 0; i < runningKeys.length; i += BATCH_SIZE) {
+      const batch = runningKeys.slice(i, i + BATCH_SIZE)
+      const vals = await redis.mget(batch)
+      allValues.push(...vals)
+    }
+    targetClients = clients.filter((_, i) => parseAliveValue(allValues[i]).alive)
+  }
+
+  // 3. 그룹핑
+  const groupMap = {}
+  const redisTargets = [] // MongoDB 버전 없는 client (Redis fallback 필요)
+
+  for (const c of targetClients) {
+    const groupKey = groupByModel ? `${c.process}\0${c.eqpModel}` : c.process
+    if (!groupMap[groupKey]) {
+      const entry = { process: c.process, agentCount: 0, versionCounts: {} }
+      if (groupByModel) entry.eqpModel = c.eqpModel
+      groupMap[groupKey] = entry
+    }
+    groupMap[groupKey].agentCount++
+
+    const mongoVersion = c.agentVersion?.arsAgent || null
+    if (mongoVersion) {
+      groupMap[groupKey].versionCounts[mongoVersion] = (groupMap[groupKey].versionCounts[mongoVersion] || 0) + 1
+    } else {
+      redisTargets.push({ client: c, groupKey })
+    }
+  }
+
+  // 4. Redis fallback (AgentMetaInfo)
+  if (redisUp && redisTargets.length > 0) {
+    const redis = getClient()
+    const metaGroups = new Map()
+    for (const { client: c, groupKey } of redisTargets) {
+      const metaKey = buildAgentMetaInfoKey(c.process, c.eqpModel)
+      if (!metaGroups.has(metaKey)) metaGroups.set(metaKey, [])
+      metaGroups.get(metaKey).push({ eqpId: c.eqpId, groupKey })
+    }
+
+    const pipeline = redis.pipeline()
+    const pipelineEntries = []
+    for (const [metaKey, items] of metaGroups) {
+      pipeline.hmget(metaKey, ...items.map(it => it.eqpId))
+      pipelineEntries.push(items)
+    }
+
+    const responses = await pipeline.exec()
+    for (let i = 0; i < pipelineEntries.length; i++) {
+      const [err, values] = responses[i]
+      if (err) continue
+      const items = pipelineEntries[i]
+      for (let j = 0; j < items.length; j++) {
+        const version = parseAgentMetaInfoVersion(values[j]) || 'Unknown'
+        const gk = items[j].groupKey
+        groupMap[gk].versionCounts[version] = (groupMap[gk].versionCounts[version] || 0) + 1
+      }
+    }
+  } else if (redisTargets.length > 0) {
+    // Redis 미연결 → 모두 Unknown
+    for (const { groupKey } of redisTargets) {
+      groupMap[groupKey].versionCounts['Unknown'] = (groupMap[groupKey].versionCounts['Unknown'] || 0) + 1
+    }
+  }
+
+  // 5. allVersions 수집 + 정렬
+  const versionSet = new Set()
+  for (const group of Object.values(groupMap)) {
+    for (const v of Object.keys(group.versionCounts)) {
+      versionSet.add(v)
+    }
+  }
+  const allVersions = sortVersionsDesc([...versionSet])
+
+  // 6. 정렬 (process → eqpModel)
+  const data = Object.values(groupMap).sort((a, b) => {
+    const pCmp = a.process.localeCompare(b.process)
+    if (pCmp !== 0) return pCmp
+    if (a.eqpModel && b.eqpModel) return a.eqpModel.localeCompare(b.eqpModel)
+    return 0
+  })
+
+  return { data, allVersions, redisAvailable: redisUp }
+}
+
+module.exports = { getAgentStatus, getAgentVersionDistribution, _setDeps }

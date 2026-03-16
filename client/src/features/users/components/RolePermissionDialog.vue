@@ -109,6 +109,7 @@ const formatPermissionName = (key) => {
   const names = {
     dashboardOverview: 'Overview',
     dashboardArsMonitor: 'ARSAgent Monitor',
+    dashboardArsVersion: 'ARSAgent Version',
     arsAgent: 'ARS Agent',
     resourceAgent: 'Resource Agent',
     equipmentInfo: 'Equipment Info',
@@ -127,7 +128,7 @@ const formatPermissionName = (key) => {
 const permissionGroups = [
   {
     label: 'Dashboard',
-    keys: ['dashboardOverview', 'dashboardArsMonitor']
+    keys: ['dashboardOverview', 'dashboardArsMonitor', 'dashboardArsVersion']
   },
   {
     label: 'Clients',
