@@ -3,7 +3,11 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api, { authApi } from '@/shared/api'
 import MultiSelect from '@/shared/components/MultiSelect.vue'
-import EarsUserSearch from '@/shared/components/EarsUserSearch.vue'
+// EARS inline search state
+const earsSearching = ref(false)
+const earsSearchResults = ref([])
+const earsSearchDone = ref(false)
+const earsSearchError = ref('')
 
 const router = useRouter()
 const route = useRoute()
@@ -73,6 +77,9 @@ const resetState = () => {
   clientSearchProcesses.value = []
   clientSearchDone.value = false
   earsSelectedUser.value = null
+  earsSearchResults.value = []
+  earsSearchDone.value = false
+  earsSearchError.value = ''
   form.value = {
     name: '',
     singleid: '',
@@ -156,13 +163,35 @@ watch(processCustomInput, (val) => {
   }
 })
 
-// --- EARS search / select / clear ---
-const onEarsUserSelected = async (user) => {
+// --- EARS inline search / select / clear ---
+const searchEarsUsers = async () => {
+  const name = form.value.name.trim()
+  if (name.length < 1) return
+
+  earsSearching.value = true
+  earsSearchError.value = ''
+  earsSearchResults.value = []
+  earsSearchDone.value = true
+
+  try {
+    const res = await authApi.searchEarsUsers(name)
+    earsSearchResults.value = res.data.data || []
+  } catch (err) {
+    earsSearchError.value = err.response?.data?.message || '검색 중 오류가 발생했습니다'
+  } finally {
+    earsSearching.value = false
+  }
+}
+
+const selectEarsUser = async (user) => {
   earsSelectedUser.value = user
   form.value.name = user.cn
   form.value.singleid = user.mail.split('@')[0]
   form.value.department = user.department || ''
   form.value.email = user.mail
+  // 검색 결과 닫기
+  earsSearchResults.value = []
+  earsSearchDone.value = false
 
   // Auto check ID
   delete fieldErrors.value.singleid
@@ -186,11 +215,15 @@ const onEarsUserSelected = async (user) => {
 
 const clearEarsSelection = () => {
   earsSelectedUser.value = null
+  form.value.name = ''
   form.value.singleid = ''
   form.value.department = ''
   form.value.email = ''
   idChecked.value = null
   delete fieldErrors.value.singleid
+  earsSearchResults.value = []
+  earsSearchDone.value = false
+  earsSearchError.value = ''
 }
 
 const validateField = (field) => {
@@ -406,18 +439,73 @@ const getRoleLabel = (role) => {
           {{ error }}
         </div>
 
-        <!-- EARS User Search (integrated mode only) -->
-        <div v-if="isIntegrated" class="space-y-3">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            EARS 사용자 검색 <span class="text-red-500">*</span>
-            <span class="text-xs text-gray-500 ml-1">이름을 검색하여 사용자를 선택하세요</span>
+        <!-- Name -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Name <span class="text-red-500">*</span>
+            <span v-if="isIntegrated" class="text-xs text-gray-500 ml-1">이름 입력 후 검색하여 선택하세요</span>
           </label>
-          <EarsUserSearch
-            v-if="!hasEarsSelection"
-            @select="onEarsUserSelected"
-          />
-          <!-- Selected user info -->
-          <div v-if="hasEarsSelection" class="flex items-center justify-between px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+          <div class="flex gap-2">
+            <input
+              v-model="form.name"
+              type="text"
+              @blur="validateField('name')"
+              @keyup.enter="isIntegrated && !hasEarsSelection ? searchEarsUsers() : null"
+              class="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+              :class="{ 'border-red-500 dark:border-red-500': fieldErrors.name }"
+              placeholder="Enter your name"
+            />
+            <!-- EARS 검색 버튼 (integrated only, 선택 전) -->
+            <button
+              v-if="isIntegrated && !hasEarsSelection"
+              type="button"
+              @click="searchEarsUsers"
+              :disabled="earsSearching || form.name.trim().length < 1"
+              class="px-4 py-2.5 rounded-lg text-sm font-medium bg-primary-500 hover:bg-primary-600 text-white transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              <span v-if="earsSearching">검색 중...</span>
+              <span v-else>검색</span>
+            </button>
+          </div>
+          <p v-if="fieldErrors.name" class="mt-1 text-xs text-red-500">{{ fieldErrors.name }}</p>
+
+          <!-- EARS 검색 에러 -->
+          <p v-if="earsSearchError" class="mt-1 text-xs text-red-500">{{ earsSearchError }}</p>
+
+          <!-- EARS 검색 결과 테이블 (Name 필드 아래) -->
+          <div v-if="isIntegrated && earsSearchDone && !hasEarsSelection" class="mt-2">
+            <div v-if="earsSearchResults.length === 0 && !earsSearching" class="text-xs text-gray-500 dark:text-gray-400">
+              검색 결과가 없습니다.
+            </div>
+            <div v-else-if="earsSearchResults.length > 0" class="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+              <div class="max-h-48 overflow-y-auto">
+                <table class="w-full text-sm">
+                  <thead class="sticky top-0 bg-gray-50 dark:bg-dark-card">
+                    <tr>
+                      <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style="width: 15%">이름</th>
+                      <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style="width: 40%">부서</th>
+                      <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style="width: 45%">이메일</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-200 dark:divide-dark-border">
+                    <tr
+                      v-for="(user, index) in earsSearchResults"
+                      :key="index"
+                      class="cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-border"
+                      @click="selectEarsUser(user)"
+                    >
+                      <td class="px-3 py-2 text-gray-900 dark:text-white">{{ user.cn }}</td>
+                      <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ user.department }}</td>
+                      <td class="px-3 py-2 font-medium text-primary-500">{{ user.mail }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- EARS 선택된 사용자 정보 -->
+          <div v-if="isIntegrated && hasEarsSelection" class="mt-2 flex items-center justify-between px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
             <div class="text-sm text-gray-900 dark:text-white">
               <span class="font-medium">{{ earsSelectedUser.cn }}</span>
               <span class="mx-1 text-gray-400">|</span>
@@ -433,22 +521,6 @@ const getRoleLabel = (role) => {
               해제
             </button>
           </div>
-        </div>
-
-        <!-- Name -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Name <span class="text-red-500">*</span>
-          </label>
-          <input
-            v-model="form.name"
-            type="text"
-            @blur="validateField('name')"
-            class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-            :class="{ 'border-red-500 dark:border-red-500': fieldErrors.name }"
-            placeholder="Enter your name"
-          />
-          <p v-if="fieldErrors.name" class="mt-1 text-xs text-red-500">{{ fieldErrors.name }}</p>
         </div>
 
         <!-- User ID -->
