@@ -64,12 +64,6 @@ const userSchema = new Schema({
     trim: true,
     default: ''
   },
-  email: {
-    type: String,
-    trim: true,
-    lowercase: true,
-    default: ''
-  },
   department: {
     type: String,
     trim: true,

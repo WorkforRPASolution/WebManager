@@ -43,11 +43,6 @@ export const validationRules = {
     enum: [0, 1, 2, 3],
     message: 'Authority level must be 0-3'
   },
-  email: {
-    required: false,
-    pattern: patterns.email,
-    message: 'Invalid email format'
-  }
 }
 
 // Validation rules for new users (password required)

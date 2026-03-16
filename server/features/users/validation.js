@@ -90,13 +90,6 @@ function validateUser(userData, isUpdate = false) {
     }
   }
 
-  // Email validation (optional but must be valid if provided)
-  if (userData.email !== undefined && userData.email.trim() !== '') {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userData.email)) {
-      errors.push({ field: 'email', message: 'Invalid email format' })
-    }
-  }
-
   return {
     valid: errors.length === 0,
     errors

@@ -26,7 +26,6 @@ const form = ref({
   singleid: '',
   password: '',
   passwordConfirm: '',
-  email: '',
   line: '',
   processes: [],
   department: '',
@@ -85,8 +84,7 @@ const resetState = () => {
     singleid: '',
     password: '',
     passwordConfirm: '',
-    email: '',
-    line: '',
+      line: '',
     processes: [],
     department: '',
     note: '',
@@ -109,7 +107,6 @@ const isFormValid = computed(() => {
     idChecked.value === true &&
     form.value.password.length >= 8 &&
     form.value.password === form.value.passwordConfirm &&
-    form.value.email &&
     form.value.line &&
     form.value.processes.length > 0
 
@@ -189,7 +186,6 @@ const selectEarsUser = async (user) => {
   form.value.name = user.cn
   form.value.singleid = user.mail.split('@')[0]
   form.value.department = user.department || ''
-  form.value.email = user.mail
   // 검색 결과 닫기
   earsSearchResults.value = []
   earsSearchDone.value = false
@@ -219,7 +215,6 @@ const clearEarsSelection = () => {
   form.value.name = ''
   form.value.singleid = ''
   form.value.department = ''
-  form.value.email = ''
   idChecked.value = null
   delete fieldErrors.value.singleid
   earsSearchResults.value = []
@@ -255,12 +250,6 @@ const validateField = (field) => {
   if (field === 'passwordConfirm' || !field) {
     if (form.value.password !== form.value.passwordConfirm) {
       errors.passwordConfirm = '비밀번호가 일치하지 않습니다'
-    }
-  }
-
-  if (field === 'email' || !field) {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.value.email)) {
-      errors.email = '유효한 이메일을 입력해주세요'
     }
   }
 
@@ -323,7 +312,6 @@ const handleSubmit = async () => {
       name: form.value.name.trim(),
       singleid: form.value.singleid.trim(),
       password: form.value.password,
-      email: form.value.email.trim(),
       line: form.value.line.trim(),
       processes: form.value.processes,
       department: form.value.department.trim(),
@@ -608,26 +596,6 @@ const getRoleLabel = (role) => {
                 </div>
                 <p v-if="fieldErrors.passwordConfirm" class="mt-1 text-xs text-red-500">{{ fieldErrors.passwordConfirm }}</p>
               </div>
-            </div>
-
-            <!-- Email -->
-            <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Email <span class="text-red-500">*</span>
-              </label>
-              <input
-                v-model="form.email"
-                type="email"
-                @blur="validateField('email')"
-                :readonly="isIntegrated && hasEarsSelection"
-                class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-                :class="{
-                  'border-red-500 dark:border-red-500': fieldErrors.email,
-                  'bg-gray-100 dark:bg-gray-800 cursor-not-allowed': isIntegrated && hasEarsSelection
-                }"
-                placeholder="Enter your email"
-              />
-              <p v-if="fieldErrors.email" class="mt-1 text-xs text-red-500">{{ fieldErrors.email }}</p>
             </div>
 
             <!-- Department -->

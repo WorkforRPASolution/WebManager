@@ -262,6 +262,7 @@ npm run dev
 - ResourceAgent Version 완료 (ResourceAgentMetaInfo 키 + 기존 Version 컴포넌트 100% 재사용 + Running Only 토글)
 - EARS Landing 완료 (시네마틱 인트로 애니메이션 + 스플릿 로그인 레이아웃 + 스킵/재방문 축약 + 다크·라이트 색상 전환 + 반응형)
 - Sign Up 개선 (2단 레이아웃 + integrated 모드 EARS 검색/자동완성 + Admin 알림 메일(EARS 경유 이메일 조회) + Admin 역할 선택 제외 + Process 숫자 허용(A-Z0-9_) + "시나리오 작성권한" 명칭 변경)
+- ARS_USER_INFO email 필드 삭제 (이메일은 EARS InterfaceServer 또는 수동 입력으로 확보, DB 저장 안 함)
 
 ## Redis Key 구조 (Agent 상태)
 

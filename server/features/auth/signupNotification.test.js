@@ -61,7 +61,6 @@ const validUserData = {
   name: 'Test User',
   singleid: 'testuser',
   password: 'Password1',
-  email: 'test@example.com',
   line: 'P1',
   processes: ['CVD'],
   department: 'Engineering',

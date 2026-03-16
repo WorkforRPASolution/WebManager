@@ -148,10 +148,6 @@ async function signup(req, res) {
     errors.push({ field: 'password', message: '비밀번호는 영문과 숫자를 포함해야 합니다' })
   }
 
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errors.push({ field: 'email', message: '유효한 이메일을 입력해주세요' })
-  }
-
   // Process validation: 배열 형태, 각 항목은 영문 대문자/언더바만
   // 호환성: processes (배열) 우선, process (문자열) fallback
   const processArray = Array.isArray(processes) ? processes.map(p => p.trim()).filter(Boolean)
@@ -196,7 +192,6 @@ async function signup(req, res) {
     name: name.trim(),
     singleid: singleid.trim(),
     password,
-    email: email.trim(),
     line: line.trim(),
     processes: processArray,
     department: department?.trim() || '',

@@ -78,8 +78,7 @@ async function getUsers(filters = {}, paginationQuery = {}) {
   if (filters.search) {
     query.$or = [
       { name: { $regex: filters.search, $options: 'i' } },
-      { singleid: { $regex: filters.search, $options: 'i' } },
-      { email: { $regex: filters.search, $options: 'i' } }
+      { singleid: { $regex: filters.search, $options: 'i' } }
     ]
   }
 

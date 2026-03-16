@@ -137,7 +137,7 @@ const lastSelectedRowIndex = ref(null)
 
 const editableColumns = [
   'name', 'singleid', 'password', 'line', 'processes',
-  'authority', 'authorityManager', 'note', 'email', 'department', 'accountStatus'
+  'authority', 'authorityManager', 'note', 'department', 'accountStatus'
 ]
 
 // 셀 범위 선택 및 일괄 편집 Composable
@@ -274,7 +274,6 @@ const columnDefs = ref([
     },
   },
   { field: 'note', headerName: 'Note', width: 150, editable: true },
-  { field: 'email', headerName: 'Email', width: 180, editable: true },
   { field: 'department', headerName: 'Department', width: 120, editable: true },
   {
     field: 'accountStatus',

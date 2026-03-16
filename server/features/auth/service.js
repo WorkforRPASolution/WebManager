@@ -8,7 +8,6 @@ const { getUserBySingleId, getRolePermissionByLevel } = require('../users/servic
 const { User } = require('../users/model')
 const Client = require('../clients/model')
 const { sendEmailTo: _defaultSendEmailTo } = require('../../shared/services/emailNotificationService')
-const { resolveEmail: _defaultResolveEmail } = require('../../shared/services/userEmailResolver')
 const { buildTempPasswordEmail: _defaultBuildTempPasswordEmail, buildVerificationCodeEmail: _defaultBuildVerificationCodeEmail, buildSignupNotificationEmail } = require('../../shared/services/emailTemplates')
 const { searchUsers: _defaultSearchUsers } = require('../../shared/services/earsService')
 const { storeCode: _defaultStoreCode, verifyCode: _defaultVerifyCode, checkCode: _defaultCheckCode } = require('../../shared/services/verificationCodeService')
@@ -32,7 +31,6 @@ function getOperationMode() {
 // --- DI for testing ---
 let _User = User
 let _Client = Client
-let _resolveEmail = _defaultResolveEmail
 let _sendEmailTo = _defaultSendEmailTo
 let _buildTempPasswordEmail = _defaultBuildTempPasswordEmail
 let _buildVerificationCodeEmail = _defaultBuildVerificationCodeEmail
@@ -44,7 +42,6 @@ let _checkCode = _defaultCheckCode
 function _setDeps(deps) {
   if (deps.User) _User = deps.User
   if (deps.Client) _Client = deps.Client
-  if (deps.resolveEmail) _resolveEmail = deps.resolveEmail
   if (deps.sendEmailTo) _sendEmailTo = deps.sendEmailTo
   if (deps.buildTempPasswordEmail) _buildTempPasswordEmail = deps.buildTempPasswordEmail
   if (deps.buildVerificationCodeEmail) _buildVerificationCodeEmail = deps.buildVerificationCodeEmail
@@ -211,20 +208,12 @@ async function getCurrentUser(tokenPayload) {
  * @returns {Object} - Result with success status
  */
 async function signup(userData) {
-  const { name, singleid, password, email, line, processes, department, note, authorityManager, authority } = userData
+  const { name, singleid, password, line, processes, department, note, authorityManager, authority } = userData
 
   // Check if singleid already exists
   const existingUser = await _User.findOne({ singleid }).lean()
   if (existingUser) {
     return { error: 'singleid', message: '이미 사용 중인 ID입니다' }
-  }
-
-  // Check if email already exists (if provided)
-  if (email) {
-    const existingEmail = await _User.findOne({ email: email.toLowerCase() }).lean()
-    if (existingEmail) {
-      return { error: 'email', message: '이미 사용 중인 이메일입니다' }
-    }
   }
 
   // Hash password
@@ -240,7 +229,6 @@ async function signup(userData) {
     name,
     singleid,
     password: hashedPassword,
-    email: email?.toLowerCase() || '',
     line,
     process: processStr,
     processes: processArray,
@@ -291,7 +279,6 @@ async function signup(userData) {
     user: {
       singleid: newUser.singleid,
       name: newUser.name,
-      email: newUser.email,
       accountStatus: newUser.accountStatus,
       authorityManager: newUser.authorityManager,
       authority: newUser.authority
@@ -510,7 +497,7 @@ async function approvePasswordReset(userId, { email: manualEmail } = {}) {
   let emailSent = false
   const mode = getOperationMode()
   if (mode === 'integrated') {
-    const email = manualEmail || await _resolveEmail(user.singleid)
+    const email = manualEmail
     if (email) {
       const emailBody = _buildTempPasswordEmail(user.singleid, tempPassword)
       const result = await _sendEmailTo(email, '[WebManager] 비밀번호 초기화 안내', emailBody)

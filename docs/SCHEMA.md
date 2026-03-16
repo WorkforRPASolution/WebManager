@@ -104,7 +104,6 @@ EARS Database의 컬렉션에 WebManager가 추가한 전용 필드는 `[WM]`으
 | authority | String | 필수 | 시나리오 작성권한 (WRITE or 빈값) |
 | authorityManager | NumberLong | 필수 | 사용자 등급 (아래 권한 체계 표 참조, 기본: 3) |
 | note | String | 선택 | 사용자 관련 note(설명) |
-| email | String | 선택 | `[WM]` 이메일 주소 |
 | department | String | 선택 | `[WM]` 부서 |
 | accountStatus | String | 선택 | `[WM]` 계정 상태 (pending/active/suspended, 기본: active) |
 | passwordStatus | String | 선택 | `[WM]` 비밀번호 상태 (normal/reset_requested/must_change, 기본: normal) |
