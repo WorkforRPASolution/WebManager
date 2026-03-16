@@ -3,11 +3,15 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import DefaultLayout from './layouts/DefaultLayout.vue'
 import AuthLayout from './layouts/AuthLayout.vue'
+import LandingLayout from './layouts/LandingLayout.vue'
 
 const route = useRoute()
 
 const layout = computed(() => {
-  return route.meta.layout === 'auth' ? AuthLayout : DefaultLayout
+  const l = route.meta.layout
+  if (l === 'auth') return AuthLayout
+  if (l === 'landing') return LandingLayout
+  return DefaultLayout
 })
 </script>
 

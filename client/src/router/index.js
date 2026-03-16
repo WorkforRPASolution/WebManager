@@ -22,7 +22,7 @@ const routes = [
     path: '/login',
     name: 'Login',
     component: () => import('../features/auth/LoginView.vue'),
-    meta: { layout: 'auth', requiresAuth: false }
+    meta: { layout: 'landing', requiresAuth: false }
   },
   {
     path: '/signup',

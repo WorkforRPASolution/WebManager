@@ -1,12 +1,15 @@
 <script setup>
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/shared/stores/auth'
 import { useTabsStore } from '@/shared/stores/tabs'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const tabsStore = useTabsStore()
+
+const isLanding = computed(() => route.meta.layout === 'landing')
 
 const username = ref('')
 const password = ref('')
@@ -77,7 +80,7 @@ const handleLogin = async () => {
 
 <template>
   <div class="w-full max-w-md">
-    <div class="bg-white dark:bg-dark-card rounded-2xl shadow-xl p-8">
+    <div :class="isLanding ? 'p-8' : 'bg-white dark:bg-dark-card rounded-2xl shadow-xl p-8'">
       <!-- Logo -->
       <div class="text-center mb-8">
         <div class="w-16 h-16 bg-primary-500 rounded-xl flex items-center justify-center mx-auto mb-4">
