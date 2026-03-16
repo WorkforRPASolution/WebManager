@@ -311,13 +311,12 @@ const getRoleLabel = (role) => {
     <div class="bg-white dark:bg-dark-card rounded-2xl shadow-xl p-8">
       <!-- Logo -->
       <div class="text-center mb-6">
-        <div class="w-16 h-16 bg-primary-500 rounded-xl flex items-center justify-center mx-auto mb-4">
-          <svg class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="3"/>
-            <circle cx="6" cy="6" r="2"/>
-            <circle cx="18" cy="6" r="2"/>
-            <circle cx="6" cy="18" r="2"/>
-            <circle cx="18" cy="18" r="2"/>
+        <div class="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <svg class="w-14 h-14" viewBox="0 0 100 100">
+            <g opacity="0.88"><polygon points="5,78 50,65 95,78 50,91" fill="#b0d4e8"/><polygon points="5,78 50,91 50,97 5,84" fill="#7ea4be"/><polygon points="50,91 95,78 95,84 50,97" fill="#94bcd6"/></g>
+            <g opacity="0.82"><polygon points="5,62 50,49 95,62 50,75" fill="#82c882"/><polygon points="5,62 50,75 50,80 5,67" fill="#58a858"/><polygon points="50,75 95,62 95,67 50,80" fill="#6eba6e"/></g>
+            <g opacity="0.82"><polygon points="5,46 50,33 95,46 50,59" fill="#4aada6"/><polygon points="5,46 50,59 50,64 5,51" fill="#2c8e88"/><polygon points="50,59 95,46 95,51 50,64" fill="#3c9e98"/></g>
+            <g opacity="0.78"><polygon points="5,30 50,17 95,30 50,43" fill="#6a9ed4"/><polygon points="5,30 50,43 50,48 5,35" fill="#4a7eb4"/><polygon points="50,43 95,30 95,35 50,48" fill="#5a8ec4"/></g>
           </svg>
         </div>
         <h1 class="text-2xl font-bold text-gray-900 dark:text-white">WebManager</h1>
