@@ -51,10 +51,9 @@ const handleLogout = async () => {
     <div class="flex items-center gap-3">
       <div class="w-8 h-8 rounded flex items-center justify-center">
         <svg class="w-7 h-7" viewBox="0 0 100 100">
-          <g opacity="0.88"><polygon points="5,78 50,65 95,78 50,91" fill="#b0d4e8"/><polygon points="5,78 50,91 50,97 5,84" fill="#7ea4be"/><polygon points="50,91 95,78 95,84 50,97" fill="#94bcd6"/></g>
-          <g opacity="0.82"><polygon points="5,62 50,49 95,62 50,75" fill="#82c882"/><polygon points="5,62 50,75 50,80 5,67" fill="#58a858"/><polygon points="50,75 95,62 95,67 50,80" fill="#6eba6e"/></g>
-          <g opacity="0.82"><polygon points="5,46 50,33 95,46 50,59" fill="#4aada6"/><polygon points="5,46 50,59 50,64 5,51" fill="#2c8e88"/><polygon points="50,59 95,46 95,51 50,64" fill="#3c9e98"/></g>
-          <g opacity="0.78"><polygon points="5,30 50,17 95,30 50,43" fill="#6a9ed4"/><polygon points="5,30 50,43 50,48 5,35" fill="#4a7eb4"/><polygon points="50,43 95,30 95,35 50,48" fill="#5a8ec4"/></g>
+          <g opacity="0.9"><polygon points="5,70 50,54 95,70 50,86" fill="#b4c8dc"/><polygon points="5,70 50,86 50,92 5,76" fill="#8aa0b8"/><polygon points="50,86 95,70 95,76 50,92" fill="#9eb4cc"/></g>
+          <g opacity="0.85"><polygon points="5,48 50,32 95,48 50,64" fill="#48b0a8"/><polygon points="5,48 50,64 50,70 5,54" fill="#2c908a"/><polygon points="50,64 95,48 95,54 50,70" fill="#3aa09a"/></g>
+          <g opacity="0.82"><polygon points="5,26 50,10 95,26 50,42" fill="#5c9ee0"/><polygon points="5,26 50,42 50,48 5,32" fill="#3878c0"/><polygon points="50,42 95,26 95,32 50,48" fill="#4a8cd0"/></g>
         </svg>
       </div>
       <span class="text-white font-bold text-lg tracking-tight">WebManager</span>
