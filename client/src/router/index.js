@@ -77,7 +77,7 @@ const routes = [
         mainMenuIcon: 'dashboard',
         mainMenuOrder: 1,
         subMenu: 'agent-monitor',
-        subMenuLabel: 'ARSAgent Monitor',
+        subMenuLabel: 'ARSAgent Status',
         subMenuIcon: 'monitor',
         subMenuOrder: 2,
         permission: 'dashboardArsMonitor'

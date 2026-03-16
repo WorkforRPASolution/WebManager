@@ -108,7 +108,7 @@ const hasChanges = computed(() => {
 const formatPermissionName = (key) => {
   const names = {
     dashboardOverview: 'Overview',
-    dashboardArsMonitor: 'ARSAgent Monitor',
+    dashboardArsMonitor: 'ARSAgent Status',
     dashboardArsVersion: 'ARSAgent Version',
     arsAgent: 'ARS Agent',
     resourceAgent: 'Resource Agent',

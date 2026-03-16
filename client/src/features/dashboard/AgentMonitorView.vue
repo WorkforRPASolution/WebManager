@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { clientsApi, dashboardApi } from '../../shared/api'
 import { useProcessFilterStore } from '../../shared/stores/processFilter'
 import { useProcessPermission } from '../../shared/composables/useProcessPermission'
@@ -7,6 +7,7 @@ import AgentMonitorFilterBar from './components/AgentMonitorFilterBar.vue'
 import AgentStatusDonutChart from './components/AgentStatusDonutChart.vue'
 import AgentStatusBarChart from './components/AgentStatusBarChart.vue'
 import AgentStatusTable from './components/AgentStatusTable.vue'
+import { exportMonitorCsv } from './utils/csvExport'
 
 const processFilterStore = useProcessFilterStore()
 const { buildUserProcessFilter } = useProcessPermission()
@@ -23,6 +24,26 @@ const models = ref([])
 const totalAgent = ref(0)
 const totalRunning = ref(0)
 const totalStopped = ref(0)
+
+// Sort
+const sortBy = ref('name')
+const sortAsc = ref(true)
+
+const sortedData = computed(() => {
+  const arr = [...data.value]
+  arr.sort((a, b) => {
+    let cmp
+    if (sortBy.value === 'count') {
+      cmp = a.agentCount - b.agentCount
+    } else {
+      const labelA = groupByModel.value ? `${a.process}\0${a.eqpModel}` : a.process
+      const labelB = groupByModel.value ? `${b.process}\0${b.eqpModel}` : b.process
+      cmp = labelA.localeCompare(labelB)
+    }
+    return sortAsc.value ? cmp : -cmp
+  })
+  return arr
+})
 
 async function loadProcesses() {
   try {
@@ -94,23 +115,27 @@ onMounted(() => {
   <div class="space-y-6">
     <!-- Header -->
     <div>
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">ARSAgent Monitor</h1>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">ARSAgent Status</h1>
       <p class="text-gray-500 dark:text-gray-400 mt-1">Process별 ARSAgent 가동 현황</p>
     </div>
 
     <!-- Filter Bar -->
     <div class="bg-white dark:bg-dark-card rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
-      <AgentMonitorFilterBar
-        :processes="processes"
-        :models="models"
-        :loading="loading"
-        @search="handleSearch"
-        @process-change="handleProcessChange"
-      />
+      <div class="flex flex-wrap items-end gap-3">
+        <AgentMonitorFilterBar
+          :processes="processes"
+          :models="models"
+          :loading="loading"
+          v-model:sortBy="sortBy"
+          v-model:sortAsc="sortAsc"
+          @search="handleSearch"
+          @process-change="handleProcessChange"
+        />
+      </div>
     </div>
 
     <!-- Charts -->
-    <div v-if="data.length > 0" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div v-if="sortedData.length > 0" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Donut Chart -->
       <div class="bg-white dark:bg-dark-card rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
         <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">전체 가동률</h3>
@@ -125,7 +150,7 @@ onMounted(() => {
       <div class="lg:col-span-2 bg-white dark:bg-dark-card rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
         <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">항목별 비교</h3>
         <AgentStatusBarChart
-          :data="data"
+          :data="sortedData"
           :groupByModel="groupByModel"
         />
       </div>
@@ -133,12 +158,22 @@ onMounted(() => {
 
     <!-- Data Table -->
     <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border">
-      <div class="px-6 py-4 border-b border-gray-200 dark:border-dark-border">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Agent Status</h2>
+        <button
+          v-if="sortedData.length > 0"
+          @click="exportMonitorCsv(sortedData, groupByModel)"
+          class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition-colors"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          CSV
+        </button>
       </div>
       <div class="p-6">
         <AgentStatusTable
-          :data="data"
+          :data="sortedData"
           :groupByModel="groupByModel"
           :loading="loading"
           :redisAvailable="redisAvailable"

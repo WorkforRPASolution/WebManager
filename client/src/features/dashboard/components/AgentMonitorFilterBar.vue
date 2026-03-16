@@ -5,10 +5,12 @@ import MultiSelect from '../../../shared/components/MultiSelect.vue'
 const props = defineProps({
   processes: { type: Array, default: () => [] },
   models: { type: Array, default: () => [] },
-  loading: { type: Boolean, default: false }
+  loading: { type: Boolean, default: false },
+  sortBy: { type: String, default: 'name' },
+  sortAsc: { type: Boolean, default: true }
 })
 
-const emit = defineEmits(['search', 'process-change'])
+const emit = defineEmits(['search', 'process-change', 'update:sortBy', 'update:sortAsc'])
 
 const selectedProcesses = ref([])
 const groupByModel = ref(false)
@@ -36,7 +38,7 @@ function handleSearch() {
 </script>
 
 <template>
-  <div class="flex flex-wrap items-center gap-3">
+  <div class="flex flex-wrap items-end gap-3">
     <!-- Process -->
     <MultiSelect
       v-model="selectedProcesses"
@@ -66,8 +68,29 @@ function handleSearch() {
       <span v-else>조회</span>
     </button>
 
+    <!-- Sort -->
+    <div class="flex items-center gap-1">
+      <select
+        :value="sortBy"
+        @change="emit('update:sortBy', $event.target.value)"
+        class="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-dark-card text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        <option value="name">이름순</option>
+        <option value="count">수량순</option>
+      </select>
+      <button
+        @click="emit('update:sortAsc', !sortAsc)"
+        class="p-1.5 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-dark-border transition-colors text-gray-500 dark:text-gray-400"
+        :title="sortAsc ? '오름차순' : '내림차순'"
+      >
+        <svg class="w-4 h-4 transition-transform" :class="{ 'rotate-180': !sortAsc }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" />
+        </svg>
+      </button>
+    </div>
+
     <!-- Model Toggle -->
-    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+    <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer select-none mb-1.5">
       <span>Model</span>
       <button
         type="button"

@@ -80,7 +80,7 @@ const totalVersions = computed(() => props.allVersions.length)
       <div
         v-for="row in data"
         :key="groupKey(row)"
-        class="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden"
+        class="border border-gray-200 dark:border-dark-border rounded-lg"
       >
         <!-- Group Header (clickable) -->
         <button
@@ -103,16 +103,29 @@ const totalVersions = computed(() => props.allVersions.length)
               {{ row.agentCount }} agents, {{ versionCount(row) }} versions
             </span>
           </div>
-          <!-- Version mini-bar (stacked) -->
-          <div class="flex h-3 w-32 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700">
-            <div
-              v-for="ver in sortedVersions(row)"
-              :key="ver"
-              :style="{
-                width: ((row.versionCounts[ver] / row.agentCount) * 100) + '%',
-                backgroundColor: colorMap[ver]
-              }"
-            />
+          <!-- Version mini-bar (stacked) with tooltip -->
+          <div class="relative group/bar flex-shrink-0">
+            <div class="flex h-3 w-32 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700">
+              <div
+                v-for="ver in sortedVersions(row)"
+                :key="ver"
+                :style="{
+                  width: ((row.versionCounts[ver] / row.agentCount) * 100) + '%',
+                  backgroundColor: colorMap[ver]
+                }"
+              />
+            </div>
+            <!-- Hover tooltip -->
+            <div class="absolute top-full right-0 mt-2 hidden group-hover/bar:block z-50 pointer-events-none">
+              <div class="bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg px-3 py-2 shadow-lg whitespace-nowrap">
+                <div v-for="ver in sortedVersions(row)" :key="ver" class="flex items-center gap-2 py-0.5">
+                  <span class="inline-block w-2 h-2 rounded-full" :style="{ backgroundColor: colorMap[ver] }" />
+                  <span>{{ ver }}:</span>
+                  <span class="font-medium">{{ row.versionCounts[ver] }}</span>
+                  <span class="text-gray-400">({{ rate(row.versionCounts[ver], row.agentCount) }})</span>
+                </div>
+              </div>
+            </div>
           </div>
         </button>
 

@@ -18,7 +18,7 @@ const props = defineProps({
 
 const { isDark } = useTheme()
 
-const MAX_VISIBLE = 15
+const MAX_VISIBLE = 25
 const needsZoom = computed(() => props.data.length > MAX_VISIBLE)
 
 const option = computed(() => {
@@ -39,7 +39,7 @@ const option = computed(() => {
       borderRadius: idx === props.allVersions.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]
     },
     emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } },
-    barMaxWidth: 32
+    barMaxWidth: 100
   }))
 
   return {
@@ -48,7 +48,15 @@ const option = computed(() => {
       axisPointer: { type: 'shadow' },
       backgroundColor: dark ? '#1f2937' : '#fff',
       borderColor: dark ? '#374151' : '#e5e7eb',
-      textStyle: { color: dark ? '#e5e7eb' : '#111827' }
+      textStyle: { color: dark ? '#e5e7eb' : '#111827' },
+      formatter: (params) => {
+        const title = params[0]?.axisValueLabel || ''
+        const items = params.filter(p => p.value > 0)
+        if (items.length === 0) return `${title}<br/>데이터 없음`
+        const lines = items.map(p => `${p.marker} ${p.seriesName}: <b>${p.value}</b>`).join('<br/>')
+        const total = items.reduce((s, p) => s + p.value, 0)
+        return `<b>${title}</b> (${total})<br/>${lines}`
+      }
     },
     legend: {
       type: 'scroll',
