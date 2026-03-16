@@ -200,4 +200,64 @@ describe('dashboard service - getAgentStatus', () => {
       // neverStarted = agentCount - runningCount - stoppedCount = 1
     })
   })
+
+  it('11. details 배열 반환 → 설비별 process, eqpModel, eqpId, status 포함', async () => {
+    const clients = [
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'EQP-001' },
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'EQP-002' },
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'EQP-003' },
+    ]
+    const mockModel = createMockClientModel(clients)
+    // EQP-001: running, EQP-002: not running, EQP-003: not running
+    // MetaInfo: EQP-002 있음(Stopped), EQP-003 없음(NeverStarted)
+    const mockRedis = createMockRedis(
+      ['3600', null, null],
+      [['6.8.5', null]]
+    )
+    _setDeps({ ClientModel: mockModel, redisClient: mockRedis, isRedisAvailable: true })
+
+    const result = await getAgentStatus({})
+
+    expect(result.details).toBeDefined()
+    expect(result.details).toHaveLength(3)
+    expect(result.details).toEqual(expect.arrayContaining([
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'EQP-001', status: 'Running' },
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'EQP-002', status: 'Stopped' },
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'EQP-003', status: 'Never Started' },
+    ]))
+  })
+
+  it('12. Redis 미연결 시 details 모두 status: Unknown', async () => {
+    const clients = [
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'EQP-001' },
+    ]
+    const mockModel = createMockClientModel(clients)
+    _setDeps({ ClientModel: mockModel, redisClient: null, isRedisAvailable: false })
+
+    const result = await getAgentStatus({})
+
+    expect(result.details).toEqual([
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'EQP-001', status: 'Unknown' },
+    ])
+  })
+
+  it('13. details 정렬 → process → eqpModel → eqpId', async () => {
+    const clients = [
+      { process: 'ETCH', eqpModel: 'E1', eqpId: 'ETCH-E1-002' },
+      { process: 'CVD', eqpModel: 'M2', eqpId: 'CVD-M2-001' },
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'CVD-M1-001' },
+    ]
+    const mockModel = createMockClientModel(clients)
+    const mockRedis = createMockRedis(
+      [null, null, null],
+      [[null], [null], [null]]
+    )
+    _setDeps({ ClientModel: mockModel, redisClient: mockRedis, isRedisAvailable: true })
+
+    const result = await getAgentStatus({})
+
+    expect(result.details[0].eqpId).toBe('CVD-M1-001')
+    expect(result.details[1].eqpId).toBe('CVD-M2-001')
+    expect(result.details[2].eqpId).toBe('ETCH-E1-002')
+  })
 })

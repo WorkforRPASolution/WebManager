@@ -89,8 +89,8 @@ POST   /api/auth/check-verification-code   # 인증 코드 확인 (소모하지 
 POST   /api/auth/verify-and-reset          # 인증 코드 검증 + 새 비밀번호 설정 (integrated)
 
 GET    /api/dashboard/summary        # 대시보드 KPI (dashboardOverview 권한)
-GET    /api/dashboard/agent-status  # ARSAgent 가동 현황 (dashboardArsMonitor 권한)
-GET    /api/dashboard/agent-version # ARSAgent 버전 분포 (dashboardArsVersion 권한, ?runningOnly=true)
+GET    /api/dashboard/agent-status  # ARSAgent 가동 현황 (dashboardArsMonitor 권한, 응답: data+details)
+GET    /api/dashboard/agent-version # ARSAgent 버전 분포 (dashboardArsVersion 권한, ?runningOnly=true, 응답: data+details)
 
 GET    /api/clients/processes      # Process 목록
 GET    /api/clients/models         # EqpModel 목록 (?process=xxx)
@@ -247,8 +247,8 @@ npm run dev
 - Config Compare 완료 (N-way Matrix View 비교 + SSE 병렬 로딩 + Baseline diff + 접기/펼치기 + 검색)
 - Email Notification Phase 1 완료 (임시 비밀번호 이메일 발송, Operation Mode standalone/integrated)
 - Email Notification Phase 2 완료 (EARS 이름 검색 + 인증 코드 본인 확인 + 새 비밀번호 직접 설정 위저드)
-- ARSAgent Status 완료 (Process별 가동 현황 + 도넛/바 차트 + 3상태 분류(Running/Stopped/NeverStarted) + AgentMetaInfo 활용 + Process/Model 필터 + 정렬 + CSV 내보내기)
-- ARSAgent Version 완료 (Process별 버전 분포 + 도넛/바 차트 + Grouped 테이블(접기/펼치기) + Running Only 토글 + 정렬 + CSV 내보내기)
+- ARSAgent Status 완료 (Process별 가동 현황 + 도넛/바 차트 + 3상태 분류(Running/Stopped/NeverStarted) + AgentMetaInfo 활용 + Process/Model 필터 + 정렬 + CSV 내보내기(요약/상세))
+- ARSAgent Version 완료 (Process별 버전 분포 + 도넛/바 차트 + Grouped 테이블(접기/펼치기) + Running Only 토글 + 정렬 + CSV 내보내기(요약/상세))
 - Dashboard 서브메뉴별 권한 분리 (dashboardOverview + dashboardArsMonitor + dashboardArsVersion)
 - 바 차트 세로 방향 전환 (횡 스크롤 dataZoom, axisPointer 라벨)
 

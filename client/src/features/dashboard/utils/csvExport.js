@@ -49,6 +49,17 @@ export function exportMonitorCsv(data, groupByModel) {
 }
 
 /**
+ * ARSAgent Status 상세 데이터를 CSV로 내보내기 (설비별)
+ */
+export function exportMonitorDetailCsv(details) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `ARSAgent_Monitor_Detail_${timestamp}.csv`
+  const headers = ['Process', 'Model', 'Eqp ID', 'Status']
+  const rows = details.map(d => [d.process, d.eqpModel, d.eqpId, d.status])
+  downloadCsv(filename, headers, rows)
+}
+
+/**
  * ARSAgent Version 데이터를 CSV로 내보내기
  */
 export function exportVersionCsv(data, allVersions, groupByModel) {
@@ -72,5 +83,16 @@ export function exportVersionCsv(data, allVersions, groupByModel) {
     }
   }
 
+  downloadCsv(filename, headers, rows)
+}
+
+/**
+ * ARSAgent Version 상세 데이터를 CSV로 내보내기 (설비별)
+ */
+export function exportVersionDetailCsv(details) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `ARSAgent_Version_Detail_${timestamp}.csv`
+  const headers = ['Process', 'Model', 'Eqp ID', 'Version']
+  const rows = details.map(d => [d.process, d.eqpModel, d.eqpId, d.version])
   downloadCsv(filename, headers, rows)
 }

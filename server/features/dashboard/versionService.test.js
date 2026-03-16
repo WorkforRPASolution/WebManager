@@ -182,4 +182,57 @@ describe('dashboard service - getAgentVersionDistribution', () => {
     expect(result.data.every(d => d.agentCount === 0)).toBe(true)
     expect(result.redisAvailable).toBe(false)
   })
+
+  it('10. details 배열 반환 → 설비별 process, eqpModel, eqpId, version 포함', async () => {
+    const clients = [
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'E1', agentVersion: { arsAgent: '7.0.0.0' } },
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'E2', agentVersion: { arsAgent: null } },
+    ]
+    const mockModel = createMockClientModel(clients)
+    // E2: MongoDB 버전 없음 → Redis fallback → MetaInfo에서 6.8.5.24 획득
+    const mockRedis = createMockRedis([], [['6.8.5.24:7180']])
+    _setDeps({ ClientModel: mockModel, redisClient: mockRedis, isRedisAvailable: true })
+
+    const result = await getAgentVersionDistribution({})
+
+    expect(result.details).toBeDefined()
+    expect(result.details).toHaveLength(2)
+    expect(result.details).toEqual(expect.arrayContaining([
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'E1', version: '7.0.0.0' },
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'E2', version: '6.8.5.24' },
+    ]))
+  })
+
+  it('11. runningOnly: true → details에 running 에이전트만 포함', async () => {
+    const mockModel = createMockClientModel(mockClients)
+    // CVD-M1-001: running, CVD-M1-002: not, CVD-M2-001: running,
+    // ETCH-E1-001: not, ETCH-E1-002: running
+    const mockRedis = createMockRedis(
+      ['3600', null, '100', null, '200'],
+      [['6.8.5.24:7180'], ['7.1.0.0:7180']]
+    )
+    _setDeps({ ClientModel: mockModel, redisClient: mockRedis, isRedisAvailable: true })
+
+    const result = await getAgentVersionDistribution({ runningOnly: true })
+
+    expect(result.details).toHaveLength(3)
+    const eqpIds = result.details.map(d => d.eqpId).sort()
+    expect(eqpIds).toEqual(['CVD-M1-001', 'CVD-M2-001', 'ETCH-E1-002'])
+  })
+
+  it('12. details 정렬 → process → eqpModel → eqpId', async () => {
+    const clients = [
+      { process: 'ETCH', eqpModel: 'E1', eqpId: 'ETCH-E1-001', agentVersion: { arsAgent: '7.0.0.0' } },
+      { process: 'CVD', eqpModel: 'M2', eqpId: 'CVD-M2-001', agentVersion: { arsAgent: '7.0.0.0' } },
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'CVD-M1-001', agentVersion: { arsAgent: '7.0.0.0' } },
+    ]
+    const mockModel = createMockClientModel(clients)
+    _setDeps({ ClientModel: mockModel, redisClient: null, isRedisAvailable: false })
+
+    const result = await getAgentVersionDistribution({})
+
+    expect(result.details[0].eqpId).toBe('CVD-M1-001')
+    expect(result.details[1].eqpId).toBe('CVD-M2-001')
+    expect(result.details[2].eqpId).toBe('ETCH-E1-001')
+  })
 })

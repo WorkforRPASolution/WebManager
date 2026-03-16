@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { clientsApi, dashboardApi } from '../../shared/api'
 import { useProcessFilterStore } from '../../shared/stores/processFilter'
 import { useProcessPermission } from '../../shared/composables/useProcessPermission'
@@ -7,17 +7,19 @@ import AgentMonitorFilterBar from './components/AgentMonitorFilterBar.vue'
 import VersionDonutChart from './components/VersionDonutChart.vue'
 import VersionBarChart from './components/VersionBarChart.vue'
 import VersionGroupedTable from './components/VersionGroupedTable.vue'
-import { exportVersionCsv } from './utils/csvExport'
+import { exportVersionCsv, exportVersionDetailCsv } from './utils/csvExport'
 
 const processFilterStore = useProcessFilterStore()
 const { buildUserProcessFilter } = useProcessPermission()
 
 const data = ref([])
+const details = ref([])
 const allVersions = ref([])
 const loading = ref(false)
 const redisAvailable = ref(true)
 const groupByModel = ref(false)
 const runningOnly = ref(false)
+const csvMenuOpen = ref(false)
 
 // Sort
 const sortBy = ref('name')   // 'name' | 'count'
@@ -79,12 +81,14 @@ async function fetchData(params = {}) {
 
     const res = await dashboardApi.getAgentVersionDistribution(queryParams)
     data.value = res.data.data || []
+    details.value = res.data.details || []
     allVersions.value = res.data.allVersions || []
     redisAvailable.value = res.data.redisAvailable
     groupByModel.value = !!params.groupByModel
   } catch (err) {
     console.error('Failed to fetch version distribution:', err)
     data.value = []
+    details.value = []
     allVersions.value = []
   } finally {
     loading.value = false
@@ -108,9 +112,29 @@ function handleRunningOnlyToggle() {
   fetchData(lastSearchParams)
 }
 
+function handleCsvExport(type) {
+  csvMenuOpen.value = false
+  if (type === 'summary') {
+    exportVersionCsv(sortedData.value, allVersions.value, groupByModel.value)
+  } else {
+    exportVersionDetailCsv(details.value)
+  }
+}
+
+function closeCsvMenu(e) {
+  if (csvMenuOpen.value && !e.target.closest('.csv-dropdown')) {
+    csvMenuOpen.value = false
+  }
+}
+
 onMounted(() => {
   loadProcesses()
   fetchData()
+  document.addEventListener('click', closeCsvMenu)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeCsvMenu)
 })
 </script>
 
@@ -181,16 +205,37 @@ onMounted(() => {
     <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border">
       <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Version Details</h2>
-        <button
-          v-if="sortedData.length > 0"
-          @click="exportVersionCsv(sortedData, allVersions, groupByModel)"
-          class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition-colors"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          CSV
-        </button>
+        <div v-if="sortedData.length > 0" class="relative csv-dropdown">
+          <button
+            @click="csvMenuOpen = !csvMenuOpen"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            CSV
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          <div
+            v-if="csvMenuOpen"
+            class="absolute right-0 mt-1 w-40 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg shadow-lg z-10"
+          >
+            <button
+              @click="handleCsvExport('summary')"
+              class="w-full px-4 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border rounded-t-lg"
+            >
+              요약
+            </button>
+            <button
+              @click="handleCsvExport('detail')"
+              class="w-full px-4 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border rounded-b-lg"
+            >
+              상세
+            </button>
+          </div>
+        </div>
       </div>
       <div class="p-6">
         <VersionGroupedTable

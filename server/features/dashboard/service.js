@@ -33,7 +33,7 @@ async function getAgentStatus(options = {}) {
     .lean()
 
   if (clients.length === 0) {
-    return { data: [], redisAvailable: isAvailable() }
+    return { data: [], details: [], redisAvailable: isAvailable() }
   }
 
   // 2. 그룹핑 + Redis 키 생성
@@ -57,6 +57,8 @@ async function getAgentStatus(options = {}) {
 
   // 3. Redis 배치 mget (AgentRunning)
   const redisUp = isAvailable()
+  const clientStatuses = new Array(clientList.length) // 설비별 상태 추적
+
   if (redisUp && keys.length > 0) {
     const redis = getClient()
     const allValues = []
@@ -73,6 +75,7 @@ async function getAgentStatus(options = {}) {
       const parsed = parseAliveValue(allValues[i])
       if (parsed.alive) {
         groupMap[keyGroupMap[i]].runningCount++
+        clientStatuses[i] = 'Running'
       } else {
         notRunningIndices.push(i)
       }
@@ -106,9 +109,17 @@ async function getAgentStatus(options = {}) {
           if (values[j] !== null && values[j] !== undefined) {
             // MetaInfo 존재 → Stopped (한번은 실행된 적 있음)
             groupMap[keyGroupMap[items[j].idx]].stoppedCount++
+            clientStatuses[items[j].idx] = 'Stopped'
+          } else {
+            clientStatuses[items[j].idx] = 'Never Started'
           }
         }
       }
+    }
+  } else {
+    // Redis 미연결 → 모든 상태 Unknown
+    for (let i = 0; i < clientList.length; i++) {
+      clientStatuses[i] = 'Unknown'
     }
   }
 
@@ -120,7 +131,21 @@ async function getAgentStatus(options = {}) {
     return 0
   })
 
-  return { data, redisAvailable: redisUp }
+  // 7. details 배열 생성 (설비별 상세 정보)
+  const details = clientList.map((c, i) => ({
+    process: c.process,
+    eqpModel: c.eqpModel,
+    eqpId: c.eqpId,
+    status: clientStatuses[i],
+  })).sort((a, b) => {
+    const pCmp = a.process.localeCompare(b.process)
+    if (pCmp !== 0) return pCmp
+    const mCmp = a.eqpModel.localeCompare(b.eqpModel)
+    if (mCmp !== 0) return mCmp
+    return a.eqpId.localeCompare(b.eqpId)
+  })
+
+  return { data, details, redisAvailable: redisUp }
 }
 
 /**
@@ -161,7 +186,7 @@ async function getAgentVersionDistribution(options = {}) {
     .lean()
 
   if (clients.length === 0) {
-    return { data: [], allVersions: [], redisAvailable: isAvailable() }
+    return { data: [], allVersions: [], details: [], redisAvailable: isAvailable() }
   }
 
   const redisUp = isAvailable()
@@ -181,7 +206,7 @@ async function getAgentVersionDistribution(options = {}) {
         }
       }
       const data = Object.values(groupMap).sort((a, b) => a.process.localeCompare(b.process))
-      return { data, allVersions: [], redisAvailable: false }
+      return { data, allVersions: [], details: [], redisAvailable: false }
     }
 
     const redis = getClient()
@@ -198,6 +223,7 @@ async function getAgentVersionDistribution(options = {}) {
   // 3. 그룹핑
   const groupMap = {}
   const redisTargets = [] // MongoDB 버전 없는 client (Redis fallback 필요)
+  const clientVersionMap = new Map() // eqpId → version (설비별 버전 추적)
 
   for (const c of targetClients) {
     const groupKey = groupByModel ? `${c.process}\0${c.eqpModel}` : c.process
@@ -211,6 +237,7 @@ async function getAgentVersionDistribution(options = {}) {
     const mongoVersion = c.agentVersion?.arsAgent || null
     if (mongoVersion) {
       groupMap[groupKey].versionCounts[mongoVersion] = (groupMap[groupKey].versionCounts[mongoVersion] || 0) + 1
+      clientVersionMap.set(c.eqpId, mongoVersion)
     } else {
       redisTargets.push({ client: c, groupKey })
     }
@@ -242,12 +269,14 @@ async function getAgentVersionDistribution(options = {}) {
         const version = parseAgentMetaInfoVersion(values[j]) || 'Unknown'
         const gk = items[j].groupKey
         groupMap[gk].versionCounts[version] = (groupMap[gk].versionCounts[version] || 0) + 1
+        clientVersionMap.set(items[j].eqpId, version)
       }
     }
   } else if (redisTargets.length > 0) {
     // Redis 미연결 → 모두 Unknown
-    for (const { groupKey } of redisTargets) {
+    for (const { client: c, groupKey } of redisTargets) {
       groupMap[groupKey].versionCounts['Unknown'] = (groupMap[groupKey].versionCounts['Unknown'] || 0) + 1
+      clientVersionMap.set(c.eqpId, 'Unknown')
     }
   }
 
@@ -268,7 +297,21 @@ async function getAgentVersionDistribution(options = {}) {
     return 0
   })
 
-  return { data, allVersions, redisAvailable: redisUp }
+  // 7. details 배열 생성 (설비별 상세 정보)
+  const details = targetClients.map(c => ({
+    process: c.process,
+    eqpModel: c.eqpModel,
+    eqpId: c.eqpId,
+    version: clientVersionMap.get(c.eqpId) || 'Unknown',
+  })).sort((a, b) => {
+    const pCmp = a.process.localeCompare(b.process)
+    if (pCmp !== 0) return pCmp
+    const mCmp = a.eqpModel.localeCompare(b.eqpModel)
+    if (mCmp !== 0) return mCmp
+    return a.eqpId.localeCompare(b.eqpId)
+  })
+
+  return { data, allVersions, details, redisAvailable: redisUp }
 }
 
 module.exports = { getAgentStatus, getAgentVersionDistribution, _setDeps }
