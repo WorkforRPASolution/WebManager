@@ -256,20 +256,29 @@ async function signup(userData) {
 
   await newUser.save()
 
-  // integrated 모드: Admin에게 가입 알림 메일 발송 (fire-and-forget)
+  // integrated 모드: Admin에게 가입 알림 메일 발송 (EARS 경유 이메일 조회, fire-and-forget)
   if (getOperationMode() === 'integrated') {
     try {
       const admins = await _User.find({
         authorityManager: 1,
-        accountStatus: 'active',
-        email: { $ne: '' }
-      }).select('email').lean()
+        accountStatus: 'active'
+      }).select('singleid name').lean()
 
       const title = `[WebManager] 신규 가입 요청 — ${name}`
       const contents = buildSignupNotificationEmail(name, singleid, department, processArray)
 
       for (const admin of admins) {
-        _sendEmailTo(admin.email, title, contents).catch(() => {})
+        try {
+          const result = await _searchUsers(admin.name)
+          if (result.success && result.data) {
+            const matched = result.data.find(u => u.mail && u.mail.split('@')[0] === admin.singleid)
+            if (matched) {
+              _sendEmailTo(matched.mail, title, contents).catch(() => {})
+            }
+          }
+        } catch {
+          // 개별 Admin EARS 조회 실패 시 스킵
+        }
       }
     } catch {
       // 알림 실패해도 가입은 성공

@@ -99,9 +99,9 @@ EARS Database의 컬렉션에 WebManager가 추가한 전용 필드는 `[WM]`으
 | singleid | String | 필수 (PK) | ID (unique, maxlength: 50) |
 | password | String | 필수 | `[WM]` 암호화된 비밀번호 (bcrypt) |
 | line | String | 필수 | line info (maxlength: 50) |
-| process | String | 필수 | Process Name (레거시 호환용, `;` 구분자, maxlength: 200) |
+| process | String | 필수 | Process Name (레거시 호환용, `;` 구분자, maxlength: 200, 허용: `A-Z0-9_`) |
 | processes | Array[String] | 선택 | `[WM]` Process 배열 (Multi-process 지원) |
-| authority | String | 필수 | 권한 (WRITE or 빈값) |
+| authority | String | 필수 | 시나리오 작성권한 (WRITE or 빈값) |
 | authorityManager | NumberLong | 필수 | 사용자 등급 (아래 권한 체계 표 참조, 기본: 3) |
 | note | String | 선택 | 사용자 관련 note(설명) |
 | email | String | 선택 | `[WM]` 이메일 주소 |
@@ -151,6 +151,8 @@ EARS Database의 컬렉션에 WebManager가 추가한 전용 필드는 `[WM]`으
 | 1 | Admin | 시스템 관리자 | **모든 메뉴** |
 | 2 | Conductor | 유저 중 최고 관리자 | Dashboard만 |
 | 3 | Manager | 유저 중 관리자 | Dashboard만 |
+
+> **Sign Up 제한**: 회원가입 시 Admin(level=1)은 선택 불가. Admin 권한은 기존 Admin이 User Management에서 직접 부여.
 
 ---
 

@@ -180,12 +180,6 @@ const handleLogin = async () => {
         </div>
       </form>
 
-      <!-- Test Credentials Hint -->
-      <div class="mt-6 text-center">
-        <p class="text-xs text-gray-400 dark:text-gray-500">
-          Test credentials: admin/admin, manager/manager, user/user, guest/guest
-        </p>
-      </div>
     </div>
   </div>
 </template>

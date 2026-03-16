@@ -32,9 +32,9 @@ const allowCustomInput = computed(() => {
          false
 })
 
-// Normalize input for custom values (uppercase + underscore only)
+// Normalize input for custom values (uppercase + digits + underscore)
 const normalizeInput = (value) => {
-  return value.toUpperCase().replace(/[^A-Z_]/g, '')
+  return value.toUpperCase().replace(/[^A-Z0-9_]/g, '')
 }
 
 // Handle search input with optional normalization

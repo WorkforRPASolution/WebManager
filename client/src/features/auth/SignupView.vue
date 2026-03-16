@@ -389,7 +389,7 @@ const addAllSearchedProcesses = () => {
 
 // Format process custom input (uppercase, allow semicolons)
 const onProcessInput = (event) => {
-  processCustomInput.value = event.target.value.toUpperCase().replace(/[^A-Z_;]/g, '')
+  processCustomInput.value = event.target.value.toUpperCase().replace(/[^A-Z0-9_;]/g, '')
 }
 
 // Get role label for display
@@ -399,19 +399,21 @@ const getRoleLabel = (role) => {
 </script>
 
 <template>
-  <div class="w-full max-w-lg">
+  <div class="w-full max-w-4xl">
     <div class="bg-white dark:bg-dark-card rounded-2xl shadow-xl p-8">
       <!-- Logo -->
       <div class="text-center mb-6">
-        <div class="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4">
-          <svg class="w-14 h-14" viewBox="0 0 100 100">
+        <div class="flex items-center justify-center gap-3">
+          <svg class="w-10 h-10" viewBox="0 0 100 100">
             <g opacity="0.9"><polygon points="5,70 50,54 95,70 50,86" fill="#b4c8dc"/><polygon points="5,70 50,86 50,92 5,76" fill="#8aa0b8"/><polygon points="50,86 95,70 95,76 50,92" fill="#9eb4cc"/></g>
             <g opacity="0.85"><polygon points="5,48 50,32 95,48 50,64" fill="#48b0a8"/><polygon points="5,48 50,64 50,70 5,54" fill="#2c908a"/><polygon points="50,64 95,48 95,54 50,70" fill="#3aa09a"/></g>
             <g opacity="0.82"><polygon points="5,26 50,10 95,26 50,42" fill="#5c9ee0"/><polygon points="5,26 50,42 50,48 5,32" fill="#3878c0"/><polygon points="50,42 95,26 95,32 50,48" fill="#4a8cd0"/></g>
           </svg>
+          <div class="text-left">
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">WebManager</h1>
+            <p class="text-gray-500 dark:text-gray-400 text-sm">Create your account</p>
+          </div>
         </div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">WebManager</h1>
-        <p class="text-gray-500 dark:text-gray-400 mt-2">Create your account</p>
       </div>
 
       <!-- Success Message -->
@@ -434,438 +436,420 @@ const getRoleLabel = (role) => {
       </div>
 
       <!-- Form -->
-      <form v-else @submit.prevent="handleSubmit" class="space-y-4">
+      <form v-else @submit.prevent="handleSubmit">
         <!-- Error Message -->
-        <div v-if="error" class="p-3 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm">
+        <div v-if="error" class="mb-4 p-3 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg text-sm">
           {{ error }}
         </div>
 
-        <!-- Name -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Name <span class="text-red-500">*</span>
-            <span v-if="isIntegrated" class="text-xs text-gray-500 ml-1">이름 입력 후 검색하여 선택하세요</span>
-          </label>
-          <div class="flex gap-2">
-            <input
-              v-model="form.name"
-              type="text"
-              @blur="validateField('name')"
-              @keyup.enter="isIntegrated && !hasEarsSelection ? searchEarsUsers() : null"
-              class="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-              :class="{ 'border-red-500 dark:border-red-500': fieldErrors.name }"
-              placeholder="Enter your name"
-            />
-            <!-- EARS 검색 버튼 (integrated only, 선택 전) -->
-            <button
-              v-if="isIntegrated && !hasEarsSelection"
-              type="button"
-              @click="searchEarsUsers"
-              :disabled="earsSearching || form.name.trim().length < 1"
-              class="px-4 py-2.5 rounded-lg text-sm font-medium bg-primary-500 hover:bg-primary-600 text-white transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-            >
-              <span v-if="earsSearching">검색 중...</span>
-              <span v-else>검색</span>
-            </button>
-          </div>
-          <p v-if="fieldErrors.name" class="mt-1 text-xs text-red-500">{{ fieldErrors.name }}</p>
+        <!-- 2-Column Layout -->
+        <div class="grid grid-cols-2 gap-x-8 gap-y-4">
 
-          <!-- EARS 검색 에러 -->
-          <p v-if="earsSearchError" class="mt-1 text-xs text-red-500">{{ earsSearchError }}</p>
-
-          <!-- EARS 검색 결과 테이블 (Name 필드 아래) -->
-          <div v-if="isIntegrated && earsSearchDone && !hasEarsSelection" class="mt-2">
-            <div v-if="earsSearchResults.length === 0 && !earsSearching" class="text-xs text-gray-500 dark:text-gray-400">
-              검색 결과가 없습니다.
-            </div>
-            <div v-else-if="earsSearchResults.length > 0" class="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
-              <div class="max-h-48 overflow-y-auto">
-                <table class="w-full text-sm">
-                  <thead class="sticky top-0 bg-gray-50 dark:bg-dark-card">
-                    <tr>
-                      <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style="width: 15%">이름</th>
-                      <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style="width: 40%">부서</th>
-                      <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style="width: 45%">이메일</th>
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-gray-200 dark:divide-dark-border">
-                    <tr
-                      v-for="(user, index) in earsSearchResults"
-                      :key="index"
-                      class="cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-border"
-                      @click="selectEarsUser(user)"
-                    >
-                      <td class="px-3 py-2 text-gray-900 dark:text-white">{{ user.cn }}</td>
-                      <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ user.department }}</td>
-                      <td class="px-3 py-2 font-medium text-primary-500">{{ user.mail }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <!-- EARS 선택된 사용자 정보 -->
-          <div v-if="isIntegrated && hasEarsSelection" class="mt-2 flex items-center justify-between px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-            <div class="text-sm text-gray-900 dark:text-white">
-              <span class="font-medium">{{ earsSelectedUser.cn }}</span>
-              <span class="mx-1 text-gray-400">|</span>
-              <span class="text-gray-600 dark:text-gray-300">{{ earsSelectedUser.department }}</span>
-              <span class="mx-1 text-gray-400">|</span>
-              <span class="font-medium text-green-600 dark:text-green-400">{{ earsSelectedUser.mail }}</span>
-            </div>
-            <button
-              type="button"
-              class="px-3 py-1 text-sm text-gray-600 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-dark-border rounded transition"
-              @click="clearEarsSelection"
-            >
-              해제
-            </button>
-          </div>
-        </div>
-
-        <!-- User ID -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            User ID <span class="text-red-500">*</span>
-          </label>
-          <div class="flex gap-2">
-            <input
-              v-model="form.singleid"
-              type="text"
-              @blur="validateField('singleid')"
-              :readonly="isIntegrated && hasEarsSelection"
-              class="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-              :class="{
-                'border-red-500 dark:border-red-500': fieldErrors.singleid,
-                'border-green-500 dark:border-green-500': idChecked === true,
-                'bg-gray-100 dark:bg-gray-800 cursor-not-allowed': isIntegrated && hasEarsSelection
-              }"
-              placeholder="Enter your user ID"
-            />
-            <button
-              v-if="!(isIntegrated && hasEarsSelection)"
-              type="button"
-              @click="checkIdDuplicate"
-              :disabled="idChecking || form.singleid.trim().length < 3"
-              class="px-4 py-2.5 rounded-lg text-sm font-medium transition whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-              :class="idChecked === true
-                ? 'bg-green-500 text-white cursor-default'
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'"
-            >
-              <span v-if="idChecking">확인 중...</span>
-              <span v-else-if="idChecked === true">사용 가능</span>
-              <span v-else>중복확인</span>
-            </button>
-          </div>
-          <p v-if="fieldErrors.singleid" class="mt-1 text-xs text-red-500">{{ fieldErrors.singleid }}</p>
-          <p v-else-if="idChecked === true" class="mt-1 text-xs text-green-500">사용 가능한 ID입니다</p>
-        </div>
-
-        <!-- Password -->
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Password <span class="text-red-500">*</span>
-            </label>
-            <div class="relative">
-              <input
-                v-model="form.password"
-                :type="showPassword ? 'text' : 'password'"
-                @blur="validateField('password')"
-                class="w-full px-4 py-2.5 pr-11 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-                :class="{ 'border-red-500 dark:border-red-500': fieldErrors.password }"
-                placeholder="Min 8 characters"
-              />
-              <button
-                type="button"
-                @click="showPassword = !showPassword"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                tabindex="-1"
-              >
-                <svg v-if="showPassword" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                </svg>
-                <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              </button>
-            </div>
-            <p v-if="fieldErrors.password" class="mt-1 text-xs text-red-500">{{ fieldErrors.password }}</p>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Confirm <span class="text-red-500">*</span>
-            </label>
-            <div class="relative">
-              <input
-                v-model="form.passwordConfirm"
-                :type="showPasswordConfirm ? 'text' : 'password'"
-                @blur="validateField('passwordConfirm')"
-                class="w-full px-4 py-2.5 pr-11 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-                :class="{ 'border-red-500 dark:border-red-500': fieldErrors.passwordConfirm }"
-                placeholder="Confirm password"
-              />
-              <button
-                type="button"
-                @click="showPasswordConfirm = !showPasswordConfirm"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                tabindex="-1"
-              >
-                <svg v-if="showPasswordConfirm" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                </svg>
-                <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              </button>
-            </div>
-            <p v-if="fieldErrors.passwordConfirm" class="mt-1 text-xs text-red-500">{{ fieldErrors.passwordConfirm }}</p>
-          </div>
-        </div>
-
-        <!-- Email -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Email <span class="text-red-500">*</span>
-          </label>
-          <input
-            v-model="form.email"
-            type="email"
-            @blur="validateField('email')"
-            :readonly="isIntegrated && hasEarsSelection"
-            class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-            :class="{
-              'border-red-500 dark:border-red-500': fieldErrors.email,
-              'bg-gray-100 dark:bg-gray-800 cursor-not-allowed': isIntegrated && hasEarsSelection
-            }"
-            placeholder="Enter your email"
-          />
-          <p v-if="fieldErrors.email" class="mt-1 text-xs text-red-500">{{ fieldErrors.email }}</p>
-        </div>
-
-        <!-- Client Search Helper -->
-        <div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-          <label class="block text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">
-            Process 찾기
-            <span class="text-xs font-normal text-blue-500 dark:text-blue-400 ml-1">담당 Client의 IP 또는 장비 ID로 검색</span>
-          </label>
-          <div class="flex gap-2">
-            <input
-              v-model="clientSearchKeyword"
-              type="text"
-              @keyup.enter="searchClients"
-              class="flex-1 px-3 py-2 text-sm rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
-              placeholder="IP 또는 장비 ID 입력 (예: 10.0.1, CVD_EQP)"
-            />
-            <button
-              type="button"
-              @click="searchClients"
-              :disabled="clientSearching || clientSearchKeyword.trim().length < 2"
-              class="px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-            >
-              <span v-if="clientSearching">검색 중...</span>
-              <span v-else>검색</span>
-            </button>
-          </div>
-          <!-- Search Results -->
-          <div v-if="clientSearchDone" class="mt-2">
-            <div v-if="clientSearchResults.length === 0" class="text-xs text-blue-500 dark:text-blue-400">
-              검색 결과가 없습니다.
-            </div>
-            <div v-else>
-              <!-- Found Processes -->
-              <div class="flex items-center gap-2 mb-2">
-                <span class="text-xs text-blue-600 dark:text-blue-300 font-medium">해당 Process:</span>
+        <!-- ====== LEFT COLUMN: 계정 정보 ====== -->
+          <div class="space-y-4">
+            <!-- Name -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Name <span class="text-red-500">*</span>
+                <span v-if="isIntegrated" class="text-xs text-gray-500 ml-1">이름 입력 후 검색하여 선택하세요</span>
+              </label>
+              <div class="flex gap-2">
+                <input
+                  v-model="form.name"
+                  type="text"
+                  @blur="validateField('name')"
+                  @keyup.enter="isIntegrated && !hasEarsSelection ? searchEarsUsers() : null"
+                  class="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                  :class="{ 'border-red-500 dark:border-red-500': fieldErrors.name }"
+                  placeholder="Enter your name"
+                />
                 <button
-                  v-for="proc in clientSearchProcesses"
-                  :key="proc"
+                  v-if="isIntegrated && !hasEarsSelection"
                   type="button"
-                  @click="addSearchedProcess(proc)"
-                  class="px-2 py-0.5 text-xs rounded-full transition"
-                  :class="form.processes.includes(proc)
-                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 cursor-default'
-                    : 'bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-700 cursor-pointer'"
+                  @click="searchEarsUsers"
+                  :disabled="earsSearching || form.name.trim().length < 1"
+                  class="px-4 py-2.5 rounded-lg text-sm font-medium bg-primary-500 hover:bg-primary-600 text-white transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 >
-                  {{ proc }}
-                  <span v-if="form.processes.includes(proc)" class="ml-0.5">&#10003;</span>
-                  <span v-else class="ml-0.5">+</span>
-                </button>
-                <button
-                  v-if="clientSearchProcesses.length > 1 && processInputMode === 'select'"
-                  type="button"
-                  @click="addAllSearchedProcesses"
-                  class="px-2 py-0.5 text-xs rounded-full bg-blue-200 dark:bg-blue-700 text-blue-800 dark:text-blue-100 hover:bg-blue-300 dark:hover:bg-blue-600 transition"
-                >
-                  모두 추가
+                  <span v-if="earsSearching">검색 중...</span>
+                  <span v-else>검색</span>
                 </button>
               </div>
-              <!-- Client List (compact) -->
-              <div class="max-h-32 overflow-y-auto text-xs">
-                <table class="w-full">
-                  <thead>
-                    <tr class="text-blue-500 dark:text-blue-400 border-b border-blue-200 dark:border-blue-700">
-                      <th class="text-left py-1 pr-2">EQP ID</th>
-                      <th class="text-left py-1 pr-2">IP</th>
-                      <th class="text-left py-1">Process</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="c in clientSearchResults" :key="c.eqpId" class="text-gray-700 dark:text-gray-300">
-                      <td class="py-0.5 pr-2 font-mono">{{ c.eqpId }}</td>
-                      <td class="py-0.5 pr-2 font-mono">{{ c.ipAddr }}</td>
-                      <td class="py-0.5">{{ c.process }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <p v-if="clientSearchResults.length >= 50" class="text-xs text-blue-400 mt-1">
-                최대 50건까지 표시됩니다. 더 구체적으로 검색해주세요.
-              </p>
-            </div>
-          </div>
-        </div>
+              <p v-if="fieldErrors.name" class="mt-1 text-xs text-red-500">{{ fieldErrors.name }}</p>
+              <p v-if="earsSearchError" class="mt-1 text-xs text-red-500">{{ earsSearchError }}</p>
 
-        <!-- Process (Multi Select / Custom Input) -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Process <span class="text-red-500">*</span>
-            <span class="text-xs text-gray-500 ml-1">(복수 선택 가능)</span>
-          </label>
-          <div class="flex gap-2">
-            <!-- Mode toggle buttons -->
-            <div class="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden shrink-0">
-              <button
-                type="button"
-                @click="processInputMode = 'select'"
-                class="px-3 py-2 text-xs transition"
-                :class="processInputMode === 'select'
-                  ? 'bg-primary-500 text-white'
-                  : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
-              >
-                선택
-              </button>
-              <button
-                type="button"
-                @click="processInputMode = 'custom'"
-                class="px-3 py-2 text-xs transition"
-                :class="processInputMode === 'custom'
-                  ? 'bg-primary-500 text-white'
-                  : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
-              >
-                직접 입력
-              </button>
+              <!-- EARS 검색 결과 테이블 -->
+              <div v-if="isIntegrated && earsSearchDone && !hasEarsSelection" class="mt-2">
+                <div v-if="earsSearchResults.length === 0 && !earsSearching" class="text-xs text-gray-500 dark:text-gray-400">
+                  검색 결과가 없습니다.
+                </div>
+                <div v-else-if="earsSearchResults.length > 0" class="border border-gray-200 dark:border-dark-border rounded-lg overflow-hidden">
+                  <div class="max-h-48 overflow-y-auto">
+                    <table class="w-full text-sm">
+                      <thead class="sticky top-0 bg-gray-50 dark:bg-dark-card">
+                        <tr>
+                          <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style="width: 20%">이름</th>
+                          <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style="width: 35%">부서</th>
+                          <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style="width: 45%">이메일</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-gray-200 dark:divide-dark-border">
+                        <tr
+                          v-for="(user, index) in earsSearchResults"
+                          :key="index"
+                          class="cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-border"
+                          @click="selectEarsUser(user)"
+                        >
+                          <td class="px-3 py-2 text-gray-900 dark:text-white">{{ user.cn }}</td>
+                          <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ user.department }}</td>
+                          <td class="px-3 py-2 font-medium text-primary-500">{{ user.mail }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <!-- EARS 선택된 사용자 정보 -->
+              <div v-if="isIntegrated && hasEarsSelection" class="mt-2 flex items-center justify-between px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                <div class="text-sm text-gray-900 dark:text-white">
+                  <span class="font-medium">{{ earsSelectedUser.cn }}</span>
+                  <span class="mx-1 text-gray-400">|</span>
+                  <span class="text-gray-600 dark:text-gray-300">{{ earsSelectedUser.department }}</span>
+                  <span class="mx-1 text-gray-400">|</span>
+                  <span class="font-medium text-green-600 dark:text-green-400">{{ earsSelectedUser.mail }}</span>
+                </div>
+                <button
+                  type="button"
+                  class="px-3 py-1 text-sm text-gray-600 dark:text-gray-300 hover:text-red-500 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-dark-border rounded transition"
+                  @click="clearEarsSelection"
+                >
+                  해제
+                </button>
+              </div>
             </div>
-            <!-- MultiSelect or Custom Input based on mode -->
-            <div class="flex-1">
-              <MultiSelect
-                v-if="processInputMode === 'select'"
-                v-model="form.processes"
-                :options="processes"
-                placeholder="Select Process"
-                width="100%"
-              />
+
+            <!-- User ID -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                User ID <span class="text-red-500">*</span>
+              </label>
+              <div class="flex gap-2">
+                <input
+                  v-model="form.singleid"
+                  type="text"
+                  @blur="validateField('singleid')"
+                  :readonly="isIntegrated && hasEarsSelection"
+                  class="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                  :class="{
+                    'border-red-500 dark:border-red-500': fieldErrors.singleid,
+                    'border-green-500 dark:border-green-500': idChecked === true,
+                    'bg-gray-100 dark:bg-gray-800 cursor-not-allowed': isIntegrated && hasEarsSelection
+                  }"
+                  placeholder="Enter your user ID"
+                />
+                <button
+                  v-if="!(isIntegrated && hasEarsSelection)"
+                  type="button"
+                  @click="checkIdDuplicate"
+                  :disabled="idChecking || form.singleid.trim().length < 3"
+                  class="px-4 py-2.5 rounded-lg text-sm font-medium transition whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                  :class="idChecked === true
+                    ? 'bg-green-500 text-white cursor-default'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'"
+                >
+                  <span v-if="idChecking">확인 중...</span>
+                  <span v-else-if="idChecked === true">사용 가능</span>
+                  <span v-else>중복확인</span>
+                </button>
+              </div>
+              <p v-if="fieldErrors.singleid" class="mt-1 text-xs text-red-500">{{ fieldErrors.singleid }}</p>
+              <p v-else-if="idChecked === true" class="mt-1 text-xs text-green-500">사용 가능한 ID입니다</p>
+            </div>
+
+            <!-- Password / Confirm -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Password <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                  <input
+                    v-model="form.password"
+                    :type="showPassword ? 'text' : 'password'"
+                    @blur="validateField('password')"
+                    class="w-full px-4 py-2.5 pr-11 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                    :class="{ 'border-red-500 dark:border-red-500': fieldErrors.password }"
+                    placeholder="Min 8 characters"
+                  />
+                  <button type="button" @click="showPassword = !showPassword" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" tabindex="-1">
+                    <svg v-if="showPassword" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" /></svg>
+                    <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  </button>
+                </div>
+                <p v-if="fieldErrors.password" class="mt-1 text-xs text-red-500">{{ fieldErrors.password }}</p>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Confirm <span class="text-red-500">*</span>
+                </label>
+                <div class="relative">
+                  <input
+                    v-model="form.passwordConfirm"
+                    :type="showPasswordConfirm ? 'text' : 'password'"
+                    @blur="validateField('passwordConfirm')"
+                    class="w-full px-4 py-2.5 pr-11 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                    :class="{ 'border-red-500 dark:border-red-500': fieldErrors.passwordConfirm }"
+                    placeholder="Confirm password"
+                  />
+                  <button type="button" @click="showPasswordConfirm = !showPasswordConfirm" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" tabindex="-1">
+                    <svg v-if="showPasswordConfirm" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" /></svg>
+                    <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                  </button>
+                </div>
+                <p v-if="fieldErrors.passwordConfirm" class="mt-1 text-xs text-red-500">{{ fieldErrors.passwordConfirm }}</p>
+              </div>
+            </div>
+
+            <!-- Email -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Email <span class="text-red-500">*</span>
+              </label>
               <input
-                v-else
-                :value="processCustomInput"
-                @input="onProcessInput"
-                @blur="validateField('process')"
+                v-model="form.email"
+                type="email"
+                @blur="validateField('email')"
+                :readonly="isIntegrated && hasEarsSelection"
+                class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                :class="{
+                  'border-red-500 dark:border-red-500': fieldErrors.email,
+                  'bg-gray-100 dark:bg-gray-800 cursor-not-allowed': isIntegrated && hasEarsSelection
+                }"
+                placeholder="Enter your email"
+              />
+              <p v-if="fieldErrors.email" class="mt-1 text-xs text-red-500">{{ fieldErrors.email }}</p>
+            </div>
+
+            <!-- Department -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Department
+              </label>
+              <input
+                v-model="form.department"
                 type="text"
-                class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition uppercase"
-                :class="{ 'border-red-500 dark:border-red-500': fieldErrors.process }"
-                placeholder="세미콜론(;)으로 구분 (예: CVD;ETCH)"
+                :readonly="isIntegrated && hasEarsSelection"
+                class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                :class="{
+                  'bg-gray-100 dark:bg-gray-800 cursor-not-allowed': isIntegrated && hasEarsSelection
+                }"
+                placeholder="Enter your department (optional)"
               />
             </div>
           </div>
-          <p v-if="fieldErrors.process" class="mt-1 text-xs text-red-500">{{ fieldErrors.process }}</p>
-        </div>
 
-        <!-- Line -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Line <span class="text-red-500">*</span>
-            <span class="text-xs text-gray-500 ml-1">(한글 제외)</span>
-          </label>
-          <input
-            v-model="form.line"
-            @blur="validateField('line')"
-            type="text"
-            class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-            :class="{ 'border-red-500 dark:border-red-500': fieldErrors.line }"
-            placeholder="Enter Line (e.g., P1, M1)"
-          />
-          <p v-if="fieldErrors.line" class="mt-1 text-xs text-red-500">{{ fieldErrors.line }}</p>
-        </div>
+          <!-- ====== RIGHT COLUMN: 업무 정보 ====== -->
+          <div class="space-y-4">
+            <!-- Client Search Helper -->
+            <div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <label class="block text-sm font-medium text-blue-700 dark:text-blue-300 mb-2">
+                Process 찾기
+                <span class="text-xs font-normal text-blue-500 dark:text-blue-400 ml-1">담당 Client의 IP 또는 장비 ID로 검색</span>
+              </label>
+              <div class="flex gap-2">
+                <input
+                  v-model="clientSearchKeyword"
+                  type="text"
+                  @keyup.enter="searchClients"
+                  class="flex-1 px-3 py-2 text-sm rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-400 focus:border-transparent transition"
+                  placeholder="IP 또는 장비 ID (예: 10.0.1)"
+                />
+                <button
+                  type="button"
+                  @click="searchClients"
+                  :disabled="clientSearching || clientSearchKeyword.trim().length < 2"
+                  class="px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  <span v-if="clientSearching">검색 중...</span>
+                  <span v-else>검색</span>
+                </button>
+              </div>
+              <div v-if="clientSearchDone" class="mt-2">
+                <div v-if="clientSearchResults.length === 0" class="text-xs text-blue-500 dark:text-blue-400">
+                  검색 결과가 없습니다.
+                </div>
+                <div v-else>
+                  <div class="flex items-center gap-2 mb-2 flex-wrap">
+                    <span class="text-xs text-blue-600 dark:text-blue-300 font-medium">해당 Process:</span>
+                    <button
+                      v-for="proc in clientSearchProcesses"
+                      :key="proc"
+                      type="button"
+                      @click="addSearchedProcess(proc)"
+                      class="px-2 py-0.5 text-xs rounded-full transition"
+                      :class="form.processes.includes(proc)
+                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 cursor-default'
+                        : 'bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-700 cursor-pointer'"
+                    >
+                      {{ proc }}
+                      <span v-if="form.processes.includes(proc)" class="ml-0.5">&#10003;</span>
+                      <span v-else class="ml-0.5">+</span>
+                    </button>
+                    <button
+                      v-if="clientSearchProcesses.length > 1 && processInputMode === 'select'"
+                      type="button"
+                      @click="addAllSearchedProcesses"
+                      class="px-2 py-0.5 text-xs rounded-full bg-blue-200 dark:bg-blue-700 text-blue-800 dark:text-blue-100 hover:bg-blue-300 dark:hover:bg-blue-600 transition"
+                    >
+                      모두 추가
+                    </button>
+                  </div>
+                  <div class="max-h-28 overflow-y-auto text-xs">
+                    <table class="w-full">
+                      <thead>
+                        <tr class="text-blue-500 dark:text-blue-400 border-b border-blue-200 dark:border-blue-700">
+                          <th class="text-left py-1 pr-2">EQP ID</th>
+                          <th class="text-left py-1 pr-2">IP</th>
+                          <th class="text-left py-1">Process</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="c in clientSearchResults" :key="c.eqpId" class="text-gray-700 dark:text-gray-300">
+                          <td class="py-0.5 pr-2 font-mono">{{ c.eqpId }}</td>
+                          <td class="py-0.5 pr-2 font-mono">{{ c.ipAddr }}</td>
+                          <td class="py-0.5">{{ c.process }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <p v-if="clientSearchResults.length >= 50" class="text-xs text-blue-400 mt-1">
+                    최대 50건까지 표시됩니다.
+                  </p>
+                </div>
+              </div>
+            </div>
 
-        <!-- AuthorityManager (Role) & Authority (RPA) -->
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              사용자 권한 <span class="text-red-500">*</span>
-            </label>
-            <select
-              v-model="form.authorityManager"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition text-sm"
-            >
-              <option v-for="role in roles" :key="role.level" :value="role.level">
-                {{ getRoleLabel(role) }}
-              </option>
-            </select>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">관리자 승인 시 변경될 수 있음</p>
+            <!-- Process -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Process <span class="text-red-500">*</span>
+                <span class="text-xs text-gray-500 ml-1">(복수 선택 가능)</span>
+              </label>
+              <div class="flex gap-2">
+                <div class="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden shrink-0">
+                  <button
+                    type="button"
+                    @click="processInputMode = 'select'"
+                    class="px-3 py-2 text-xs transition"
+                    :class="processInputMode === 'select'
+                      ? 'bg-primary-500 text-white'
+                      : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                  >
+                    선택
+                  </button>
+                  <button
+                    type="button"
+                    @click="processInputMode = 'custom'"
+                    class="px-3 py-2 text-xs transition"
+                    :class="processInputMode === 'custom'
+                      ? 'bg-primary-500 text-white'
+                      : 'bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                  >
+                    직접 입력
+                  </button>
+                </div>
+                <div class="flex-1">
+                  <MultiSelect
+                    v-if="processInputMode === 'select'"
+                    v-model="form.processes"
+                    :options="processes"
+                    placeholder="Select Process"
+                    width="100%"
+                  />
+                  <input
+                    v-else
+                    :value="processCustomInput"
+                    @input="onProcessInput"
+                    @blur="validateField('process')"
+                    type="text"
+                    class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition uppercase"
+                    :class="{ 'border-red-500 dark:border-red-500': fieldErrors.process }"
+                    placeholder="세미콜론(;)으로 구분 (예: CVD;ETCH)"
+                  />
+                </div>
+              </div>
+              <p v-if="fieldErrors.process" class="mt-1 text-xs text-red-500">{{ fieldErrors.process }}</p>
+            </div>
+
+            <!-- Line -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Line <span class="text-red-500">*</span>
+                <span class="text-xs text-gray-500 ml-1">(한글 제외)</span>
+              </label>
+              <input
+                v-model="form.line"
+                @blur="validateField('line')"
+                type="text"
+                class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
+                :class="{ 'border-red-500 dark:border-red-500': fieldErrors.line }"
+                placeholder="Enter Line (e.g., P1, M1)"
+              />
+              <p v-if="fieldErrors.line" class="mt-1 text-xs text-red-500">{{ fieldErrors.line }}</p>
+            </div>
+
+            <!-- 사용자 권한 / 시나리오 작성권한 -->
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  사용자 권한 <span class="text-red-500">*</span>
+                </label>
+                <select
+                  v-model="form.authorityManager"
+                  class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition text-sm"
+                >
+                  <option v-for="role in roles.filter(r => r.level !== 1)" :key="role.level" :value="role.level">
+                    {{ getRoleLabel(role) }}
+                  </option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">관리자 승인 시 변경될 수 있음</p>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  시나리오 작성권한
+                </label>
+                <select
+                  v-model="form.authority"
+                  class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition text-sm"
+                >
+                  <option v-for="auth in authorities" :key="auth.value" :value="auth.value">
+                    {{ auth.label }}
+                  </option>
+                </select>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">관리자 승인 시 변경될 수 있음</p>
+              </div>
+            </div>
+
+            <!-- Note -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Note
+              </label>
+              <textarea
+                v-model="form.note"
+                rows="2"
+                class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition resize-none"
+                placeholder="Additional notes (optional)"
+              ></textarea>
+            </div>
           </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              RPA 권한
-            </label>
-            <select
-              v-model="form.authority"
-              class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition text-sm"
-            >
-              <option v-for="auth in authorities" :key="auth.value" :value="auth.value">
-                {{ auth.label }}
-              </option>
-            </select>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">관리자 승인 시 변경될 수 있음</p>
-          </div>
         </div>
 
-        <!-- Department -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Department
-          </label>
-          <input
-            v-model="form.department"
-            type="text"
-            :readonly="isIntegrated && hasEarsSelection"
-            class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition"
-            :class="{
-              'bg-gray-100 dark:bg-gray-800 cursor-not-allowed': isIntegrated && hasEarsSelection
-            }"
-            placeholder="Enter your department (optional)"
-          />
-        </div>
-
-        <!-- Note -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Note
-          </label>
-          <textarea
-            v-model="form.note"
-            rows="2"
-            class="w-full px-4 py-2.5 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition resize-none"
-            placeholder="Additional notes (optional)"
-          ></textarea>
-        </div>
-
-        <!-- Submit -->
+        <!-- Submit (full width) -->
         <button
           type="submit"
           :disabled="loading || !isFormValid"
-          class="w-full py-3 px-4 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+          class="w-full mt-6 py-3 px-4 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span v-if="loading">Creating account...</span>
           <span v-else>Sign Up</span>

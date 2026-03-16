@@ -161,8 +161,8 @@ async function signup(req, res) {
     errors.push({ field: 'process', message: 'Process를 하나 이상 선택해주세요' })
   } else {
     for (const p of processArray) {
-      if (!/^[A-Z_]+$/.test(p)) {
-        errors.push({ field: 'process', message: `Process "${p}"는 영문 대문자와 언더바(_)만 사용 가능합니다` })
+      if (!/^[A-Z0-9_]+$/.test(p)) {
+        errors.push({ field: 'process', message: `Process "${p}"는 영문 대문자, 숫자, 언더바(_)만 사용 가능합니다` })
         break
       }
     }
