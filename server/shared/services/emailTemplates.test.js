@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { buildTempPasswordEmail, buildVerificationCodeEmail } from './emailTemplates.js'
+import { buildTempPasswordEmail, buildVerificationCodeEmail, buildSignupNotificationEmail } from './emailTemplates.js'
 
 describe('buildTempPasswordEmail', () => {
   const result = buildTempPasswordEmail('testuser', 'Abc12345')
@@ -26,6 +26,38 @@ describe('buildTempPasswordEmail', () => {
 
   it('HTML 태그 포함 (이메일 본문)', () => {
     expect(result).toContain('<div')
+  })
+})
+
+describe('buildSignupNotificationEmail', () => {
+  it('HTML에 사용자 정보 포함', () => {
+    const html = buildSignupNotificationEmail('홍길동', 'hong', 'Engineering', ['CVD', 'ETCH'])
+
+    expect(html).toContain('홍길동')
+    expect(html).toContain('hong')
+    expect(html).toContain('Engineering')
+    expect(html).toContain('CVD')
+    expect(html).toContain('ETCH')
+  })
+
+  it('User Management 승인 안내 포함', () => {
+    const html = buildSignupNotificationEmail('홍길동', 'hong', '', ['CVD'])
+
+    expect(html).toContain('User Management')
+    expect(html).toContain('승인')
+  })
+
+  it('department 미입력 시에도 정상 생성', () => {
+    const html = buildSignupNotificationEmail('홍길동', 'hong', '', ['CVD'])
+
+    expect(html).toContain('홍길동')
+    expect(html).toBeTruthy()
+  })
+
+  it('_wrapLayout 래핑 포함 (자동 발송 문구)', () => {
+    const html = buildSignupNotificationEmail('홍길동', 'hong', '', ['CVD'])
+
+    expect(html).toContain('자동 발송')
   })
 })
 

@@ -46,4 +46,23 @@ function buildVerificationCodeEmail(code, expiresMinutes) {
     </p>`)
 }
 
-module.exports = { buildTempPasswordEmail, buildVerificationCodeEmail }
+function buildSignupNotificationEmail(userName, userId, department, processes) {
+  const processStr = Array.isArray(processes) ? processes.join(', ') : processes
+  const deptRow = department
+    ? `<tr><td style="color:#6b7280;padding:4px 12px 4px 0;">부서</td><td style="color:#1f2937;padding:4px 0;">${department}</td></tr>`
+    : ''
+
+  return _wrapLayout(`
+    <h2 style="color:#1f2937;margin:0 0 16px;">신규 가입 요청</h2>
+    <p style="color:#374151;margin:0 0 12px;">
+      새로운 사용자가 가입을 요청했습니다. User Management 페이지에서 승인해주세요.
+    </p>
+    <table style="border-collapse:collapse;margin:0 0 16px;">
+      <tr><td style="color:#6b7280;padding:4px 12px 4px 0;">이름</td><td style="color:#1f2937;padding:4px 0;font-weight:bold;">${userName}</td></tr>
+      <tr><td style="color:#6b7280;padding:4px 12px 4px 0;">User ID</td><td style="color:#1f2937;padding:4px 0;font-family:monospace;">${userId}</td></tr>
+      ${deptRow}
+      <tr><td style="color:#6b7280;padding:4px 12px 4px 0;">Process</td><td style="color:#1f2937;padding:4px 0;">${processStr}</td></tr>
+    </table>`)
+}
+
+module.exports = { buildTempPasswordEmail, buildVerificationCodeEmail, buildSignupNotificationEmail }

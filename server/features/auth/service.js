@@ -9,7 +9,7 @@ const { User } = require('../users/model')
 const Client = require('../clients/model')
 const { sendEmailTo: _defaultSendEmailTo } = require('../../shared/services/emailNotificationService')
 const { resolveEmail: _defaultResolveEmail } = require('../../shared/services/userEmailResolver')
-const { buildTempPasswordEmail: _defaultBuildTempPasswordEmail, buildVerificationCodeEmail: _defaultBuildVerificationCodeEmail } = require('../../shared/services/emailTemplates')
+const { buildTempPasswordEmail: _defaultBuildTempPasswordEmail, buildVerificationCodeEmail: _defaultBuildVerificationCodeEmail, buildSignupNotificationEmail } = require('../../shared/services/emailTemplates')
 const { searchUsers: _defaultSearchUsers } = require('../../shared/services/earsService')
 const { storeCode: _defaultStoreCode, verifyCode: _defaultVerifyCode, checkCode: _defaultCheckCode } = require('../../shared/services/verificationCodeService')
 
@@ -214,14 +214,14 @@ async function signup(userData) {
   const { name, singleid, password, email, line, processes, department, note, authorityManager, authority } = userData
 
   // Check if singleid already exists
-  const existingUser = await User.findOne({ singleid }).lean()
+  const existingUser = await _User.findOne({ singleid }).lean()
   if (existingUser) {
     return { error: 'singleid', message: '이미 사용 중인 ID입니다' }
   }
 
   // Check if email already exists (if provided)
   if (email) {
-    const existingEmail = await User.findOne({ email: email.toLowerCase() }).lean()
+    const existingEmail = await _User.findOne({ email: email.toLowerCase() }).lean()
     if (existingEmail) {
       return { error: 'email', message: '이미 사용 중인 이메일입니다' }
     }
@@ -236,7 +236,7 @@ async function signup(userData) {
 
   // Create user with pending status
   // Note: authorityManager and authority are requested values that admin can modify on approval
-  const newUser = new User({
+  const newUser = new _User({
     name,
     singleid,
     password: hashedPassword,
@@ -255,6 +255,26 @@ async function signup(userData) {
   })
 
   await newUser.save()
+
+  // integrated 모드: Admin에게 가입 알림 메일 발송 (fire-and-forget)
+  if (getOperationMode() === 'integrated') {
+    try {
+      const admins = await _User.find({
+        authorityManager: 1,
+        accountStatus: 'active',
+        email: { $ne: '' }
+      }).select('email').lean()
+
+      const title = `[WebManager] 신규 가입 요청 — ${name}`
+      const contents = buildSignupNotificationEmail(name, singleid, department, processArray)
+
+      for (const admin of admins) {
+        _sendEmailTo(admin.email, title, contents).catch(() => {})
+      }
+    } catch {
+      // 알림 실패해도 가입은 성공
+    }
+  }
 
   return {
     success: true,
