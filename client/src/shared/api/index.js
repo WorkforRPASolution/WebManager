@@ -153,3 +153,11 @@ export const imagesApi = {
     return api.delete(`/images/${prefix}`)
   },
 }
+
+// Recovery Analysis API
+export const recoveryApi = {
+  getAnalysis: (params) => api.get('/dashboard/recovery/analysis', { params }),
+  getTrend: (params) => api.get('/dashboard/recovery/trend', { params }),
+  getLastAggregation: () => api.get('/dashboard/recovery/last-aggregation'),
+  getHistory: (params) => api.get('/dashboard/recovery/history', { params, timeout: 30000 }),
+}
