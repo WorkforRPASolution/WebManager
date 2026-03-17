@@ -22,12 +22,34 @@ const TOP_COLORS = [
   '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#6366f1'
 ]
 
+/**
+ * Transform flat trend array [{ bucket, process, total, statusCounts }]
+ * into per-process grouped format [{ process, trend: [{ bucket, successRate }] }]
+ */
+function groupByProcess(flatData) {
+  const map = new Map()
+  for (const item of flatData) {
+    if (!map.has(item.process)) {
+      map.set(item.process, [])
+    }
+    const sc = item.statusCounts || {}
+    const total = item.total || 0
+    const success = sc.Success || 0
+    const successRate = total > 0 ? Math.round((success / total) * 1000) / 10 : 0
+    map.get(item.process).push({ bucket: item.bucket, successRate })
+  }
+  return Array.from(map.entries()).map(([process, trend]) => ({ process, trend }))
+}
+
 const option = computed(() => {
   const dark = isDark.value
   if (!props.data || props.data.length === 0) return {}
 
+  // Transform flat data to per-process groups
+  const grouped = groupByProcess(props.data)
+
   // Determine top N processes by average success rate (descending)
-  const processAvg = props.data.map(d => {
+  const processAvg = grouped.map(d => {
     const rates = (d.trend || []).map(t => t.successRate ?? 0)
     const avg = rates.length > 0 ? rates.reduce((a, b) => a + b, 0) / rates.length : 0
     return { process: d.process, avg }
@@ -37,7 +59,7 @@ const option = computed(() => {
 
   // Build shared time axis from all trends
   const allBuckets = new Set()
-  props.data.forEach(d => {
+  grouped.forEach(d => {
     (d.trend || []).forEach(t => allBuckets.add(t.bucket))
   })
   const sortedBuckets = [...allBuckets].sort()
@@ -55,7 +77,7 @@ const option = computed(() => {
 
   // Build series - assign stable color indices based on sorted process order
   let topColorIdx = 0
-  const series = props.data.map(d => {
+  const series = grouped.map(d => {
     const isTop = topProcesses.has(d.process)
     const trendMap = new Map((d.trend || []).map(t => [t.bucket, t.successRate ?? 0]))
     const values = sortedBuckets.map(b => trendMap.get(b) ?? null)

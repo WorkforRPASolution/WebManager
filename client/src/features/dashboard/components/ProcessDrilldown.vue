@@ -23,8 +23,8 @@ function navigateToAnalysis() {
     <div>
       <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Top 5 실패 시나리오</h4>
       <RecoveryTop10Chart
-        v-if="drilldown?.scenarios?.length"
-        :data="drilldown.scenarios.slice(0, 5)"
+        v-if="drilldown?.topScenarios?.length"
+        :data="drilldown.topScenarios.slice(0, 5)"
         title=""
         color="#ef4444"
       />
@@ -35,8 +35,8 @@ function navigateToAnalysis() {
     <div>
       <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Top 5 실패 장비</h4>
       <RecoveryTop10Chart
-        v-if="drilldown?.equipment?.length"
-        :data="drilldown.equipment.slice(0, 5)"
+        v-if="drilldown?.topEquipment?.length"
+        :data="drilldown.topEquipment.slice(0, 5)"
         title=""
         color="#f59e0b"
       />

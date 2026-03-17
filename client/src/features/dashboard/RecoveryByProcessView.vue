@@ -55,9 +55,9 @@ function handleExpand(process) {
 }
 
 function getDrilldown(process) {
-  const drilldowns = processData.value?.drilldowns
-  if (!drilldowns) return null
-  return drilldowns[process] || null
+  const drilldownMap = processData.value?.drilldown
+  if (!drilldownMap) return null
+  return drilldownMap[process] || null
 }
 
 function handleCsvExport() {

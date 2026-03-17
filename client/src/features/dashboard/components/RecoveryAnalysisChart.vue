@@ -22,7 +22,7 @@ const { isDark } = useTheme()
 const statusList = getStatusList()
 
 const displayData = computed(() => {
-  return props.data.slice(0, Math.max(props.data.length, props.maxItems))
+  return props.data.slice(0, Math.min(props.data.length, props.maxItems))
 })
 
 const needsZoom = computed(() => displayData.value.length > props.maxItems)

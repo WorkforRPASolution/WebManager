@@ -29,6 +29,22 @@ const TAB_CONFIG = {
 // Failed-category statuses for Top N rankings
 const FAILED_STATUSES = ['Failed', 'ScriptFailed', 'VisionDelayed', 'NotStarted']
 
+// ── Response Normalization ──
+
+/**
+ * Rename status_counts → statusCounts in a document (or array of documents).
+ * Applied to all service return values so the frontend receives camelCase keys.
+ */
+function normalizeDoc(doc) {
+  if (!doc || typeof doc !== 'object') return doc
+  if (Array.isArray(doc)) return doc.map(normalizeDoc)
+  if (doc.status_counts !== undefined) {
+    doc.statusCounts = doc.status_counts
+    delete doc.status_counts
+  }
+  return doc
+}
+
 // ── Helpers ──
 
 /**
@@ -65,63 +81,6 @@ function buildHourlyMatchFilter(period, { process, line, model } = {}) {
   if (model) match.model = model
 
   return match
-}
-
-/**
- * Build a pipeline to aggregate status_counts into totals.
- * Uses $objectToArray → $unwind → $group to sum up all status values.
- */
-function buildKpiPipeline(matchFilter) {
-  return [
-    { $match: matchFilter },
-    { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
-    { $unwind: '$sc_array' },
-    {
-      $group: {
-        _id: null,
-        total: { $sum: '$total' },
-        status_pairs: { $push: { k: '$sc_array.k', v: '$sc_array.v' } }
-      }
-    },
-    {
-      $addFields: {
-        status_grouped: {
-          $reduce: {
-            input: '$status_pairs',
-            initialValue: [],
-            in: {
-              $let: {
-                vars: {
-                  existing: {
-                    $filter: { input: '$$value', cond: { $eq: ['$$this.k', '$$this.k'] } }
-                  }
-                },
-                in: '$$value'
-              }
-            }
-          }
-        }
-      }
-    },
-    // Re-group by status key to sum values
-    { $unwind: '$status_pairs' },
-    {
-      $group: {
-        _id: '$status_pairs.k',
-        count: { $sum: '$status_pairs.v' },
-        total: { $first: '$total' }
-      }
-    },
-    {
-      $group: {
-        _id: null,
-        total: { $first: '$total' },
-        statuses: { $push: { k: '$_id', v: '$count' } }
-      }
-    },
-    { $addFields: { status_counts: { $arrayToObject: '$statuses' } } },
-    { $project: { _id: 0, total: 1, status_counts: 1 } }
-  ]
 }
 
 /**
@@ -260,7 +219,7 @@ async function getOverview(filters = {}) {
     },
     { $sort: { failedCount: -1 } },
     { $limit: 10 },
-    { $project: { _id: 0, ears_code: '$_id', failedCount: 1 } }
+    { $project: { _id: 0, name: '$_id', count: '$failedCount' } }
   ]
   const topScenarios = await db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
     .aggregate(topScenariosPipeline).toArray()
@@ -279,7 +238,7 @@ async function getOverview(filters = {}) {
     },
     { $sort: { failedCount: -1 } },
     { $limit: 10 },
-    { $project: { _id: 0, eqpid: '$_id', failedCount: 1 } }
+    { $project: { _id: 0, name: '$_id', count: '$failedCount' } }
   ]
   const topEquipment = await db.collection('RECOVERY_SUMMARY_BY_EQUIPMENT')
     .aggregate(topEquipmentPipeline).toArray()
@@ -299,7 +258,7 @@ async function getOverview(filters = {}) {
   const triggerDistribution = await db.collection('RECOVERY_SUMMARY_BY_TRIGGER')
     .aggregate(triggerPipeline).toArray()
 
-  return { kpi, trend, statusDistribution, topScenarios, topEquipment, triggerDistribution }
+  return { kpi, trend: normalizeDoc(trend), statusDistribution, topScenarios, topEquipment, triggerDistribution }
 }
 
 /**
@@ -386,7 +345,7 @@ async function getByProcess(filters = {}) {
     {
       $group: {
         _id: '$_id.process',
-        topScenarios: { $push: { ears_code: '$_id.ears_code', failedCount: '$failedCount' } }
+        topScenarios: { $push: { name: '$_id.ears_code', count: '$failedCount' } }
       }
     },
     { $project: { _id: 0, process: '$_id', topScenarios: { $slice: ['$topScenarios', 5] } } }
@@ -410,7 +369,7 @@ async function getByProcess(filters = {}) {
     {
       $group: {
         _id: '$_id.process',
-        topEquipment: { $push: { eqpid: '$_id.eqpid', failedCount: '$failedCount' } }
+        topEquipment: { $push: { name: '$_id.eqpid', count: '$failedCount' } }
       }
     },
     { $project: { _id: 0, process: '$_id', topEquipment: { $slice: ['$topEquipment', 5] } } }
@@ -429,7 +388,7 @@ async function getByProcess(filters = {}) {
     drilldown[item.process].topEquipment = item.topEquipment
   }
 
-  return { processes, trend, drilldown }
+  return { processes: normalizeDoc(processes), trend: normalizeDoc(trend), drilldown }
 }
 
 /**
@@ -470,7 +429,22 @@ async function getAnalysis(filters = {}) {
     { $sort: { total: -1 } },
     { $project: { _id: 0, [groupField]: '$_id', total: 1, status_counts: 1 } }
   ]
-  const data = await db.collection(collName).aggregate(dataPipeline).toArray()
+  const rawData = await db.collection(collName).aggregate(dataPipeline).toArray()
+
+  // Normalize: rename groupField → name, status_counts → statusCounts
+  const data = rawData.map(doc => {
+    const normalized = { ...doc }
+    // Add 'name' alias from the group field
+    if (normalized[groupField] !== undefined && groupField !== 'name') {
+      normalized.name = normalized[groupField]
+    }
+    // Rename status_counts → statusCounts
+    if (normalized.status_counts !== undefined) {
+      normalized.statusCounts = normalized.status_counts
+      delete normalized.status_counts
+    }
+    return normalized
+  })
 
   // 2. Hourly trend for the tab's groupField
   const trendPipeline = [
@@ -504,7 +478,7 @@ async function getAnalysis(filters = {}) {
   ]
   const trend = await db.collection(collName).aggregate(trendPipeline).toArray()
 
-  return { data, trend }
+  return { data, trend: normalizeDoc(trend) }
 }
 
 /**

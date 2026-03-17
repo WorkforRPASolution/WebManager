@@ -96,22 +96,22 @@ export function exportRecoveryAnalysisCsv(data, tab) {
 
 /**
  * Recovery History 데이터를 CSV로 내보내기
- * @param {Array} data - [{ timestamp, process, eqpId, scenario, status, trigger_by, ... }]
+ * @param {Array} data - EQP_AUTO_RECOVERY documents [{ create_date, process, line, model, eqpid, ears_code, status, trigger_by, ... }]
  */
 export function exportRecoveryHistoryCsv(data) {
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
   const filename = `Recovery_History_${timestamp}.csv`
 
-  const headers = ['Timestamp', 'Process', 'EqpModel', 'EqpId', 'Scenario', 'Status', 'Trigger', 'Duration(s)']
+  const headers = ['Timestamp', 'Process', 'Line', 'Model', 'EqpId', 'Scenario', 'Status', 'Trigger']
   const rows = (data || []).map(d => [
-    d.timestamp || d.startedAt || '',
+    d.create_date || '',
     d.process || '',
-    d.eqpModel || '',
-    d.eqpId || '',
-    d.scenario || d.scenarioName || '',
+    d.line || '',
+    d.model || '',
+    d.eqpid || '',
+    d.ears_code || '',
     d.status || '',
-    d.trigger_by || d.triggerBy || '',
-    d.duration != null ? d.duration : ''
+    d.trigger_by || ''
   ])
 
   downloadCsv(filename, headers, rows)
