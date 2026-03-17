@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import MultiSelect from '../../../shared/components/MultiSelect.vue'
 import AppIcon from '../../../shared/components/AppIcon.vue'
 
@@ -10,10 +10,13 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
   showProcessFilter: { type: Boolean, default: true },
   showModelFilter: { type: Boolean, default: false },
-  showLineFilter: { type: Boolean, default: true }
+  showLineFilter: { type: Boolean, default: true },
+  singleSelectMode: { type: Boolean, default: false },
+  initialProcess: { type: String, default: '' },
+  initialModel: { type: String, default: '' }
 })
 
-const emit = defineEmits(['search'])
+const emit = defineEmits(['search', 'process-change'])
 
 const selectedPeriod = ref('today')
 const selectedProcesses = ref([])
@@ -21,6 +24,56 @@ const selectedModels = ref([])
 const selectedLines = ref([])
 const customStartDate = ref('')
 const customEndDate = ref('')
+
+// 단일 선택 모드용 state
+const singleProcess = ref(props.initialProcess)
+const singleModel = ref(props.initialModel)
+
+// initialProcess/Model이 비동기로 설정될 때 반영
+watch(() => props.initialProcess, (v) => { if (v && !singleProcess.value) singleProcess.value = v })
+watch(() => props.initialModel, (v) => { if (v && !singleModel.value) singleModel.value = v })
+
+function selectSingleProcess(p) {
+  singleProcess.value = p
+  processDropdownOpen.value = false
+  processSearch.value = ''
+  // Model 초기화 + 부모에 알림
+  singleModel.value = ''
+  emit('process-change', p)
+}
+
+function selectSingleModel(m) {
+  singleModel.value = m
+  modelDropdownOpen.value = false
+  modelSearch.value = ''
+}
+const processDropdownOpen = ref(false)
+const modelDropdownOpen = ref(false)
+const processContainerRef = ref(null)
+const modelContainerRef = ref(null)
+const processSearch = ref('')
+const modelSearch = ref('')
+
+const filteredProcesses = computed(() => {
+  if (!processSearch.value) return props.processes
+  const q = processSearch.value.toLowerCase()
+  return props.processes.filter(p => p.toLowerCase().includes(q))
+})
+
+const filteredModels = computed(() => {
+  if (!modelSearch.value) return props.models
+  const q = modelSearch.value.toLowerCase()
+  return props.models.filter(m => m.toLowerCase().includes(q))
+})
+
+function handleSingleDropdownClickOutside(e) {
+  if (processContainerRef.value && !processContainerRef.value.contains(e.target)) {
+    processDropdownOpen.value = false
+  }
+  if (modelContainerRef.value && !modelContainerRef.value.contains(e.target)) {
+    modelDropdownOpen.value = false
+  }
+}
 
 const periodOptions = [
   { value: 'today', label: '오늘' },
@@ -51,8 +104,14 @@ function handlePeriodClickOutside(e) {
   }
 }
 
-onMounted(() => document.addEventListener('click', handlePeriodClickOutside))
-onUnmounted(() => document.removeEventListener('click', handlePeriodClickOutside))
+onMounted(() => {
+  document.addEventListener('click', handlePeriodClickOutside)
+  document.addEventListener('click', handleSingleDropdownClickOutside)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', handlePeriodClickOutside)
+  document.removeEventListener('click', handleSingleDropdownClickOutside)
+})
 
 const customError = ref('')
 
@@ -80,11 +139,19 @@ function handleSearch() {
   const filters = {
     period: selectedPeriod.value
   }
-  if (props.showProcessFilter && selectedProcesses.value.length > 0) {
-    filters.process = selectedProcesses.value.join(',')
+  if (props.showProcessFilter) {
+    if (props.singleSelectMode) {
+      if (singleProcess.value) filters.process = singleProcess.value
+    } else if (selectedProcesses.value.length > 0) {
+      filters.process = selectedProcesses.value.join(',')
+    }
   }
-  if (props.showModelFilter && selectedModels.value.length > 0) {
-    filters.model = selectedModels.value.join(',')
+  if (props.showModelFilter) {
+    if (props.singleSelectMode) {
+      if (singleModel.value) filters.model = singleModel.value
+    } else if (selectedModels.value.length > 0) {
+      filters.model = selectedModels.value.join(',')
+    }
   }
   if (props.showLineFilter && selectedLines.value.length > 0) {
     filters.line = selectedLines.value.join(',')
@@ -157,15 +224,57 @@ function handleSearch() {
       </div>
     </template>
 
-    <!-- Process MultiSelect -->
-    <MultiSelect
-      v-if="showProcessFilter"
-      v-model="selectedProcesses"
-      :options="processes"
-      label="Process"
-      placeholder="전체 Process"
-      width="200px"
-    />
+    <!-- Process Filter -->
+    <template v-if="showProcessFilter">
+      <!-- 단일 선택 모드 -->
+      <div v-if="singleSelectMode" ref="processContainerRef" class="relative">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Process</label>
+        <div
+          @click="processDropdownOpen = !processDropdownOpen"
+          class="flex items-center justify-between px-3 py-2 rounded-lg border cursor-pointer transition-colors"
+          :class="[
+            processDropdownOpen ? 'border-primary-500 ring-2 ring-primary-500/20' : 'border-gray-300 dark:border-dark-border',
+            'bg-white dark:bg-dark-bg hover:border-primary-400'
+          ]"
+          style="width: 200px"
+        >
+          <span class="text-sm" :class="singleProcess ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'">
+            {{ singleProcess || 'Process 선택' }}
+          </span>
+          <AppIcon name="chevron_down" size="4" class="text-gray-400 transition-transform" :class="{ 'rotate-180': processDropdownOpen }" />
+        </div>
+        <div v-show="processDropdownOpen" class="absolute z-50 mt-1 w-full bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border shadow-lg">
+          <div class="p-2 border-b border-gray-200 dark:border-dark-border">
+            <input
+              v-model="processSearch"
+              type="text"
+              placeholder="검색..."
+              class="w-full px-2 py-1.5 text-sm bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900 dark:text-white placeholder-gray-400"
+              @click.stop
+            />
+          </div>
+          <div class="max-h-52 overflow-y-auto">
+            <div
+              v-for="p in filteredProcesses"
+              :key="p"
+              @click="selectSingleProcess(p)"
+              class="px-3 py-2 hover:bg-gray-50 dark:hover:bg-dark-border cursor-pointer text-sm"
+              :class="singleProcess === p ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'"
+            >{{ p }}</div>
+            <div v-if="filteredProcesses.length === 0" class="px-3 py-2 text-sm text-gray-400">결과 없음</div>
+          </div>
+        </div>
+      </div>
+      <!-- 멀티 선택 모드 -->
+      <MultiSelect
+        v-else
+        v-model="selectedProcesses"
+        :options="processes"
+        label="Process"
+        placeholder="전체 Process"
+        width="200px"
+      />
+    </template>
 
     <!-- Line MultiSelect -->
     <MultiSelect
@@ -177,15 +286,57 @@ function handleSearch() {
       width="200px"
     />
 
-    <!-- Model MultiSelect -->
-    <MultiSelect
-      v-if="showModelFilter"
-      v-model="selectedModels"
-      :options="models"
-      label="Model"
-      placeholder="전체 Model"
-      width="300px"
-    />
+    <!-- Model Filter -->
+    <template v-if="showModelFilter">
+      <!-- 단일 선택 모드 -->
+      <div v-if="singleSelectMode" ref="modelContainerRef" class="relative">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Model</label>
+        <div
+          @click="modelDropdownOpen = !modelDropdownOpen"
+          class="flex items-center justify-between px-3 py-2 rounded-lg border cursor-pointer transition-colors"
+          :class="[
+            modelDropdownOpen ? 'border-primary-500 ring-2 ring-primary-500/20' : 'border-gray-300 dark:border-dark-border',
+            'bg-white dark:bg-dark-bg hover:border-primary-400'
+          ]"
+          style="width: 300px"
+        >
+          <span class="text-sm" :class="singleModel ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'">
+            {{ singleModel || 'Model 선택' }}
+          </span>
+          <AppIcon name="chevron_down" size="4" class="text-gray-400 transition-transform" :class="{ 'rotate-180': modelDropdownOpen }" />
+        </div>
+        <div v-show="modelDropdownOpen" class="absolute z-50 mt-1 w-full bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border shadow-lg">
+          <div class="p-2 border-b border-gray-200 dark:border-dark-border">
+            <input
+              v-model="modelSearch"
+              type="text"
+              placeholder="검색..."
+              class="w-full px-2 py-1.5 text-sm bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900 dark:text-white placeholder-gray-400"
+              @click.stop
+            />
+          </div>
+          <div class="max-h-52 overflow-y-auto">
+            <div
+              v-for="m in filteredModels"
+              :key="m"
+              @click="selectSingleModel(m)"
+              class="px-3 py-2 hover:bg-gray-50 dark:hover:bg-dark-border cursor-pointer text-sm"
+              :class="singleModel === m ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'"
+            >{{ m }}</div>
+            <div v-if="filteredModels.length === 0" class="px-3 py-2 text-sm text-gray-400">결과 없음</div>
+          </div>
+        </div>
+      </div>
+      <!-- 멀티 선택 모드 -->
+      <MultiSelect
+        v-else
+        v-model="selectedModels"
+        :options="models"
+        label="Model"
+        placeholder="전체 Model"
+        width="300px"
+      />
+    </template>
 
     <!-- Search Button -->
     <button

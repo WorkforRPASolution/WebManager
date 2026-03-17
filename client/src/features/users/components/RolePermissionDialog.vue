@@ -112,6 +112,9 @@ const formatPermissionName = (key) => {
     dashboardArsVersion: 'ARSAgent Version',
     dashboardResStatus: 'ResourceAgent Status',
     dashboardResVersion: 'ResourceAgent Version',
+    dashboardRecoveryOverview: 'Recovery Overview',
+    dashboardRecoveryByProcess: 'Recovery by Process',
+    dashboardRecoveryAnalysis: 'Recovery Analysis',
     arsAgent: 'ARS Agent',
     resourceAgent: 'Resource Agent',
     equipmentInfo: 'Equipment Info',
@@ -131,6 +134,10 @@ const permissionGroups = [
   {
     label: 'Dashboard',
     keys: ['dashboardOverview', 'dashboardArsMonitor', 'dashboardArsVersion', 'dashboardResStatus', 'dashboardResVersion']
+  },
+  {
+    label: 'Dashboard - Recovery',
+    keys: ['dashboardRecoveryOverview', 'dashboardRecoveryByProcess', 'dashboardRecoveryAnalysis']
   },
   {
     label: 'Clients',

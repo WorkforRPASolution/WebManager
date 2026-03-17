@@ -1,6 +1,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { recoveryApi } from '../../shared/api'
+import { recoveryApi, clientsApi } from '../../shared/api'
+import { useProcessFilterStore } from '../../shared/stores/processFilter'
+import { useProcessPermission } from '../../shared/composables/useProcessPermission'
 import RecoveryFilterBar from './components/RecoveryFilterBar.vue'
 import ProcessComparisonChart from './components/ProcessComparisonChart.vue'
 import ProcessTrendChart from './components/ProcessTrendChart.vue'
@@ -12,6 +14,8 @@ import { useToast } from '../../shared/composables/useToast'
 import { sumByGroup, calcSuccessRate } from './utils/recoveryStatusGroups'
 
 const { showError } = useToast()
+const processFilterStore = useProcessFilterStore()
+const { buildUserProcessFilter } = useProcessPermission()
 const loading = ref(false)
 const processData = ref(null)
 const lastAggregation = ref(null)
@@ -21,8 +25,10 @@ const processes = ref([])
 
 async function loadFilterOptions() {
   try {
-    const res = await (await import('../../shared/api')).clientsApi.getProcesses()
-    processes.value = res.data || []
+    const res = await clientsApi.getProcesses()
+    const allProcesses = res.data || []
+    processFilterStore.setProcesses('clients', allProcesses)
+    processes.value = processFilterStore.getFilteredProcesses('clients')
   } catch (err) {
     console.error('Failed to load processes:', err)
   }
@@ -32,7 +38,12 @@ async function fetchData(filters = { period: 'today' }) {
   loading.value = true
   currentFilters.value = filters
   try {
-    const requests = [recoveryApi.getByProcess(filters)]
+    const queryFilters = { ...filters }
+    if (!queryFilters.process) {
+      const userProcesses = buildUserProcessFilter()
+      if (userProcesses) queryFilters.process = userProcesses.join(',')
+    }
+    const requests = [recoveryApi.getByProcess(queryFilters)]
     if (!lastAggregation.value) {
       requests.push(recoveryApi.getLastAggregation())
     }
@@ -172,7 +183,6 @@ onMounted(() => {
           v-if="expandedProcess"
           :process="expandedProcess"
           :drilldown="getDrilldown(expandedProcess)"
-          :period="currentFilters.period"
         />
       </div>
     </template>

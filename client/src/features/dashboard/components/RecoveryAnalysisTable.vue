@@ -25,8 +25,6 @@ const columns = computed(() => {
   if (props.tab === 'scenario') {
     return [
       { key: 'name', label: 'ears_code', numeric: false },
-      { key: 'process', label: 'Process', numeric: false },
-      { key: 'model', label: 'Model', numeric: false },
       ...base
     ]
   } else if (props.tab === 'equipment') {
@@ -166,7 +164,7 @@ function statusCellClass(col, value) {
                 </svg>
               </span>
             </th>
-            <th v-if="tab !== 'trigger'" class="w-20 py-3 px-3 text-center font-semibold text-gray-600 dark:text-gray-300">
+            <th v-if="tab !== 'trigger'" class="w-24 py-3 px-3 text-center font-semibold text-gray-600 dark:text-gray-300 whitespace-nowrap">
               이력
             </th>
           </tr>
@@ -212,10 +210,10 @@ function statusCellClass(col, value) {
             <td v-if="tab !== 'trigger'" class="py-2.5 px-3 text-center">
               <button
                 @click="handleHistory(row)"
-                class="px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                class="px-2 py-1 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors whitespace-nowrap"
                 title="이력 조회"
               >
-                이력 조회
+                이력조회
               </button>
             </td>
           </tr>

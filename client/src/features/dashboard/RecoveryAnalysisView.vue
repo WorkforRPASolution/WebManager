@@ -25,6 +25,7 @@ const tabs = [
 const loading = ref(false)
 const analysisData = ref([])
 const trendData = ref([])
+const granularity = ref('hourly')
 const lastAggregation = ref(null)
 const processes = ref([])
 const models = ref([])
@@ -35,31 +36,38 @@ const historyVisible = ref(false)
 const historyMode = ref('eqpid')
 const historyTargetId = ref('')
 
-onMounted(() => {
-  loadFilterOptions()
-  // Auto-apply process filter from navigation query
-  if (route.query.process) {
-    currentFilters.value.process = route.query.process
+onMounted(async () => {
+  await loadProcesses()
+  // Auto-apply process filter from navigation query or first available
+  const initProcess = route.query.process || (processes.value.length > 0 ? processes.value[0] : '')
+  if (initProcess) {
+    currentFilters.value.process = initProcess
+    await loadModels(initProcess)
+    if (models.value.length > 0) {
+      currentFilters.value.model = models.value[0]
+    }
   }
   fetchData(currentFilters.value)
 })
 
-async function loadFilterOptions() {
+async function loadProcesses() {
   try {
-    const [procRes, modelRes] = await Promise.allSettled([
-      clientsApi.getProcesses(),
-      clientsApi.getModels()
-    ])
-    if (procRes.status === 'fulfilled') {
-      const allProcesses = procRes.value.data || []
-      processFilterStore.setProcesses('clients', allProcesses)
-      processes.value = processFilterStore.getFilteredProcesses('clients')
-    }
-    if (modelRes.status === 'fulfilled') {
-      models.value = modelRes.value.data || []
-    }
+    const res = await clientsApi.getProcesses()
+    const allProcesses = res.data || []
+    processFilterStore.setProcesses('clients', allProcesses)
+    processes.value = processFilterStore.getFilteredProcesses('clients')
   } catch (err) {
-    console.error('Failed to load filter options:', err)
+    console.error('Failed to load processes:', err)
+  }
+}
+
+async function loadModels(process) {
+  try {
+    const res = await clientsApi.getModels(process || undefined)
+    models.value = res.data || []
+  } catch (err) {
+    console.error('Failed to load models:', err)
+    models.value = []
   }
 }
 
@@ -81,16 +89,17 @@ async function fetchData(filters = {}) {
 
     if (analysisRes.status === 'fulfilled') {
       analysisData.value = analysisRes.value.data.data || []
+      trendData.value = analysisRes.value.data.trend || []
+      granularity.value = analysisRes.value.data.granularity || 'hourly'
     } else {
       analysisData.value = []
+      trendData.value = []
       showError('분석 데이터 로드에 실패했습니다')
     }
 
     if (aggRes.status === 'fulfilled') {
       lastAggregation.value = aggRes.value.data
     }
-
-    trendData.value = []
   } catch (err) {
     showError('데이터 로드에 실패했습니다')
   } finally {
@@ -98,35 +107,13 @@ async function fetchData(filters = {}) {
   }
 }
 
-async function fetchTrend(itemName) {
-  if (!itemName) {
-    trendData.value = []
-    return
-  }
-  try {
-    const params = {
-      ...currentFilters.value,
-      tab: activeTab.value,
-      item: itemName
-    }
-
-    if (!params.process) {
-      const userProcesses = buildUserProcessFilter()
-      if (userProcesses) params.process = userProcesses.join(',')
-    }
-
-    const res = await recoveryApi.getAnalysis(params)
-    trendData.value = res.data.trend || []
-  } catch (err) {
-    console.error('Failed to fetch trend:', err)
-    trendData.value = []
-  }
-}
-
 watch(activeTab, () => {
-  trendData.value = []
   fetchData(currentFilters.value)
 })
+
+async function handleProcessChange(process) {
+  await loadModels(process)
+}
 
 function handleSearch(filters) {
   currentFilters.value = filters
@@ -161,7 +148,11 @@ function openHistory(item) {
           :loading="loading"
           :showLineFilter="false"
           :showModelFilter="true"
+          :singleSelectMode="true"
+          :initialProcess="currentFilters.process || ''"
+          :initialModel="currentFilters.model || ''"
           @search="handleSearch"
+          @process-change="handleProcessChange"
         />
         <DataFreshnessIndicator :lastAggregation="lastAggregation" @refresh="handleRefresh" />
       </div>
@@ -190,8 +181,8 @@ function openHistory(item) {
       :trend="trendData"
       :tab="activeTab"
       :loading="loading"
+      :granularity="granularity"
       @history="openHistory"
-      @fetch-trend="fetchTrend"
     />
 
     <!-- History Modal -->

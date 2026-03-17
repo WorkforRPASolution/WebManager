@@ -1,7 +1,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { clientsApi } from '../../shared/api'
-import { recoveryApi } from '../../shared/api'
+import { clientsApi, recoveryApi } from '../../shared/api'
+import { useProcessFilterStore } from '../../shared/stores/processFilter'
+import { useProcessPermission } from '../../shared/composables/useProcessPermission'
 import RecoveryFilterBar from './components/RecoveryFilterBar.vue'
 import RecoveryKPICards from './components/RecoveryKPICards.vue'
 import RecoveryTrendChart from './components/RecoveryTrendChart.vue'
@@ -13,6 +14,8 @@ import { useToast } from '../../shared/composables/useToast'
 import { exportRecoveryOverviewCsv } from './utils/recoveryCsvExport'
 
 const { showError } = useToast()
+const processFilterStore = useProcessFilterStore()
+const { buildUserProcessFilter } = useProcessPermission()
 const loading = ref(false)
 const overviewData = ref(null)
 const lastAggregation = ref(null)
@@ -25,7 +28,13 @@ async function fetchData(filters = { period: 'today' }) {
   loading.value = true
   currentFilters.value = filters
   try {
-    const requests = [recoveryApi.getOverview(filters)]
+    // process 필터 미선택 시 사용자 권한 기반 제한
+    const queryFilters = { ...filters }
+    if (!queryFilters.process) {
+      const userProcesses = buildUserProcessFilter()
+      if (userProcesses) queryFilters.process = userProcesses.join(',')
+    }
+    const requests = [recoveryApi.getOverview(queryFilters)]
     // lastAggregation은 처음 한 번만 또는 refresh 시 호출
     if (!lastAggregation.value) {
       requests.push(recoveryApi.getLastAggregation())
@@ -46,7 +55,9 @@ async function fetchData(filters = { period: 'today' }) {
 async function loadFilterOptions() {
   try {
     const res = await clientsApi.getProcesses()
-    processes.value = res.data || []
+    const allProcesses = res.data || []
+    processFilterStore.setProcesses('clients', allProcesses)
+    processes.value = processFilterStore.getFilteredProcesses('clients')
   } catch (err) {
     console.error('Failed to load processes:', err)
   }

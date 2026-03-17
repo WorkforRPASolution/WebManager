@@ -106,6 +106,9 @@
             <span v-if="historyLoading">조회 중...</span>
             <span v-else>조회</span>
           </button>
+          <span v-if="dateError" class="text-red-500 dark:text-red-400 text-xs">
+            {{ dateError }}
+          </span>
         </div>
 
         <!-- Table -->
@@ -128,6 +131,7 @@
             <thead class="sticky top-0 bg-white dark:bg-dark-card z-10">
               <tr class="border-b border-gray-200 dark:border-dark-border">
                 <th class="text-left py-2.5 px-3 font-semibold text-gray-600 dark:text-gray-300">create_date</th>
+                <th class="text-right py-2.5 px-3 font-semibold text-gray-600 dark:text-gray-300">txn_seq</th>
                 <th v-if="mode === 'eqpid'" class="text-left py-2.5 px-3 font-semibold text-gray-600 dark:text-gray-300">ears_code</th>
                 <th v-else class="text-left py-2.5 px-3 font-semibold text-gray-600 dark:text-gray-300">eqpid</th>
                 <th class="text-left py-2.5 px-3 font-semibold text-gray-600 dark:text-gray-300">status</th>
@@ -145,6 +149,7 @@
                 class="border-b border-gray-100 dark:border-dark-border/50 hover:bg-gray-50 dark:hover:bg-dark-border/30 transition-colors"
               >
                 <td class="py-2 px-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{{ formatDate(row.create_date) }}</td>
+                <td class="py-2 px-3 text-right text-gray-500 dark:text-gray-400 tabular-nums">{{ row.txn_seq }}</td>
                 <td v-if="mode === 'eqpid'" class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ row.ears_code }}</td>
                 <td v-else class="py-2 px-3 text-gray-700 dark:text-gray-300">{{ row.eqpid }}</td>
                 <td class="py-2 px-3">
@@ -293,7 +298,7 @@ const customWidth = ref(null)
 const customHeight = ref(null)
 const savedPos = reactive({ x: null, y: null, w: null, h: null })
 
-const DEFAULT_WIDTH = 1100
+const DEFAULT_WIDTH = 1250
 const DEFAULT_HEIGHT = 600
 
 const modalStyle = computed(() => {
@@ -407,12 +412,23 @@ function handleKeyDown(e) {
 }
 
 // Date validation: max 7 days
+const dateError = ref('')
+
 function validateDateRange() {
+  dateError.value = ''
   if (!startDate.value || !endDate.value) return true
   const start = new Date(startDate.value)
   const end = new Date(endDate.value)
   const diff = (end - start) / (1000 * 60 * 60 * 24)
-  return diff >= 0 && diff <= 7
+  if (diff < 0) {
+    dateError.value = '시작일은 종료일보다 이전이어야 합니다'
+    return false
+  }
+  if (diff > 7) {
+    dateError.value = '이력 조회는 최대 7일까지 가능합니다'
+    return false
+  }
+  return true
 }
 
 // Fetch history

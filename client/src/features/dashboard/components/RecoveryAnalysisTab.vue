@@ -9,22 +9,29 @@ const props = defineProps({
   data: { type: Array, default: () => [] },
   trend: { type: Array, default: () => [] },
   tab: { type: String, default: 'scenario' },
-  loading: { type: Boolean, default: false }
+  loading: { type: Boolean, default: false },
+  granularity: { type: String, default: 'hourly' }
 })
 
-const emit = defineEmits(['history', 'fetch-trend'])
+const emit = defineEmits(['history'])
 
 const selectedItem = ref(null)
 const selectedRows = ref([])
 
+// groupField 이름 매핑 (탭별로 trend 데이터의 필드명이 다름)
+const groupFieldMap = { scenario: 'ears_code', equipment: 'eqpid', trigger: 'trigger_by' }
+
 const selectedTrend = computed(() => {
-  if (!selectedItem.value) return []
+  if (!selectedItem.value || !props.trend.length) return []
+  const field = groupFieldMap[props.tab] || 'name'
+  // 전체 trend 중 선택된 항목만 필터 + bucket 기준 정렬
   return props.trend
+    .filter(t => t[field] === selectedItem.value || t.name === selectedItem.value)
+    .sort((a, b) => String(a.bucket).localeCompare(String(b.bucket)))
 })
 
 function handleChartSelect(name) {
   selectedItem.value = name
-  emit('fetch-trend', name)
 }
 
 function handleRowSelect(rows) {
@@ -59,7 +66,7 @@ function handleExportCsv() {
         </div>
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
           <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">시간 추이</h3>
-          <RecoveryAnalysisTrend :data="selectedTrend" :selectedItem="selectedItem" />
+          <RecoveryAnalysisTrend :data="selectedTrend" :selectedItem="selectedItem" :granularity="granularity" />
         </div>
       </div>
 

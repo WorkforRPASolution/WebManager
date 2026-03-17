@@ -134,54 +134,76 @@ function buildTrendMatchFilter(period, { process, line, model, startDate, endDat
  * @param {'daily'|'weekly'|'monthly'} granularity
  * @returns {Array} 롤업된 트렌드
  */
+/**
+ * 항목 구분 키 추출 (Analysis trend처럼 ears_code/eqpid/trigger_by/name 등)
+ */
+function extractItemKey(item) {
+  return item.ears_code || item.eqpid || item.trigger_by || item.name || item.process || null
+}
+
 function rollupTrend(dailyTrend, granularity) {
   if (granularity === 'daily' || granularity === 'hourly') return dailyTrend
+
+  // 항목 구분 필드가 있는지 확인 (Analysis trend는 항목별, Overview trend는 전체)
+  const hasItemKey = dailyTrend.length > 0 && extractItemKey(dailyTrend[0]) !== null
+  // 항목 구분에 사용할 원본 필드명 보존
+  const ITEM_FIELDS = ['ears_code', 'eqpid', 'trigger_by', 'name', 'process', 'model']
 
   const groups = new Map()
 
   for (const item of dailyTrend) {
     const date = new Date(item.bucket)
-    let groupKey
+    let timeBucket
 
     if (granularity === 'weekly') {
-      // ISO week 시작일 (월요일) 기준 그룹핑
       const day = date.getUTCDay()
       const mondayOffset = day === 0 ? -6 : 1 - day
       const monday = new Date(date)
       monday.setUTCDate(monday.getUTCDate() + mondayOffset)
       monday.setUTCHours(0, 0, 0, 0)
-      groupKey = monday.toISOString()
+      timeBucket = monday.toISOString()
     } else {
-      // monthly: 해당 월 1일 기준
       const monthStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
-      groupKey = monthStart.toISOString()
+      timeBucket = monthStart.toISOString()
     }
 
+    // 항목별 구분이 있으면 timeBucket + itemKey로 그룹, 없으면 timeBucket만
+    const itemKey = hasItemKey ? extractItemKey(item) : ''
+    const groupKey = `${timeBucket}||${itemKey}`
+
     if (!groups.has(groupKey)) {
-      groups.set(groupKey, { bucket: groupKey, total: 0, statusCounts: {}, scenarioSum: 0 })
+      const base = { bucket: timeBucket, total: 0, statusCounts: {}, scenarioSum: 0 }
+      // 원본 필드 보존
+      for (const f of ITEM_FIELDS) {
+        if (item[f] !== undefined) base[f] = item[f]
+      }
+      groups.set(groupKey, base)
     }
 
     const g = groups.get(groupKey)
     g.total += item.total || 0
 
-    // statusCounts 합산 (normalizeDoc 이후이므로 camelCase)
     const sc = item.statusCounts || item.status_counts || {}
     for (const [k, v] of Object.entries(sc)) {
       g.statusCounts[k] = (g.statusCounts[k] || 0) + v
     }
 
-    // scenarioCount 합산 (daily 단위 distinct 합이므로 근사치)
     if (item.scenarioCount) g.scenarioSum += item.scenarioCount
   }
 
   return Array.from(groups.values())
-    .map(g => ({
-      bucket: g.bucket,
-      total: g.total,
-      statusCounts: g.statusCounts,
-      scenarioCount: g.scenarioSum
-    }))
-    .sort((a, b) => a.bucket.localeCompare(b.bucket))
+    .map(g => {
+      const result = { bucket: g.bucket, total: g.total, statusCounts: g.statusCounts, scenarioCount: g.scenarioSum }
+      for (const f of ITEM_FIELDS) {
+        if (g[f] !== undefined) result[f] = g[f]
+      }
+      return result
+    })
+    .sort((a, b) => {
+      const cmp = a.bucket.localeCompare(b.bucket)
+      if (cmp !== 0) return cmp
+      return (extractItemKey(a) || '').localeCompare(extractItemKey(b) || '')
+    })
 }
 
 /**
@@ -467,6 +489,27 @@ async function getByProcess(filters = {}) {
   const drilldownEquipment = await db.collection('RECOVERY_SUMMARY_BY_EQUIPMENT')
     .aggregate(drilldownEquipmentPipeline, { allowDiskUse: true }).toArray()
 
+  // 3-c. Trigger distribution per process
+  const drilldownTriggerPipeline = [
+    { $match: dailyMatch },
+    {
+      $group: {
+        _id: { process: '$process', trigger_by: '$trigger_by' },
+        total: { $sum: '$total' }
+      }
+    },
+    { $sort: { total: -1 } },
+    {
+      $group: {
+        _id: '$_id.process',
+        triggers: { $push: { trigger_by: '$_id.trigger_by', total: '$total' } }
+      }
+    },
+    { $project: { _id: 0, process: '$_id', triggers: 1 } }
+  ]
+  const drilldownTriggers = await db.collection('RECOVERY_SUMMARY_BY_TRIGGER')
+    .aggregate(drilldownTriggerPipeline, { allowDiskUse: true }).toArray()
+
   // Merge drilldown data by process
   const drilldown = {}
   for (const item of drilldownScenarios) {
@@ -476,6 +519,10 @@ async function getByProcess(filters = {}) {
   for (const item of drilldownEquipment) {
     if (!drilldown[item.process]) drilldown[item.process] = {}
     drilldown[item.process].topEquipment = item.topEquipment
+  }
+  for (const item of drilldownTriggers) {
+    if (!drilldown[item.process]) drilldown[item.process] = {}
+    drilldown[item.process].triggerDistribution = item.triggers
   }
 
   const granularity = determineTrendGranularity(period, { startDate, endDate })
@@ -502,37 +549,43 @@ async function getAnalysis(filters = {}) {
   const trendMatch = buildTrendMatchFilter(period, dimFilters)
 
   // 1. Grouped data by the tab's groupField
+  // Equipment 탭은 process/model 추가 포함 (eqpid → process/model 1:1 매핑)
+  const includeProcessModel = (tab === 'equipment')
+
+  const firstGroupId = includeProcessModel
+    ? { [groupField]: `$${groupField}`, process: '$process', model: '$model', status: '$sc_array.k' }
+    : { [groupField]: `$${groupField}`, status: '$sc_array.k' }
+
+  const secondGroup = {
+    _id: includeProcessModel
+      ? { [groupField]: `$_id.${groupField}`, process: '$_id.process', model: '$_id.model' }
+      : `$_id.${groupField}`,
+    total: { $sum: '$count' },
+    statuses: { $push: { k: '$_id.status', v: '$count' } }
+  }
+
+  const projectStage = includeProcessModel
+    ? { _id: 0, [groupField]: `$_id.${groupField}`, process: '$_id.process', model: '$_id.model', total: 1, status_counts: 1 }
+    : { _id: 0, [groupField]: '$_id', total: 1, status_counts: 1 }
+
   const dataPipeline = [
     { $match: dailyMatch },
     { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
     { $unwind: '$sc_array' },
-    {
-      $group: {
-        _id: { [groupField]: `$${groupField}`, status: '$sc_array.k' },
-        count: { $sum: '$sc_array.v' }
-      }
-    },
-    {
-      $group: {
-        _id: `$_id.${groupField}`,
-        total: { $sum: '$count' },
-        statuses: { $push: { k: '$_id.status', v: '$count' } }
-      }
-    },
+    { $group: { _id: firstGroupId, count: { $sum: '$sc_array.v' } } },
+    { $group: secondGroup },
     { $addFields: { status_counts: { $arrayToObject: '$statuses' } } },
     { $sort: { total: -1 } },
-    { $project: { _id: 0, [groupField]: '$_id', total: 1, status_counts: 1 } }
+    { $project: projectStage }
   ]
   const rawData = await db.collection(collName).aggregate(dataPipeline, { allowDiskUse: true }).toArray()
 
   // Normalize: rename groupField → name, status_counts → statusCounts
   const data = rawData.map(doc => {
     const normalized = { ...doc }
-    // Add 'name' alias from the group field
     if (normalized[groupField] !== undefined && groupField !== 'name') {
       normalized.name = normalized[groupField]
     }
-    // Rename status_counts → statusCounts
     if (normalized.status_counts !== undefined) {
       normalized.statusCounts = normalized.status_counts
       delete normalized.status_counts
