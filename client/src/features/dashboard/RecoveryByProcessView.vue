@@ -17,7 +17,16 @@ const processData = ref(null)
 const lastAggregation = ref(null)
 const expandedProcess = ref(null)
 const currentFilters = ref({ period: 'today' })
-const lines = ref([])
+const processes = ref([])
+
+async function loadFilterOptions() {
+  try {
+    const res = await (await import('../../shared/api')).clientsApi.getProcesses()
+    processes.value = res.data || []
+  } catch (err) {
+    console.error('Failed to load processes:', err)
+  }
+}
 
 async function fetchData(filters = { period: 'today' }) {
   loading.value = true
@@ -77,6 +86,7 @@ function handleCsvExport() {
 }
 
 onMounted(() => {
+  loadFilterOptions()
   fetchData()
 })
 </script>
@@ -93,9 +103,9 @@ onMounted(() => {
     <div class="bg-white dark:bg-dark-card rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
       <div class="flex flex-wrap items-end justify-between gap-4">
         <RecoveryFilterBar
-          :lines="lines"
+          :processes="processes"
           :loading="loading"
-          :showProcessFilter="false"
+          :showLineFilter="false"
           @search="handleSearch"
         />
         <div class="flex items-center gap-2">
@@ -132,8 +142,10 @@ onMounted(() => {
           <ProcessComparisonChart :data="processData.processes || []" mode="stacked" />
         </div>
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
-          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">공정별 성공률 추이</h3>
-          <ProcessTrendChart :data="processData.trend || []" />
+          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">
+            공정별 성공률 추이 ({{ { hourly: '시간별', daily: '일별', weekly: '주별', monthly: '월별' }[processData.granularity] || '일별' }})
+          </h3>
+          <ProcessTrendChart :data="processData.trend || []" :granularity="processData.granularity || 'daily'" />
         </div>
       </div>
 

@@ -27,6 +27,7 @@ const analysisData = ref([])
 const trendData = ref([])
 const lastAggregation = ref(null)
 const processes = ref([])
+const models = ref([])
 const currentFilters = ref({})
 
 // History modal state
@@ -45,12 +46,20 @@ onMounted(() => {
 
 async function loadFilterOptions() {
   try {
-    const res = await clientsApi.getProcesses()
-    const allProcesses = res.data || []
-    processFilterStore.setProcesses('clients', allProcesses)
-    processes.value = processFilterStore.getFilteredProcesses('clients')
+    const [procRes, modelRes] = await Promise.allSettled([
+      clientsApi.getProcesses(),
+      clientsApi.getModels()
+    ])
+    if (procRes.status === 'fulfilled') {
+      const allProcesses = procRes.value.data || []
+      processFilterStore.setProcesses('clients', allProcesses)
+      processes.value = processFilterStore.getFilteredProcesses('clients')
+    }
+    if (modelRes.status === 'fulfilled') {
+      models.value = modelRes.value.data || []
+    }
   } catch (err) {
-    console.error('Failed to load processes:', err)
+    console.error('Failed to load filter options:', err)
   }
 }
 
@@ -146,7 +155,14 @@ function openHistory(item) {
     <!-- Filter + Freshness -->
     <div class="bg-white dark:bg-dark-card rounded-xl p-4 shadow-sm border border-gray-200 dark:border-dark-border">
       <div class="flex flex-wrap items-end justify-between gap-4">
-        <RecoveryFilterBar :processes="processes" :loading="loading" @search="handleSearch" />
+        <RecoveryFilterBar
+          :processes="processes"
+          :models="models"
+          :loading="loading"
+          :showLineFilter="false"
+          :showModelFilter="true"
+          @search="handleSearch"
+        />
         <DataFreshnessIndicator :lastAggregation="lastAggregation" @refresh="handleRefresh" />
       </div>
     </div>

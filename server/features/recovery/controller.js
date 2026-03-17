@@ -8,32 +8,49 @@ const { validatePeriodRange } = require('./validation')
 const { parsePaginationParams, createPaginatedResponse } = require('../../shared/utils/pagination')
 
 async function getOverview(req, res) {
-  const { period, process, line } = req.query
+  const { period, process, line, startDate, endDate } = req.query
+  // 커스텀 기간 90일 제한
+  if (period === 'custom') {
+    const validation = validatePeriodRange(startDate, endDate, 730)
+    if (!validation.valid) return res.status(400).json({ error: validation.error })
+  }
   const result = await service.getOverview({
     period: period || 'today',
     process: process || undefined,
-    line: line || undefined
+    line: line || undefined,
+    startDate, endDate
   })
   res.json(result)
 }
 
 async function getByProcess(req, res) {
-  const { period, line } = req.query
+  const { period, process, line, startDate, endDate } = req.query
+  if (period === 'custom') {
+    const validation = validatePeriodRange(startDate, endDate, 730)
+    if (!validation.valid) return res.status(400).json({ error: validation.error })
+  }
   const result = await service.getByProcess({
     period: period || 'today',
-    line: line || undefined
+    process: process || undefined,
+    line: line || undefined,
+    startDate, endDate
   })
   res.json(result)
 }
 
 async function getAnalysis(req, res) {
-  const { period, process, line, model, tab } = req.query
+  const { period, process, line, model, tab, startDate, endDate } = req.query
+  if (period === 'custom') {
+    const validation = validatePeriodRange(startDate, endDate, 730)
+    if (!validation.valid) return res.status(400).json({ error: validation.error })
+  }
   const result = await service.getAnalysis({
     period: period || 'today',
     process: process || undefined,
     line: line || undefined,
     model: model || undefined,
-    tab: tab || 'scenario'
+    tab: tab || 'scenario',
+    startDate, endDate
   })
   res.json(result)
 }

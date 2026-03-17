@@ -34,18 +34,36 @@ const option = computed(() => {
 })
 
 function buildGroupedOption(dark, categories) {
-  const successRates = props.data.map(d => {
-    const rate = calcSuccessRate(d.statusCounts, d.total)
-    return Math.round(rate * 10) / 10
+  // 100% 스택 바 — 각 공정의 비율을 스택으로 표시
+  const RATE_STATUSES = ['Success', 'Failed', 'Stopped', 'Skip', 'Other']
+
+  const seriesData = {}
+  RATE_STATUSES.forEach(s => { seriesData[s] = [] })
+
+  props.data.forEach(d => {
+    const total = d.total || 0
+    const sc = d.statusCounts || {}
+    const success = sc.Success || 0
+    const failed = (sc.Failed || 0) + (sc.ScriptFailed || 0) + (sc.VisionDelayed || 0) + (sc.NotStarted || 0)
+    const stopped = sc.Stopped || 0
+    const skip = sc.Skip || 0
+    const other = Math.max(0, total - success - failed - stopped - skip)
+
+    const pct = (v) => total > 0 ? Math.round(v / total * 1000) / 10 : 0
+    seriesData['Success'].push(pct(success))
+    seriesData['Failed'].push(pct(failed))
+    seriesData['Stopped'].push(pct(stopped))
+    seriesData['Skip'].push(pct(skip))
+    seriesData['Other'].push(pct(other))
   })
-  const failedRates = props.data.map(d => {
-    const count = sumByGroup(d.statusCounts, 'failed')
-    return d.total ? Math.round((count / d.total * 100) * 10) / 10 : 0
-  })
-  const stoppedRates = props.data.map(d => {
-    const count = sumByGroup(d.statusCounts, 'stopped')
-    return d.total ? Math.round((count / d.total * 100) * 10) / 10 : 0
-  })
+
+  const statusColors = {
+    Success: getStatusColor('Success', dark),
+    Failed: getStatusColor('Failed', dark),
+    Stopped: getStatusColor('Stopped', dark),
+    Skip: getStatusColor('Skip', dark),
+    Other: dark ? '#4b5563' : '#d1d5db'
+  }
 
   return {
     tooltip: {
@@ -56,11 +74,10 @@ function buildGroupedOption(dark, categories) {
       textStyle: { color: dark ? '#e5e7eb' : '#111827' },
       formatter: (params) => {
         const title = params[0]?.axisValueLabel || ''
-        const lines = params
-          .filter(p => p.value > 0)
-          .map(p => `${p.marker} ${p.seriesName}: <b>${p.value}%</b>`)
-          .join('<br/>')
-        return `<b>${title}</b><br/>${lines || '데이터 없음'}`
+        const items = params.filter(p => p.value > 0)
+        if (items.length === 0) return `${title}<br/>데이터 없음`
+        const lines = items.map(p => `${p.marker} ${p.seriesName}: <b>${p.value}%</b>`).join('<br/>')
+        return `<b>${title}</b><br/>${lines}`
       }
     },
     legend: {
@@ -124,43 +141,19 @@ function buildGroupedOption(dark, categories) {
       }
     },
     animationEasing: 'elasticOut',
-    animationDuration: 1000,
-    animationDelay: (idx) => idx * 80,
-    series: [
-      {
-        name: 'Success Rate',
-        type: 'bar',
-        data: successRates,
-        itemStyle: {
-          color: getStatusColor('Success', dark),
-          borderRadius: [4, 4, 0, 0]
-        },
-        emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } },
-        barMaxWidth: 40
+    animationDuration: 800,
+    series: RATE_STATUSES.map((status, idx) => ({
+      name: status,
+      type: 'bar',
+      stack: 'rate',
+      data: seriesData[status],
+      itemStyle: {
+        color: statusColors[status],
+        borderRadius: idx === RATE_STATUSES.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]
       },
-      {
-        name: 'Failed Rate',
-        type: 'bar',
-        data: failedRates,
-        itemStyle: {
-          color: getStatusColor('Failed', dark),
-          borderRadius: [4, 4, 0, 0]
-        },
-        emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } },
-        barMaxWidth: 40
-      },
-      {
-        name: 'Stopped Rate',
-        type: 'bar',
-        data: stoppedRates,
-        itemStyle: {
-          color: getStatusColor('Stopped', dark),
-          borderRadius: [4, 4, 0, 0]
-        },
-        emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } },
-        barMaxWidth: 40
-      }
-    ]
+      emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } },
+      barMaxWidth: 50
+    }))
   }
 }
 

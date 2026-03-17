@@ -41,11 +41,18 @@ function validatePeriodRange(startDate, endDate, maxDays = 7) {
 
 /**
  * Parse period string into start/end dates in KST ISO format.
- * @param {string} period - 'today', '7d', '30d', 'custom'
+ * For 'custom', pass startDate/endDate directly.
+ * @param {string} period - 'today', '7d', '30d', '90d', 'custom'
+ * @param {Object} [opts] - { startDate, endDate } for custom period
  * @returns {{ startDate: string, endDate: string } | null}
  */
-function parsePeriod(period) {
-  if (period === 'custom') return null
+function parsePeriod(period, opts) {
+  if (period === 'custom') {
+    if (opts?.startDate && opts?.endDate) {
+      return { startDate: opts.startDate, endDate: opts.endDate }
+    }
+    return null
+  }
 
   const now = new Date()
   const endDate = formatKST(now)
@@ -63,6 +70,12 @@ function parsePeriod(period) {
     daysBack = 7
   } else if (period === '30d') {
     daysBack = 30
+  } else if (period === '90d') {
+    daysBack = 90
+  } else if (period === '1y') {
+    daysBack = 365
+  } else if (period === '2y') {
+    daysBack = 730
   } else {
     // Default to today
     daysBack = 0

@@ -130,8 +130,10 @@ onMounted(() => {
       <!-- Charts Row 1: Trend + Donut -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
-          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">시간별 트렌드</h3>
-          <RecoveryTrendChart :data="overviewData.trend || []" />
+          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">
+            {{ { hourly: '시간별', daily: '일별', weekly: '주별', monthly: '월별' }[overviewData.granularity] || '시간별' }} 트렌드
+          </h3>
+          <RecoveryTrendChart :data="overviewData.trend || []" :granularity="overviewData.granularity || 'hourly'" />
         </div>
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
           <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">상태 분포</h3>
@@ -142,8 +144,8 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Charts Row 2: Top 10 Scenarios + Top 10 Equipment -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Charts Row 2: Top 10 Scenarios + Top 10 Equipment + Trigger Distribution -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
           <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">Top 10 실패 시나리오</h3>
           <RecoveryTop10Chart :data="overviewData.topScenarios || []" color="#ef4444" />
@@ -152,12 +154,10 @@ onMounted(() => {
           <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">Top 10 실패 장비</h3>
           <RecoveryTop10Chart :data="overviewData.topEquipment || []" color="#f59e0b" />
         </div>
-      </div>
-
-      <!-- Charts Row 3: Trigger Distribution -->
-      <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
-        <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">Trigger 분포</h3>
-        <RecoveryTriggerChart :data="overviewData.triggerDistribution || []" />
+        <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
+          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">Trigger 분포</h3>
+          <RecoveryTriggerChart :data="overviewData.triggerDistribution || []" />
+        </div>
       </div>
     </template>
 

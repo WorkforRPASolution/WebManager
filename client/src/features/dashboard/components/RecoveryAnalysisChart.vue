@@ -19,20 +19,33 @@ const emit = defineEmits(['select'])
 
 const { isDark } = useTheme()
 
-const statusList = getStatusList()
-
 const displayData = computed(() => {
   return props.data.slice(0, Math.min(props.data.length, props.maxItems))
 })
 
 const needsZoom = computed(() => displayData.value.length > props.maxItems)
 
+// 실제 데이터에 존재하는 status만 범례에 표시
+const activeStatuses = computed(() => {
+  const found = new Set()
+  for (const d of displayData.value) {
+    if (d.statusCounts) {
+      for (const [k, v] of Object.entries(d.statusCounts)) {
+        if (v > 0) found.add(k)
+      }
+    }
+  }
+  // STATUS_COLORS 순서 유지
+  return getStatusList().filter(s => found.has(s))
+})
+
 const option = computed(() => {
   const dark = isDark.value
   const items = displayData.value
   const categories = items.map(d => d.name)
+  const statuses = activeStatuses.value
 
-  const series = statusList.map(status => ({
+  const series = statuses.map(status => ({
     name: status,
     type: 'bar',
     stack: 'total',
@@ -46,6 +59,10 @@ const option = computed(() => {
     },
     barMaxWidth: 28
   }))
+
+  // 범례 줄 수에 따라 grid top 동적 계산 (항목당 ~80px 폭, 1줄 ~20px 높이)
+  const legendRows = Math.ceil(statuses.length / 5)
+  const gridTop = Math.max(32, legendRows * 22 + 10)
 
   return {
     tooltip: {
@@ -65,12 +82,15 @@ const option = computed(() => {
     },
     legend: {
       top: 0,
-      textStyle: { color: dark ? '#9ca3af' : '#6b7280' }
+      textStyle: { color: dark ? '#9ca3af' : '#6b7280', fontSize: 11 },
+      itemWidth: 14,
+      itemHeight: 10,
+      itemGap: 12
     },
     grid: {
       left: 10,
       right: 30,
-      top: 32,
+      top: gridTop,
       bottom: needsZoom.value ? 50 : 10,
       containLabel: true
     },

@@ -50,37 +50,138 @@ function normalizeDoc(doc) {
 /**
  * Build a $match filter object from period + optional dimension filters.
  */
-function buildMatchFilter(period, { process, line, model } = {}) {
-  const parsed = parsePeriod(period)
+/**
+ * 콤마 구분 문자열을 $in 조건으로 변환. 단일 값이면 직접 매칭.
+ */
+function toMatchValue(csv) {
+  if (!csv) return undefined
+  const arr = csv.split(',').map(s => s.trim()).filter(Boolean)
+  return arr.length === 1 ? arr[0] : { $in: arr }
+}
+
+function buildMatchFilter(period, { process, line, model, startDate, endDate } = {}) {
+  const parsed = parsePeriod(period, { startDate, endDate })
   const match = { period: 'daily' }
 
   if (parsed) {
     match.bucket = { $gte: new Date(parsed.startDate), $lte: new Date(parsed.endDate) }
   }
 
-  if (process) match.process = process
-  if (line) match.line = line
-  if (model) match.model = model
+  const pv = toMatchValue(process)
+  if (pv) match.process = pv
+  const lv = toMatchValue(line)
+  if (lv) match.line = lv
+  const mv = toMatchValue(model)
+  if (mv) match.model = mv
 
   return match
 }
 
 /**
- * Build hourly match filter for trend data.
+ * 기간 길이에 따라 트렌드 표시 단위(granularity) 결정
+ * @param {string} period - 프리셋 기간
+ * @param {Object} opts - { startDate, endDate } for custom
+ * @returns {'hourly'|'daily'|'weekly'|'monthly'}
  */
-function buildHourlyMatchFilter(period, { process, line, model } = {}) {
-  const parsed = parsePeriod(period)
-  const match = { period: 'hourly' }
+function determineTrendGranularity(period, { startDate, endDate } = {}) {
+  const GRANULARITY_MAP = {
+    today: 'hourly',
+    '7d': 'daily',
+    '30d': 'daily',
+    '90d': 'weekly',
+    '1y': 'monthly',
+    '2y': 'monthly'
+  }
+  if (period !== 'custom') return GRANULARITY_MAP[period] || 'daily'
+
+  // 커스텀: 기간 길이로 자동 판별
+  if (!startDate || !endDate) return 'daily'
+  const diffDays = (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)
+  if (diffDays <= 1) return 'hourly'
+  if (diffDays <= 30) return 'daily'
+  if (diffDays <= 90) return 'weekly'
+  return 'monthly'
+}
+
+/**
+ * Build trend match filter.
+ * hourly는 hourly summary 사용, daily/weekly/monthly는 daily summary 사용 (weekly/monthly는 후처리로 롤업).
+ */
+function buildTrendMatchFilter(period, { process, line, model, startDate, endDate } = {}) {
+  const parsed = parsePeriod(period, { startDate, endDate })
+  const granularity = determineTrendGranularity(period, { startDate, endDate })
+  // hourly만 hourly summary, 나머지는 daily summary에서 롤업
+  const summaryPeriod = (granularity === 'hourly') ? 'hourly' : 'daily'
+  const match = { period: summaryPeriod }
 
   if (parsed) {
     match.bucket = { $gte: new Date(parsed.startDate), $lte: new Date(parsed.endDate) }
   }
 
-  if (process) match.process = process
-  if (line) match.line = line
-  if (model) match.model = model
+  const pv = toMatchValue(process)
+  if (pv) match.process = pv
+  const lv = toMatchValue(line)
+  if (lv) match.line = lv
+  const mv = toMatchValue(model)
+  if (mv) match.model = mv
 
   return match
+}
+
+/**
+ * daily 트렌드 결과를 weekly 또는 monthly로 롤업
+ * @param {Array} dailyTrend - [{ bucket, total, status_counts, scenarioCount? }]
+ * @param {'daily'|'weekly'|'monthly'} granularity
+ * @returns {Array} 롤업된 트렌드
+ */
+function rollupTrend(dailyTrend, granularity) {
+  if (granularity === 'daily' || granularity === 'hourly') return dailyTrend
+
+  const groups = new Map()
+
+  for (const item of dailyTrend) {
+    const date = new Date(item.bucket)
+    let groupKey
+
+    if (granularity === 'weekly') {
+      // ISO week 시작일 (월요일) 기준 그룹핑
+      const day = date.getUTCDay()
+      const mondayOffset = day === 0 ? -6 : 1 - day
+      const monday = new Date(date)
+      monday.setUTCDate(monday.getUTCDate() + mondayOffset)
+      monday.setUTCHours(0, 0, 0, 0)
+      groupKey = monday.toISOString()
+    } else {
+      // monthly: 해당 월 1일 기준
+      const monthStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1))
+      groupKey = monthStart.toISOString()
+    }
+
+    if (!groups.has(groupKey)) {
+      groups.set(groupKey, { bucket: groupKey, total: 0, statusCounts: {}, scenarioSum: 0 })
+    }
+
+    const g = groups.get(groupKey)
+    g.total += item.total || 0
+
+    // statusCounts 합산 (normalizeDoc 이후이므로 camelCase)
+    const sc = item.statusCounts || item.status_counts || {}
+    for (const [k, v] of Object.entries(sc)) {
+      g.statusCounts[k] = (g.statusCounts[k] || 0) + v
+    }
+
+    // scenarioCount 합산 (daily 단위 distinct 합이므로 근사치)
+    if (item.scenarioCount) g.scenarioSum += item.scenarioCount
+  }
+
+  return Array.from(groups.values())
+    .map(g => ({
+      bucket: g.bucket,
+      total: g.total,
+      statusCounts: g.statusCounts,
+      scenarioCount: g.scenarioSum
+    }))
+    .sort((a, b) => a.bucket.localeCompare(b.bucket))
 }
 
 /**
@@ -138,66 +239,104 @@ function extractKpi(aggResult) {
  * GET /api/recovery/overview
  */
 async function getOverview(filters = {}) {
-  const { period = 'today', process, line } = filters
+  const { period = 'today', process, line, startDate, endDate } = filters
   const db = getEarsDb()
+  const dimFilters = { process, line, startDate, endDate }
 
-  const dailyMatch = buildMatchFilter(period, { process, line })
-  const hourlyMatch = buildHourlyMatchFilter(period, { process, line })
+  const dailyMatch = buildMatchFilter(period, dimFilters)
+  const trendMatch = buildTrendMatchFilter(period, dimFilters)
 
-  // 1. KPI from scenario daily
-  const kpiPipeline = buildSimpleKpiPipeline(dailyMatch)
-  const kpiResult = await db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
-    .aggregate(kpiPipeline).toArray()
-  const kpi = extractKpi(kpiResult)
-
-  // 2. Previous period KPI for comparison
-  const parsed = parsePeriod(period)
-  let prevKpi = { total: 0, success: 0, successRate: 0 }
-  if (parsed) {
-    const start = new Date(parsed.startDate)
-    const end = new Date(parsed.endDate)
-    const durationMs = end.getTime() - start.getTime()
-    const prevEnd = new Date(start.getTime())
-    const prevStart = new Date(start.getTime() - durationMs)
-    const prevMatch = { period: 'daily', bucket: { $gte: prevStart, $lt: prevEnd } }
-    if (process) prevMatch.process = process
-    if (line) prevMatch.line = line
-
-    const prevResult = await db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
-      .aggregate(buildSimpleKpiPipeline(prevMatch)).toArray()
-    const prev = extractKpi(prevResult)
-    prevKpi = { total: prev.total, success: prev.success, successRate: prev.successRate }
-  }
-  kpi.prevTotal = prevKpi.total
-  kpi.prevSuccess = prevKpi.success
-  kpi.prevSuccessRate = prevKpi.successRate
-
-  // 3. Hourly trend from scenario
+  // Build pipelines
   const trendPipeline = [
-    { $match: hourlyMatch },
+    { $match: trendMatch },
     { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
     { $unwind: '$sc_array' },
-    {
-      $group: {
-        _id: { bucket: '$bucket', status: '$sc_array.k' },
-        count: { $sum: '$sc_array.v' }
-      }
-    },
-    {
-      $group: {
-        _id: '$_id.bucket',
-        total: { $sum: '$count' },
-        statuses: { $push: { k: '$_id.status', v: '$count' } }
-      }
-    },
+    { $group: { _id: { bucket: '$bucket', status: '$sc_array.k' }, count: { $sum: '$sc_array.v' } } },
+    { $group: { _id: '$_id.bucket', total: { $sum: '$count' }, statuses: { $push: { k: '$_id.status', v: '$count' } } } },
     { $addFields: { status_counts: { $arrayToObject: '$statuses' } } },
     { $sort: { _id: 1 } },
     { $project: { _id: 0, bucket: '$_id', total: 1, status_counts: 1 } }
   ]
-  const trend = await db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
-    .aggregate(trendPipeline).toArray()
 
-  // 4. Status distribution (from KPI — already computed)
+  const scenarioCountPipeline = [
+    { $match: trendMatch },
+    { $group: { _id: { bucket: '$bucket', ears_code: '$ears_code' } } },
+    { $group: { _id: '$_id.bucket', scenarioCount: { $sum: 1 } } },
+    { $sort: { _id: 1 } },
+    { $project: { _id: 0, bucket: '$_id', scenarioCount: 1 } }
+  ]
+
+  const topScenariosPipeline = [
+    { $match: dailyMatch },
+    { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
+    { $unwind: '$sc_array' },
+    { $match: { 'sc_array.k': { $in: FAILED_STATUSES } } },
+    { $group: { _id: '$ears_code', failedCount: { $sum: '$sc_array.v' } } },
+    { $sort: { failedCount: -1 } },
+    { $limit: 10 },
+    { $project: { _id: 0, name: '$_id', count: '$failedCount' } }
+  ]
+
+  const topEquipmentPipeline = [
+    { $match: dailyMatch },
+    { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
+    { $unwind: '$sc_array' },
+    { $match: { 'sc_array.k': { $in: FAILED_STATUSES } } },
+    { $group: { _id: '$eqpid', failedCount: { $sum: '$sc_array.v' } } },
+    { $sort: { failedCount: -1 } },
+    { $limit: 10 },
+    { $project: { _id: 0, name: '$_id', count: '$failedCount' } }
+  ]
+
+  const triggerPipeline = [
+    { $match: dailyMatch },
+    { $group: { _id: '$trigger_by', total: { $sum: '$total' } } },
+    { $sort: { total: -1 } },
+    { $project: { _id: 0, trigger_by: '$_id', total: 1 } }
+  ]
+
+  // Previous period match
+  const parsed = parsePeriod(period, { startDate, endDate })
+  let prevMatch = null
+  if (parsed) {
+    const start = new Date(parsed.startDate)
+    const end = new Date(parsed.endDate)
+    const durationMs = end.getTime() - start.getTime()
+    prevMatch = { period: 'daily', bucket: { $gte: new Date(start.getTime() - durationMs), $lt: start } }
+    const pv = toMatchValue(process)
+    if (pv) prevMatch.process = pv
+    const lv = toMatchValue(line)
+    if (lv) prevMatch.line = lv
+  }
+
+  const scenarioColl = db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
+  const opts = { allowDiskUse: true }
+
+  // 병렬 실행 — 6개 쿼리 동시
+  const [kpiResult, prevResult, trend, scenarioCounts, topScenarios, topEquipment, triggerDistribution] = await Promise.all([
+    scenarioColl.aggregate(buildSimpleKpiPipeline(dailyMatch), opts).toArray(),
+    prevMatch ? scenarioColl.aggregate(buildSimpleKpiPipeline(prevMatch), opts).toArray() : Promise.resolve([]),
+    scenarioColl.aggregate(trendPipeline, opts).toArray(),
+    scenarioColl.aggregate(scenarioCountPipeline, opts).toArray(),
+    scenarioColl.aggregate(topScenariosPipeline, opts).toArray(),
+    db.collection('RECOVERY_SUMMARY_BY_EQUIPMENT').aggregate(topEquipmentPipeline, opts).toArray(),
+    db.collection('RECOVERY_SUMMARY_BY_TRIGGER').aggregate(triggerPipeline, opts).toArray()
+  ])
+
+  // KPI 조립
+  const kpi = extractKpi(kpiResult)
+  const prev = extractKpi(prevResult)
+  kpi.prevTotal = prev.total
+  kpi.prevSuccess = prev.success
+  kpi.prevSuccessRate = prev.successRate
+
+  // trend에 scenarioCount 병합
+  const scMap = new Map(scenarioCounts.map(s => [s.bucket.toISOString(), s.scenarioCount]))
+  for (const t of trend) {
+    const key = t.bucket instanceof Date ? t.bucket.toISOString() : new Date(t.bucket).toISOString()
+    t.scenarioCount = scMap.get(key) || 0
+  }
+
   const statusDistribution = {
     Success: kpi.success,
     Failed: kpi.failed,
@@ -205,71 +344,22 @@ async function getOverview(filters = {}) {
     Skip: kpi.skip
   }
 
-  // 5. Top 10 failed scenarios
-  const topScenariosPipeline = [
-    { $match: dailyMatch },
-    { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
-    { $unwind: '$sc_array' },
-    { $match: { 'sc_array.k': { $in: FAILED_STATUSES } } },
-    {
-      $group: {
-        _id: '$ears_code',
-        failedCount: { $sum: '$sc_array.v' }
-      }
-    },
-    { $sort: { failedCount: -1 } },
-    { $limit: 10 },
-    { $project: { _id: 0, name: '$_id', count: '$failedCount' } }
-  ]
-  const topScenarios = await db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
-    .aggregate(topScenariosPipeline).toArray()
+  const granularity = determineTrendGranularity(period, { startDate, endDate })
+  const rolledTrend = rollupTrend(normalizeDoc(trend), granularity)
 
-  // 6. Top 10 failed equipment
-  const topEquipmentPipeline = [
-    { $match: buildMatchFilter(period, { process, line }) },
-    { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
-    { $unwind: '$sc_array' },
-    { $match: { 'sc_array.k': { $in: FAILED_STATUSES } } },
-    {
-      $group: {
-        _id: '$eqpid',
-        failedCount: { $sum: '$sc_array.v' }
-      }
-    },
-    { $sort: { failedCount: -1 } },
-    { $limit: 10 },
-    { $project: { _id: 0, name: '$_id', count: '$failedCount' } }
-  ]
-  const topEquipment = await db.collection('RECOVERY_SUMMARY_BY_EQUIPMENT')
-    .aggregate(topEquipmentPipeline).toArray()
-
-  // 7. Trigger distribution
-  const triggerPipeline = [
-    { $match: buildMatchFilter(period, { process, line }) },
-    {
-      $group: {
-        _id: '$trigger_by',
-        total: { $sum: '$total' }
-      }
-    },
-    { $sort: { total: -1 } },
-    { $project: { _id: 0, trigger_by: '$_id', total: 1 } }
-  ]
-  const triggerDistribution = await db.collection('RECOVERY_SUMMARY_BY_TRIGGER')
-    .aggregate(triggerPipeline).toArray()
-
-  return { kpi, trend: normalizeDoc(trend), statusDistribution, topScenarios, topEquipment, triggerDistribution }
+  return { kpi, trend: rolledTrend, granularity, statusDistribution, topScenarios, topEquipment, triggerDistribution }
 }
 
 /**
  * GET /api/recovery/by-process
  */
 async function getByProcess(filters = {}) {
-  const { period = 'today', line } = filters
+  const { period = 'today', process, line, startDate, endDate } = filters
   const db = getEarsDb()
+  const dimFilters = { process, line, startDate, endDate }
 
-  const dailyMatch = buildMatchFilter(period, { line })
-  const hourlyMatch = buildHourlyMatchFilter(period, { line })
+  const dailyMatch = buildMatchFilter(period, dimFilters)
+  const trendMatch = buildTrendMatchFilter(period, dimFilters)
 
   // 1. Process-level aggregation from scenario summary
   const processPipeline = [
@@ -294,11 +384,11 @@ async function getByProcess(filters = {}) {
     { $project: { _id: 0, process: '$_id', total: 1, status_counts: 1 } }
   ]
   const processes = await db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
-    .aggregate(processPipeline).toArray()
+    .aggregate(processPipeline, { allowDiskUse: true }).toArray()
 
   // 2. Hourly trend per process (success rate timeline)
   const trendPipeline = [
-    { $match: hourlyMatch },
+    { $match: trendMatch },
     { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
     { $unwind: '$sc_array' },
     {
@@ -327,7 +417,7 @@ async function getByProcess(filters = {}) {
     }
   ]
   const trend = await db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
-    .aggregate(trendPipeline).toArray()
+    .aggregate(trendPipeline, { allowDiskUse: true }).toArray()
 
   // 3. Drilldown: Top 5 failed scenarios and equipment per process
   const drilldownScenarioPipeline = [
@@ -351,9 +441,9 @@ async function getByProcess(filters = {}) {
     { $project: { _id: 0, process: '$_id', topScenarios: { $slice: ['$topScenarios', 5] } } }
   ]
   const drilldownScenarios = await db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
-    .aggregate(drilldownScenarioPipeline).toArray()
+    .aggregate(drilldownScenarioPipeline, { allowDiskUse: true }).toArray()
 
-  const equipDailyMatch = buildMatchFilter(period, { line })
+  const equipDailyMatch = buildMatchFilter(period, dimFilters)
   const drilldownEquipmentPipeline = [
     { $match: equipDailyMatch },
     { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
@@ -375,7 +465,7 @@ async function getByProcess(filters = {}) {
     { $project: { _id: 0, process: '$_id', topEquipment: { $slice: ['$topEquipment', 5] } } }
   ]
   const drilldownEquipment = await db.collection('RECOVERY_SUMMARY_BY_EQUIPMENT')
-    .aggregate(drilldownEquipmentPipeline).toArray()
+    .aggregate(drilldownEquipmentPipeline, { allowDiskUse: true }).toArray()
 
   // Merge drilldown data by process
   const drilldown = {}
@@ -388,14 +478,17 @@ async function getByProcess(filters = {}) {
     drilldown[item.process].topEquipment = item.topEquipment
   }
 
-  return { processes: normalizeDoc(processes), trend: normalizeDoc(trend), drilldown }
+  const granularity = determineTrendGranularity(period, { startDate, endDate })
+  const rolledTrend = rollupTrend(normalizeDoc(trend), granularity)
+
+  return { processes: normalizeDoc(processes), trend: rolledTrend, granularity, drilldown }
 }
 
 /**
  * GET /api/recovery/analysis
  */
 async function getAnalysis(filters = {}) {
-  const { period = 'today', process, line, model, tab = 'scenario' } = filters
+  const { period = 'today', process, line, model, tab = 'scenario', startDate, endDate } = filters
   const db = getEarsDb()
 
   const config = TAB_CONFIG[tab]
@@ -404,8 +497,9 @@ async function getAnalysis(filters = {}) {
   }
 
   const { collection: collName, groupField } = config
-  const dailyMatch = buildMatchFilter(period, { process, line, model })
-  const hourlyMatch = buildHourlyMatchFilter(period, { process, line, model })
+  const dimFilters = { process, line, model, startDate, endDate }
+  const dailyMatch = buildMatchFilter(period, dimFilters)
+  const trendMatch = buildTrendMatchFilter(period, dimFilters)
 
   // 1. Grouped data by the tab's groupField
   const dataPipeline = [
@@ -429,7 +523,7 @@ async function getAnalysis(filters = {}) {
     { $sort: { total: -1 } },
     { $project: { _id: 0, [groupField]: '$_id', total: 1, status_counts: 1 } }
   ]
-  const rawData = await db.collection(collName).aggregate(dataPipeline).toArray()
+  const rawData = await db.collection(collName).aggregate(dataPipeline, { allowDiskUse: true }).toArray()
 
   // Normalize: rename groupField → name, status_counts → statusCounts
   const data = rawData.map(doc => {
@@ -448,7 +542,7 @@ async function getAnalysis(filters = {}) {
 
   // 2. Hourly trend for the tab's groupField
   const trendPipeline = [
-    { $match: hourlyMatch },
+    { $match: trendMatch },
     { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
     { $unwind: '$sc_array' },
     {
@@ -476,9 +570,12 @@ async function getAnalysis(filters = {}) {
       }
     }
   ]
-  const trend = await db.collection(collName).aggregate(trendPipeline).toArray()
+  const trend = await db.collection(collName).aggregate(trendPipeline, { allowDiskUse: true }).toArray()
 
-  return { data, trend: normalizeDoc(trend) }
+  const granularity = determineTrendGranularity(period, { startDate, endDate })
+  const rolledTrend = rollupTrend(normalizeDoc(trend), granularity)
+
+  return { data, trend: rolledTrend, granularity }
 }
 
 /**

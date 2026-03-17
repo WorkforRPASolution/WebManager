@@ -2,16 +2,17 @@
 import { computed } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
-import { BarChart } from 'echarts/charts'
+import { BarChart, LineChart } from 'echarts/charts'
 import { TooltipComponent, LegendComponent, GridComponent, DataZoomComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useTheme } from '../../../shared/composables/useTheme'
 import { getStatusColor } from '../utils/recoveryColors'
 
-use([BarChart, TooltipComponent, LegendComponent, GridComponent, DataZoomComponent, CanvasRenderer])
+use([BarChart, LineChart, TooltipComponent, LegendComponent, GridComponent, DataZoomComponent, CanvasRenderer])
 
 const props = defineProps({
-  data: { type: Array, default: () => [] }
+  data: { type: Array, default: () => [] },
+  granularity: { type: String, default: 'hourly' }
 })
 
 const { isDark } = useTheme()
@@ -23,22 +24,32 @@ const MAIN_STATUSES = ['Success', 'Failed', 'Stopped', 'Skip']
 
 const needsZoom = computed(() => props.data.length > MAX_VISIBLE)
 
+function formatBucketLabel(bucket, granularity) {
+  const date = new Date(bucket)
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  const hh = String(date.getHours()).padStart(2, '0')
+
+  switch (granularity) {
+    case 'hourly': {
+      const today = new Date()
+      if (date.toDateString() !== today.toDateString()) return `${mm}/${dd} ${hh}:00`
+      return `${hh}:00`
+    }
+    case 'daily':
+      return `${mm}/${dd}`
+    case 'weekly':
+      return `${mm}/${dd}~`
+    case 'monthly':
+      return `${date.getFullYear()}.${mm}`
+    default:
+      return `${mm}/${dd}`
+  }
+}
+
 const option = computed(() => {
   const dark = isDark.value
-  const categories = props.data.map(d => {
-    // bucket을 HH:00 형식으로 변환
-    const date = new Date(d.bucket)
-    const hh = String(date.getHours()).padStart(2, '0')
-    const mm = String(date.getMinutes()).padStart(2, '0')
-    // 날짜가 다르면 MM/DD HH:mm 형식
-    const today = new Date()
-    if (date.toDateString() !== today.toDateString()) {
-      const mon = String(date.getMonth() + 1).padStart(2, '0')
-      const day = String(date.getDate()).padStart(2, '0')
-      return `${mon}/${day} ${hh}:${mm}`
-    }
-    return `${hh}:${mm}`
-  })
+  const categories = props.data.map(d => formatBucketLabel(d.bucket, props.granularity))
 
   // 각 상태별 데이터 추출
   const seriesData = {}
@@ -83,11 +94,14 @@ const option = computed(() => {
       textStyle: { color: dark ? '#e5e7eb' : '#111827' },
       formatter: (params) => {
         const title = params[0]?.axisValueLabel || ''
-        const items = params.filter(p => p.value > 0)
-        if (items.length === 0) return `${title}<br/>데이터 없음`
-        const total = params.reduce((s, p) => s + (p.value || 0), 0)
-        const lines = items.map(p => `${p.marker} ${p.seriesName}: <b>${p.value}</b>`).join('<br/>')
-        return `<b>${title}</b> (Total: ${total})<br/>${lines}`
+        const lineItems = ['Total', 'Scenarios']
+        const topLines = params
+          .filter(p => lineItems.includes(p.seriesName))
+          .map(p => `${p.marker} ${p.seriesName}: <b>${p.value}</b>`)
+        const barItems = params.filter(p => !lineItems.includes(p.seriesName) && p.value > 0)
+        if (barItems.length === 0 && topLines.length === 0) return `${title}<br/>데이터 없음`
+        const barLines = barItems.map(p => `${p.marker} ${p.seriesName}: <b>${p.value}</b>`).join('<br/>')
+        return `<b>${title}</b><br/>${topLines.join('<br/>')}${barLines ? '<br/>' + barLines : ''}`
       }
     },
     legend: {
@@ -129,26 +143,77 @@ const option = computed(() => {
       axisLine: { lineStyle: { color: dark ? '#374151' : '#e5e7eb' } },
       axisTick: { show: false }
     },
-    yAxis: {
-      type: 'value',
-      splitLine: { lineStyle: { color: dark ? '#374151' : '#e5e7eb' } },
-      axisLabel: { color: dark ? '#9ca3af' : '#6b7280' }
-    },
+    yAxis: [
+      {
+        type: 'value',
+        splitLine: { lineStyle: { color: dark ? '#374151' : '#e5e7eb' } },
+        axisLabel: { color: dark ? '#9ca3af' : '#6b7280' }
+      },
+      {
+        type: 'value',
+        splitLine: { show: false },
+        axisLabel: { show: false }
+      }
+    ],
     animationEasing: 'elasticOut',
     animationDuration: 800,
-    series: allStatuses.map((status, idx) => ({
-      name: status,
-      type: 'bar',
-      stack: 'total',
-      data: seriesData[status],
-      itemStyle: {
-        color: statusColors[status],
-        // 마지막 시리즈(맨 위)만 상단 라운드
-        borderRadius: idx === allStatuses.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]
+    series: [
+      ...allStatuses.map((status, idx) => ({
+        name: status,
+        type: 'bar',
+        stack: 'total',
+        yAxisIndex: 0,
+        data: seriesData[status],
+        itemStyle: {
+          color: statusColors[status],
+          borderRadius: idx === allStatuses.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]
+        },
+        emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } },
+        barMaxWidth: 50
+      })),
+      {
+        name: 'Total',
+        type: 'line',
+        yAxisIndex: 1,
+        data: props.data.map(d => {
+          const sc = d.statusCounts || {}
+          return Object.values(sc).reduce((sum, v) => sum + v, 0)
+        }),
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
+        lineStyle: {
+          color: dark ? '#a5b4fc' : '#6366f1',
+          width: 2
+        },
+        itemStyle: {
+          color: dark ? '#a5b4fc' : '#6366f1',
+          borderColor: dark ? '#1f2937' : '#fff',
+          borderWidth: 2
+        },
+        z: 10
       },
-      emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } },
-      barMaxWidth: 50
-    }))
+      {
+        name: 'Scenarios',
+        type: 'line',
+        yAxisIndex: 1,
+        data: props.data.map(d => d.scenarioCount || 0),
+        smooth: true,
+        symbol: 'diamond',
+        symbolSize: 7,
+        lineStyle: {
+          color: dark ? '#fbbf24' : '#d97706',
+          width: 2,
+          type: 'dashed'
+        },
+        itemStyle: {
+          color: dark ? '#fbbf24' : '#d97706',
+          borderColor: dark ? '#1f2937' : '#fff',
+          borderWidth: 2
+        },
+        z: 10
+      }
+    ]
   }
 })
 </script>

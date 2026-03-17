@@ -72,9 +72,9 @@ export const dashboardApi = {
 
 // Recovery Dashboard API
 export const recoveryApi = {
-  getOverview: (params = {}) => api.get('/recovery/overview', { params }),
-  getByProcess: (params = {}) => api.get('/recovery/by-process', { params }),
-  getAnalysis: (params = {}) => api.get('/recovery/analysis', { params }),
+  getOverview: (params = {}) => api.get('/recovery/overview', { params, timeout: 60000 }),
+  getByProcess: (params = {}) => api.get('/recovery/by-process', { params, timeout: 60000 }),
+  getAnalysis: (params = {}) => api.get('/recovery/analysis', { params, timeout: 60000 }),
   getHistory: (params = {}) => api.get('/recovery/history', { params, timeout: 30000 }),
   getLastAggregation: () => api.get('/recovery/last-aggregation'),
 }

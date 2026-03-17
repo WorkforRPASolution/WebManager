@@ -11,7 +11,8 @@ use([LineChart, TooltipComponent, LegendComponent, GridComponent, DataZoomCompon
 
 const props = defineProps({
   data: { type: Array, default: () => [] },
-  topCount: { type: Number, default: 5 }
+  topCount: { type: Number, default: 5 },
+  granularity: { type: String, default: 'daily' }
 })
 
 const { isDark } = useTheme()
@@ -64,15 +65,22 @@ const option = computed(() => {
   })
   const sortedBuckets = [...allBuckets].sort()
 
-  // Format bucket labels
+  // Format bucket labels based on granularity
   const categories = sortedBuckets.map(bucket => {
     const date = new Date(bucket)
     const pad = (n) => String(n).padStart(2, '0')
-    const today = new Date()
-    if (date.toDateString() !== today.toDateString()) {
-      return `${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+    const mm = pad(date.getMonth() + 1)
+    const dd = pad(date.getDate())
+    switch (props.granularity) {
+      case 'hourly': {
+        const today = new Date()
+        if (date.toDateString() !== today.toDateString()) return `${mm}/${dd} ${pad(date.getHours())}:00`
+        return `${pad(date.getHours())}:00`
+      }
+      case 'weekly': return `${mm}/${dd}~`
+      case 'monthly': return `${date.getFullYear()}.${mm}`
+      default: return `${mm}/${dd}`
     }
-    return `${pad(date.getHours())}:${pad(date.getMinutes())}`
   })
 
   // Build series - assign stable color indices based on sorted process order
