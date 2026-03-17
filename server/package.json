@@ -8,6 +8,7 @@
     "start": "node index.js",
     "seed:roles": "node scripts/seedRolePermissions.js",
     "setup:admin": "node scripts/setupAdmin.js",
+    "seed:recovery": "node scripts/seedRecoveryData.js",
     "seed:all": "node scripts/seedRolePermissions.js && node scripts/setupAdmin.js",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -30,6 +31,7 @@
     "minio": "^8.0.6",
     "mongoose": "^9.1.3",
     "multer": "^2.0.2",
+    "node-cron": "^3.0.3",
     "socks": "^2.8.7",
     "uuid": "^13.0.0"
   },

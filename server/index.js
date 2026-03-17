@@ -10,6 +10,7 @@ const { initializeExecCommands } = require('./features/exec-commands/service');
 const { initializeConfigSettings } = require('./features/clients/configSettingsService')
 const { initializeLogSettings } = require('./features/clients/logSettingsService')
 const { initializeUpdateSettings } = require('./features/clients/updateSettingsService')
+const { initializeRecoverySummary, startCronJobs, stopCronJobs } = require('./features/recovery/recoverySummaryService')
 
 const PORT = process.env.PORT || 3000;
 
@@ -29,11 +30,15 @@ const startServer = async () => {
     await initializeConfigSettings();
     await initializeLogSettings();
     await initializeUpdateSettings();
+    await initializeRecoverySummary();
     console.log('Permissions synced');
 
     const server = app.listen(PORT, () => {
       console.log(`Server running on http://localhost:${PORT}`);
     });
+
+    // Start cron jobs after server is listening
+    startCronJobs();
 
     // Graceful shutdown
     let isShuttingDown = false
@@ -62,7 +67,10 @@ const startServer = async () => {
         server.closeAllConnections()
         console.log('Closed all remaining connections')
 
-        // 4. DB 연결 종료
+        // 4. Cron 중지
+        stopCronJobs()
+
+        // 5. DB 연결 종료
         await closeConnections()
         await closeRedis()
 
