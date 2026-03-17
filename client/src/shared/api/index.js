@@ -70,6 +70,15 @@ export const dashboardApi = {
   getResourceAgentVersionDistribution: (params = {}) => api.get('/dashboard/resource-agent-version', { params }),
 }
 
+// Recovery Dashboard API
+export const recoveryApi = {
+  getOverview: (params = {}) => api.get('/recovery/overview', { params }),
+  getByProcess: (params = {}) => api.get('/recovery/by-process', { params }),
+  getAnalysis: (params = {}) => api.get('/recovery/analysis', { params }),
+  getHistory: (params = {}) => api.get('/recovery/history', { params }),
+  getLastAggregation: () => api.get('/recovery/last-aggregation'),
+}
+
 // Auth API
 export const authApi = {
   login: (username, password) => api.post('/auth/login', { username, password }),

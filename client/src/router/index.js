@@ -148,6 +148,69 @@ const routes = [
     }
   },
   {
+    path: '/recovery-overview',
+    name: 'RecoveryOverview',
+    component: () => import('../features/dashboard/RecoveryOverviewView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'dashboardRecoveryOverview',
+      menu: {
+        mainMenu: 'dashboard',
+        mainMenuLabel: 'Dashboard',
+        mainMenuIcon: 'dashboard',
+        mainMenuOrder: 1,
+        subMenu: 'recovery-overview',
+        subMenuLabel: 'Recovery Overview',
+        subMenuIcon: 'healing',
+        subMenuOrder: 6,
+        permission: 'dashboardRecoveryOverview'
+      }
+    }
+  },
+  {
+    path: '/recovery-by-process',
+    name: 'RecoveryByProcess',
+    component: () => import('../features/dashboard/RecoveryByProcessView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'dashboardRecoveryByProcess',
+      menu: {
+        mainMenu: 'dashboard',
+        mainMenuLabel: 'Dashboard',
+        mainMenuIcon: 'dashboard',
+        mainMenuOrder: 1,
+        subMenu: 'recovery-by-process',
+        subMenuLabel: 'Recovery by Process',
+        subMenuIcon: 'compare_arrows',
+        subMenuOrder: 7,
+        permission: 'dashboardRecoveryByProcess'
+      }
+    }
+  },
+  {
+    path: '/recovery-analysis',
+    name: 'RecoveryAnalysis',
+    component: () => import('../features/dashboard/RecoveryAnalysisView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'dashboardRecoveryAnalysis',
+      menu: {
+        mainMenu: 'dashboard',
+        mainMenuLabel: 'Dashboard',
+        mainMenuIcon: 'dashboard',
+        mainMenuOrder: 1,
+        subMenu: 'recovery-analysis',
+        subMenuLabel: 'Recovery Analysis',
+        subMenuIcon: 'analytics',
+        subMenuOrder: 8,
+        permission: 'dashboardRecoveryAnalysis'
+      }
+    }
+  },
+  {
     path: '/clients',
     name: 'Clients',
     component: () => import('../features/clients/ClientsView.vue'),
