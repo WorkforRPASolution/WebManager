@@ -106,8 +106,8 @@ async function fetchTrend(itemName) {
       if (userProcesses) params.process = userProcesses.join(',')
     }
 
-    const res = await recoveryApi.getTrend(params)
-    trendData.value = res.data.data || []
+    const res = await recoveryApi.getAnalysis(params)
+    trendData.value = res.data.trend || []
   } catch (err) {
     console.error('Failed to fetch trend:', err)
     trendData.value = []

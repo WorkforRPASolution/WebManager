@@ -75,7 +75,7 @@ export const recoveryApi = {
   getOverview: (params = {}) => api.get('/recovery/overview', { params }),
   getByProcess: (params = {}) => api.get('/recovery/by-process', { params }),
   getAnalysis: (params = {}) => api.get('/recovery/analysis', { params }),
-  getHistory: (params = {}) => api.get('/recovery/history', { params }),
+  getHistory: (params = {}) => api.get('/recovery/history', { params, timeout: 30000 }),
   getLastAggregation: () => api.get('/recovery/last-aggregation'),
 }
 
@@ -152,12 +152,4 @@ export const imagesApi = {
     // Backward compatibility for local storage (id only)
     return api.delete(`/images/${prefix}`)
   },
-}
-
-// Recovery Analysis API
-export const recoveryApi = {
-  getAnalysis: (params) => api.get('/dashboard/recovery/analysis', { params }),
-  getTrend: (params) => api.get('/dashboard/recovery/trend', { params }),
-  getLastAggregation: () => api.get('/dashboard/recovery/last-aggregation'),
-  getHistory: (params) => api.get('/dashboard/recovery/history', { params, timeout: 30000 }),
 }
