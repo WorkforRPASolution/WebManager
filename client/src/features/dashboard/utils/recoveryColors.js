@@ -46,6 +46,14 @@ export function getStatusColor(status, isDark) {
  * @param {boolean} isDark - 다크 모드 여부
  * @returns {string} hex color
  */
+/**
+ * 차트에 표시할 주요 Status 목록 반환
+ * @returns {string[]}
+ */
+export function getStatusList() {
+  return Object.keys(STATUS_COLORS)
+}
+
 export function getTriggerColor(trigger, isDark) {
   const mode = isDark ? 'dark' : 'light'
   return TRIGGER_COLORS[trigger]?.[mode] || TRIGGER_COLORS.Other[mode]
