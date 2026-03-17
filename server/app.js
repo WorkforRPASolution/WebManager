@@ -47,6 +47,7 @@ app.use('/api/os-version', require('./features/os-version/routes'));
 app.use('/api/email-recipients', require('./features/email-recipients/routes'));
 app.use('/api/images', require('./features/images/routes'));
 app.use('/api/popup-template', require('./features/popup-template/routes'));
+app.use('/api/recovery', require('./features/recovery/routes'));
 
 // Production: Serve static files from client/dist
 if (process.env.NODE_ENV === 'production') {
