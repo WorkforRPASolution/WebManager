@@ -148,6 +148,27 @@ const routes = [
     }
   },
   {
+    path: '/recovery-analysis',
+    name: 'RecoveryAnalysis',
+    component: () => import('../features/dashboard/RecoveryAnalysisView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'dashboardRecovery',
+      menu: {
+        mainMenu: 'dashboard',
+        mainMenuLabel: 'Dashboard',
+        mainMenuIcon: 'dashboard',
+        mainMenuOrder: 1,
+        subMenu: 'recovery-analysis',
+        subMenuLabel: 'Recovery Analysis',
+        subMenuIcon: 'healing',
+        subMenuOrder: 6,
+        permission: 'dashboardRecovery'
+      }
+    }
+  },
+  {
     path: '/clients',
     name: 'Clients',
     component: () => import('../features/clients/ClientsView.vue'),
