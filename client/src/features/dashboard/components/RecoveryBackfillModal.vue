@@ -61,7 +61,25 @@
               </div>
               <div>
                 <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">종료일</label>
-                <input type="date" v-model="endDate" :disabled="selectedPeriod !== 'custom'" class="px-2 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-card text-gray-900 dark:text-white disabled:opacity-50" />
+                <div class="flex items-center gap-1">
+                  <input type="date" v-model="endDate" :disabled="selectedPeriod !== 'custom'" class="px-2 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-card text-gray-900 dark:text-white disabled:opacity-50" />
+                  <button
+                    v-if="selectedPeriod !== 'custom'"
+                    @click="shiftPeriod(-1)"
+                    class="p-1 text-gray-500 dark:text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-dark-border rounded transition-colors"
+                    title="이전 기간"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                  </button>
+                  <button
+                    v-if="selectedPeriod !== 'custom'"
+                    @click="shiftPeriod(1)"
+                    class="p-1 text-gray-500 dark:text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-dark-border rounded transition-colors"
+                    title="다음 기간"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -358,6 +376,29 @@ function applyPeriodDates(period) {
     start.setDate(start.getDate() - 90)
     startDate.value = start.toISOString().slice(0, 10)
   }
+}
+
+// ── Period Navigation (좌우 이동) ──
+const PERIOD_DAYS = { today: 1, '7d': 7, '30d': 30, '90d': 90 }
+
+function shiftPeriod(direction) {
+  if (!startDate.value || !endDate.value) return
+  const days = PERIOD_DAYS[selectedPeriod.value]
+  if (!days) return // custom은 이동 불가
+
+  const shift = direction * days
+  const s = new Date(startDate.value)
+  const e = new Date(endDate.value)
+  s.setDate(s.getDate() + shift)
+  e.setDate(e.getDate() + shift)
+
+  // 미래로 넘어가지 않도록 제한
+  const today = new Date().toISOString().slice(0, 10)
+  if (e.toISOString().slice(0, 10) > today && direction > 0) return
+
+  startDate.value = s.toISOString().slice(0, 10)
+  endDate.value = e.toISOString().slice(0, 10)
+  analysisResult.value = null
 }
 
 // ── Validation ──
