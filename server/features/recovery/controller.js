@@ -6,6 +6,7 @@
 const service = require('./service')
 const { validatePeriodRange, validateBackfillRange } = require('./validation')
 const { parsePaginationParams, createPaginatedResponse } = require('../../shared/utils/pagination')
+const { createBatchLog, WebManagerLog } = require('../../shared/models/webmanagerLogModel')
 
 // ── Dependency Injection (for testing) ──
 
@@ -18,6 +19,10 @@ function getSummaryService() {
 
 function getDateUtils() {
   return deps.dateUtils || require('./dateUtils')
+}
+
+function getWebManagerLog() {
+  return deps.WebManagerLog || WebManagerLog
 }
 
 async function getOverview(req, res) {
@@ -202,6 +207,20 @@ async function startBackfill(req, res) {
       throttleMs: clampedThrottle,
       retryPartial: !!retryPartial
     })
+
+    createBatchLog({
+      batchAction: 'backfill_started',
+      batchParams: {
+        startDate: alignedStart.toISOString(),
+        endDate: alignedEnd.toISOString(),
+        skipHourly: !!skipHourly,
+        skipDaily: !!skipDaily,
+        throttleMs: clampedThrottle,
+        retryPartial: !!retryPartial
+      },
+      userId: req.user?.singleid || 'system'
+    }).catch(e => console.error('[BatchLog] backfill_started log failed:', e.message))
+
     res.status(202).json({ message: 'Backfill started' })
   } catch (err) {
     res.status(409).json({ error: err.message })
@@ -216,10 +235,102 @@ async function getBackfillStatus(req, res) {
   })
 }
 
+const VALID_DISTRIBUTION_PERIODS = ['today', '7d', '30d', '90d']
+
+async function getCronRunDistribution(req, res) {
+  const period = req.query.period || '7d'
+  if (!VALID_DISTRIBUTION_PERIODS.includes(period)) {
+    return res.status(400).json({ error: `Invalid period. Must be one of: ${VALID_DISTRIBUTION_PERIODS.join(', ')}` })
+  }
+  const summaryService = getSummaryService()
+  const result = await summaryService.getCronRunDistribution(period)
+  res.json(result)
+}
+
 async function handleCancelBackfill(req, res) {
   const summaryService = getSummaryService()
   summaryService.cancelBackfill()
+
+  createBatchLog({
+    batchAction: 'backfill_cancelled',
+    batchParams: {},
+    userId: req.user?.singleid || 'system'
+  }).catch(e => console.error('[BatchLog] backfill_cancelled log failed:', e.message))
+
   res.json({ message: 'Backfill cancel requested' })
+}
+
+// ── Batch Logs API ──
+
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000
+
+function buildBatchLogsQuery(query) {
+  const filter = { category: 'batch' }
+  if (query.batchAction) filter.batchAction = query.batchAction
+  if (query.startDate || query.endDate) {
+    filter.timestamp = {}
+    if (query.startDate) {
+      const start = new Date(query.startDate)
+      start.setUTCHours(0, 0, 0, 0)
+      filter.timestamp.$gte = new Date(start.getTime() - KST_OFFSET_MS)
+    }
+    if (query.endDate) {
+      const end = new Date(query.endDate)
+      end.setUTCHours(0, 0, 0, 0)
+      filter.timestamp.$lte = new Date(end.getTime() - KST_OFFSET_MS + 24 * 60 * 60 * 1000 - 1)
+    }
+  } else if (query.period) {
+    const now = new Date()
+    let startDate
+    if (query.period === 'today') {
+      const kstNow = new Date(now.getTime() + KST_OFFSET_MS)
+      kstNow.setUTCHours(0, 0, 0, 0)
+      startDate = new Date(kstNow.getTime() - KST_OFFSET_MS)
+    } else if (query.period === '7d') {
+      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    } else if (query.period === '30d') {
+      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    }
+    if (startDate) filter.timestamp = { $gte: startDate }
+  }
+  return filter
+}
+
+async function getBatchLogs(req, res) {
+  const Log = getWebManagerLog()
+  const { page, pageSize, skip, limit } = parsePaginationParams(req.query, { defaultPageSize: 50 })
+  const filter = buildBatchLogsQuery(req.query)
+  const [data, total] = await Promise.all([
+    Log.find(filter).sort({ timestamp: -1 }).skip(skip).limit(limit).lean(),
+    Log.countDocuments(filter)
+  ])
+  res.json(createPaginatedResponse(data, total, page, pageSize))
+}
+
+const BACKFILL_ACTIONS = new Set([
+  'backfill_started', 'backfill_completed', 'backfill_cancelled', 'auto_backfill_completed'
+])
+
+async function getBatchHeatmap(req, res) {
+  const Log = getWebManagerLog()
+  const days = Math.min(90, Math.max(1, parseInt(req.query.days, 10) || 30))
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+  const pipeline = [
+    { $match: { category: 'batch', timestamp: { $gte: since } } },
+    { $group: { _id: { date: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp', timezone: '+09:00' } }, action: '$batchAction' }, count: { $sum: 1 } } },
+    { $group: { _id: '$_id.date', total: { $sum: '$count' }, actions: { $push: { k: '$_id.action', v: '$count' } } } },
+    { $sort: { _id: 1 } },
+    { $project: { _id: 0, date: '$_id', total: 1, actions: { $arrayToObject: '$actions' } } }
+  ]
+  const raw = await Log.collection.aggregate(pipeline).toArray()
+  const data = raw.map(row => ({
+    date: row.date,
+    total: row.total,
+    cron: row.actions.cron_completed || 0,
+    skip: row.actions.cron_skipped || 0,
+    backfill: Object.entries(row.actions).filter(([k]) => BACKFILL_ACTIONS.has(k)).reduce((sum, [, v]) => sum + v, 0)
+  }))
+  res.json({ data })
 }
 
 module.exports = {
@@ -231,6 +342,9 @@ module.exports = {
   analyzeBackfill,
   startBackfill,
   getBackfillStatus,
+  getCronRunDistribution,
   cancelBackfill: handleCancelBackfill,
+  getBatchLogs,
+  getBatchHeatmap,
   _setDeps
 }

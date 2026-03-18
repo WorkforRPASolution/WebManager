@@ -23,6 +23,11 @@ router.get('/last-aggregation', authenticate, asyncHandler(controller.getLastAgg
 router.post('/backfill/analyze', authenticate, requireRole([1]), asyncHandler(controller.analyzeBackfill))
 router.post('/backfill', authenticate, requireRole([1]), asyncHandler(controller.startBackfill))
 router.get('/backfill/status', authenticate, requireRole([1]), asyncHandler(controller.getBackfillStatus))
+router.get('/backfill/distribution', authenticate, requireRole([1]), asyncHandler(controller.getCronRunDistribution))
 router.post('/backfill/cancel', authenticate, requireRole([1]), asyncHandler(controller.cancelBackfill))
+
+// Batch Logs API (Admin only)
+router.get('/batch-logs', authenticate, requireRole([1]), asyncHandler(controller.getBatchLogs))
+router.get('/batch-logs/heatmap', authenticate, requireRole([1]), asyncHandler(controller.getBatchHeatmap))
 
 module.exports = router
