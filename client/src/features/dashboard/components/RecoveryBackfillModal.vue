@@ -116,7 +116,7 @@
                     ✓ 성공: {{ analysisResult[period].success.toLocaleString() }}
                     ({{ pct(analysisResult[period].success, analysisResult[period].total) }})
                   </span>
-                  <span v-if="analysisResult[period].partial > 0" class="text-amber-600 dark:text-amber-400">
+                  <span class="text-amber-600 dark:text-amber-400">
                     ⚠ Partial: {{ analysisResult[period].partial.toLocaleString() }}
                     ({{ pct(analysisResult[period].partial, analysisResult[period].total) }})
                   </span>
