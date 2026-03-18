@@ -45,12 +45,23 @@
           <div class="space-y-3" :class="{ 'opacity-50 pointer-events-none': serverStatus === 'running' }">
             <div class="flex flex-wrap items-center gap-3">
               <div>
+                <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">기간</label>
+                <select
+                  v-model="selectedPeriod"
+                  class="px-2 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-card text-gray-900 dark:text-white"
+                >
+                  <option v-for="opt in periodOptions" :key="opt.value" :value="opt.value">
+                    {{ opt.label }}
+                  </option>
+                </select>
+              </div>
+              <div>
                 <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">시작일</label>
-                <input type="date" v-model="startDate" class="px-2 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-card text-gray-900 dark:text-white" />
+                <input type="date" v-model="startDate" :disabled="selectedPeriod !== 'custom'" class="px-2 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-card text-gray-900 dark:text-white disabled:opacity-50" />
               </div>
               <div>
                 <label class="block text-xs text-gray-500 dark:text-gray-400 mb-1">종료일</label>
-                <input type="date" v-model="endDate" class="px-2 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-card text-gray-900 dark:text-white" />
+                <input type="date" v-model="endDate" :disabled="selectedPeriod !== 'custom'" class="px-2 py-1.5 text-sm border border-gray-300 dark:border-dark-border rounded bg-white dark:bg-dark-card text-gray-900 dark:text-white disabled:opacity-50" />
               </div>
             </div>
 
@@ -155,6 +166,23 @@
             </p>
           </div>
 
+          <!-- Distribution Chart -->
+          <div class="bg-gray-50 dark:bg-dark-bg rounded-lg p-3 space-y-2">
+            <h4 class="font-medium text-sm text-gray-700 dark:text-gray-300">배치 실행 결과 분포</h4>
+            <div v-if="distributionLoading" class="flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm" style="height: 120px">
+              로딩 중...
+            </div>
+            <VChart
+              v-else-if="distributionChartOption"
+              :option="distributionChartOption"
+              autoresize
+              style="width: 100%; height: 200px"
+            />
+            <div v-else class="flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm" style="height: 120px">
+              배치 실행 이력이 없습니다
+            </div>
+          </div>
+
           <!-- Progress Section -->
           <div v-if="serverStatus && serverStatus !== 'idle'" class="bg-gray-50 dark:bg-dark-bg rounded-lg p-3 space-y-2 text-sm">
             <div class="flex items-center justify-between">
@@ -251,6 +279,14 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { recoveryApi } from '../../../shared/api'
 import { useToast } from '../../../shared/composables/useToast'
+import { useTheme } from '../../../shared/composables/useTheme'
+import VChart from 'vue-echarts'
+import { use } from 'echarts/core'
+import { BarChart } from 'echarts/charts'
+import { TooltipComponent, LegendComponent, GridComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+
+use([BarChart, TooltipComponent, LegendComponent, GridComponent, CanvasRenderer])
 
 const props = defineProps({
   visible: Boolean
@@ -258,8 +294,17 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 const { showError } = useToast()
+const { isDark } = useTheme()
 
 // ── Form State ──
+const selectedPeriod = ref('7d')
+const periodOptions = [
+  { value: 'today', label: '오늘' },
+  { value: '7d', label: '7일' },
+  { value: '30d', label: '30일' },
+  { value: '90d', label: '90일' },
+  { value: 'custom', label: '직접 설정' }
+]
 const startDate = ref('')
 const endDate = ref('')
 const skipHourly = ref(false)
@@ -287,15 +332,32 @@ let pollTimer = null
 let pollFailCount = 0
 let lastBucket = null
 
+// ── Distribution Chart ──
+const distributionLoading = ref(false)
+const distributionData = ref(null)
+
 // ── Date defaults ──
-function initDates() {
+function applyPeriodDates(period) {
+  if (period === 'custom') return
   const now = new Date()
-  const end = new Date(now)
-  end.setDate(end.getDate())
+  endDate.value = now.toISOString().slice(0, 10)
   const start = new Date(now)
-  start.setDate(start.getDate() - 7)
-  endDate.value = end.toISOString().slice(0, 10)
-  startDate.value = start.toISOString().slice(0, 10)
+  if (period === 'today') {
+    startDate.value = endDate.value
+    // Backfill API requires start < end, so push end +1 day
+    const tomorrow = new Date(now)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    endDate.value = tomorrow.toISOString().slice(0, 10)
+  } else if (period === '7d') {
+    start.setDate(start.getDate() - 7)
+    startDate.value = start.toISOString().slice(0, 10)
+  } else if (period === '30d') {
+    start.setDate(start.getDate() - 30)
+    startDate.value = start.toISOString().slice(0, 10)
+  } else if (period === '90d') {
+    start.setDate(start.getDate() - 90)
+    startDate.value = start.toISOString().slice(0, 10)
+  }
 }
 
 // ── Validation ──
@@ -444,6 +506,119 @@ function formatBucket(bucket) {
   return d.toISOString().replace('T', ' ').slice(0, 16)
 }
 
+async function fetchDistribution() {
+  const period = selectedPeriod.value === 'custom' ? '90d' : selectedPeriod.value
+  distributionLoading.value = true
+  try {
+    const res = await recoveryApi.getCronRunDistribution({ period })
+    distributionData.value = res.data
+  } catch {
+    distributionData.value = null
+  } finally {
+    distributionLoading.value = false
+  }
+}
+
+function formatDistributionLabel(bucket, granularity) {
+  const d = new Date(bucket)
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000)
+  const mm = String(kst.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(kst.getUTCDate()).padStart(2, '0')
+  if (granularity === 'hourly') {
+    const hh = String(kst.getUTCHours()).padStart(2, '0')
+    return `${mm}/${dd} ${hh}:00`
+  }
+  if (granularity === 'weekly') {
+    return `${mm}/${dd}~`
+  }
+  return `${mm}/${dd}`
+}
+
+const distributionChartOption = computed(() => {
+  if (!distributionData.value || !distributionData.value.data?.length) return null
+
+  const { granularity, data } = distributionData.value
+  const textColor = isDark.value ? '#9ca3af' : '#6b7280'
+  const borderColor = isDark.value ? '#374151' : '#e5e7eb'
+
+  return {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter(params) {
+        const bucket = params[0]?.axisValue || ''
+        let html = `<div style="font-weight:600;margin-bottom:4px">${bucket}</div>`
+        let total = 0
+        for (const p of params) {
+          if (p.value > 0) {
+            html += `<div>${p.marker} ${p.seriesName}: <b>${p.value}</b></div>`
+          }
+          total += p.value
+        }
+        html += `<div style="margin-top:4px;border-top:1px solid ${borderColor};padding-top:4px">Total: <b>${total}</b></div>`
+        return html
+      }
+    },
+    legend: {
+      top: 0,
+      textStyle: { color: textColor, fontSize: 11 }
+    },
+    grid: { left: 40, right: 12, top: 28, bottom: 24 },
+    xAxis: {
+      type: 'category',
+      data: data.map(d => formatDistributionLabel(d.bucket, granularity)),
+      axisLabel: { color: textColor, fontSize: 10, rotate: data.length > 15 ? 45 : 0 },
+      axisLine: { lineStyle: { color: borderColor } }
+    },
+    yAxis: {
+      type: 'value',
+      minInterval: 1,
+      axisLabel: { color: textColor, fontSize: 10 },
+      splitLine: { lineStyle: { color: borderColor, type: 'dashed' } }
+    },
+    series: [
+      {
+        name: 'Success',
+        type: 'bar',
+        stack: 'total',
+        data: data.map(d => d.success),
+        itemStyle: { color: '#22c55e' },
+        barMaxWidth: 20
+      },
+      {
+        name: 'Partial',
+        type: 'bar',
+        stack: 'total',
+        data: data.map(d => d.partial),
+        itemStyle: { color: '#f59e0b' },
+        barMaxWidth: 20
+      },
+      {
+        name: 'Failed',
+        type: 'bar',
+        stack: 'total',
+        data: data.map(d => d.failed),
+        itemStyle: { color: '#ef4444' },
+        barMaxWidth: 20
+      },
+      {
+        name: 'Pending',
+        type: 'bar',
+        stack: 'total',
+        data: data.map(d => d.pending),
+        itemStyle: { color: isDark.value ? '#4b5563' : '#d1d5db' },
+        barMaxWidth: 20
+      }
+    ]
+  }
+})
+
+watch(selectedPeriod, (val) => {
+  applyPeriodDates(val)
+  analysisResult.value = null
+  fetchDistribution()
+})
+
 function formatDuration(minutes) {
   if (!minutes || minutes <= 0) return '0분'
   if (minutes < 60) return `${Math.round(minutes)}분`
@@ -509,7 +684,7 @@ const statusBadgeClass = computed(() => {
 // ── Modal drag/resize (simplified from RecoveryHistoryModal pattern) ──
 const modalRef = ref(null)
 const pos = ref({ x: 0, y: 0 })
-const size = ref({ w: 640, h: 560 })
+const size = ref({ w: 640, h: 700 })
 let dragState = null
 
 const modalStyle = computed(() => ({
@@ -551,7 +726,7 @@ function onMouseMove(e) {
   } else {
     size.value = {
       w: Math.max(480, dragState.startW + e.clientX - dragState.startX),
-      h: Math.max(400, dragState.startH + e.clientY - dragState.startY)
+      h: Math.max(500, dragState.startH + e.clientY - dragState.startY)
     }
   }
 }
@@ -566,7 +741,8 @@ function onMouseUp() {
 watch(() => props.visible, (val) => {
   if (val) {
     centerModal()
-    if (!startDate.value) initDates()
+    if (!startDate.value) applyPeriodDates(selectedPeriod.value)
+    fetchDistribution()
     // Check existing running state
     fetchStatus().then(() => {
       if (serverStatus.value === 'running') startPolling()
@@ -579,7 +755,8 @@ watch(() => props.visible, (val) => {
 onMounted(() => {
   if (props.visible) {
     centerModal()
-    initDates()
+    applyPeriodDates(selectedPeriod.value)
+    fetchDistribution()
     fetchStatus().then(() => {
       if (serverStatus.value === 'running') startPolling()
     })

@@ -5,6 +5,7 @@
  * - audit: 데이터 변경 이력
  * - error: 서버 에러/예외
  * - auth: 인증/권한 관련
+ * - batch: Cron/Backfill 배치 실행 이력
  */
 
 const mongoose = require('mongoose')
@@ -15,7 +16,7 @@ const webmanagerLogSchema = new mongoose.Schema({
   category: {
     type: String,
     required: true,
-    enum: ['audit', 'error', 'auth'],
+    enum: ['audit', 'error', 'auth', 'batch'],
     index: true
   },
   timestamp: {
@@ -73,6 +74,23 @@ const webmanagerLogSchema = new mongoose.Schema({
     body: mongoose.Schema.Types.Mixed
   },
 
+  // batch 전용 필드
+  batchAction: {
+    type: String,
+    enum: ['cron_completed', 'cron_skipped', 'backfill_started', 'backfill_completed', 'backfill_cancelled', 'auto_backfill_completed'],
+    index: true
+  },
+  batchPeriod: {
+    type: String,
+    enum: ['hourly', 'daily']
+  },
+  batchParams: {
+    type: mongoose.Schema.Types.Mixed
+  },
+  batchResult: {
+    type: mongoose.Schema.Types.Mixed
+  },
+
   // auth 전용 필드
   authAction: {
     type: String,
@@ -103,6 +121,9 @@ webmanagerLogSchema.index({ category: 1, errorType: 1, timestamp: -1 })
 
 // auth 관련 인덱스
 webmanagerLogSchema.index({ category: 1, authAction: 1, timestamp: -1 })
+
+// batch 관련 인덱스
+webmanagerLogSchema.index({ category: 1, batchAction: 1, timestamp: -1 })
 
 const WebManagerLog = webManagerConnection.model('WebManagerLog', webmanagerLogSchema)
 
@@ -303,6 +324,57 @@ async function getRecentAuthLogs(options = {}) {
 }
 
 // ============================================
+// Batch Log Functions (Cron/Backfill 실행 이력)
+// ============================================
+
+/**
+ * Create a batch log entry
+ * @param {Object} params - Batch log parameters
+ */
+async function createBatchLog({
+  batchAction,
+  batchPeriod = null,
+  batchParams = null,
+  batchResult = null,
+  userId = 'system'
+}) {
+  const log = new WebManagerLog({
+    category: 'batch',
+    batchAction,
+    batchPeriod,
+    batchParams,
+    batchResult,
+    userId,
+    timestamp: new Date()
+  })
+
+  return await log.save()
+}
+
+/**
+ * Get recent batch logs
+ */
+async function getRecentBatchLogs(options = {}) {
+  const query = { category: 'batch' }
+  const { limit = 100, skip = 0, batchAction, batchPeriod, userId, startDate, endDate } = options
+
+  if (batchAction) query.batchAction = batchAction
+  if (batchPeriod) query.batchPeriod = batchPeriod
+  if (userId) query.userId = userId
+  if (startDate || endDate) {
+    query.timestamp = {}
+    if (startDate) query.timestamp.$gte = new Date(startDate)
+    if (endDate) query.timestamp.$lte = new Date(endDate)
+  }
+
+  return await WebManagerLog.find(query)
+    .sort({ timestamp: -1 })
+    .skip(skip)
+    .limit(limit)
+    .lean()
+}
+
+// ============================================
 // 통합 조회 Functions
 // ============================================
 
@@ -341,6 +413,9 @@ module.exports = {
   // Auth functions (신규)
   createAuthLog,
   getRecentAuthLogs,
+  // Batch functions (신규)
+  createBatchLog,
+  getRecentBatchLogs,
   // 통합 조회
   getAllLogs
 }

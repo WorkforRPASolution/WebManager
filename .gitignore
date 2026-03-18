@@ -73,3 +73,4 @@ docs/SERVICE_STRATEGY_ARCHITECTURE.md
 .temp/
 tmp/
 .worktrees/
+.superpowers/

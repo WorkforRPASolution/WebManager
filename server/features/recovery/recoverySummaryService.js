@@ -8,6 +8,7 @@
 const cron = require('node-cron')
 const { earsConnection } = require('../../shared/db/connection')
 const CronRunLogModel = require('./cronRunLogModel')
+const { createBatchLog } = require('../../shared/models/webmanagerLogModel')
 const {
   computeHourlyBoundaries,
   computeDailyBoundaries,
@@ -210,11 +211,21 @@ let isRunning = false
 async function runBatch(period) {
   if (!indexReady) {
     console.warn(`[RecoverySummary] Skipping ${period} batch — EQP_AUTO_RECOVERY create_date index not verified`)
+    createBatchLog({
+      batchAction: 'cron_skipped',
+      batchPeriod: period,
+      batchParams: { period, reason: 'indexNotReady' }
+    }).catch(e => console.error('[BatchLog] cron_skipped log failed:', e.message))
     return
   }
 
   if (isRunning) {
     console.log(`[RecoverySummary] Skipping ${period} batch — previous run still in progress`)
+    createBatchLog({
+      batchAction: 'cron_skipped',
+      batchPeriod: period,
+      batchParams: { period, reason: 'isRunning' }
+    }).catch(e => console.error('[BatchLog] cron_skipped log failed:', e.message))
     return
   }
 
@@ -233,6 +244,13 @@ async function runBatch(period) {
     const result = await runPipelinesForBucket(period, bucketStart, dateGte, dateLt, { source: 'cron' })
 
     console.log(`[RecoverySummary] ${period} batch completed: ${result.status}`)
+
+    createBatchLog({
+      batchAction: 'cron_completed',
+      batchPeriod: period,
+      batchParams: { period, bucket: bucketStart.toISOString() },
+      batchResult: { status: result.status, pipelineResults: result.pipelineResults }
+    }).catch(e => console.error('[BatchLog] cron_completed log failed:', e.message))
 
     // Auto backfill after successful/partial cron run
     if (result.status === 'success' || result.status === 'partial') {
@@ -306,6 +324,12 @@ async function runBackfillCheck(period) {
         await deps.sleep(deps.defaultThrottleMs)
       }
     }
+
+    createBatchLog({
+      batchAction: 'auto_backfill_completed',
+      batchPeriod: period,
+      batchParams: { period, gapsFound: gaps.length, processed: toProcess.length }
+    }).catch(e => console.error('[BatchLog] auto_backfill_completed log failed:', e.message))
   } catch (err) {
     console.error(`[RecoverySummary] Auto-backfill error:`, err.message)
   }
@@ -490,6 +514,19 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
     backfillState.status = backfillState.errors.length > 0 ? 'completed_with_warnings' : 'completed'
     backfillState.completedAt = new Date()
     backfillState.current = backfillState.total
+
+    const durationMs = backfillState.completedAt.getTime() - backfillState.startedAt.getTime()
+    createBatchLog({
+      batchAction: 'backfill_completed',
+      batchResult: {
+        status: backfillState.status,
+        total: backfillState.total,
+        processed: backfillState.current - backfillState.skipped,
+        skipped: backfillState.skipped,
+        errorCount: backfillState.errors.length,
+        durationMs
+      }
+    }).catch(e => console.error('[BatchLog] backfill_completed log failed:', e.message))
   } catch (err) {
     backfillState.status = 'error'
     backfillState.completedAt = new Date()
@@ -651,6 +688,135 @@ function stopCronJobs() {
 // ── Query Helpers ──
 
 /**
+ * Compute date range and granularity for cron distribution query.
+ * @param {'today'|'7d'|'30d'|'90d'} period
+ * @param {Date} now
+ * @returns {{ startDate: Date, endDate: Date, granularity: 'hourly'|'daily'|'weekly' }}
+ */
+function computeCronDistributionRange(period, now) {
+  let startDate, granularity
+
+  if (period === 'today') {
+    startDate = floorToKSTBucket('daily', now)
+    granularity = 'hourly'
+  } else if (period === '7d') {
+    const d = new Date(now)
+    d.setDate(d.getDate() - 7)
+    startDate = floorToKSTBucket('daily', d)
+    granularity = 'daily'
+  } else if (period === '30d') {
+    const d = new Date(now)
+    d.setDate(d.getDate() - 30)
+    startDate = floorToKSTBucket('daily', d)
+    granularity = 'daily'
+  } else {
+    const d = new Date(now)
+    d.setDate(d.getDate() - 90)
+    startDate = floorToKSTBucket('daily', d)
+    granularity = 'weekly'
+  }
+
+  return { startDate, endDate: now, granularity }
+}
+
+/**
+ * Compute group key for a bucket time based on granularity.
+ */
+function computeGroupKey(bucketTime, granularity) {
+  const KST_OFFSET = 9 * 60 * 60 * 1000
+
+  if (granularity === 'hourly') {
+    return bucketTime
+  } else if (granularity === 'daily') {
+    const kstMs = bucketTime + KST_OFFSET
+    const kstDate = new Date(kstMs)
+    kstDate.setUTCHours(0, 0, 0, 0)
+    return kstDate.getTime() - KST_OFFSET
+  } else {
+    // weekly: floor to KST Monday
+    const kstMs = bucketTime + KST_OFFSET
+    const kstDate = new Date(kstMs)
+    kstDate.setUTCHours(0, 0, 0, 0)
+    const dow = kstDate.getUTCDay() // 0=Sun
+    const mondayOffset = dow === 0 ? 6 : dow - 1
+    kstDate.setUTCDate(kstDate.getUTCDate() - mondayOffset)
+    return kstDate.getTime() - KST_OFFSET
+  }
+}
+
+/**
+ * Get cron run distribution for charting.
+ * Shows success/partial/failed/pending per granularity bucket.
+ * @param {'today'|'7d'|'30d'|'90d'} period
+ * @param {Date} [_now] - Injectable for testing
+ * @returns {{ granularity: string, data: Array<{bucket, success, partial, failed, pending, total}> }}
+ */
+async function getCronRunDistribution(period, _now) {
+  const CronRunLog = getCronRunLog()
+  const now = _now || new Date()
+  const { startDate, endDate, granularity } = computeCronDistributionRange(period, now)
+
+  // Settled end — buckets beyond this haven't had their chance to run
+  const settledEnd = new Date(now.getTime() - deps.settlingHours * 60 * 60 * 1000)
+  const hourlyEnd = floorToKSTBucket('hourly', settledEnd)
+  const dailyEnd = floorToKSTBucket('daily', settledEnd)
+
+  // Expected buckets (only those that should have been processed by now)
+  const expectedHourly = generateExpectedBuckets('hourly', startDate, hourlyEnd)
+  const expectedDaily = generateExpectedBuckets('daily', startDate, dailyEnd)
+
+  // Actual logs
+  const logs = await CronRunLog.find({
+    jobName: 'recoverySummary',
+    bucket: { $gte: startDate, $lt: endDate },
+    status: { $in: ['success', 'partial', 'failed'] }
+  }).select('bucket period status').lean()
+
+  // Set of existing (period:bucketTime) keys
+  const existingSet = new Set(logs.map(l => `${l.period}:${l.bucket.getTime()}`))
+
+  // Group helper
+  const groups = new Map()
+  function ensureGroup(key) {
+    if (!groups.has(key)) {
+      groups.set(key, { bucket: new Date(key), success: 0, partial: 0, failed: 0, pending: 0, total: 0 })
+    }
+    return groups.get(key)
+  }
+
+  // Count actual logs
+  for (const log of logs) {
+    const key = computeGroupKey(log.bucket.getTime(), granularity)
+    const entry = ensureGroup(key)
+    entry[log.status] = (entry[log.status] || 0) + 1
+    entry.total += 1
+  }
+
+  // Count pending (expected but no log entry)
+  for (const bucket of expectedHourly) {
+    if (!existingSet.has(`hourly:${bucket.getTime()}`)) {
+      const key = computeGroupKey(bucket.getTime(), granularity)
+      const entry = ensureGroup(key)
+      entry.pending++
+      entry.total++
+    }
+  }
+  for (const bucket of expectedDaily) {
+    if (!existingSet.has(`daily:${bucket.getTime()}`)) {
+      const key = computeGroupKey(bucket.getTime(), granularity)
+      const entry = ensureGroup(key)
+      entry.pending++
+      entry.total++
+    }
+  }
+
+  // Sort by bucket ascending
+  const data = Array.from(groups.values()).sort((a, b) => a.bucket.getTime() - b.bucket.getTime())
+
+  return { granularity, data }
+}
+
+/**
  * Get the last successful (or partial) cron run for a given period.
  */
 async function getLastCronRun(period) {
@@ -682,6 +848,7 @@ module.exports = {
   initializeRecoverySummary,
   startCronJobs,
   stopCronJobs,
+  getCronRunDistribution,
   getLastCronRun,
   _setDeps,
   _getBackfillPromise,
