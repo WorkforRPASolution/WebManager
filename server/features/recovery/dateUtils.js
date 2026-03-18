@@ -110,7 +110,9 @@ function generateExpectedBuckets(period, startDate, endDate) {
   const buckets = []
   let current = startDate.getTime()
   const end = endDate.getTime()
-  while (current < end) {
+  // bucket의 종료 시각(current + increment)이 endDate 이내인 것만 포함
+  // → 아직 완료되지 않은 기간의 bucket은 제외
+  while (current + increment <= end) {
     buckets.push(new Date(current))
     current += increment
   }
