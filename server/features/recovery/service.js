@@ -483,7 +483,29 @@ async function getByProcess(filters = {}) {
     { $project: { _id: 0, process: '$_id', topEquipment: { $slice: ['$topEquipment', 5] } } }
   ]
 
-  // 3-c. Trigger distribution per process
+  // 3-c. Top 5 failed models per process
+  const drilldownModelPipeline = [
+    { $match: dailyMatch },
+    { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
+    { $unwind: '$sc_array' },
+    { $match: { 'sc_array.k': { $in: FAILED_STATUSES } } },
+    {
+      $group: {
+        _id: { process: '$process', model: '$model' },
+        failedCount: { $sum: '$sc_array.v' }
+      }
+    },
+    { $sort: { failedCount: -1 } },
+    {
+      $group: {
+        _id: '$_id.process',
+        topModels: { $push: { name: '$_id.model', count: '$failedCount' } }
+      }
+    },
+    { $project: { _id: 0, process: '$_id', topModels: { $slice: ['$topModels', 5] } } }
+  ]
+
+  // 3-d. Trigger distribution per process
   const drilldownTriggerPipeline = [
     { $match: dailyMatch },
     {
@@ -502,12 +524,13 @@ async function getByProcess(filters = {}) {
     { $project: { _id: 0, process: '$_id', triggers: 1 } }
   ]
 
-  // 병렬 실행 — 5개 쿼리 동시
-  const [processes, trend, drilldownScenarios, drilldownEquipment, drilldownTriggers] = await Promise.all([
+  // 병렬 실행 — 6개 쿼리 동시
+  const [processes, trend, drilldownScenarios, drilldownEquipment, drilldownModels, drilldownTriggers] = await Promise.all([
     db.collection('RECOVERY_SUMMARY_BY_SCENARIO').aggregate(processPipeline, opts).toArray(),
     db.collection('RECOVERY_SUMMARY_BY_SCENARIO').aggregate(trendPipeline, opts).toArray(),
     db.collection('RECOVERY_SUMMARY_BY_SCENARIO').aggregate(drilldownScenarioPipeline, opts).toArray(),
     db.collection('RECOVERY_SUMMARY_BY_EQUIPMENT').aggregate(drilldownEquipmentPipeline, opts).toArray(),
+    db.collection('RECOVERY_SUMMARY_BY_EQUIPMENT').aggregate(drilldownModelPipeline, opts).toArray(),
     db.collection('RECOVERY_SUMMARY_BY_TRIGGER').aggregate(drilldownTriggerPipeline, opts).toArray()
   ])
 
@@ -520,6 +543,10 @@ async function getByProcess(filters = {}) {
   for (const item of drilldownEquipment) {
     if (!drilldown[item.process]) drilldown[item.process] = {}
     drilldown[item.process].topEquipment = item.topEquipment
+  }
+  for (const item of drilldownModels) {
+    if (!drilldown[item.process]) drilldown[item.process] = {}
+    drilldown[item.process].topModels = item.topModels
   }
   for (const item of drilldownTriggers) {
     if (!drilldown[item.process]) drilldown[item.process] = {}
