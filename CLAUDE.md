@@ -110,6 +110,9 @@ GET    /api/recovery/by-process             # 공정별 비교 (dashboardRecover
 GET    /api/recovery/analysis               # 드릴다운 분석 (dashboardRecoveryAnalysis 권한, ?tab=scenario|equipment|trigger)
 GET    /api/recovery/history                # 원본 이력 조회 (dashboardRecoveryAnalysis 권한, 최대 7일, ?eqpid|ears_code 필수)
 GET    /api/recovery/last-aggregation       # 마지막 배치 집계 시각
+GET    /api/recovery/analysis/filters       # Analysis 필터 (데이터 기반 Process/Model 목록)
+GET    /api/recovery/batch-logs             # 배치 실행 이력 (Admin, 페이지네이션)
+GET    /api/recovery/batch-logs/heatmap     # 배치 히트맵 (Admin, ?days=30|60|90)
 
 GET    /api/clients/processes      # Process 목록
 GET    /api/clients/models         # EqpModel 목록 (?process=xxx)
@@ -193,7 +196,7 @@ WebManager/
 │   │   │   ├── cronRunLogModel.js      # CRON_RUN_LOG Mongoose 모델
 │   │   │   ├── recoverySummaryService.js # 배치 파이프라인 + Cron 오케스트레이션
 │   │   │   ├── routes.js / controller.js / service.js / validation.js
-│   │   │   └── *.test.js               # TDD 테스트 (56 tests)
+│   │   │   └── *.test.js               # TDD 테스트 (161 tests)
 │   │   ├── users/          # 사용자 관리 + 역할 권한
 │   │   └── exec-commands/  # 실행 명령어 관리
 │   └── shared/
@@ -226,6 +229,7 @@ WebManager/
 | LOG_SETTINGS | WEB_MANAGER | 로그 소스 설정 (전용) |
 | UPDATE_SETTINGS | WEB_MANAGER | 소프트웨어 업데이트 설정 (전용) |
 | CRON_RUN_LOG | WEB_MANAGER | Cron 배치 실행 이력 (전용) |
+| WEBMANAGER_LOG | WEB_MANAGER | 시스템 로그 (audit/batch 카테고리, 전용) |
 | EQP_AUTO_RECOVERY | EARS | Recovery 실행 원본 (Akka 공유) |
 | RECOVERY_SUMMARY_BY_SCENARIO | EARS | Recovery 시나리오별 집계 (WebManager 생성) |
 | RECOVERY_SUMMARY_BY_EQUIPMENT | EARS | Recovery 장비별 집계 (WebManager 생성) |
@@ -249,9 +253,14 @@ cd server && npm run dev
 
 # 동시 실행 (루트)
 npm run dev
+
+# Recovery Summary 초기화 (Summary + CRON_RUN_LOG + batch 로그 삭제)
+cd server && npm run reset:buckets          # 확인 프롬프트
+cd server && npm run reset:buckets -- --yes # 확인 생략
+cd server && npm run reset:buckets -- --keep-logs  # batch 로그 유지
 ```
 
-## Current Status (2026-03-17)
+## Current Status (2026-03-18)
 - 메가 메뉴 + 사이드바 + 탭 바 레이아웃 완료
 - 다크/라이트 모드 지원
 - MongoDB API 연동 완료
@@ -288,7 +297,7 @@ npm run dev
 - Sign Up 개선 (2단 레이아웃 + integrated 모드 EARS 검색/자동완성 + Admin 알림 메일(EARS 경유 이메일 조회) + Admin 역할 선택 제외 + Process 숫자 허용(A-Z0-9_) + "시나리오 작성권한" 명칭 변경)
 - ARS_USER_INFO email 필드 삭제 (이메일은 EARS InterfaceServer 또는 수동 입력으로 확보, DB 저장 안 함)
 - Recovery Dashboard 완료 (3페이지: Overview + By Process + Analysis)
-  - Cron 배치 집계 서비스 (hourly :05, daily 00:10 KST, node-cron, 동시 실행 방지)
+  - Cron 배치 집계 서비스 (hourly :05, daily settlingHours:10 KST 동적 설정, node-cron, 동시 실행 방지)
   - 3개 Summary 컬렉션 ($merge 기반 멱등 집계, EARS DB)
   - CRON_RUN_LOG 실행 이력 (WEB_MANAGER DB)
   - REST API 5개 + 권한 3개 (dashboardRecoveryOverview/ByProcess/Analysis)
@@ -301,6 +310,14 @@ npm run dev
   - 모든 API aggregate에 allowDiskUse:true + Overview 7개 쿼리 Promise.all 병렬 실행
   - API timeout 60초 (장기 조회 대응)
   - 설계 문서: `docs/RECOVERY_DASHBOARD_DESIGN.md`
+  - 기간 이동 ◀▶ 버튼 (프리셋 기간 단위로 과거/미래 이동, 시작일/종료일 표시, 미래 불가/2년 제한)
+  - By Process: 미실행 공정 표시 토글 (EQP_INFO 등록됐지만 실행 건수 0인 공정, 성공률 ∅ 표시)
+  - daily 버킷 계산에 settling 시간 적용 (hourly/daily 시간 기준 통일)
+  - Batch 실행 이력 로깅 (WEBMANAGER_LOG category='batch', 6개 batchAction)
+  - Batch History 모달 (Admin 전용, GitHub 히트맵 + 필터 + 페이지네이션 테이블)
+  - Trigger 분포 Top 5 + 기타 합산
+  - 초기화 스크립트: `npm run reset:buckets` (Summary + CRON_RUN_LOG + batch 로그 삭제)
+- Dashboard 사이드바 메뉴 ResAgent → ResourceAgent 명칭 변경
 
 ## Redis Key 구조 (Agent 상태)
 
