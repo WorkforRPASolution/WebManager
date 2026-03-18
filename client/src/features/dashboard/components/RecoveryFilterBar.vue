@@ -22,8 +22,6 @@ const selectedPeriod = ref('today')
 const selectedProcesses = ref([])
 const selectedModels = ref([])
 const selectedLines = ref([])
-const customStartDate = ref('')
-const customEndDate = ref('')
 
 // 단일 선택 모드용 state
 const singleProcess = ref(props.initialProcess)
@@ -93,42 +91,68 @@ const selectedPeriodLabel = computed(() => {
 
 const isCustom = computed(() => selectedPeriod.value === 'custom')
 
-const navOffset = ref(0)
+const startDate = ref('')
+const endDate = ref('')
+
+// ── Period Navigation ──
+const PERIOD_DAYS = { today: 1, '7d': 7, '30d': 30, '90d': 90, '1y': 365 }
+const MAX_DAYS = 730
+
+function localDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function todayStr() {
+  return localDateStr(new Date())
+}
+
+function computePresetDates(period) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const days = PERIOD_DAYS[period]
+  if (!days) return
+  const start = new Date(today)
+  start.setDate(start.getDate() - days + 1)
+  startDate.value = localDateStr(start)
+  endDate.value = localDateStr(today)
+}
+
+// 초기 + 기간 변경 시 날짜 자동 계산
+computePresetDates('today')
 
 function selectPeriod(value) {
   selectedPeriod.value = value
   periodDropdownOpen.value = false
-  navOffset.value = 0
   if (value !== 'custom') {
+    computePresetDates(value)
     emit('period-change', value)
   }
 }
 
-// ── Period Navigation (◀▶ 이동) ──
-const PERIOD_DAYS = { today: 1, '7d': 7, '30d': 30, '90d': 90, '1y': 365 }
-
-const navDateRange = computed(() => {
-  if (navOffset.value === 0) return null
-  const days = PERIOD_DAYS[selectedPeriod.value]
-  if (!days) return null
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const endDate = new Date(today)
-  endDate.setDate(endDate.getDate() - navOffset.value * days)
-  const startDate = new Date(endDate)
-  startDate.setDate(startDate.getDate() - days + 1)
-  const fmt = d => `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`
-  return { start: startDate, end: endDate, label: `${fmt(startDate)}~${fmt(endDate)}` }
-})
-
 function shiftPeriod(direction) {
   const days = PERIOD_DAYS[selectedPeriod.value]
   if (!days) return
-  const next = navOffset.value - direction
-  if (next < 0) return // 미래 이동 불가
-  navOffset.value = next
+
+  const s = new Date(startDate.value)
+  const e = new Date(endDate.value)
+  s.setDate(s.getDate() + direction * days)
+  e.setDate(e.getDate() + direction * days)
+
+  // 미래 제한
+  const today = todayStr()
+  if (direction > 0 && localDateStr(e) > today) return
+
+  // 2년 이전 제한
+  const twoYearsAgo = new Date()
+  twoYearsAgo.setDate(twoYearsAgo.getDate() - MAX_DAYS)
+  if (direction < 0 && s < twoYearsAgo) return
+
+  startDate.value = localDateStr(s)
+  endDate.value = localDateStr(e)
   handleSearch()
 }
+
+const isLatestPeriod = computed(() => endDate.value >= todayStr())
 
 function handlePeriodClickOutside(e) {
   if (periodContainerRef.value && !periodContainerRef.value.contains(e.target)) {
@@ -151,18 +175,18 @@ function handleSearch() {
   customError.value = ''
 
   if (isCustom.value) {
-    if (!customStartDate.value || !customEndDate.value) {
+    if (!startDate.value || !endDate.value) {
       customError.value = '시작일과 종료일을 모두 입력하세요'
       return
     }
-    const start = new Date(customStartDate.value)
-    const end = new Date(customEndDate.value)
-    if (start >= end) {
+    const s = new Date(startDate.value)
+    const e = new Date(endDate.value)
+    if (s >= e) {
       customError.value = '시작일은 종료일보다 이전이어야 합니다'
       return
     }
-    const diffDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
-    if (diffDays > 730) {
+    const diffDays = (e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)
+    if (diffDays > MAX_DAYS) {
       customError.value = '최대 2년까지 조회할 수 있습니다'
       return
     }
@@ -188,18 +212,14 @@ function handleSearch() {
   if (props.showLineFilter && selectedLines.value.length > 0) {
     filters.line = selectedLines.value.join(',')
   }
-  if (isCustom.value) {
-    filters.startDate = customStartDate.value
-    filters.endDate = customEndDate.value
-  } else if (navDateRange.value) {
-    // 기간 이동 중: preset 유지하되 custom 날짜 전송
+  // 프리셋이 이동된 경우 또는 커스텀: custom + 날짜 전송
+  if (isCustom.value || (!isCustom.value && !isLatestPeriod.value)) {
     filters.period = 'custom'
-    const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    filters.startDate = fmt(navDateRange.value.start)
-    // endDate는 exclusive (다음날)로 전송해야 validation 통과 + 기간 커버
-    const endExclusive = new Date(navDateRange.value.end)
-    endExclusive.setDate(endExclusive.getDate() + 1)
-    filters.endDate = fmt(endExclusive)
+    filters.startDate = startDate.value
+    // endDate +1일 (exclusive) — 서버 validation: start < end
+    const e = new Date(endDate.value)
+    e.setDate(e.getDate() + 1)
+    filters.endDate = localDateStr(e)
   }
   emit('search', filters)
 }
@@ -245,50 +265,50 @@ function handleSearch() {
       </div>
     </div>
 
-    <!-- Period Navigation (◀▶) — preset 기간일 때만 -->
-    <div v-if="!isCustom" class="flex items-center gap-0.5 mb-0.5 self-end">
-      <button
-        @click="shiftPeriod(-1)"
-        class="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-dark-border rounded transition-colors"
-        title="이전 기간"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-      </button>
-      <button
-        @click="shiftPeriod(1)"
-        :disabled="navOffset === 0"
-        class="p-1.5 rounded transition-colors"
-        :class="navOffset === 0
-          ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
-          : 'text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-dark-border'"
-        title="다음 기간"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-      </button>
-      <span v-if="navDateRange" class="text-xs text-blue-600 dark:text-blue-400 ml-1 whitespace-nowrap">
-        {{ navDateRange.label }}
-      </span>
+    <!-- 시작일 -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">시작일</label>
+      <div class="flex items-center gap-1">
+        <button
+          v-if="!isCustom"
+          @click="shiftPeriod(-1)"
+          class="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-dark-border rounded transition-colors"
+          title="이전 기간"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <input
+          v-model="startDate"
+          type="date"
+          :disabled="!isCustom"
+          class="text-sm border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+        />
+      </div>
     </div>
-
-    <!-- Custom Date Range -->
-    <template v-if="isCustom">
-      <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">시작일</label>
+    <!-- 종료일 -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">종료일</label>
+      <div class="flex items-center gap-1">
         <input
-          v-model="customStartDate"
+          v-model="endDate"
           type="date"
-          class="text-sm border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          :disabled="!isCustom"
+          class="text-sm border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
         />
+        <button
+          v-if="!isCustom"
+          @click="shiftPeriod(1)"
+          :disabled="isLatestPeriod"
+          class="p-1.5 rounded transition-colors"
+          :class="isLatestPeriod
+            ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+            : 'text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-dark-border'"
+          title="다음 기간"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </button>
       </div>
-      <div>
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">종료일</label>
-        <input
-          v-model="customEndDate"
-          type="date"
-          class="text-sm border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-    </template>
+    </div>
 
     <!-- Process Filter -->
     <template v-if="showProcessFilter">
