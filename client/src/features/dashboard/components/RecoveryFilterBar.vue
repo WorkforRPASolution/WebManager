@@ -93,12 +93,41 @@ const selectedPeriodLabel = computed(() => {
 
 const isCustom = computed(() => selectedPeriod.value === 'custom')
 
+const navOffset = ref(0)
+
 function selectPeriod(value) {
   selectedPeriod.value = value
   periodDropdownOpen.value = false
+  navOffset.value = 0
   if (value !== 'custom') {
     emit('period-change', value)
   }
+}
+
+// ── Period Navigation (◀▶ 이동) ──
+const PERIOD_DAYS = { today: 1, '7d': 7, '30d': 30, '90d': 90, '1y': 365 }
+
+const navDateRange = computed(() => {
+  if (navOffset.value === 0) return null
+  const days = PERIOD_DAYS[selectedPeriod.value]
+  if (!days) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const endDate = new Date(today)
+  endDate.setDate(endDate.getDate() - navOffset.value * days)
+  const startDate = new Date(endDate)
+  startDate.setDate(startDate.getDate() - days + 1)
+  const fmt = d => `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`
+  return { start: startDate, end: endDate, label: `${fmt(startDate)}~${fmt(endDate)}` }
+})
+
+function shiftPeriod(direction) {
+  const days = PERIOD_DAYS[selectedPeriod.value]
+  if (!days) return
+  const next = navOffset.value - direction
+  if (next < 0) return // 미래 이동 불가
+  navOffset.value = next
+  handleSearch()
 }
 
 function handlePeriodClickOutside(e) {
@@ -162,6 +191,15 @@ function handleSearch() {
   if (isCustom.value) {
     filters.startDate = customStartDate.value
     filters.endDate = customEndDate.value
+  } else if (navDateRange.value) {
+    // 기간 이동 중: preset 유지하되 custom 날짜 전송
+    filters.period = 'custom'
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    filters.startDate = fmt(navDateRange.value.start)
+    // endDate는 exclusive (다음날)로 전송해야 validation 통과 + 기간 커버
+    const endExclusive = new Date(navDateRange.value.end)
+    endExclusive.setDate(endExclusive.getDate() + 1)
+    filters.endDate = fmt(endExclusive)
   }
   emit('search', filters)
 }
@@ -205,6 +243,31 @@ function handleSearch() {
           {{ opt.label }}
         </div>
       </div>
+    </div>
+
+    <!-- Period Navigation (◀▶) — preset 기간일 때만 -->
+    <div v-if="!isCustom" class="flex items-center gap-0.5 mb-0.5 self-end">
+      <button
+        @click="shiftPeriod(-1)"
+        class="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-dark-border rounded transition-colors"
+        title="이전 기간"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <button
+        @click="shiftPeriod(1)"
+        :disabled="navOffset === 0"
+        class="p-1.5 rounded transition-colors"
+        :class="navOffset === 0
+          ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+          : 'text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-dark-border'"
+        title="다음 기간"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <span v-if="navDateRange" class="text-xs text-blue-600 dark:text-blue-400 ml-1 whitespace-nowrap">
+        {{ navDateRange.label }}
+      </span>
     </div>
 
     <!-- Custom Date Range -->
