@@ -20,11 +20,6 @@ const cronRunLogSchema = new Schema({
     equipment: { type: String },
     trigger: { type: String }
   },
-  docsInBucket: {
-    scenario: { type: Number },
-    equipment: { type: Number },
-    trigger: { type: Number }
-  },
   errorMessage: { type: Schema.Types.Mixed },
   source: {
     type: String,

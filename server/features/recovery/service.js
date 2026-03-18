@@ -332,9 +332,9 @@ async function getOverview(filters = {}) {
   }
 
   const scenarioColl = db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
-  const opts = { allowDiskUse: true }
+  const opts = { allowDiskUse: true, maxTimeMS: 55000 }
 
-  // 병렬 실행 — 6개 쿼리 동시
+  // 병렬 실행 — 7개 쿼리 동시
   const [kpiResult, prevResult, trend, scenarioCounts, topScenarios, topEquipment, triggerDistribution] = await Promise.all([
     scenarioColl.aggregate(buildSimpleKpiPipeline(dailyMatch), opts).toArray(),
     prevMatch ? scenarioColl.aggregate(buildSimpleKpiPipeline(prevMatch), opts).toArray() : Promise.resolve([]),
@@ -385,6 +385,8 @@ async function getByProcess(filters = {}) {
   const trendMatch = buildTrendMatchFilter(period, dimFilters)
 
   // 1. Process-level aggregation from scenario summary
+  const opts = { allowDiskUse: true, maxTimeMS: 55000 }
+
   const processPipeline = [
     { $match: dailyMatch },
     { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
@@ -406,8 +408,6 @@ async function getByProcess(filters = {}) {
     { $sort: { _id: 1 } },
     { $project: { _id: 0, process: '$_id', total: 1, status_counts: 1 } }
   ]
-  const processes = await db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
-    .aggregate(processPipeline, { allowDiskUse: true }).toArray()
 
   // 2. Hourly trend per process (success rate timeline)
   const trendPipeline = [
@@ -439,8 +439,6 @@ async function getByProcess(filters = {}) {
       }
     }
   ]
-  const trend = await db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
-    .aggregate(trendPipeline, { allowDiskUse: true }).toArray()
 
   // 3. Drilldown: Top 5 failed scenarios and equipment per process
   const drilldownScenarioPipeline = [
@@ -463,12 +461,9 @@ async function getByProcess(filters = {}) {
     },
     { $project: { _id: 0, process: '$_id', topScenarios: { $slice: ['$topScenarios', 5] } } }
   ]
-  const drilldownScenarios = await db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
-    .aggregate(drilldownScenarioPipeline, { allowDiskUse: true }).toArray()
 
-  const equipDailyMatch = buildMatchFilter(period, dimFilters)
   const drilldownEquipmentPipeline = [
-    { $match: equipDailyMatch },
+    { $match: dailyMatch },
     { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
     { $unwind: '$sc_array' },
     { $match: { 'sc_array.k': { $in: FAILED_STATUSES } } },
@@ -487,8 +482,6 @@ async function getByProcess(filters = {}) {
     },
     { $project: { _id: 0, process: '$_id', topEquipment: { $slice: ['$topEquipment', 5] } } }
   ]
-  const drilldownEquipment = await db.collection('RECOVERY_SUMMARY_BY_EQUIPMENT')
-    .aggregate(drilldownEquipmentPipeline, { allowDiskUse: true }).toArray()
 
   // 3-c. Trigger distribution per process
   const drilldownTriggerPipeline = [
@@ -508,8 +501,15 @@ async function getByProcess(filters = {}) {
     },
     { $project: { _id: 0, process: '$_id', triggers: 1 } }
   ]
-  const drilldownTriggers = await db.collection('RECOVERY_SUMMARY_BY_TRIGGER')
-    .aggregate(drilldownTriggerPipeline, { allowDiskUse: true }).toArray()
+
+  // 병렬 실행 — 5개 쿼리 동시
+  const [processes, trend, drilldownScenarios, drilldownEquipment, drilldownTriggers] = await Promise.all([
+    db.collection('RECOVERY_SUMMARY_BY_SCENARIO').aggregate(processPipeline, opts).toArray(),
+    db.collection('RECOVERY_SUMMARY_BY_SCENARIO').aggregate(trendPipeline, opts).toArray(),
+    db.collection('RECOVERY_SUMMARY_BY_SCENARIO').aggregate(drilldownScenarioPipeline, opts).toArray(),
+    db.collection('RECOVERY_SUMMARY_BY_EQUIPMENT').aggregate(drilldownEquipmentPipeline, opts).toArray(),
+    db.collection('RECOVERY_SUMMARY_BY_TRIGGER').aggregate(drilldownTriggerPipeline, opts).toArray()
+  ])
 
   // Merge drilldown data by process
   const drilldown = {}
@@ -579,7 +579,8 @@ async function getAnalysis(filters = {}) {
     { $sort: { total: -1 } },
     { $project: projectStage }
   ]
-  const rawData = await db.collection(collName).aggregate(dataPipeline, { allowDiskUse: true }).toArray()
+  const aggOpts = { allowDiskUse: true, maxTimeMS: 55000 }
+  const rawData = await db.collection(collName).aggregate(dataPipeline, aggOpts).toArray()
 
   // Normalize: rename groupField → name, status_counts → statusCounts
   const data = rawData.map(doc => {
@@ -622,9 +623,11 @@ async function getAnalysis(filters = {}) {
         total: 1,
         status_counts: 1
       }
-    }
+    },
+    // 산정 근거: 장비 200대 × 2년(730일) × 안전 마진 2배 ≈ 292,000 → 300,000
+    { $limit: 300000 }
   ]
-  const trend = await db.collection(collName).aggregate(trendPipeline, { allowDiskUse: true }).toArray()
+  const trend = await db.collection(collName).aggregate(trendPipeline, aggOpts).toArray()
 
   const granularity = determineTrendGranularity(period, { startDate, endDate })
   const rolledTrend = rollupTrend(normalizeDoc(trend), granularity)

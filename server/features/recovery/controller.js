@@ -99,12 +99,19 @@ async function getLastAggregation(req, res) {
 }
 
 async function analyzeBackfill(req, res) {
+  const summaryService = getSummaryService()
+  if (!summaryService.isIndexReady()) {
+    return res.status(503).json({
+      error: 'EQP_AUTO_RECOVERY create_date 인덱스가 확인되지 않았습니다. 서버 재시작이 필요할 수 있습니다.',
+      indexReady: false
+    })
+  }
+
   const { startDate, endDate, skipHourly, skipDaily, throttleMs, retryPartial } = req.body
   const validation = validateBackfillRange(startDate, endDate)
   if (!validation.valid) return res.status(400).json({ error: validation.error })
 
   const { generateExpectedBuckets, floorToKSTBucket } = getDateUtils()
-  const summaryService = getSummaryService()
 
   const rawStart = new Date(startDate)
   const rawEnd = new Date(endDate)
@@ -142,16 +149,35 @@ async function analyzeBackfill(req, res) {
 
   result.estimatedMinutes = Math.round(totalActionable * (1.5 + effectiveThrottle / 1000) / 60 * 10) / 10
 
+  // Settling 안내: endDate가 클램핑되는 경우 실제 적용 범위 표시
+  const maxEnd = new Date(Date.now() - summaryService._getSettlingHours() * 60 * 60 * 1000)
+  const requestedEnd = new Date(endDate)
+  if (requestedEnd > maxEnd) {
+    result.settlingInfo = {
+      requestedEnd: requestedEnd.toISOString(),
+      effectiveEnd: maxEnd.toISOString(),
+      settlingHours: summaryService._getSettlingHours(),
+      message: `settling 기간(${summaryService._getSettlingHours()}시간) 이내 데이터는 제외됩니다`
+    }
+  }
+
   res.json(result)
 }
 
 async function startBackfill(req, res) {
+  const summaryService = getSummaryService()
+  if (!summaryService.isIndexReady()) {
+    return res.status(503).json({
+      error: 'EQP_AUTO_RECOVERY create_date 인덱스가 확인되지 않았습니다.',
+      indexReady: false
+    })
+  }
+
   const { startDate, endDate, skipHourly, skipDaily, throttleMs, retryPartial } = req.body
   const validation = validateBackfillRange(startDate, endDate)
   if (!validation.valid) return res.status(400).json({ error: validation.error })
 
   const { floorToKSTBucket } = getDateUtils()
-  const summaryService = getSummaryService()
 
   // Check if already running
   const currentState = summaryService.getBackfillState()
@@ -184,7 +210,10 @@ async function startBackfill(req, res) {
 
 async function getBackfillStatus(req, res) {
   const summaryService = getSummaryService()
-  res.json(summaryService.getBackfillState())
+  res.json({
+    ...summaryService.getBackfillState(),
+    indexReady: summaryService.isIndexReady()
+  })
 }
 
 async function handleCancelBackfill(req, res) {

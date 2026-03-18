@@ -60,7 +60,9 @@ describe('controller.backfill — KST alignment', () => {
         runManualBackfill: mockRunManualBackfill,
         getBackfillState: mockGetBackfillState,
         cancelBackfill: vi.fn(),
-        getLastCronRun: vi.fn()
+        getLastCronRun: vi.fn(),
+        isIndexReady: () => true,
+        _getSettlingHours: () => 3
       }
     })
   })

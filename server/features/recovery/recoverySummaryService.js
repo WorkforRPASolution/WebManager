@@ -22,6 +22,12 @@ const SETTLING_HOURS = parseInt(process.env.RECOVERY_SETTLING_HOURS || '3', 10)
 const AUTO_BACKFILL_LIMIT = parseInt(process.env.RECOVERY_AUTO_BACKFILL_LIMIT || '6', 10)
 const DEFAULT_THROTTLE_MS = parseInt(process.env.RECOVERY_BACKFILL_THROTTLE_MS || '1000', 10)
 
+// ── EQP_AUTO_RECOVERY Index Verification ──
+// create_date 인덱스가 없으면 full collection scan이 발생하여
+// 프로덕션 DB에 심각한 부하를 줄 수 있다. 서버 시작 시 검증하여
+// 인덱스가 없으면 cron/backfill을 비활성화한다.
+let indexReady = false
+
 // ── Pipeline Configuration ──
 
 const PIPELINE_CONFIGS = {
@@ -147,24 +153,18 @@ async function runPipelinesForBucket(period, bucketStart, dateGte, dateLt, optio
   const CronRunLog = getCronRunLog()
   const startedAt = new Date()
   const pipelineResults = {}
-  const docsInBucket = {}
   const errors = []
 
-  for (const [configKey, config] of Object.entries(PIPELINE_CONFIGS)) {
+  for (const [configKey] of Object.entries(PIPELINE_CONFIGS)) {
     try {
       const pipeline = buildPipeline(configKey, period, bucketStart, dateGte, dateLt)
       await earsDb.collection('EQP_AUTO_RECOVERY')
-        .aggregate(pipeline, { allowDiskUse: true })
+        .aggregate(pipeline, { allowDiskUse: true, maxTimeMS: 55000 })
         .toArray()
 
-      const count = await earsDb.collection(config.collection)
-        .countDocuments({ period, bucket: bucketStart })
-
       pipelineResults[configKey] = 'success'
-      docsInBucket[configKey] = count
     } catch (err) {
       pipelineResults[configKey] = `failed: ${err.message}`
-      docsInBucket[configKey] = 0
       errors.push({ configKey, error: err.message })
     }
   }
@@ -185,17 +185,22 @@ async function runPipelinesForBucket(period, bucketStart, dateGte, dateLt, optio
         startedAt,
         completedAt: new Date(),
         pipelineResults,
-        docsInBucket,
         errorMessage: errors.length > 0 ? errors : undefined
-      }
+      },
+      $unset: { docsInBucket: '' }
     },
     { upsert: true, new: true }
   )
 
-  return { status, pipelineResults, docsInBucket, errors }
+  return { status, pipelineResults, errors }
 }
 
 // ── Batch Execution ──
+
+// NOTE: Cron과 Manual Backfill은 동시 실행될 수 있다.
+// $merge의 whenMatched:'replace' 멱등성 덕분에 같은 bucket을 동시에 처리해도
+// 데이터 정합성 문제가 없다. Lock을 걸면 daily cron이 backfill에 의해
+// skip되는 위험이 있으므로 의도적으로 lock을 공유하지 않는다.
 
 let isRunning = false
 
@@ -203,6 +208,11 @@ let isRunning = false
  * Run the aggregation batch for a given period ('hourly' or 'daily').
  */
 async function runBatch(period) {
+  if (!indexReady) {
+    console.warn(`[RecoverySummary] Skipping ${period} batch — EQP_AUTO_RECOVERY create_date index not verified`)
+    return
+  }
+
   if (isRunning) {
     console.log(`[RecoverySummary] Skipping ${period} batch — previous run still in progress`)
     return
@@ -249,7 +259,9 @@ async function detectGaps(period, opts = {}) {
   const scanWindowHours = opts.scanWindowHours ?? defaultWindow
 
   const now = new Date()
-  const scanEnd = new Date(now.getTime() - deps.settlingHours * 60 * 60 * 1000)
+  const rawScanEnd = new Date(now.getTime() - deps.settlingHours * 60 * 60 * 1000)
+  // bucket 경계로 정렬하여 부분 경과 bucket이 gap으로 감지되는 것을 방지
+  const scanEnd = floorToKSTBucket(period, rawScanEnd)
   const scanStart = new Date(scanEnd.getTime() - scanWindowHours * 60 * 60 * 1000)
 
   // Generate expected buckets in [scanStart, scanEnd)
@@ -325,7 +337,7 @@ async function getCompletedBucketSet(period, startDate, endDate, { retryPartial 
   const logs = await CronRunLog.find({
     jobName: 'recoverySummary',
     period,
-    bucket: { $gte: startDate, $lte: endDate },
+    bucket: { $gte: startDate, $lt: endDate },
     status: { $in: statusFilter }
   }).select('bucket').lean()
   return new Set(logs.map(l => l.bucket.getTime()))
@@ -333,13 +345,16 @@ async function getCompletedBucketSet(period, startDate, endDate, { retryPartial 
 
 /**
  * Get partial-status bucket set for retry detection.
+ * NOTE: retryPartial 모드에서는 partial 상태인 bucket만 재처리한다.
+ * success/pending(미실행) bucket은 skip된다. "failed" 상태 bucket은
+ * partial에 포함되지 않으며, 일반 backfill 모드에서 pending으로 처리된다.
  */
 async function getPartialBucketSet(period, startDate, endDate) {
   const CronRunLog = getCronRunLog()
   const logs = await CronRunLog.find({
     jobName: 'recoverySummary',
     period,
-    bucket: { $gte: startDate, $lte: endDate },
+    bucket: { $gte: startDate, $lt: endDate },
     status: 'partial'
   }).select('bucket').lean()
   return new Set(logs.map(l => l.bucket.getTime()))
@@ -371,6 +386,10 @@ function validateBackfillRange(startDate, endDate) {
  * Run manual backfill. Executes asynchronously — returns immediately.
  */
 async function runManualBackfill(startDate, endDate, options = {}) {
+  if (!indexReady) {
+    throw new Error('EQP_AUTO_RECOVERY create_date index not verified. Backfill disabled.')
+  }
+
   if (backfillState.status === 'running') {
     throw new Error('Backfill already in progress')
   }
@@ -468,7 +487,7 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
       }
     }
 
-    backfillState.status = 'completed'
+    backfillState.status = backfillState.errors.length > 0 ? 'completed_with_warnings' : 'completed'
     backfillState.completedAt = new Date()
     backfillState.current = backfillState.total
   } catch (err) {
@@ -499,6 +518,49 @@ function _resetState() {
   backfillState = { ...INITIAL_BACKFILL_STATE }
   backfillPromise = null
   isRunning = false
+  indexReady = false
+}
+
+function _setIndexReady(val) {
+  indexReady = val
+}
+
+function _getSettlingHours() {
+  return deps.settlingHours
+}
+
+// ── EQP_AUTO_RECOVERY Index Check ──
+
+/**
+ * Verify that EQP_AUTO_RECOVERY has a create_date index.
+ * Without this index, aggregation pipelines would cause full collection scans.
+ * @returns {boolean} true if a suitable index exists
+ */
+async function checkEarIndexes() {
+  try {
+    const earsDb = getEarsDb()
+    const indexes = await earsDb.collection('EQP_AUTO_RECOVERY').indexes()
+    const hasCreateDateIndex = indexes.some(idx => {
+      const keys = Object.keys(idx.key || {})
+      return keys.includes('create_date')
+    })
+
+    indexReady = hasCreateDateIndex
+    if (!hasCreateDateIndex) {
+      console.error('[RecoverySummary] CRITICAL: EQP_AUTO_RECOVERY collection is missing a create_date index. Cron and backfill are DISABLED until the index is created.')
+    } else {
+      console.log('[RecoverySummary] EQP_AUTO_RECOVERY create_date index verified')
+    }
+    return hasCreateDateIndex
+  } catch (err) {
+    console.error('[RecoverySummary] Failed to check EQP_AUTO_RECOVERY indexes:', err.message)
+    indexReady = false
+    return false
+  }
+}
+
+function isIndexReady() {
+  return indexReady
 }
 
 // ── Index Initialization ──
@@ -533,6 +595,15 @@ async function initializeRecoverySummary() {
       { jobName: 1, period: 1, bucket: 1 },
       { unique: true }
     )
+
+    // TTL 90일: completedAt 기준으로 오래된 로그 자동 삭제 (7776000초 = 90일)
+    await CronRunLog.collection.createIndex(
+      { completedAt: 1 },
+      { expireAfterSeconds: 7776000 }
+    )
+
+    // EQP_AUTO_RECOVERY 인덱스 검증 (Summary 인덱스 생성 후)
+    await checkEarIndexes()
 
     console.log('[RecoverySummary] Indexes initialized')
   } catch (err) {
@@ -606,11 +677,15 @@ module.exports = {
   getCompletedBucketSet,
   getPartialBucketSet,
   validateBackfillRange,
+  checkEarIndexes,
+  isIndexReady,
   initializeRecoverySummary,
   startCronJobs,
   stopCronJobs,
   getLastCronRun,
   _setDeps,
   _getBackfillPromise,
-  _resetState
+  _resetState,
+  _setIndexReady,
+  _getSettlingHours
 }

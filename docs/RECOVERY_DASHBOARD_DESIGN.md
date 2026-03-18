@@ -643,7 +643,7 @@ await db.collection("EQP_AUTO_RECOVERY").aggregate([
       whenNotMatched: "insert"
     }
   }
-], { allowDiskUse: true }).toArray();
+], { allowDiskUse: true, maxTimeMS: 55000 }).toArray();
 ```
 
 ### 6-2. Pipeline: `RECOVERY_SUMMARY_BY_EQUIPMENT` (hourly)
@@ -688,7 +688,7 @@ on:   ["period", "bucket", "line", "process", "model", "trigger_by"]
 > - `$match`는 3개 파이프라인 모두 동일: `create_date` 범위 (String) + `status: { $ne: null, $exists: true }`
 > - `$arrayToObject` (MongoDB 3.4.4+) — status 값을 동적 키로 변환. 새 status 추가 시 파이프라인 수정 불필요
 > - `updated_at: "$$NOW"` — 서버 측 타임스탬프 (MongoDB 4.2+, 파이프라인 실행 시점 고정)
-> - `{ allowDiskUse: true }` — 고카디널리티 시간대에 `$group`이 100MB 메모리 제한 초과 방지
+> - `{ allowDiskUse: true, maxTimeMS: 55000 }` — 고카디널리티 시간대에 `$group`이 100MB 메모리 제한 초과 방지 + 고아 커서 방지 (API timeout 60초보다 5초 일찍 종료)
 > - `.toArray()` **필수** — `$merge` 파이프라인이라도 커서를 소비해야 실행됨
 > - `$merge`의 `whenMatched: "replace"` 로 **멱등성 보장** → 배치 실패 후 재실행해도 중복 집계 없음
 > - `$merge`는 **개별 문서 단위 atomic, 전체 파이프라인은 non-atomic** — 중간 실패 시 이미 merge된 문서는 롤백되지 않으나, 멱등성으로 재실행하면 자연 복구
@@ -819,7 +819,7 @@ async function initializeRecoverySummary() {
 
 ### 9-3. 동시 실행 방지
 
-이전 배치가 완료되기 전에 다음 cron이 트리거될 수 있음 (특히 backfill 중).
+**Cron 자체 중복 방지**: `isRunning` 플래그로 이전 hourly/daily 배치가 완료되기 전 다음 cron skip.
 
 ```javascript
 let isRunning = false;
@@ -831,8 +831,22 @@ cron.schedule("5 * * * *", async () => {
 }, { timezone: "Asia/Seoul" });
 ```
 
+**Cron + Manual Backfill 동시 실행**: 의도적으로 허용.
+- `$merge`의 `whenMatched: "replace"` 멱등성 덕분에 같은 bucket을 동시 처리해도 데이터 정합성 문제 없음
+- Lock을 공유하면 daily cron이 장시간 backfill에 의해 skip되는 위험이 있으므로 독립 운영
+- `isRunning`은 cron 전용, `backfillState.status`는 manual backfill 전용
+
 > PM2 cluster mode 등 다중 인스턴스 배포 시에는 in-memory 플래그로 불충분.
 > `PM2_INSTANCE_ID === '0'` 체크 또는 MongoDB 기반 분산 락 필요.
+
+### 9-3-1. EQP_AUTO_RECOVERY 인덱스 검증
+
+서버 시작 시 `initializeRecoverySummary()`에서 `EQP_AUTO_RECOVERY`의 `create_date` 인덱스 존재를 검증.
+인덱스가 없으면 **cron과 backfill이 자동 비활성화**되고, UI에 경고가 표시됨.
+
+- `checkEarIndexes()`: `collection.indexes()`로 `create_date` 키 포함 인덱스 확인
+- `isIndexReady()`: 현재 인덱스 검증 상태 반환
+- 인덱스 미확인 시: `runBatch()` 즉시 return, `runManualBackfill()` throw, API 503 응답
 
 ### 9-4. Cron 실행 로그 (`CRON_RUN_LOG`)
 
@@ -844,17 +858,16 @@ WEB_MANAGER DB에 실행 이력 기록. Gap 감지 및 backfill 트리거에 활
   period:       "hourly",
   bucket:       ISODate("2026-03-16T09:00:00.000+09:00"),
   status:       "success" | "partial" | "failed" | "running",
+  source:       "cron" | "autoBackfill" | "manualBackfill",
   startedAt:    ISODate("..."),
   completedAt:  ISODate("..."),
   pipelineResults: { scenario: "success", equipment: "success", trigger: "failed" },
-  docsInBucket:  { scenario: 1523, equipment: 890, trigger: 0 },
   errorMessage: { trigger: "timeout error ..." }
 }
 ```
 
 > - `partial`: 3개 파이프라인 중 일부만 성공 시 (각 파이프라인은 독립 try/catch로 격리)
-> - `docsInBucket`: `$merge` 후 `.toArray()`는 빈 배열 `[]`을 반환하므로,
->   파이프라인 실행 후 `countDocuments({ period, bucket })`로 해당 bucket의 총 Summary 문서 수를 카운트 (delta 아닌 전체 수)
+> - `completedAt`에 TTL 90일 인덱스 적용 — 90일 이후 자동 삭제
 
 > EARS DB 백업/복원 시 `CRON_RUN_LOG`(WEB_MANAGER DB)와 불일치 가능.
 > 복원 후에는 backfill 스크립트로 복원 시점~현재 구간 재집계 권장.
@@ -888,7 +901,10 @@ for (let day = startDate; day < endDate; day = addDays(day, 1)) {
 
 ### 9-7. Retention / TTL
 
-MongoDB TTL 인덱스는 단일 Date 필드 기준이라, `period`별 차등 보존이 불가.
+**CRON_RUN_LOG**: `completedAt`에 TTL 90일 인덱스 적용 (`expireAfterSeconds: 7776000`).
+서버 시작 시 `initializeRecoverySummary()`에서 자동 생성. 90일 이후 MongoDB가 자동 삭제.
+
+**Summary 컬렉션**: MongoDB TTL 인덱스는 단일 Date 필드 기준이라, `period`별 차등 보존이 불가.
 → **Cron 기반 정리 작업** 권장:
 
 | period  | 보존 기간 | 정리 주기 |
@@ -960,7 +976,8 @@ await collection.deleteMany({
 
 | 인덱스 | 용도 | 생성 방법 |
 |--------|------|-----------|
-| `{ period: 1, status: 1, completedAt: -1 }` | 마지막 성공 배치 조회 (`getLastCronRun`) | `initializeRecoverySummary()`에서 자동 생성 |
+| `{ jobName: 1, period: 1, bucket: 1 }` (unique) | bucket별 idempotent upsert | `initializeRecoverySummary()`에서 자동 생성 |
+| `{ completedAt: 1 }` (TTL 90일) | 90일 이후 자동 삭제 | `initializeRecoverySummary()`에서 자동 생성 |
 
 ### 요약 (전체 인덱스 수)
 
@@ -970,8 +987,8 @@ await collection.deleteMany({
 | EARS | `RECOVERY_SUMMARY_BY_SCENARIO` | 1 unique + 2 query | 서버 시작 시 자동 |
 | EARS | `RECOVERY_SUMMARY_BY_EQUIPMENT` | 1 unique + 1 query | 서버 시작 시 자동 |
 | EARS | `RECOVERY_SUMMARY_BY_TRIGGER` | 1 unique + 1 query | 서버 시작 시 자동 |
-| WEB_MANAGER | `CRON_RUN_LOG` | 1 | 서버 시작 시 자동 |
-| **합계** | | **11** | |
+| WEB_MANAGER | `CRON_RUN_LOG` | 1 unique + 1 TTL | 서버 시작 시 자동 |
+| **합계** | | **12** | |
 
 ---
 
@@ -990,9 +1007,11 @@ await collection.deleteMany({
 - [x] ~~Summary 컬렉션 Mongoose 모델 정의 여부~~ → raw driver 사용 (autoIndex: false 환경)
 - [x] ~~이력 조회 API~~ → 원본 직접 조회, 7일 제한, eqpid/ears_code 필수, skip/limit 페이지네이션
 - [x] ~~조회 기간 설계~~ → 오늘/7일/30일/90일/1년/커스텀(최대 2년), 기간별 granularity 자동 전환 (hourly/daily/weekly/monthly)
-- [x] ~~성능 최적화~~ → 모든 aggregate에 `allowDiskUse: true`, Overview 7개 쿼리 `Promise.all` 병렬 실행, API timeout 60초
+- [x] ~~성능 최적화~~ → 모든 aggregate에 `allowDiskUse: true` + `maxTimeMS: 55000`, Overview 7개 + ByProcess 5개 `Promise.all` 병렬 실행, Analysis trend `$limit: 300000`, API timeout 60초
+- [x] ~~Cron 실패 감지 + backfill 자동화~~ → gap 감지 + auto-backfill + manual backfill UI (RecoveryBackfillModal)
+- [x] ~~초기 backfill 스크립트 작성~~ → RecoveryBackfillModal로 대체 (날짜 범위 지정, throttle 조절, 진행률 표시)
+- [x] ~~CRON_RUN_LOG TTL~~ → completedAt에 TTL 90일 인덱스 자동 생성
+- [x] ~~EQP_AUTO_RECOVERY 인덱스 검증~~ → 서버 시작 시 create_date 인덱스 확인, 미존재 시 cron/backfill 비활성 + UI 경고
 - [ ] Retention 정리 cron 구현 (hourly 30일, daily 2년)
-- [ ] Cron 실패 감지 + backfill 자동화
-- [ ] 초기 backfill 스크립트 작성 + 테스트 (운영 데이터 15M건)
 - [ ] 비표준 `trigger_by` 정규화 정책 결정
 - [ ] 프론트엔드 Stopped 포함/제외 토글 구현 (실패율 계산 시 사용자 선택)

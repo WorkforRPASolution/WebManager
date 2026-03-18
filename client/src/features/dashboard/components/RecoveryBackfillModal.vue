@@ -35,6 +35,12 @@
 
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-4 space-y-4">
+          <!-- Index Warning -->
+          <div v-if="indexWarning" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-sm text-red-700 dark:text-red-400">
+            <strong>EQP_AUTO_RECOVERY 인덱스 미확인</strong>
+            <p class="mt-1 text-xs">create_date 인덱스가 없으면 full collection scan이 발생하여 DB에 심각한 부하를 줄 수 있습니다. 서버 관리자에게 인덱스 생성을 요청하세요.</p>
+          </div>
+
           <!-- Settings Form -->
           <div class="space-y-3" :class="{ 'opacity-50 pointer-events-none': serverStatus === 'running' }">
             <div class="flex flex-wrap items-center gap-3">
@@ -141,6 +147,11 @@
             <p class="text-gray-500 dark:text-gray-400">
               예상 소요: ~{{ formatDuration(analysisResult.estimatedMinutes) }}
               (throttle {{ (throttleMs / 1000).toFixed(1) }}초 기준, {{ retryPartial ? 'partial만' : '미처리만' }} {{ totalActionable }}건)
+            </p>
+            <p v-if="analysisResult.settlingInfo" class="text-xs text-amber-600 dark:text-amber-400 mt-1">
+              ⚠ settling 기간({{ analysisResult.settlingInfo.settlingHours }}시간) 적용:
+              요청 종료일 {{ analysisResult.settlingInfo.requestedEnd.slice(0, 16).replace('T', ' ') }}
+              → 실제 {{ analysisResult.settlingInfo.effectiveEnd.slice(0, 16).replace('T', ' ') }}
             </p>
           </div>
 
@@ -271,6 +282,7 @@ const serverStatus = computed(() => serverState.value.status)
 // ── UI State ──
 const showConfirmDialog = ref(false)
 const logs = ref([])
+const indexWarning = ref(false)
 let pollTimer = null
 let pollFailCount = 0
 let lastBucket = null
@@ -330,7 +342,11 @@ async function handleAnalyze() {
       retryPartial: retryPartial.value
     })
     analysisResult.value = res.data
+    indexWarning.value = false
   } catch (err) {
+    if (err.response?.data?.indexReady === false) {
+      indexWarning.value = true
+    }
     showError(err.response?.data?.error || '분석 실패')
   } finally {
     analyzing.value = false
@@ -390,6 +406,7 @@ async function fetchStatus() {
   try {
     const res = await recoveryApi.getBackfillStatus()
     serverState.value = res.data
+    if (res.data.indexReady === false) indexWarning.value = true
     pollFailCount = 0
 
     // Log tracking
@@ -403,7 +420,7 @@ async function fetchStatus() {
     }
 
     // Stop polling when done
-    if (['completed', 'cancelled', 'error', 'idle'].includes(res.data.status)) {
+    if (['completed', 'completed_with_warnings', 'cancelled', 'error', 'idle'].includes(res.data.status)) {
       stopPolling()
     }
   } catch {
@@ -469,7 +486,10 @@ const progressPercent = computed(() => {
 })
 
 const statusLabel = computed(() => {
-  const map = { idle: '대기', running: '실행 중', completed: '완료', cancelled: '취소됨', error: '오류' }
+  const map = {
+    idle: '대기', running: '실행 중', completed: '완료',
+    completed_with_warnings: '완료 (경고)', cancelled: '취소됨', error: '오류'
+  }
   return map[serverStatus.value] || serverStatus.value
 })
 
@@ -479,6 +499,7 @@ const statusBadgeClass = computed(() => {
     idle: `${base} bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400`,
     running: `${base} bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400`,
     completed: `${base} bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400`,
+    completed_with_warnings: `${base} bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400`,
     cancelled: `${base} bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400`,
     error: `${base} bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400`
   }

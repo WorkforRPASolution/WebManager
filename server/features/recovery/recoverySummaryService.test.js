@@ -16,6 +16,7 @@ import {
   _setDeps,
   _getBackfillPromise,
   _resetState,
+  _setIndexReady,
   PIPELINE_CONFIGS
 } from './recoverySummaryService.js'
 
@@ -76,6 +77,7 @@ describe('recoverySummaryService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     _resetState()
+    _setIndexReady(true)
   })
 
   describe('PIPELINE_CONFIGS', () => {
@@ -436,9 +438,9 @@ describe('recoverySummaryService', () => {
       await runBatch('daily')
 
       const eqpColl = mockEarsDb.collection('EQP_AUTO_RECOVERY')
-      // Check that aggregate was called with allowDiskUse option
+      // Check that aggregate was called with allowDiskUse + maxTimeMS options
       for (const call of eqpColl.aggregate.mock.calls) {
-        expect(call[1]).toEqual({ allowDiskUse: true })
+        expect(call[1]).toEqual({ allowDiskUse: true, maxTimeMS: 55000 })
       }
     })
   })
