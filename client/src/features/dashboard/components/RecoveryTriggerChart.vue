@@ -16,15 +16,30 @@ const props = defineProps({
 
 const { isDark } = useTheme()
 
+const TOP_N = 5
+
 const option = computed(() => {
   const dark = isDark.value
   const grandTotal = props.data.reduce((sum, d) => sum + (d.total || 0), 0)
 
-  const pieData = props.data.map(d => ({
+  // Top N + 기타 합산
+  const sorted = [...props.data].sort((a, b) => (b.total || 0) - (a.total || 0))
+  const top = sorted.slice(0, TOP_N)
+  const rest = sorted.slice(TOP_N)
+  const restTotal = rest.reduce((sum, d) => sum + (d.total || 0), 0)
+
+  const pieData = top.map(d => ({
     name: d.trigger_by || 'Unknown',
     value: d.total || 0,
     itemStyle: { color: getTriggerColor(d.trigger_by || 'Unknown', dark) }
   }))
+  if (restTotal > 0) {
+    pieData.push({
+      name: `기타 (${rest.length}개)`,
+      value: restTotal,
+      itemStyle: { color: dark ? '#4b5563' : '#9ca3af' }
+    })
+  }
 
   return {
     tooltip: {
