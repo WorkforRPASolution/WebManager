@@ -265,49 +265,50 @@ function handleSearch() {
       </div>
     </div>
 
+    <!-- ◀▶ 기간 이동 (프리셋일 때만) -->
+    <div v-if="!isCustom">
+      <label class="block text-sm font-medium text-transparent mb-1 select-none">&nbsp;</label>
+      <div class="flex items-center gap-0.5 py-2">
+      <button
+        @click="shiftPeriod(-1)"
+        class="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-dark-border rounded transition-colors"
+        title="이전 기간"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <button
+        @click="shiftPeriod(1)"
+        :disabled="isLatestPeriod"
+        class="p-1.5 rounded transition-colors"
+        :class="isLatestPeriod
+          ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+          : 'text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-dark-border'"
+        title="다음 기간"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+      </div>
+    </div>
+
     <!-- 시작일 -->
     <div>
       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">시작일</label>
-      <div class="flex items-center gap-1">
-        <button
-          v-if="!isCustom"
-          @click="shiftPeriod(-1)"
-          class="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-dark-border rounded transition-colors"
-          title="이전 기간"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-        </button>
-        <input
-          v-model="startDate"
-          type="date"
-          :disabled="!isCustom"
-          class="text-sm border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
-        />
-      </div>
+      <input
+        v-model="startDate"
+        type="date"
+        :disabled="!isCustom"
+        class="text-sm border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+      />
     </div>
     <!-- 종료일 -->
     <div>
       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">종료일</label>
-      <div class="flex items-center gap-1">
-        <input
-          v-model="endDate"
-          type="date"
-          :disabled="!isCustom"
-          class="text-sm border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
-        />
-        <button
-          v-if="!isCustom"
-          @click="shiftPeriod(1)"
-          :disabled="isLatestPeriod"
-          class="p-1.5 rounded transition-colors"
-          :class="isLatestPeriod
-            ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
-            : 'text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-dark-border'"
-          title="다음 기간"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-        </button>
-      </div>
+      <input
+        v-model="endDate"
+        type="date"
+        :disabled="!isCustom"
+        class="text-sm border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+      />
     </div>
 
     <!-- Process Filter -->
