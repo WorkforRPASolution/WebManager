@@ -58,11 +58,18 @@ function computeHourlyBoundaries(now, settlingHours = 0) {
 
 /**
  * Compute boundaries for the PREVIOUS completed day in KST.
+ * @param {Date} now - Current time
+ * @param {number} settlingHours - Hours to subtract before computing (default 0)
  * Returns { bucketStart: Date, dateGte: string, dateLt: string }
  */
-function computeDailyBoundaries(now) {
+function computeDailyBoundaries(now, settlingHours = 0) {
+  // Apply settling offset
+  const adjustedNow = settlingHours > 0
+    ? new Date(now.getTime() - settlingHours * 60 * 60 * 1000)
+    : now
+
   // Convert to KST
-  const kstMs = now.getTime() + KST_OFFSET_MS
+  const kstMs = adjustedNow.getTime() + KST_OFFSET_MS
   const kstDate = new Date(kstMs)
 
   // Floor to start of current KST day

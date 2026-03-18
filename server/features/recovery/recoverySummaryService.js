@@ -235,7 +235,7 @@ async function runBatch(period) {
     const now = new Date()
     const boundaries = period === 'hourly'
       ? computeHourlyBoundaries(now, deps.settlingHours)
-      : computeDailyBoundaries(now)
+      : computeDailyBoundaries(now, deps.settlingHours)
 
     const { bucketStart, dateGte, dateLt } = boundaries
 
