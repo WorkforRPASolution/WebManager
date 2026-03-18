@@ -47,9 +47,13 @@ onMounted(async () => {
   fetchData(currentFilters.value)
 })
 
-async function loadAnalysisFilters() {
+async function loadAnalysisFilters(period, startDate, endDate) {
   try {
-    const res = await recoveryApi.getAnalysisFilters()
+    const params = {}
+    if (period) params.period = period
+    if (startDate) params.startDate = startDate
+    if (endDate) params.endDate = endDate
+    const res = await recoveryApi.getAnalysisFilters(params)
     processes.value = res.data.processes || []
     modelsByProcess.value = res.data.modelsByProcess || {}
   } catch (err) {
@@ -95,8 +99,21 @@ function handleProcessChange(process) {
   models.value = modelsByProcess.value[process] || []
 }
 
-function handleSearch(filters) {
+async function handleSearch(filters) {
   currentFilters.value = filters
+  // 기간 변경 시 필터 목록도 갱신
+  await loadAnalysisFilters(filters.period, filters.startDate, filters.endDate)
+  // 선택된 process가 새 목록에 없으면 첫 번째로 변경
+  if (filters.process && !processes.value.includes(filters.process)) {
+    filters.process = processes.value[0] || ''
+    models.value = modelsByProcess.value[filters.process] || []
+    filters.model = models.value[0] || ''
+  } else if (filters.process) {
+    models.value = modelsByProcess.value[filters.process] || []
+    if (filters.model && !models.value.includes(filters.model)) {
+      filters.model = models.value[0] || ''
+    }
+  }
   fetchData(filters)
 }
 

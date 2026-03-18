@@ -698,39 +698,42 @@ async function getHistory(filters = {}) {
 /**
  * GET /api/recovery/analysis/filters
  * Returns processes and models that have actual recovery data.
- * Filtered by user's process permissions (passed from controller).
+ * Filtered by user's process permissions and period.
  */
 async function getAnalysisFilters(filters = {}) {
-  const { userProcesses } = filters
+  const { userProcesses, period = 'today', startDate, endDate } = filters
   const db = getEarsDb()
-  const coll = db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
 
-  // distinct process from summary data
-  let allProcesses = await coll.distinct('process')
-  allProcesses = allProcesses.filter(Boolean).sort()
-
-  // Apply user process permission filter
+  // Build base match with period + process permission
+  const baseMatch = { period: 'daily' }
+  const parsed = parsePeriod(period, { startDate, endDate })
+  if (parsed) {
+    baseMatch.bucket = { $gte: new Date(parsed.startDate), $lte: new Date(parsed.endDate) }
+  }
   if (userProcesses && userProcesses.length > 0) {
-    const upper = userProcesses.map(p => p.toUpperCase())
-    allProcesses = allProcesses.filter(p => upper.includes(p.toUpperCase()))
+    baseMatch.process = { $in: userProcesses }
   }
 
-  // distinct model per process (from equipment summary)
+  const scenarioColl = db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
   const eqColl = db.collection('RECOVERY_SUMMARY_BY_EQUIPMENT')
-  const modelQuery = allProcesses.length > 0 ? { process: { $in: allProcesses } } : {}
-  const modelDocs = await eqColl.aggregate([
-    { $match: modelQuery },
-    { $group: { _id: { process: '$process', model: '$model' } } },
-    { $group: { _id: '$_id.process', models: { $addToSet: '$_id.model' } } },
-    { $project: { _id: 0, process: '$_id', models: 1 } }
-  ]).toArray()
+
+  // 병렬: process distinct + model per process
+  const [allProcesses, modelDocs] = await Promise.all([
+    scenarioColl.distinct('process', baseMatch),
+    eqColl.aggregate([
+      { $match: baseMatch },
+      { $group: { _id: { process: '$process', model: '$model' } } },
+      { $group: { _id: '$_id.process', models: { $addToSet: '$_id.model' } } },
+      { $project: { _id: 0, process: '$_id', models: 1 } }
+    ]).toArray()
+  ])
 
   const modelsByProcess = {}
   for (const doc of modelDocs) {
     modelsByProcess[doc.process] = doc.models.filter(Boolean).sort()
   }
 
-  return { processes: allProcesses, modelsByProcess }
+  return { processes: allProcesses.filter(Boolean).sort(), modelsByProcess }
 }
 
 module.exports = {

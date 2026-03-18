@@ -74,10 +74,16 @@ async function getAnalysis(req, res) {
 }
 
 async function getAnalysisFilters(req, res) {
+  const { period, startDate, endDate } = req.query
   const userProcesses = req.user?.process
     ? req.user.process.split(';').map(p => p.trim()).filter(Boolean)
     : null
-  const result = await service.getAnalysisFilters({ userProcesses })
+  const result = await service.getAnalysisFilters({
+    userProcesses,
+    period: period || 'today',
+    startDate,
+    endDate
+  })
   res.json(result)
 }
 

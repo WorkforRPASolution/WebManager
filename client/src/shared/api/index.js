@@ -75,7 +75,7 @@ export const recoveryApi = {
   getOverview: (params = {}) => api.get('/recovery/overview', { params, timeout: 60000 }),
   getByProcess: (params = {}) => api.get('/recovery/by-process', { params, timeout: 60000 }),
   getAnalysis: (params = {}) => api.get('/recovery/analysis', { params, timeout: 60000 }),
-  getAnalysisFilters: () => api.get('/recovery/analysis/filters'),
+  getAnalysisFilters: (params = {}) => api.get('/recovery/analysis/filters', { params }),
   getHistory: (params = {}) => api.get('/recovery/history', { params, timeout: 30000 }),
   getLastAggregation: () => api.get('/recovery/last-aggregation'),
   analyzeBackfill: (params) => api.post('/recovery/backfill/analyze', params, { timeout: 30000 }),
