@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { clientsApi, recoveryApi } from '../../shared/api'
 import { useProcessFilterStore } from '../../shared/stores/processFilter'
 import { useProcessPermission } from '../../shared/composables/useProcessPermission'
+import { useAuthStore } from '../../shared/stores/auth'
 import RecoveryFilterBar from './components/RecoveryFilterBar.vue'
 import RecoveryKPICards from './components/RecoveryKPICards.vue'
 import RecoveryTrendChart from './components/RecoveryTrendChart.vue'
@@ -10,12 +11,16 @@ import RecoveryStatusDonut from './components/RecoveryStatusDonut.vue'
 import RecoveryTop10Chart from './components/RecoveryTop10Chart.vue'
 import RecoveryTriggerChart from './components/RecoveryTriggerChart.vue'
 import DataFreshnessIndicator from './components/DataFreshnessIndicator.vue'
+import RecoveryBackfillModal from './components/RecoveryBackfillModal.vue'
 import { useToast } from '../../shared/composables/useToast'
 import { exportRecoveryOverviewCsv } from './utils/recoveryCsvExport'
 
 const { showError } = useToast()
 const processFilterStore = useProcessFilterStore()
 const { buildUserProcessFilter } = useProcessPermission()
+const authStore = useAuthStore()
+const isAdmin = authStore.hasRole([1])
+const backfillModalVisible = ref(false)
 const loading = ref(false)
 const overviewData = ref(null)
 const lastAggregation = ref(null)
@@ -107,6 +112,18 @@ onMounted(() => {
             :lastAggregation="lastAggregation"
             @refresh="handleRefresh"
           />
+          <!-- Backfill (Admin only) -->
+          <button
+            v-if="isAdmin"
+            @click="backfillModalVisible = true"
+            class="p-1.5 text-gray-500 dark:text-gray-400 hover:text-orange-500 dark:hover:text-orange-400 hover:bg-gray-100 dark:hover:bg-dark-border rounded-lg transition-colors"
+            title="Backfill 관리"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
           <!-- CSV Export -->
           <div v-if="overviewData" class="relative csv-dropdown">
             <button
@@ -176,5 +193,11 @@ onMounted(() => {
     <div v-else class="flex items-center justify-center py-20">
       <p class="text-gray-400 dark:text-gray-500 text-sm">조회 버튼을 눌러 데이터를 불러오세요</p>
     </div>
+
+    <!-- Backfill Modal -->
+    <RecoveryBackfillModal
+      :visible="backfillModalVisible"
+      @close="backfillModalVisible = false"
+    />
   </div>
 </template>

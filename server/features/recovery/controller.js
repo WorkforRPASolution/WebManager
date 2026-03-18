@@ -4,8 +4,21 @@
  */
 
 const service = require('./service')
-const { validatePeriodRange } = require('./validation')
+const { validatePeriodRange, validateBackfillRange } = require('./validation')
 const { parsePaginationParams, createPaginatedResponse } = require('../../shared/utils/pagination')
+
+// ── Dependency Injection (for testing) ──
+
+let deps = {}
+function _setDeps(overrides) { deps = { ...deps, ...overrides } }
+
+function getSummaryService() {
+  return deps.summaryService || require('./recoverySummaryService')
+}
+
+function getDateUtils() {
+  return deps.dateUtils || require('./dateUtils')
+}
 
 async function getOverview(req, res) {
   const { period, process, line, startDate, endDate } = req.query
@@ -79,10 +92,105 @@ async function getHistory(req, res) {
 }
 
 async function getLastAggregation(req, res) {
-  const { getLastCronRun } = require('./recoverySummaryService')
-  const hourly = await getLastCronRun('hourly')
-  const daily = await getLastCronRun('daily')
+  const summaryService = getSummaryService()
+  const hourly = await summaryService.getLastCronRun('hourly')
+  const daily = await summaryService.getLastCronRun('daily')
   res.json({ hourly, daily })
+}
+
+async function analyzeBackfill(req, res) {
+  const { startDate, endDate, skipHourly, skipDaily, throttleMs, retryPartial } = req.body
+  const validation = validateBackfillRange(startDate, endDate)
+  if (!validation.valid) return res.status(400).json({ error: validation.error })
+
+  const { generateExpectedBuckets, floorToKSTBucket } = getDateUtils()
+  const summaryService = getSummaryService()
+
+  const rawStart = new Date(startDate)
+  const rawEnd = new Date(endDate)
+  const result = { hourly: null, daily: null, estimatedMinutes: 0 }
+  let totalActionable = 0
+  const effectiveThrottle = throttleMs ?? 1000
+
+  for (const period of ['hourly', 'daily']) {
+    if ((period === 'hourly' && skipHourly) || (period === 'daily' && skipDaily)) continue
+
+    const start = floorToKSTBucket('daily', rawStart)
+    const endFloored = floorToKSTBucket('daily', rawEnd)
+    const end = new Date(endFloored.getTime() + 24 * 60 * 60 * 1000)
+
+    const expected = generateExpectedBuckets(period, start, end)
+    const completedSet = await summaryService.getCompletedBucketSet(period, start, end)
+    const partialSet = await summaryService.getPartialBucketSet(period, start, end)
+
+    const successCount = expected.filter(b =>
+      completedSet.has(b.getTime()) && !partialSet.has(b.getTime())
+    ).length
+    const partialCount = expected.filter(b => partialSet.has(b.getTime())).length
+    const pendingCount = expected.length - successCount - partialCount
+    const actionable = retryPartial ? partialCount : pendingCount
+
+    result[period] = {
+      total: expected.length,
+      success: successCount,
+      partial: partialCount,
+      pending: pendingCount,
+      actionable
+    }
+    totalActionable += actionable
+  }
+
+  result.estimatedMinutes = Math.round(totalActionable * (1.5 + effectiveThrottle / 1000) / 60 * 10) / 10
+
+  res.json(result)
+}
+
+async function startBackfill(req, res) {
+  const { startDate, endDate, skipHourly, skipDaily, throttleMs, retryPartial } = req.body
+  const validation = validateBackfillRange(startDate, endDate)
+  if (!validation.valid) return res.status(400).json({ error: validation.error })
+
+  const { floorToKSTBucket } = getDateUtils()
+  const summaryService = getSummaryService()
+
+  // Check if already running
+  const currentState = summaryService.getBackfillState()
+  if (currentState.status === 'running') {
+    return res.status(409).json({
+      error: '이미 실행 중입니다',
+      state: currentState
+    })
+  }
+
+  const clampedThrottle = Math.max(0, Math.min(5000, throttleMs ?? 1000))
+
+  // KST align: 사용자 날짜 → KST 자정 기준 범위로 변환
+  const alignedStart = floorToKSTBucket('daily', new Date(startDate))
+  const endFloored = floorToKSTBucket('daily', new Date(endDate))
+  const alignedEnd = new Date(endFloored.getTime() + 24 * 60 * 60 * 1000)
+
+  try {
+    await summaryService.runManualBackfill(alignedStart, alignedEnd, {
+      skipHourly: !!skipHourly,
+      skipDaily: !!skipDaily,
+      throttleMs: clampedThrottle,
+      retryPartial: !!retryPartial
+    })
+    res.status(202).json({ message: 'Backfill started' })
+  } catch (err) {
+    res.status(409).json({ error: err.message })
+  }
+}
+
+async function getBackfillStatus(req, res) {
+  const summaryService = getSummaryService()
+  res.json(summaryService.getBackfillState())
+}
+
+async function handleCancelBackfill(req, res) {
+  const summaryService = getSummaryService()
+  summaryService.cancelBackfill()
+  res.json({ message: 'Backfill cancel requested' })
 }
 
 module.exports = {
@@ -90,5 +198,10 @@ module.exports = {
   getByProcess,
   getAnalysis,
   getHistory,
-  getLastAggregation
+  getLastAggregation,
+  analyzeBackfill,
+  startBackfill,
+  getBackfillStatus,
+  cancelBackfill: handleCancelBackfill,
+  _setDeps
 }

@@ -23,11 +23,18 @@ function formatKST(date) {
 
 /**
  * Compute boundaries for the PREVIOUS completed hour in KST.
+ * @param {Date} now - Current time
+ * @param {number} settlingHours - Hours to subtract before computing (default 0)
  * Returns { bucketStart: Date, dateGte: string, dateLt: string }
  */
-function computeHourlyBoundaries(now) {
+function computeHourlyBoundaries(now, settlingHours = 0) {
+  // Apply settling offset
+  const adjustedNow = settlingHours > 0
+    ? new Date(now.getTime() - settlingHours * 60 * 60 * 1000)
+    : now
+
   // Convert to KST by adding offset, then floor to current hour, subtract 1 hour
-  const kstMs = now.getTime() + KST_OFFSET_MS
+  const kstMs = adjustedNow.getTime() + KST_OFFSET_MS
   const kstDate = new Date(kstMs)
 
   // Floor to current KST hour
@@ -77,4 +84,63 @@ function computeDailyBoundaries(now) {
   return { bucketStart: bucketStartUtc, dateGte, dateLt }
 }
 
-module.exports = { formatKST, computeHourlyBoundaries, computeDailyBoundaries }
+/**
+ * Compute boundaries for a specific bucket Date.
+ * @param {'hourly'|'daily'} period
+ * @param {Date} bucketDate - The bucket start time (UTC)
+ * Returns { bucketStart: Date, dateGte: string, dateLt: string }
+ */
+function computeBoundariesForBucket(period, bucketDate) {
+  const dateGte = formatKST(bucketDate)
+  const increment = period === 'hourly' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000
+  const ltUtc = new Date(bucketDate.getTime() + increment)
+  const dateLt = formatKST(ltUtc)
+  return { bucketStart: bucketDate, dateGte, dateLt }
+}
+
+/**
+ * Generate array of expected bucket Dates in [startDate, endDate) range.
+ * @param {'hourly'|'daily'} period
+ * @param {Date} startDate - Inclusive start (UTC bucket time)
+ * @param {Date} endDate - Exclusive end (UTC bucket time)
+ * @returns {Date[]}
+ */
+function generateExpectedBuckets(period, startDate, endDate) {
+  const increment = period === 'hourly' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000
+  const buckets = []
+  let current = startDate.getTime()
+  const end = endDate.getTime()
+  while (current < end) {
+    buckets.push(new Date(current))
+    current += increment
+  }
+  return buckets
+}
+
+/**
+ * Floor an arbitrary Date to KST bucket start.
+ * @param {'hourly'|'daily'} period
+ * @param {Date} date
+ * @returns {Date} - UTC Date representing the KST-aligned bucket start
+ */
+function floorToKSTBucket(period, date) {
+  const kstMs = date.getTime() + KST_OFFSET_MS
+  const kstDate = new Date(kstMs)
+
+  if (period === 'hourly') {
+    kstDate.setUTCMinutes(0, 0, 0)
+  } else {
+    kstDate.setUTCHours(0, 0, 0, 0)
+  }
+
+  return new Date(kstDate.getTime() - KST_OFFSET_MS)
+}
+
+module.exports = {
+  formatKST,
+  computeHourlyBoundaries,
+  computeDailyBoundaries,
+  computeBoundariesForBucket,
+  generateExpectedBuckets,
+  floorToKSTBucket
+}

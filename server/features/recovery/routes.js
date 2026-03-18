@@ -1,7 +1,7 @@
 const express = require('express')
 const router = express.Router()
 const { asyncHandler } = require('../../shared/middleware/errorHandler')
-const { authenticate, requireMenuPermission } = require('../../shared/middleware/authMiddleware')
+const { authenticate, requireMenuPermission, requireRole } = require('../../shared/middleware/authMiddleware')
 const controller = require('./controller')
 
 // GET /api/recovery/overview - Recovery 전체 현황 KPI + 트렌드 + Top N
@@ -18,5 +18,11 @@ router.get('/history', authenticate, requireMenuPermission('dashboardRecoveryAna
 
 // GET /api/recovery/last-aggregation - 마지막 집계 시각 조회
 router.get('/last-aggregation', authenticate, asyncHandler(controller.getLastAggregation))
+
+// Backfill API (Admin only - role level 1)
+router.post('/backfill/analyze', authenticate, requireRole([1]), asyncHandler(controller.analyzeBackfill))
+router.post('/backfill', authenticate, requireRole([1]), asyncHandler(controller.startBackfill))
+router.get('/backfill/status', authenticate, requireRole([1]), asyncHandler(controller.getBackfillStatus))
+router.post('/backfill/cancel', authenticate, requireRole([1]), asyncHandler(controller.cancelBackfill))
 
 module.exports = router

@@ -77,6 +77,10 @@ export const recoveryApi = {
   getAnalysis: (params = {}) => api.get('/recovery/analysis', { params, timeout: 60000 }),
   getHistory: (params = {}) => api.get('/recovery/history', { params, timeout: 30000 }),
   getLastAggregation: () => api.get('/recovery/last-aggregation'),
+  analyzeBackfill: (params) => api.post('/recovery/backfill/analyze', params, { timeout: 30000 }),
+  startBackfill: (params) => api.post('/recovery/backfill', params),
+  getBackfillStatus: () => api.get('/recovery/backfill/status'),
+  cancelBackfill: () => api.post('/recovery/backfill/cancel'),
 }
 
 // Auth API

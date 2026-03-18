@@ -25,7 +25,12 @@ const cronRunLogSchema = new Schema({
     equipment: { type: Number },
     trigger: { type: Number }
   },
-  errorMessage: { type: Schema.Types.Mixed }
+  errorMessage: { type: Schema.Types.Mixed },
+  source: {
+    type: String,
+    enum: ['cron', 'autoBackfill', 'manualBackfill'],
+    default: 'cron'
+  }
 }, {
   collection: 'CRON_RUN_LOG',
   timestamps: false

@@ -92,4 +92,26 @@ function parsePeriod(period, opts) {
   return { startDate, endDate }
 }
 
-module.exports = { validatePeriodRange, parsePeriod }
+/**
+ * Validate backfill date range (max 730 days).
+ */
+function validateBackfillRange(startDate, endDate) {
+  if (!startDate || !endDate) {
+    return { valid: false, error: 'startDate and endDate are required' }
+  }
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return { valid: false, error: 'Invalid date format' }
+  }
+  if (start >= end) {
+    return { valid: false, error: 'startDate must be before endDate' }
+  }
+  const diffDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
+  if (diffDays > 730) {
+    return { valid: false, error: 'Date range exceeds maximum of 730 days (2 years)' }
+  }
+  return { valid: true }
+}
+
+module.exports = { validatePeriodRange, parsePeriod, validateBackfillRange }
