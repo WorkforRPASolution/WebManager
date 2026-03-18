@@ -12,6 +12,7 @@ import RecoveryTop10Chart from './components/RecoveryTop10Chart.vue'
 import RecoveryTriggerChart from './components/RecoveryTriggerChart.vue'
 import DataFreshnessIndicator from './components/DataFreshnessIndicator.vue'
 import RecoveryBackfillModal from './components/RecoveryBackfillModal.vue'
+import BatchHistoryModal from './components/BatchHistoryModal.vue'
 import { useToast } from '../../shared/composables/useToast'
 import { exportRecoveryOverviewCsv } from './utils/recoveryCsvExport'
 
@@ -21,6 +22,7 @@ const { buildUserProcessFilter } = useProcessPermission()
 const authStore = useAuthStore()
 const isAdmin = authStore.hasRole([1])
 const backfillModalVisible = ref(false)
+const batchHistoryVisible = ref(false)
 const loading = ref(false)
 const overviewData = ref(null)
 const lastAggregation = ref(null)
@@ -112,6 +114,17 @@ onMounted(() => {
             :lastAggregation="lastAggregation"
             @refresh="handleRefresh"
           />
+          <!-- Batch History (Admin only) -->
+          <button
+            v-if="isAdmin"
+            @click="batchHistoryVisible = true"
+            class="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-dark-border rounded-lg transition-colors"
+            title="배치 이력"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          </button>
           <!-- Backfill (Admin only) -->
           <button
             v-if="isAdmin"
@@ -198,6 +211,12 @@ onMounted(() => {
     <RecoveryBackfillModal
       :visible="backfillModalVisible"
       @close="backfillModalVisible = false"
+    />
+
+    <!-- Batch History Modal -->
+    <BatchHistoryModal
+      :visible="batchHistoryVisible"
+      @close="batchHistoryVisible = false"
     />
   </div>
 </template>
