@@ -43,8 +43,8 @@ onMounted(async () => {
     if (models.value.length > 0) {
       currentFilters.value.model = models.value[0]
     }
+    fetchData(currentFilters.value)
   }
-  fetchData(currentFilters.value)
 })
 
 async function loadAnalysisFilters(period, startDate, endDate) {

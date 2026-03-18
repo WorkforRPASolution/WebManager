@@ -61,7 +61,9 @@ function toMatchValue(csv) {
 
 function buildMatchFilter(period, { process, line, model, startDate, endDate } = {}) {
   const parsed = parsePeriod(period, { startDate, endDate })
-  const match = { period: 'daily' }
+  const granularity = determineTrendGranularity(period, { startDate, endDate })
+  const summaryPeriod = (granularity === 'hourly') ? 'hourly' : 'daily'
+  const match = { period: summaryPeriod }
 
   if (parsed) {
     match.bucket = { $gte: new Date(parsed.startDate), $lte: new Date(parsed.endDate) }
@@ -705,7 +707,9 @@ async function getAnalysisFilters(filters = {}) {
   const db = getEarsDb()
 
   // Build base match with period + process permission
-  const baseMatch = { period: 'daily' }
+  const granularity = determineTrendGranularity(period, { startDate, endDate })
+  const summaryPeriod = (granularity === 'hourly') ? 'hourly' : 'daily'
+  const baseMatch = { period: summaryPeriod }
   const parsed = parsePeriod(period, { startDate, endDate })
   if (parsed) {
     baseMatch.bucket = { $gte: new Date(parsed.startDate), $lte: new Date(parsed.endDate) }

@@ -19,7 +19,7 @@ const props = defineProps({
 
 const { isDark } = useTheme()
 
-const MAX_VISIBLE = 15
+const MAX_VISIBLE = 25
 
 const needsZoom = computed(() => props.data.length > MAX_VISIBLE)
 
@@ -152,7 +152,7 @@ function buildGroupedOption(dark, categories) {
         borderRadius: idx === RATE_STATUSES.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]
       },
       emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } },
-      barMaxWidth: 50
+      barMaxWidth: 30
     }))
   }
 }
