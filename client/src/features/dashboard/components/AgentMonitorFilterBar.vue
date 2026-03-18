@@ -55,7 +55,7 @@ function handleSearch() {
       :options="models"
       label="Model"
       placeholder="전체 Model"
-      width="200px"
+      width="300px"
     />
 
     <!-- Search Button -->

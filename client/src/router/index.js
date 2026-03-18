@@ -119,7 +119,7 @@ const routes = [
         mainMenuIcon: 'dashboard',
         mainMenuOrder: 1,
         subMenu: 'resource-agent-status',
-        subMenuLabel: 'ResAgent Status',
+        subMenuLabel: 'ResourceAgent Status',
         subMenuIcon: 'memory',
         subMenuOrder: 4,
         permission: 'dashboardResStatus'
@@ -140,7 +140,7 @@ const routes = [
         mainMenuIcon: 'dashboard',
         mainMenuOrder: 1,
         subMenu: 'resource-agent-version',
-        subMenuLabel: 'ResAgent Version',
+        subMenuLabel: 'ResourceAgent Version',
         subMenuIcon: 'system_update_alt',
         subMenuOrder: 5,
         permission: 'dashboardResVersion'
