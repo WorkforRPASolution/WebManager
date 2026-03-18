@@ -75,7 +75,7 @@ function buildGroupedOption(dark, categories) {
       formatter: (params) => {
         const title = params[0]?.axisValueLabel || ''
         const items = params.filter(p => p.value > 0)
-        if (items.length === 0) return `${title}<br/>데이터 없음`
+        if (items.length === 0) return `<b>${title}</b><br/><span style="color:#999">실행 건수 없음 (∅)</span>`
         const lines = items.map(p => `${p.marker} ${p.seriesName}: <b>${p.value}%</b>`).join('<br/>')
         return `<b>${title}</b><br/>${lines}`
       }
@@ -201,7 +201,7 @@ function buildStackedOption(dark, categories) {
       formatter: (params) => {
         const title = params[0]?.axisValueLabel || ''
         const items = params.filter(p => p.value > 0)
-        if (items.length === 0) return `${title}<br/>데이터 없음`
+        if (items.length === 0) return `<b>${title}</b><br/><span style="color:#999">실행 건수 없음 (∅)</span>`
         const total = params.reduce((s, p) => s + (p.value || 0), 0)
         const lines = items.map(p => `${p.marker} ${p.seriesName}: <b>${p.value.toLocaleString()}</b>`).join('<br/>')
         return `<b>${title}</b> (Total: ${total.toLocaleString()})<br/>${lines}`

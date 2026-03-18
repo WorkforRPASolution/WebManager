@@ -77,8 +77,9 @@ function getSuccessRateColor(rate) {
           <td class="py-2.5 px-3 text-right text-red-600 dark:text-red-400">{{ sumByGroup(row.statusCounts, 'failed').toLocaleString() }}</td>
           <td class="py-2.5 px-3 text-right text-amber-600 dark:text-amber-400">{{ sumByGroup(row.statusCounts, 'stopped').toLocaleString() }}</td>
           <td class="py-2.5 px-3 text-right text-cyan-600 dark:text-cyan-400">{{ sumByGroup(row.statusCounts, 'skip').toLocaleString() }}</td>
-          <td class="py-2.5 px-3 text-right font-semibold" :class="getSuccessRateColor(calcSuccessRate(row.statusCounts, row.total))">
-            {{ calcSuccessRate(row.statusCounts, row.total).toFixed(1) }}%
+          <td class="py-2.5 px-3 text-right font-semibold" :class="row.total ? getSuccessRateColor(calcSuccessRate(row.statusCounts, row.total)) : 'text-gray-400 dark:text-gray-500'">
+            <template v-if="row.total">{{ calcSuccessRate(row.statusCounts, row.total).toFixed(1) }}%</template>
+            <span v-else title="실행 건수 없음">∅</span>
           </td>
         </tr>
 

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { recoveryApi, clientsApi } from '../../shared/api'
 import { useProcessFilterStore } from '../../shared/stores/processFilter'
 import { useProcessPermission } from '../../shared/composables/useProcessPermission'
@@ -22,6 +22,29 @@ const lastAggregation = ref(null)
 const expandedProcess = ref(null)
 const currentFilters = ref({ period: 'today' })
 const processes = ref([])
+const showEmptyProcesses = ref(false)
+
+// 데이터 없는 공정을 빈 항목으로 추가
+const displayProcesses = computed(() => {
+  if (!processData.value?.processes) return []
+  if (!showEmptyProcesses.value) return processData.value.processes
+
+  // 검색 필터에 공정이 지정되어 있으면 그 범위만
+  let candidates = processes.value
+  const filterProcess = currentFilters.value.process
+  if (filterProcess) {
+    const filterSet = new Set(filterProcess.split(',').map(s => s.trim()))
+    candidates = candidates.filter(p => filterSet.has(p))
+  }
+
+  const dataSet = new Set(processData.value.processes.map(p => p.process))
+  const emptyEntries = candidates
+    .filter(p => !dataSet.has(p))
+    .map(p => ({ process: p, total: 0, statusCounts: {} }))
+
+  return [...processData.value.processes, ...emptyEntries]
+    .sort((a, b) => a.process.localeCompare(b.process))
+})
 
 async function loadFilterOptions() {
   try {
@@ -81,7 +104,7 @@ function getDrilldown(process) {
 }
 
 function handleCsvExport() {
-  const processes = processData.value?.processes
+  const processes = displayProcesses.value
   if (!processes || processes.length === 0) return
   // Map to the format expected by exportRecoveryByProcessCsv
   const mapped = processes.map(p => ({
@@ -140,17 +163,37 @@ onMounted(() => {
     </div>
 
     <template v-else-if="processData">
+      <!-- Toggle: 실행 건수 없는 공정 표시 -->
+      <div class="flex items-center justify-end">
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <span class="text-xs text-gray-500 dark:text-gray-400">미실행 공정 표시</span>
+          <button
+            type="button"
+            role="switch"
+            :aria-checked="showEmptyProcesses"
+            @click="showEmptyProcesses = !showEmptyProcesses"
+            class="relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            :class="showEmptyProcesses ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-600'"
+          >
+            <span
+              class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
+              :class="showEmptyProcesses ? 'translate-x-4' : 'translate-x-0'"
+            />
+          </button>
+        </label>
+      </div>
+
       <!-- Comparison Chart: Success Rate by Process -->
       <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
         <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">공정별 성공률 비교</h3>
-        <ProcessComparisonChart :data="processData.processes || []" />
+        <ProcessComparisonChart :data="displayProcesses" />
       </div>
 
       <!-- Row 2: Execution Count (Stacked) + Success Rate Trend (Multi-Line) -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
           <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">공정별 실행 건수</h3>
-          <ProcessComparisonChart :data="processData.processes || []" mode="stacked" />
+          <ProcessComparisonChart :data="displayProcesses" mode="stacked" />
         </div>
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
           <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">
@@ -175,7 +218,7 @@ onMounted(() => {
           </button>
         </div>
         <ProcessSummaryTable
-          :data="processData.processes || []"
+          :data="displayProcesses"
           :expandedProcess="expandedProcess"
           @expand="handleExpand"
         />
