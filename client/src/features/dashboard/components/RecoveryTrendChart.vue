@@ -24,28 +24,7 @@ const MAIN_STATUSES = ['Success', 'Failed', 'Stopped', 'Skip']
 
 const needsZoom = computed(() => props.data.length > MAX_VISIBLE)
 
-function formatBucketLabel(bucket, granularity) {
-  const date = new Date(bucket)
-  const mm = String(date.getMonth() + 1).padStart(2, '0')
-  const dd = String(date.getDate()).padStart(2, '0')
-  const hh = String(date.getHours()).padStart(2, '0')
-
-  switch (granularity) {
-    case 'hourly': {
-      const today = new Date()
-      if (date.toDateString() !== today.toDateString()) return `${mm}/${dd} ${hh}:00`
-      return `${hh}:00`
-    }
-    case 'daily':
-      return `${mm}/${dd}`
-    case 'weekly':
-      return `${mm}/${dd}~`
-    case 'monthly':
-      return `${date.getFullYear()}.${mm}`
-    default:
-      return `${mm}/${dd}`
-  }
-}
+import { formatBucketLabel } from '../utils/recoveryBucketFormat'
 
 const option = computed(() => {
   const dark = isDark.value

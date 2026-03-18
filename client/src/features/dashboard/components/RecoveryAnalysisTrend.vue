@@ -7,6 +7,7 @@ import { TooltipComponent, LegendComponent, GridComponent, DataZoomComponent } f
 import { CanvasRenderer } from 'echarts/renderers'
 import { useTheme } from '../../../shared/composables/useTheme'
 import { getStatusColor } from '../utils/recoveryColors'
+import { formatBucketLabel } from '../utils/recoveryBucketFormat'
 
 use([LineChart, TooltipComponent, LegendComponent, GridComponent, DataZoomComponent, CanvasRenderer])
 
@@ -25,22 +26,7 @@ const option = computed(() => {
   const items = props.data
 
   // x축: granularity에 따라 라벨 포맷
-  const categories = items.map(d => {
-    const date = new Date(d.bucket)
-    const pad = (n) => String(n).padStart(2, '0')
-    const mm = pad(date.getMonth() + 1)
-    const dd = pad(date.getDate())
-    switch (props.granularity) {
-      case 'hourly': {
-        const today = new Date()
-        if (date.toDateString() !== today.toDateString()) return `${mm}/${dd} ${pad(date.getHours())}:00`
-        return `${pad(date.getHours())}:00`
-      }
-      case 'weekly': return `${mm}/${dd}~`
-      case 'monthly': return `${date.getFullYear()}.${mm}`
-      default: return `${mm}/${dd}`
-    }
-  })
+  const categories = items.map(d => formatBucketLabel(d.bucket, props.granularity))
 
   // 성공률 라인 (메인)
   const successRateData = items.map(d => {

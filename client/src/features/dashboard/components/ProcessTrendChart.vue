@@ -6,6 +6,7 @@ import { LineChart } from 'echarts/charts'
 import { TooltipComponent, LegendComponent, GridComponent, DataZoomComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useTheme } from '../../../shared/composables/useTheme'
+import { formatBucketLabel } from '../utils/recoveryBucketFormat'
 
 use([LineChart, TooltipComponent, LegendComponent, GridComponent, DataZoomComponent, CanvasRenderer])
 
@@ -66,22 +67,7 @@ const option = computed(() => {
   const sortedBuckets = [...allBuckets].sort()
 
   // Format bucket labels based on granularity
-  const categories = sortedBuckets.map(bucket => {
-    const date = new Date(bucket)
-    const pad = (n) => String(n).padStart(2, '0')
-    const mm = pad(date.getMonth() + 1)
-    const dd = pad(date.getDate())
-    switch (props.granularity) {
-      case 'hourly': {
-        const today = new Date()
-        if (date.toDateString() !== today.toDateString()) return `${mm}/${dd} ${pad(date.getHours())}:00`
-        return `${pad(date.getHours())}:00`
-      }
-      case 'weekly': return `${mm}/${dd}~`
-      case 'monthly': return `${date.getFullYear()}.${mm}`
-      default: return `${mm}/${dd}`
-    }
-  })
+  const categories = sortedBuckets.map(bucket => formatBucketLabel(bucket, props.granularity))
 
   // Build series - assign stable color indices based on sorted process order
   let topColorIdx = 0
