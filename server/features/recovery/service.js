@@ -695,10 +695,49 @@ async function getHistory(filters = {}) {
   return { data, total }
 }
 
+/**
+ * GET /api/recovery/analysis/filters
+ * Returns processes and models that have actual recovery data.
+ * Filtered by user's process permissions (passed from controller).
+ */
+async function getAnalysisFilters(filters = {}) {
+  const { userProcesses } = filters
+  const db = getEarsDb()
+  const coll = db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
+
+  // distinct process from summary data
+  let allProcesses = await coll.distinct('process')
+  allProcesses = allProcesses.filter(Boolean).sort()
+
+  // Apply user process permission filter
+  if (userProcesses && userProcesses.length > 0) {
+    const upper = userProcesses.map(p => p.toUpperCase())
+    allProcesses = allProcesses.filter(p => upper.includes(p.toUpperCase()))
+  }
+
+  // distinct model per process (from equipment summary)
+  const eqColl = db.collection('RECOVERY_SUMMARY_BY_EQUIPMENT')
+  const modelQuery = allProcesses.length > 0 ? { process: { $in: allProcesses } } : {}
+  const modelDocs = await eqColl.aggregate([
+    { $match: modelQuery },
+    { $group: { _id: { process: '$process', model: '$model' } } },
+    { $group: { _id: '$_id.process', models: { $addToSet: '$_id.model' } } },
+    { $project: { _id: 0, process: '$_id', models: 1 } }
+  ]).toArray()
+
+  const modelsByProcess = {}
+  for (const doc of modelDocs) {
+    modelsByProcess[doc.process] = doc.models.filter(Boolean).sort()
+  }
+
+  return { processes: allProcesses, modelsByProcess }
+}
+
 module.exports = {
   getOverview,
   getByProcess,
   getAnalysis,
+  getAnalysisFilters,
   getHistory,
   _setDeps
 }

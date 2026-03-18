@@ -1,9 +1,7 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { recoveryApi, clientsApi } from '../../shared/api'
-import { useProcessFilterStore } from '../../shared/stores/processFilter'
-import { useProcessPermission } from '../../shared/composables/useProcessPermission'
+import { recoveryApi } from '../../shared/api'
 import RecoveryFilterBar from './components/RecoveryFilterBar.vue'
 import RecoveryAnalysisTab from './components/RecoveryAnalysisTab.vue'
 import RecoveryHistoryModal from './components/RecoveryHistoryModal.vue'
@@ -12,8 +10,6 @@ import { useToast } from '../../shared/composables/useToast'
 
 const route = useRoute()
 const { showError } = useToast()
-const processFilterStore = useProcessFilterStore()
-const { buildUserProcessFilter } = useProcessPermission()
 
 const activeTab = ref('scenario')
 const tabs = [
@@ -29,6 +25,7 @@ const granularity = ref('hourly')
 const lastAggregation = ref(null)
 const processes = ref([])
 const models = ref([])
+const modelsByProcess = ref({})
 const currentFilters = ref({})
 
 // History modal state
@@ -37,12 +34,12 @@ const historyMode = ref('eqpid')
 const historyTargetId = ref('')
 
 onMounted(async () => {
-  await loadProcesses()
+  await loadAnalysisFilters()
   // Auto-apply process filter from navigation query or first available
   const initProcess = route.query.process || (processes.value.length > 0 ? processes.value[0] : '')
   if (initProcess) {
     currentFilters.value.process = initProcess
-    await loadModels(initProcess)
+    models.value = modelsByProcess.value[initProcess] || []
     if (models.value.length > 0) {
       currentFilters.value.model = models.value[0]
     }
@@ -50,24 +47,13 @@ onMounted(async () => {
   fetchData(currentFilters.value)
 })
 
-async function loadProcesses() {
+async function loadAnalysisFilters() {
   try {
-    const res = await clientsApi.getProcesses()
-    const allProcesses = res.data || []
-    processFilterStore.setProcesses('clients', allProcesses)
-    processes.value = processFilterStore.getFilteredProcesses('clients')
+    const res = await recoveryApi.getAnalysisFilters()
+    processes.value = res.data.processes || []
+    modelsByProcess.value = res.data.modelsByProcess || {}
   } catch (err) {
-    console.error('Failed to load processes:', err)
-  }
-}
-
-async function loadModels(process) {
-  try {
-    const res = await clientsApi.getModels(process || undefined)
-    models.value = res.data || []
-  } catch (err) {
-    console.error('Failed to load models:', err)
-    models.value = []
+    console.error('Failed to load analysis filters:', err)
   }
 }
 
@@ -75,12 +61,6 @@ async function fetchData(filters = {}) {
   loading.value = true
   try {
     const params = { ...filters, tab: activeTab.value }
-
-    // Apply user process permission if no process filter selected
-    if (!params.process) {
-      const userProcesses = buildUserProcessFilter()
-      if (userProcesses) params.process = userProcesses.join(',')
-    }
 
     const [analysisRes, aggRes] = await Promise.allSettled([
       recoveryApi.getAnalysis(params),
@@ -111,8 +91,8 @@ watch(activeTab, () => {
   fetchData(currentFilters.value)
 })
 
-async function handleProcessChange(process) {
-  await loadModels(process)
+function handleProcessChange(process) {
+  models.value = modelsByProcess.value[process] || []
 }
 
 function handleSearch(filters) {

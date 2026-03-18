@@ -73,6 +73,14 @@ async function getAnalysis(req, res) {
   res.json(result)
 }
 
+async function getAnalysisFilters(req, res) {
+  const userProcesses = req.user?.process
+    ? req.user.process.split(';').map(p => p.trim()).filter(Boolean)
+    : null
+  const result = await service.getAnalysisFilters({ userProcesses })
+  res.json(result)
+}
+
 async function getHistory(req, res) {
   const { eqpid, ears_code, status, startDate, endDate } = req.query
 
@@ -337,6 +345,7 @@ module.exports = {
   getOverview,
   getByProcess,
   getAnalysis,
+  getAnalysisFilters,
   getHistory,
   getLastAggregation,
   analyzeBackfill,
