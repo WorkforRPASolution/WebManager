@@ -81,6 +81,9 @@ export const recoveryApi = {
   startBackfill: (params) => api.post('/recovery/backfill', params),
   getBackfillStatus: () => api.get('/recovery/backfill/status'),
   cancelBackfill: () => api.post('/recovery/backfill/cancel'),
+  getCronRunDistribution: (params = {}) => api.get('/recovery/backfill/distribution', { params }),
+  getBatchLogs: (params = {}) => api.get('/recovery/batch-logs', { params }),
+  getBatchHeatmap: (params = {}) => api.get('/recovery/batch-logs/heatmap', { params }),
 }
 
 // Auth API
