@@ -10,6 +10,7 @@
     "start": "cd server && npm start"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "concurrently": "^8.2.0"
   }
 }
