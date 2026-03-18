@@ -353,8 +353,9 @@ async function getOverview(filters = {}) {
   kpi.prevSuccessRate = prev.successRate
 
   // trend에 scenarioCount 병합
-  const scMap = new Map(scenarioCounts.map(s => [s.bucket.toISOString(), s.scenarioCount]))
+  const scMap = new Map(scenarioCounts.filter(s => s.bucket).map(s => [s.bucket.toISOString(), s.scenarioCount]))
   for (const t of trend) {
+    if (!t.bucket) continue
     const key = t.bucket instanceof Date ? t.bucket.toISOString() : new Date(t.bucket).toISOString()
     t.scenarioCount = scMap.get(key) || 0
   }
