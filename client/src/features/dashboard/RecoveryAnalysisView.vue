@@ -99,6 +99,10 @@ function handleProcessChange(process) {
   models.value = modelsByProcess.value[process] || []
 }
 
+async function handlePeriodChange(period) {
+  await loadAnalysisFilters(period)
+}
+
 async function handleSearch(filters) {
   currentFilters.value = filters
   // 기간 변경 시 필터 목록도 갱신
@@ -150,6 +154,7 @@ function openHistory(item) {
           :initialModel="currentFilters.model || ''"
           @search="handleSearch"
           @process-change="handleProcessChange"
+          @period-change="handlePeriodChange"
         />
         <DataFreshnessIndicator :lastAggregation="lastAggregation" @refresh="handleRefresh" />
       </div>

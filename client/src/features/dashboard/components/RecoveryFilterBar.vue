@@ -16,7 +16,7 @@ const props = defineProps({
   initialModel: { type: String, default: '' }
 })
 
-const emit = defineEmits(['search', 'process-change'])
+const emit = defineEmits(['search', 'process-change', 'period-change'])
 
 const selectedPeriod = ref('today')
 const selectedProcesses = ref([])
@@ -96,6 +96,9 @@ const isCustom = computed(() => selectedPeriod.value === 'custom')
 function selectPeriod(value) {
   selectedPeriod.value = value
   periodDropdownOpen.value = false
+  if (value !== 'custom') {
+    emit('period-change', value)
+  }
 }
 
 function handlePeriodClickOutside(e) {
