@@ -681,7 +681,14 @@ async function getHistory(filters = {}) {
   if (ears_code) query.ears_code = ears_code
   if (status) query.status = status
   if (startDate && endDate) {
-    query.create_date = { $gte: startDate, $lt: endDate }
+    // endDate는 해당 날짜를 포함해야 하므로 +1일로 $lt 경계를 만든다.
+    // 주의: create_date는 EARS DB에 KST 문자열("2026-03-19T11:15:43.196+09:00")로
+    // 저장되어 있으므로 반드시 문자열 비교를 유지해야 한다 (Date 객체 변환 시 타입 불일치로 조회 불가).
+    // 또한 setUTCDate/getUTCDate를 사용해야 한다 — 로컬 setDate는 KST 기준이지만
+    // toISOString()은 UTC 출력이라 +1일이 상쇄될 수 있다.
+    const endNext = new Date(endDate)
+    endNext.setUTCDate(endNext.getUTCDate() + 1)
+    query.create_date = { $gte: startDate, $lt: endNext.toISOString().slice(0, 10) }
   }
 
   const data = await db.collection('EQP_AUTO_RECOVERY')

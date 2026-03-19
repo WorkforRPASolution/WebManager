@@ -325,15 +325,15 @@ describe('recovery service', () => {
       expect(findQuery).toHaveProperty('status', 'Failed')
     })
 
-    it('applies create_date range filter', async () => {
+    it('applies create_date range filter (endDate is inclusive of the selected day)', async () => {
       const recoveryColl = createMockCollection({ findResult: [], countResult: 0 })
       const mockEarsDb = createMockEarsDb({
         'EQP_AUTO_RECOVERY': recoveryColl
       })
       _setDeps({ earsDb: mockEarsDb })
 
-      const startDate = '2026-03-15T00:00:00.000+09:00'
-      const endDate = '2026-03-16T23:59:59.999+09:00'
+      const startDate = '2026-03-15'
+      const endDate = '2026-03-16'
 
       await service.getHistory({
         eqpid: 'EQP-001',
@@ -344,7 +344,10 @@ describe('recovery service', () => {
       })
 
       const findQuery = recoveryColl.find.mock.calls[0][0]
-      expect(findQuery.create_date).toEqual({ $gte: startDate, $lt: endDate })
+      // keeps string comparison (create_date is stored as string in EARS DB)
+      expect(findQuery.create_date.$gte).toBe('2026-03-15')
+      // endDate '2026-03-16' → $lt '2026-03-17' so 3/16 data is included
+      expect(findQuery.create_date.$lt).toBe('2026-03-17')
     })
 
     it('uses skip and limit for pagination', async () => {

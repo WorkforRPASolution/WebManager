@@ -155,13 +155,17 @@ async function runBatch(period) {
   const indexManager = require('./indexManager')
 
   if (!indexManager.isIndexReady()) {
-    console.warn(`[RecoverySummary] Skipping ${period} batch — EQP_AUTO_RECOVERY create_date index not verified`)
-    deps.createBatchLog({
-      batchAction: 'cron_skipped',
-      batchPeriod: period,
-      batchParams: { period, reason: 'indexNotReady' }
-    }).catch(e => console.error('[BatchLog] cron_skipped log failed:', e))
-    return
+    const rechecked = await indexManager.checkEarIndexes()
+    if (!rechecked) {
+      console.warn(`[RecoverySummary] Skipping ${period} batch — EQP_AUTO_RECOVERY create_date index not verified`)
+      deps.createBatchLog({
+        batchAction: 'cron_skipped',
+        batchPeriod: period,
+        batchParams: { period, reason: 'indexNotReady' }
+      }).catch(e => console.error('[BatchLog] cron_skipped log failed:', e))
+      return
+    }
+    console.log(`[RecoverySummary] create_date index now available — resuming ${period} batch`)
   }
 
   if (isRunning) {
