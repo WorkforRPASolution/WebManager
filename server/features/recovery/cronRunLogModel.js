@@ -12,7 +12,7 @@ const cronRunLogSchema = new Schema({
   jobName: { type: String, required: true },
   period: { type: String, enum: ['hourly', 'daily'], required: true },
   bucket: { type: Date, required: true },
-  status: { type: String, enum: ['success', 'partial', 'failed', 'running'] },
+  status: { type: String, enum: ['success', 'partial', 'failed', 'running'] }, // 'running' reserved for future distributed lock
   startedAt: { type: Date },
   completedAt: { type: Date },
   pipelineResults: {
@@ -20,7 +20,7 @@ const cronRunLogSchema = new Schema({
     equipment: { type: String },
     trigger: { type: String }
   },
-  errorMessage: { type: Schema.Types.Mixed },
+  errorMessage: [{ configKey: String, error: String, _id: false }],
   source: {
     type: String,
     enum: ['cron', 'autoBackfill', 'manualBackfill'],
