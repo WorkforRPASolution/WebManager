@@ -145,6 +145,32 @@ function floorToKSTBucket(period, date) {
   return new Date(kstDate.getTime() - KST_OFFSET_MS)
 }
 
+/**
+ * Compute group key for a bucket time based on granularity.
+ * @param {number} bucketTime - UTC milliseconds
+ * @param {'hourly'|'daily'|'weekly'} granularity
+ * @returns {number} - Group key in UTC milliseconds
+ */
+function computeGroupKey(bucketTime, granularity) {
+  if (granularity === 'hourly') {
+    return bucketTime
+  } else if (granularity === 'daily') {
+    const kstMs = bucketTime + KST_OFFSET_MS
+    const kstDate = new Date(kstMs)
+    kstDate.setUTCHours(0, 0, 0, 0)
+    return kstDate.getTime() - KST_OFFSET_MS
+  } else {
+    // weekly: floor to KST Monday
+    const kstMs = bucketTime + KST_OFFSET_MS
+    const kstDate = new Date(kstMs)
+    kstDate.setUTCHours(0, 0, 0, 0)
+    const dow = kstDate.getUTCDay() // 0=Sun
+    const mondayOffset = dow === 0 ? 6 : dow - 1
+    kstDate.setUTCDate(kstDate.getUTCDate() - mondayOffset)
+    return kstDate.getTime() - KST_OFFSET_MS
+  }
+}
+
 module.exports = {
   KST_OFFSET_MS,
   formatKST,
@@ -152,5 +178,6 @@ module.exports = {
   computeDailyBoundaries,
   computeBoundariesForBucket,
   generateExpectedBuckets,
-  floorToKSTBucket
+  floorToKSTBucket,
+  computeGroupKey
 }

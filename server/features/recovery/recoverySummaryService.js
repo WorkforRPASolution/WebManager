@@ -14,7 +14,8 @@ const {
   computeDailyBoundaries,
   computeBoundariesForBucket,
   generateExpectedBuckets,
-  floorToKSTBucket
+  floorToKSTBucket,
+  computeGroupKey
 } = require('./dateUtils')
 const { validateBackfillRange } = require('./validation')
 
@@ -698,31 +699,6 @@ function computeCronDistributionRange(period, now) {
   }
 
   return { startDate, endDate: now, granularity }
-}
-
-/**
- * Compute group key for a bucket time based on granularity.
- */
-function computeGroupKey(bucketTime, granularity) {
-  const KST_OFFSET = 9 * 60 * 60 * 1000
-
-  if (granularity === 'hourly') {
-    return bucketTime
-  } else if (granularity === 'daily') {
-    const kstMs = bucketTime + KST_OFFSET
-    const kstDate = new Date(kstMs)
-    kstDate.setUTCHours(0, 0, 0, 0)
-    return kstDate.getTime() - KST_OFFSET
-  } else {
-    // weekly: floor to KST Monday
-    const kstMs = bucketTime + KST_OFFSET
-    const kstDate = new Date(kstMs)
-    kstDate.setUTCHours(0, 0, 0, 0)
-    const dow = kstDate.getUTCDay() // 0=Sun
-    const mondayOffset = dow === 0 ? 6 : dow - 1
-    kstDate.setUTCDate(kstDate.getUTCDate() - mondayOffset)
-    return kstDate.getTime() - KST_OFFSET
-  }
 }
 
 /**
