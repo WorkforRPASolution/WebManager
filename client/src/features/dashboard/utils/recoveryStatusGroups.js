@@ -27,6 +27,17 @@ export function sumByGroup(statusCounts, group) {
  * @param {number} total - 전체 수
  * @returns {number} 백분율 (0~100)
  */
+/**
+ * 주요 4그룹(success/failed/stopped/skip) 합계
+ * @param {Object} statusCounts
+ * @returns {number}
+ */
+export function sumAllMain(statusCounts) {
+  return ['success', 'failed', 'stopped', 'skip'].reduce(
+    (sum, group) => sum + sumByGroup(statusCounts, group), 0
+  )
+}
+
 export function calcSuccessRate(statusCounts, total) {
   if (!total) return 0
   return ((statusCounts?.Success || 0) / total * 100)

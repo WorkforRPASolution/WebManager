@@ -7,6 +7,7 @@ import { TooltipComponent, LegendComponent, GridComponent, DataZoomComponent } f
 import { CanvasRenderer } from 'echarts/renderers'
 import { useTheme } from '../../../shared/composables/useTheme'
 import { getStatusColor } from '../utils/recoveryColors'
+import { sumByGroup, sumAllMain } from '../utils/recoveryStatusGroups'
 
 use([BarChart, LineChart, TooltipComponent, LegendComponent, GridComponent, DataZoomComponent, CanvasRenderer])
 
@@ -38,20 +39,15 @@ const option = computed(() => {
   props.data.forEach(d => {
     const sc = d.statusCounts || {}
     MAIN_STATUSES.forEach(s => {
-      // Failed 그룹: Failed + ScriptFailed + VisionDelayed + NotStarted
       if (s === 'Failed') {
-        seriesData[s].push(
-          (sc.Failed || 0) + (sc.ScriptFailed || 0) + (sc.VisionDelayed || 0) + (sc.NotStarted || 0)
-        )
+        seriesData[s].push(sumByGroup(sc, 'failed'))
       } else {
         seriesData[s].push(sc[s] || 0)
       }
     })
     // Other: 나머지
-    const mainSum = (sc.Success || 0) + (sc.Failed || 0) + (sc.ScriptFailed || 0) +
-      (sc.VisionDelayed || 0) + (sc.NotStarted || 0) + (sc.Stopped || 0) + (sc.Skip || 0)
     const total = Object.values(sc).reduce((sum, v) => sum + v, 0)
-    seriesData['Other'].push(Math.max(0, total - mainSum))
+    seriesData['Other'].push(Math.max(0, total - sumAllMain(sc)))
   })
 
   const statusColors = {

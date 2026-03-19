@@ -7,6 +7,7 @@ import { TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useTheme } from '../../../shared/composables/useTheme'
 import { getStatusColor } from '../utils/recoveryColors'
+import { STATUS_GROUPS } from '../utils/recoveryStatusGroups'
 
 use([PieChart, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -18,7 +19,7 @@ const props = defineProps({
 const { isDark } = useTheme()
 
 // Failed 그룹 합산용
-const FAILED_GROUP = ['Failed', 'ScriptFailed', 'VisionDelayed', 'NotStarted']
+const FAILED_GROUP = STATUS_GROUPS.failed
 
 const option = computed(() => {
   const dark = isDark.value

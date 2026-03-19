@@ -2,6 +2,7 @@
  * Recovery Dashboard CSV 내보내기 유틸리티
  */
 import { downloadCsv } from './csvExport'
+import { sumByGroup, sumAllMain } from './recoveryStatusGroups'
 
 /**
  * Recovery Overview KPI + Trend 데이터를 CSV로 내보내기
@@ -16,11 +17,11 @@ export function exportRecoveryOverviewCsv(kpi, trend) {
   const rows = (trend || []).map(t => {
     const sc = t.statusCounts || {}
     const success = sc.Success || 0
-    const failed = (sc.Failed || 0) + (sc.ScriptFailed || 0) + (sc.VisionDelayed || 0) + (sc.NotStarted || 0)
+    const failed = sumByGroup(sc, 'failed')
     const stopped = sc.Stopped || 0
     const skip = sc.Skip || 0
     const total = Object.values(sc).reduce((s, v) => s + v, 0)
-    const other = total - success - failed - stopped - skip
+    const other = total - sumAllMain(sc)
     return [t.bucket, success, failed, stopped, skip, other, total]
   })
 
