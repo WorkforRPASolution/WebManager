@@ -108,11 +108,11 @@ const option = computed(() => {
     }
   })
 
-  // Sort so top processes render on top
+  // Sort so top processes appear first in legend (z property handles render order)
   series.sort((a, b) => {
     const aTop = topProcesses.has(a.name) ? 1 : 0
     const bTop = topProcesses.has(b.name) ? 1 : 0
-    return aTop - bTop
+    return bTop - aTop
   })
 
   const needsZoom = categories.length > 24
