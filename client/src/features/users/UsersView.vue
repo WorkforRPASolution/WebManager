@@ -27,16 +27,6 @@
           </svg>
           Feature Permissions
         </button>
-        <button
-          @click="showRoleDialog = true"
-          class="flex items-center gap-2 px-3 py-2 text-sm bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          Role Permissions
-        </button>
       </div>
     </div>
 
@@ -143,13 +133,6 @@
       v-model="showDeleteModal"
       :count="selectedIds.length"
       @confirm="handleDeleteConfirm"
-    />
-
-    <!-- Role Permission Dialog -->
-    <RolePermissionDialog
-      v-model="showRoleDialog"
-      @saved="handleRolesSaved"
-      @error="handleRolesError"
     />
 
     <!-- Feature Permission Settings Dialog (Admin only) -->
@@ -327,7 +310,6 @@ import UserFilterBar from './components/UserFilterBar.vue'
 import BaseDataGridToolbar from '@/shared/components/BaseDataGridToolbar.vue'
 import UserDataGrid from './components/UserDataGrid.vue'
 import DeleteConfirmModal from './components/DeleteConfirmModal.vue'
-import RolePermissionDialog from './components/RolePermissionDialog.vue'
 import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDialog.vue'
 import EarsUserSearch from '@/shared/components/EarsUserSearch.vue'
 import { useUserData } from './composables/useUserData'
@@ -342,7 +324,6 @@ const gridRef = ref(null)
 const filterBarRef = ref(null)
 const selectedIds = ref([])
 const showDeleteModal = ref(false)
-const showRoleDialog = ref(false)
 const showPermissionDialog = ref(false)
 const showTempPasswordModal = ref(false)
 const tempPasswordData = ref({ singleid: '', tempPassword: '', emailSent: false })
@@ -568,14 +549,6 @@ const handlePasteCells = (cellUpdates) => {
     gridRef.value.refreshCells()
   }
   showToast('success', `${cellUpdates.length} cells updated`)
-}
-
-const handleRolesSaved = () => {
-  showToast('success', 'Role permissions updated')
-}
-
-const handleRolesError = (message) => {
-  showToast('error', message)
 }
 
 const handlePermissionsSaved = async () => {

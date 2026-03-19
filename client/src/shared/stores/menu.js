@@ -27,6 +27,11 @@ export const useMenuStore = defineStore('menu', () => {
         if (!hasPermission) return
       }
 
+      // Check allowed roles for this menu item
+      if (route.meta?.allowedRoles) {
+        if (!authStore.hasRole(route.meta.allowedRoles)) return
+      }
+
       // MainMenu가 없으면 생성
       if (!mainMenuMap.has(mainMenuId)) {
         mainMenuMap.set(mainMenuId, {

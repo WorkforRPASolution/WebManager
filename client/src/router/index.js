@@ -399,6 +399,26 @@ const routes = [
     }
   },
   {
+    path: '/permissions',
+    name: 'Permissions',
+    component: () => import('../features/permissions/PermissionsView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      allowedRoles: [1],
+      menu: {
+        mainMenu: 'system',
+        mainMenuLabel: 'System',
+        mainMenuIcon: 'settings',
+        mainMenuOrder: 4,
+        subMenu: 'permissions',
+        subMenuLabel: 'Permissions',
+        subMenuIcon: 'shield',
+        subMenuOrder: 2,
+      }
+    }
+  },
+  {
     path: '/alerts',
     name: 'Alerts',
     component: () => import('../features/alerts/AlertsView.vue'),
@@ -414,7 +434,7 @@ const routes = [
         subMenu: 'alerts',
         subMenuLabel: 'Alerts History',
         subMenuIcon: 'notifications',
-        subMenuOrder: 2,
+        subMenuOrder: 3,
         permission: 'alerts'
       }
     }
