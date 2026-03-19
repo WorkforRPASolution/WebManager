@@ -5,7 +5,7 @@
  * 모든 granularity에서 통일된 의미: 해당 라벨 시점까지의 데이터.
  *
  * 예: hourly  bucket 10:00      → "11:00"     (10:00~11:00 데이터)
- *     daily   bucket 3/17       → "03/18"     (3/17~3/18 데이터)
+ *     daily   bucket 3/17 15:00Z → "03/18"     (3/18 KST 하루 데이터)
  *     weekly  bucket 3/10(월)   → "~03/17"    (3/10~3/16 데이터, 3/17 자정까지)
  *     monthly bucket 2026.03    → "~2026.04"  (3월 데이터, 4월 시작 전까지)
  */
@@ -40,8 +40,19 @@ function computeEndDate(bucket, granularity) {
  * @returns {string} 포맷된 라벨
  */
 export function formatBucketLabel(bucket, granularity) {
-  const date = computeEndDate(bucket, granularity)
   const pad = (n) => String(n).padStart(2, '0')
+
+  // daily: bucket 자체가 KST 자정(UTC+9)이므로, 해당 날짜를 그대로 표시
+  if (granularity === 'daily') {
+    const start = new Date(bucket)
+    // bucket UTC → KST 날짜 추출 (bucket + 9h의 UTC date가 KST date)
+    const kst = new Date(start.getTime() + 9 * 60 * 60 * 1000)
+    const mm = pad(kst.getUTCMonth() + 1)
+    const dd = pad(kst.getUTCDate())
+    return `${mm}/${dd}`
+  }
+
+  const date = computeEndDate(bucket, granularity)
   const mm = pad(date.getMonth() + 1)
   const dd = pad(date.getDate())
 
@@ -51,8 +62,6 @@ export function formatBucketLabel(bucket, granularity) {
       if (date.toDateString() !== today.toDateString()) return `${mm}/${dd} ${pad(date.getHours())}:00`
       return `${pad(date.getHours())}:00`
     }
-    case 'daily':
-      return `${mm}/${dd}`
     case 'weekly':
       return `~${mm}/${dd}`
     case 'monthly':
