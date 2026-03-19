@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { recoveryApi } from '../../../shared/api'
 import BatchHeatmap from './BatchHeatmap.vue'
+import { useResizableModal } from '../../../shared/composables/useResizableModal'
 
 const props = defineProps({
   visible: Boolean
@@ -24,67 +25,9 @@ const error = ref(null)
 
 // ── 모달 드래그/리사이즈 ──
 const modalRef = ref(null)
-const modalStyle = ref({})
-const isDragging = ref(false)
-const isResizing = ref(false)
-const dragStart = ref({ x: 0, y: 0, left: 0, top: 0 })
-const resizeStart = ref({ x: 0, y: 0, w: 0, h: 0 })
-
-const MIN_WIDTH = 560
-const MIN_HEIGHT = 480
-const DEFAULT_WIDTH = 720
-const DEFAULT_HEIGHT = 600
-
-function centerModal() {
-  const w = Math.min(DEFAULT_WIDTH, window.innerWidth * 0.95)
-  const h = Math.min(DEFAULT_HEIGHT, window.innerHeight * 0.95)
-  modalStyle.value = {
-    left: `${(window.innerWidth - w) / 2}px`,
-    top: `${(window.innerHeight - h) / 2}px`,
-    width: `${w}px`,
-    height: `${h}px`
-  }
-}
-
-// ── 드래그 ──
-function startDrag(e) {
-  if (e.target.closest('button') || e.target.closest('select')) return
-  isDragging.value = true
-  dragStart.value = {
-    x: e.clientX,
-    y: e.clientY,
-    left: parseInt(modalStyle.value.left),
-    top: parseInt(modalStyle.value.top)
-  }
-}
-
-function onMouseMove(e) {
-  if (isDragging.value) {
-    modalStyle.value.left = `${dragStart.value.left + e.clientX - dragStart.value.x}px`
-    modalStyle.value.top = `${dragStart.value.top + e.clientY - dragStart.value.y}px`
-  } else if (isResizing.value) {
-    const w = Math.max(MIN_WIDTH, resizeStart.value.w + e.clientX - resizeStart.value.x)
-    const h = Math.max(MIN_HEIGHT, resizeStart.value.h + e.clientY - resizeStart.value.y)
-    modalStyle.value.width = `${w}px`
-    modalStyle.value.height = `${h}px`
-  }
-}
-
-function onMouseUp() {
-  isDragging.value = false
-  isResizing.value = false
-}
-
-function startResize(e) {
-  isResizing.value = true
-  resizeStart.value = {
-    x: e.clientX,
-    y: e.clientY,
-    w: parseInt(modalStyle.value.width),
-    h: parseInt(modalStyle.value.height)
-  }
-  e.preventDefault()
-}
+const {
+  modalStyle, startDrag, startResize, center: centerModal
+} = useResizableModal(modalRef, { defaultWidth: 720, defaultHeight: 600, minWidth: 560, minHeight: 480 })
 
 // ── 유형 뱃지 ──
 const ACTION_LABELS = {
@@ -176,18 +119,8 @@ watch(() => props.visible, async (val) => {
   if (val) {
     await nextTick()
     centerModal()
-    window.addEventListener('mousemove', onMouseMove)
-    window.addEventListener('mouseup', onMouseUp)
     fetchLogs(1)
-  } else {
-    window.removeEventListener('mousemove', onMouseMove)
-    window.removeEventListener('mouseup', onMouseUp)
   }
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('mousemove', onMouseMove)
-  window.removeEventListener('mouseup', onMouseUp)
 })
 
 const periodLabel = computed(() => {

@@ -249,9 +249,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { recoveryApi } from '../../../shared/api'
 import { exportRecoveryHistoryCsv } from '../utils/recoveryCsvExport'
+import { useResizableModal } from '../../../shared/composables/useResizableModal'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -292,117 +293,10 @@ const historyLoading = ref(false)
 
 // Modal drag/resize
 const modalRef = ref(null)
-const isMaximized = ref(false)
-const modalPos = reactive({ x: null, y: null })
-const customWidth = ref(null)
-const customHeight = ref(null)
-const savedPos = reactive({ x: null, y: null, w: null, h: null })
-
-const DEFAULT_WIDTH = 1250
-const DEFAULT_HEIGHT = 600
-
-const modalStyle = computed(() => {
-  if (isMaximized.value) {
-    return {
-      left: '2.5vw',
-      top: '2.5vh',
-      width: '95vw',
-      height: '95vh'
-    }
-  }
-
-  const w = customWidth.value || DEFAULT_WIDTH
-  const h = customHeight.value || DEFAULT_HEIGHT
-
-  return {
-    left: modalPos.x !== null ? `${modalPos.x}px` : `calc(50vw - ${w / 2}px)`,
-    top: modalPos.y !== null ? `${modalPos.y}px` : `calc(50vh - ${h / 2}px)`,
-    width: `${w}px`,
-    height: `${h}px`,
-    maxWidth: '95vw',
-    maxHeight: '95vh'
-  }
-})
-
-// Drag state
-let isDragging = false
-let dragStartX = 0
-let dragStartY = 0
-let dragStartPosX = 0
-let dragStartPosY = 0
-
-function startDrag(e) {
-  if (isMaximized.value) return
-  isDragging = true
-  dragStartX = e.clientX
-  dragStartY = e.clientY
-  const rect = modalRef.value.getBoundingClientRect()
-  dragStartPosX = rect.left
-  dragStartPosY = rect.top
-  e.preventDefault()
-}
-
-function doDrag(e) {
-  if (!isDragging) return
-  modalPos.x = Math.max(0, Math.min(window.innerWidth - 100, dragStartPosX + (e.clientX - dragStartX)))
-  modalPos.y = Math.max(0, Math.min(window.innerHeight - 50, dragStartPosY + (e.clientY - dragStartY)))
-}
-
-function stopDrag() { isDragging = false }
-
-// Resize state
-let isResizing = false
-let resizeStartX = 0
-let resizeStartY = 0
-let resizeStartW = 0
-let resizeStartH = 0
-
-function startResize(e) {
-  isResizing = true
-  resizeStartX = e.clientX
-  resizeStartY = e.clientY
-  const rect = modalRef.value.getBoundingClientRect()
-  resizeStartW = rect.width
-  resizeStartH = rect.height
-  modalPos.x = rect.left
-  modalPos.y = rect.top
-  e.preventDefault()
-}
-
-function doResize(e) {
-  if (!isResizing) return
-  customWidth.value = Math.max(600, Math.min(window.innerWidth * 0.95, resizeStartW + (e.clientX - resizeStartX)))
-  customHeight.value = Math.max(400, Math.min(window.innerHeight * 0.95, resizeStartH + (e.clientY - resizeStartY)))
-}
-
-function stopResize() { isResizing = false }
-
-function toggleMaximize() {
-  if (isMaximized.value) {
-    modalPos.x = savedPos.x
-    modalPos.y = savedPos.y
-    customWidth.value = savedPos.w
-    customHeight.value = savedPos.h
-  } else {
-    const rect = modalRef.value?.getBoundingClientRect()
-    savedPos.x = modalPos.x ?? rect?.left
-    savedPos.y = modalPos.y ?? rect?.top
-    savedPos.w = customWidth.value
-    savedPos.h = customHeight.value
-  }
-  isMaximized.value = !isMaximized.value
-}
-
-// Combined mouse handlers
-function onMouseMove(e) {
-  doDrag(e)
-  doResize(e)
-}
-
-function onMouseUp() {
-  stopDrag()
-  stopResize()
-}
+const {
+  isMaximized, modalStyle,
+  startDrag, startResize, toggleMaximize, center
+} = useResizableModal(modalRef, { defaultWidth: 1250, defaultHeight: 600, minWidth: 600, minHeight: 400 })
 
 function handleKeyDown(e) {
   if (!props.visible) return
@@ -519,24 +413,16 @@ watch(() => props.visible, (val) => {
     page.value = 1
     historyData.value = []
     total.value = 0
-    modalPos.x = null
-    modalPos.y = null
-    customWidth.value = null
-    customHeight.value = null
-    isMaximized.value = false
+    center()
     fetchHistory()
   }
 })
 
 onMounted(() => {
-  document.addEventListener('mousemove', onMouseMove)
-  document.addEventListener('mouseup', onMouseUp)
   document.addEventListener('keydown', handleKeyDown)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('mousemove', onMouseMove)
-  document.removeEventListener('mouseup', onMouseUp)
   document.removeEventListener('keydown', handleKeyDown)
 })
 </script>

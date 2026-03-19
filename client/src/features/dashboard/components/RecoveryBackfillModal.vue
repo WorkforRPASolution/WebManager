@@ -298,6 +298,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { recoveryApi } from '../../../shared/api'
 import { useToast } from '../../../shared/composables/useToast'
 import { useTheme } from '../../../shared/composables/useTheme'
+import { useResizableModal } from '../../../shared/composables/useResizableModal'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { BarChart } from 'echarts/charts'
@@ -722,61 +723,11 @@ const statusBadgeClass = computed(() => {
   return map[serverStatus.value] || map.idle
 })
 
-// ── Modal drag/resize (simplified from RecoveryHistoryModal pattern) ──
+// ── Modal drag/resize ──
 const modalRef = ref(null)
-const pos = ref({ x: 0, y: 0 })
-const size = ref({ w: 640, h: 700 })
-let dragState = null
-
-const modalStyle = computed(() => ({
-  left: `${pos.value.x}px`,
-  top: `${pos.value.y}px`,
-  width: `${size.value.w}px`,
-  height: `${size.value.h}px`,
-  maxWidth: '95vw',
-  maxHeight: '95vh'
-}))
-
-function centerModal() {
-  pos.value = {
-    x: Math.max(0, (window.innerWidth - size.value.w) / 2),
-    y: Math.max(0, (window.innerHeight - size.value.h) / 2)
-  }
-}
-
-function startDrag(e) {
-  if (e.target.closest('button')) return
-  dragState = { mode: 'drag', startX: e.clientX - pos.value.x, startY: e.clientY - pos.value.y }
-  window.addEventListener('mousemove', onMouseMove)
-  window.addEventListener('mouseup', onMouseUp)
-}
-
-function startResize(e) {
-  dragState = { mode: 'resize', startX: e.clientX, startY: e.clientY, startW: size.value.w, startH: size.value.h }
-  window.addEventListener('mousemove', onMouseMove)
-  window.addEventListener('mouseup', onMouseUp)
-}
-
-function onMouseMove(e) {
-  if (!dragState) return
-  if (dragState.mode === 'drag') {
-    pos.value = {
-      x: Math.max(0, e.clientX - dragState.startX),
-      y: Math.max(0, e.clientY - dragState.startY)
-    }
-  } else {
-    size.value = {
-      w: Math.max(480, dragState.startW + e.clientX - dragState.startX),
-      h: Math.max(500, dragState.startH + e.clientY - dragState.startY)
-    }
-  }
-}
-
-function onMouseUp() {
-  dragState = null
-  window.removeEventListener('mousemove', onMouseMove)
-  window.removeEventListener('mouseup', onMouseUp)
-}
+const {
+  modalStyle, startDrag, startResize, center: centerModal
+} = useResizableModal(modalRef, { defaultWidth: 640, defaultHeight: 700, minWidth: 480, minHeight: 500 })
 
 // ── Lifecycle ──
 watch(() => props.visible, (val) => {
@@ -806,7 +757,5 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopPolling()
-  window.removeEventListener('mousemove', onMouseMove)
-  window.removeEventListener('mouseup', onMouseUp)
 })
 </script>

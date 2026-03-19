@@ -1,7 +1,7 @@
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 
 /**
- * 모달 drag/resize 공용 composable
+ * 모달 drag/resize/maximize 공용 composable
  * @param {Ref} modalRef - 모달 DOM element ref
  * @param {object} options - { defaultWidth, defaultHeight, minWidth?, minHeight? }
  */
@@ -10,6 +10,9 @@ export function useResizableModal(modalRef, { defaultWidth, defaultHeight, minWi
   const customHeight = ref(defaultHeight)
   const modalPos = reactive({ x: null, y: null })
   const isMaximized = ref(false)
+
+  // Saved position for maximize restore
+  const savedPos = { x: null, y: null, w: null, h: null }
 
   let isDragging = false, dragStartX = 0, dragStartY = 0, dragStartPosX = 0, dragStartPosY = 0
   let isResizing = false, resizeStartX = 0, resizeStartY = 0, resizeStartW = 0, resizeStartH = 0
@@ -61,10 +64,69 @@ export function useResizableModal(modalRef, { defaultWidth, defaultHeight, minWi
     document.removeEventListener('mouseup', onMouseUp)
   })
 
-  const toggleMaximize = () => { isMaximized.value = !isMaximized.value }
+  /**
+   * Center the modal in the viewport.
+   * Resets position, size, and maximize state.
+   */
+  function center() {
+    const w = customWidth.value || defaultWidth
+    const h = customHeight.value || defaultHeight
+    modalPos.x = null
+    modalPos.y = null
+    customWidth.value = null
+    customHeight.value = null
+    isMaximized.value = false
+  }
+
+  /**
+   * Toggle maximize with position save/restore.
+   */
+  function toggleMaximize() {
+    if (isMaximized.value) {
+      // Restore saved position
+      modalPos.x = savedPos.x
+      modalPos.y = savedPos.y
+      customWidth.value = savedPos.w
+      customHeight.value = savedPos.h
+    } else {
+      // Save current position before maximizing
+      const rect = modalRef.value?.getBoundingClientRect()
+      savedPos.x = modalPos.x ?? rect?.left
+      savedPos.y = modalPos.y ?? rect?.top
+      savedPos.w = customWidth.value
+      savedPos.h = customHeight.value
+    }
+    isMaximized.value = !isMaximized.value
+  }
+
+  /**
+   * Computed modal style — handles positioning, sizing, and maximize.
+   */
+  const modalStyle = computed(() => {
+    if (isMaximized.value) {
+      return {
+        left: '2.5vw',
+        top: '2.5vh',
+        width: '95vw',
+        height: '95vh'
+      }
+    }
+
+    const w = customWidth.value || defaultWidth
+    const h = customHeight.value || defaultHeight
+
+    return {
+      left: modalPos.x !== null ? `${modalPos.x}px` : `calc(50vw - ${w / 2}px)`,
+      top: modalPos.y !== null ? `${modalPos.y}px` : `calc(50vh - ${h / 2}px)`,
+      width: `${w}px`,
+      height: `${h}px`,
+      maxWidth: '95vw',
+      maxHeight: '95vh'
+    }
+  })
 
   return {
     customWidth, customHeight, modalPos, isMaximized,
-    startDrag, startResize, toggleMaximize,
+    startDrag, startResize, toggleMaximize, center, modalStyle,
   }
 }
