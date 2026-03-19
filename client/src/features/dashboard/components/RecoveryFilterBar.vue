@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import MultiSelect from '../../../shared/components/MultiSelect.vue'
 import AppIcon from '../../../shared/components/AppIcon.vue'
+import { useRecoveryPeriod, localDateStr } from '../composables/useRecoveryPeriod'
 
 const props = defineProps({
   processes: { type: Array, default: () => [] },
@@ -18,7 +19,17 @@ const props = defineProps({
 
 const emit = defineEmits(['search', 'process-change', 'period-change'])
 
-const selectedPeriod = ref('today')
+const PERIOD_DAYS = { today: 1, '7d': 7, '30d': 30, '90d': 90, '1y': 365 }
+const {
+  selectedPeriod, startDate, endDate, isCustom, isLatestPeriod,
+  computePresetDates, shiftPeriod
+} = useRecoveryPeriod({
+  periodDays: PERIOD_DAYS,
+  onShifted: () => handleSearch(),
+  maxDays: 730
+})
+selectedPeriod.value = 'today'
+
 const selectedProcesses = ref([])
 const selectedModels = ref([])
 const selectedLines = ref([])
@@ -89,33 +100,6 @@ const selectedPeriodLabel = computed(() => {
   return periodOptions.find(o => o.value === selectedPeriod.value)?.label || '오늘'
 })
 
-const isCustom = computed(() => selectedPeriod.value === 'custom')
-
-const startDate = ref('')
-const endDate = ref('')
-
-// ── Period Navigation ──
-const PERIOD_DAYS = { today: 1, '7d': 7, '30d': 30, '90d': 90, '1y': 365 }
-const MAX_DAYS = 730
-
-function localDateStr(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function todayStr() {
-  return localDateStr(new Date())
-}
-
-function computePresetDates(period) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const days = PERIOD_DAYS[period]
-  if (!days) return
-  const start = new Date(today)
-  start.setDate(start.getDate() - days + 1)
-  startDate.value = localDateStr(start)
-  endDate.value = localDateStr(today)
-}
 
 // 초기 + 기간 변경 시 날짜 자동 계산
 computePresetDates('today')
@@ -129,30 +113,6 @@ function selectPeriod(value) {
   }
 }
 
-function shiftPeriod(direction) {
-  const days = PERIOD_DAYS[selectedPeriod.value]
-  if (!days) return
-
-  const s = new Date(startDate.value)
-  const e = new Date(endDate.value)
-  s.setDate(s.getDate() + direction * days)
-  e.setDate(e.getDate() + direction * days)
-
-  // 미래 제한
-  const today = todayStr()
-  if (direction > 0 && localDateStr(e) > today) return
-
-  // 2년 이전 제한
-  const twoYearsAgo = new Date()
-  twoYearsAgo.setDate(twoYearsAgo.getDate() - MAX_DAYS)
-  if (direction < 0 && s < twoYearsAgo) return
-
-  startDate.value = localDateStr(s)
-  endDate.value = localDateStr(e)
-  handleSearch()
-}
-
-const isLatestPeriod = computed(() => endDate.value >= todayStr())
 
 function handlePeriodClickOutside(e) {
   if (periodContainerRef.value && !periodContainerRef.value.contains(e.target)) {

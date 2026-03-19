@@ -299,6 +299,7 @@ import { recoveryApi } from '../../../shared/api'
 import { useToast } from '../../../shared/composables/useToast'
 import { useTheme } from '../../../shared/composables/useTheme'
 import { useResizableModal } from '../../../shared/composables/useResizableModal'
+import { useRecoveryPeriod, localDateStr } from '../composables/useRecoveryPeriod'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { BarChart } from 'echarts/charts'
@@ -316,7 +317,15 @@ const { showError } = useToast()
 const { isDark } = useTheme()
 
 // ── Form State ──
-const selectedPeriod = ref('7d')
+const BACKFILL_PERIOD_DAYS = { today: 1, '7d': 7, '30d': 30, '90d': 90 }
+const {
+  selectedPeriod, startDate, endDate,
+  shiftPeriod
+} = useRecoveryPeriod({
+  periodDays: BACKFILL_PERIOD_DAYS,
+  onShifted: () => { analysisResult.value = null },
+  maxDays: 730
+})
 const periodOptions = [
   { value: 'today', label: '오늘' },
   { value: '7d', label: '7일' },
@@ -324,8 +333,6 @@ const periodOptions = [
   { value: '90d', label: '90일' },
   { value: 'custom', label: '직접 설정' }
 ]
-const startDate = ref('')
-const endDate = ref('')
 const skipHourly = ref(false)
 const skipDaily = ref(false)
 const retryPartial = ref(false)
@@ -355,51 +362,25 @@ let lastBucket = null
 const distributionLoading = ref(false)
 const distributionData = ref(null)
 
-// ── Date defaults ──
+// ── Date defaults (Backfill: today → exclusive end) ──
 function applyPeriodDates(period) {
   if (period === 'custom') return
   const now = new Date()
-  endDate.value = now.toISOString().slice(0, 10)
+  endDate.value = localDateStr(now)
   const start = new Date(now)
   if (period === 'today') {
     startDate.value = endDate.value
     // Backfill API requires start < end, so push end +1 day
     const tomorrow = new Date(now)
     tomorrow.setDate(tomorrow.getDate() + 1)
-    endDate.value = tomorrow.toISOString().slice(0, 10)
-  } else if (period === '7d') {
-    start.setDate(start.getDate() - 7)
-    startDate.value = start.toISOString().slice(0, 10)
-  } else if (period === '30d') {
-    start.setDate(start.getDate() - 30)
-    startDate.value = start.toISOString().slice(0, 10)
-  } else if (period === '90d') {
-    start.setDate(start.getDate() - 90)
-    startDate.value = start.toISOString().slice(0, 10)
+    endDate.value = localDateStr(tomorrow)
+  } else {
+    const days = BACKFILL_PERIOD_DAYS[period]
+    if (days) {
+      start.setDate(start.getDate() - days)
+      startDate.value = localDateStr(start)
+    }
   }
-}
-
-// ── Period Navigation (좌우 이동) ──
-const PERIOD_DAYS = { today: 1, '7d': 7, '30d': 30, '90d': 90 }
-
-function shiftPeriod(direction) {
-  if (!startDate.value || !endDate.value) return
-  const days = PERIOD_DAYS[selectedPeriod.value]
-  if (!days) return // custom은 이동 불가
-
-  const shift = direction * days
-  const s = new Date(startDate.value)
-  const e = new Date(endDate.value)
-  s.setDate(s.getDate() + shift)
-  e.setDate(e.getDate() + shift)
-
-  // 미래로 넘어가지 않도록 제한
-  const today = new Date().toISOString().slice(0, 10)
-  if (e.toISOString().slice(0, 10) > today && direction > 0) return
-
-  startDate.value = s.toISOString().slice(0, 10)
-  endDate.value = e.toISOString().slice(0, 10)
-  analysisResult.value = null
 }
 
 // ── Validation ──
