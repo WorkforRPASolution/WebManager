@@ -1,3 +1,36 @@
+/**
+ * WebManager Logger (winston-based)
+ *
+ * Usage:
+ *   const { createLogger } = require('../../shared/logger')
+ *   const log = createLogger('category')
+ *
+ * Registered categories — use these strings when calling createLogger().
+ * New categories should be added to this table.
+ *
+ * | Category       | Owner                            | Notes                            |
+ * |----------------|----------------------------------|----------------------------------|
+ * | server         | index.js                         | Startup, shutdown                |
+ * | http           | shared/logger/httpLogger.js       | Request/response                 |
+ * | db             | shared/db/connection.js           | MongoDB connections              |
+ * | redis          | shared/db/redisConnection.js      | Redis connections                |
+ * | rpc            | shared/avro/avroClient.js         | Avro RPC calls                   |
+ * | error          | shared/middleware/errorHandler.js  | Uncaught errors                  |
+ * | auth           | features/auth/                    | Login, signup, tokens            |
+ * | clients        | features/clients/                 | Client mgmt, FTP, deploy, logs   |
+ * | recovery       | features/recovery/                | Batch aggregation, cron          |
+ * | users          | features/users/                   | User CRUD                        |
+ * | permissions    | features/permissions/             | Role/feature permissions         |
+ * | images         | features/images/                  | Image storage                    |
+ * | os-version     | features/os-version/              | OS version list                  |
+ * | exec-commands  | features/exec-commands/           | Exec command management          |
+ * | email          | shared/services/emailNotification | Email delivery                   |
+ * | ears           | shared/services/earsService       | EARS InterfaceServer calls       |
+ * | verification   | shared/services/verificationCode  | Verification code (Redis)        |
+ * | audit          | shared/models/webmanagerLogModel   | DB audit log bridge              |
+ * | batch          | shared/models/webmanagerLogModel   | DB batch log bridge              |
+ */
+
 const winston = require('winston')
 const path = require('path')
 require('winston-daily-rotate-file')

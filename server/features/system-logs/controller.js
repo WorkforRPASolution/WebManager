@@ -43,9 +43,15 @@ async function getStats(req, res) {
   res.json(result)
 }
 
+async function getFilters(req, res) {
+  const result = await getService().getFilterOptions()
+  res.json(result)
+}
+
 module.exports = {
   getLogs,
   getLogDetail,
   getStats,
+  getFilters,
   _setDeps
 }

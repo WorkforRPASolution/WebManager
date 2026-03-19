@@ -9,6 +9,8 @@ const { ApiError } = require('../../shared/middleware/errorHandler')
 const strategyRegistry = require('./strategies')
 const { setupSSE } = require('../../shared/utils/sseHelper')
 const { parseCommaSeparated } = require('../../shared/utils/parseUtils')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('clients')
 
 // ============================================
 // Filter & List Controllers
@@ -394,6 +396,7 @@ async function handleBatchActionStream(req, res) {
       sse.send({ done: true })
     }
   } catch (error) {
+    log.error(`[batchActionStream] Error executing ${action} on [${eqpIds.join(',')}]: ${error.message}`)
     if (!sse.isAborted()) {
       sse.send({ done: true, error: error.message })
     }

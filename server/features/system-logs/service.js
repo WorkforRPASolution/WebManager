@@ -35,7 +35,11 @@ function buildFilter({ category, userId, action, startDate, endDate, search }) {
       { errorMessage: regex },
       { userId: regex },
       { collectionName: regex },
-      { errorType: regex }
+      { errorType: regex },
+      { authAction: regex },
+      { batchAction: regex },
+      { action: regex },
+      { documentId: regex }
     ]
   }
 
@@ -159,9 +163,34 @@ async function getStatistics({ period = 'today', startDate, endDate }) {
   return { kpi, trend, topErrors, loginFailures }
 }
 
+/**
+ * Get distinct filter options (userIds + actions)
+ */
+async function getFilterOptions() {
+  const Model = getModel()
+
+  const [userIds, actions, authActions, batchActions] = await Promise.all([
+    Model.distinct('userId'),
+    Model.distinct('action'),
+    Model.distinct('authAction'),
+    Model.distinct('batchAction')
+  ])
+
+  // Merge all action-type fields, remove nulls/empty
+  const allActions = [...new Set([
+    ...actions, ...authActions, ...batchActions
+  ])].filter(Boolean).sort()
+
+  return {
+    userIds: userIds.filter(Boolean).sort(),
+    actions: allActions
+  }
+}
+
 module.exports = {
   queryLogs,
   getLogById,
   getStatistics,
+  getFilterOptions,
   _setDeps
 }

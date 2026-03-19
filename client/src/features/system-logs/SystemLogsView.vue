@@ -22,8 +22,15 @@ const pagination = ref({
   hasPrevPage: false
 })
 const loading = ref(false)
-const filters = ref({})
+const filters = ref(defaultDateRange())
 const currentPage = ref(1)
+
+function defaultDateRange() {
+  const now = new Date()
+  const start = new Date(now)
+  start.setHours(0, 0, 0, 0)
+  return { startDate: start.toISOString(), endDate: now.toISOString() }
+}
 
 // Detail modal state
 const selectedLog = ref(null)

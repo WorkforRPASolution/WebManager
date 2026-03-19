@@ -4,6 +4,7 @@
  */
 const controlService = require('./controlService')
 const Client = require('./model')
+const { ApiError } = require('../../shared/middleware/errorHandler')
 
 /**
  * POST /api/clients/:id/test-accesslog
@@ -90,8 +91,7 @@ async function testAccessLog(req, res) {
 
     res.json({ files: matched, total, matched: matched.length })
   } catch (err) {
-    // RPC connection errors etc.
-    res.status(500).json({ error: err.message || '원격 파일 목록 조회 실패' })
+    throw ApiError.internal(err.message || '원격 파일 목록 조회 실패')
   }
 }
 
