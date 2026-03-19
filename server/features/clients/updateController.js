@@ -7,6 +7,8 @@ let updateSettingsService = require('./updateSettingsService')
 let updateService = require('./updateService')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 let _setupSSE = require('../../shared/utils/sseHelper').setupSSE
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('clients')
 
 /** @internal Replace dependencies for testing */
 function _setDeps(deps) {
@@ -94,14 +96,14 @@ async function deployUpdate(req, res) {
       sse.send({ done: true, ...result })
     }
   } catch (error) {
-    console.error(`[deployUpdate] Error deploying ${profileId} to [${targetEqpIds.join(',')}]:`, error.message)
+    log.error(`[deployUpdate] Error deploying ${profileId} to [${targetEqpIds.join(',')}]: ${error.message}`)
     if (!sse.isAborted()) {
       sse.send({ done: true, error: error.message })
     }
   }
 
   if (sse.isAborted()) {
-    console.error(`[deployUpdate] SSE aborted: ${profileId} → [${targetEqpIds.join(',')}]`)
+    log.error(`[deployUpdate] SSE aborted: ${profileId} → [${targetEqpIds.join(',')}]`)
   }
   sse.end()
 }

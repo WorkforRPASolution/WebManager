@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
 const { errorHandler, notFoundHandler } = require('./shared/middleware/errorHandler');
+const { httpLogger } = require('./shared/logger/httpLogger');
 
 const app = express();
 
@@ -27,6 +28,9 @@ app.use(cors({
   exposedHeaders: ['Content-Disposition']
 }));
 
+// HTTP request logging
+app.use(httpLogger);
+
 // Body parser
 app.use(express.json({ limit: '10mb' }));
 
@@ -48,6 +52,7 @@ app.use('/api/email-recipients', require('./features/email-recipients/routes'));
 app.use('/api/images', require('./features/images/routes'));
 app.use('/api/popup-template', require('./features/popup-template/routes'));
 app.use('/api/recovery', require('./features/recovery/routes'));
+app.use('/api/system-logs', require('./features/system-logs/routes'));
 
 // Production: Serve static files from client/dist
 if (process.env.NODE_ENV === 'production') {

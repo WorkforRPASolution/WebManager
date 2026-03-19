@@ -1,4 +1,5 @@
 require('dotenv').config();
+const { logger, createLogger } = require('./shared/logger');
 const app = require('./app');
 const { connectDB, closeConnections } = require('./shared/db/connection');
 const { connectRedis, closeRedis } = require('./shared/db/redisConnection');
@@ -12,6 +13,7 @@ const { initializeLogSettings } = require('./features/clients/logSettingsService
 const { initializeUpdateSettings } = require('./features/clients/updateSettingsService')
 const { initializeRecoverySummary, startCronJobs, stopCronJobs } = require('./features/recovery/recoverySummaryService')
 
+const serverLog = createLogger('server');
 const PORT = process.env.PORT || 3000;
 
 // Connect to MongoDB and start server
@@ -21,7 +23,7 @@ const startServer = async () => {
     await connectRedis();
 
     // Sync permissions and initialize data
-    console.log('Syncing permissions...');
+    serverLog.info('Syncing permissions...');
     await initializeDefaultPermissions();
     await initializeRolePermissions();
     await initializeOSVersions();
@@ -31,10 +33,10 @@ const startServer = async () => {
     await initializeLogSettings();
     await initializeUpdateSettings();
     await initializeRecoverySummary();
-    console.log('Permissions synced');
+    serverLog.info('Permissions synced');
 
     const server = app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+      serverLog.info(`Server running on http://localhost:${PORT}`);
     });
 
     // Start cron jobs after server is listening
@@ -46,11 +48,11 @@ const startServer = async () => {
     const gracefulShutdown = async (signal) => {
       if (isShuttingDown) return
       isShuttingDown = true
-      console.log(`\n${signal} received. Shutting down gracefully...`)
+      serverLog.info(`${signal} received. Shutting down gracefully...`)
 
       // 강제 종료 타임아웃
       const forceTimer = setTimeout(() => {
-        console.error('Forced shutdown: timeout exceeded')
+        serverLog.error('Forced shutdown: timeout exceeded')
         process.exit(1)
       }, 10000)
       forceTimer.unref()
@@ -58,14 +60,14 @@ const startServer = async () => {
       try {
         // 1. 새 연결 수락 중단
         server.close()
-        console.log('Stopped accepting new connections')
+        serverLog.info('Stopped accepting new connections')
 
         // 2. 진행 중인 요청 완료 대기
         await new Promise(resolve => setTimeout(resolve, 5000))
 
         // 3. 남은 연결 강제 종료 (SSE 등 — res.on('close') 핸들러 자동 호출)
         server.closeAllConnections()
-        console.log('Closed all remaining connections')
+        serverLog.info('Closed all remaining connections')
 
         // 4. Cron 중지
         stopCronJobs()
@@ -76,7 +78,7 @@ const startServer = async () => {
 
         process.exit(0)
       } catch (err) {
-        console.error('Error during shutdown:', err)
+        serverLog.error(`Error during shutdown: ${err.message}`)
         process.exit(1)
       }
     }
@@ -84,7 +86,7 @@ const startServer = async () => {
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
     process.on('SIGINT', () => gracefulShutdown('SIGINT'))
   } catch (error) {
-    console.error('Failed to start server:', error);
+    serverLog.error(`Failed to start server: ${error.message}`);
     process.exit(1);
   }
 };

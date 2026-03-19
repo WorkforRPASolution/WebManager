@@ -2,6 +2,9 @@
  * Authentication service
  */
 
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('auth')
+
 const bcrypt = require('bcryptjs')
 const { generateToken, generateRefreshToken, verifyToken } = require('../../shared/utils/jwt')
 const { getUserBySingleId, getRolePermissionByLevel } = require('../users/service')
@@ -113,7 +116,7 @@ async function login(singleid, password) {
   User.updateOne(
     { _id: user._id },
     { $set: { 'webmanagerLoginInfo.lastLoginAt': new Date() }, $inc: { 'webmanagerLoginInfo.loginCount': 1 } }
-  ).catch(err => console.error('Failed to update webmanagerLoginInfo:', err.message))
+  ).catch(err => log.error(`Failed to update webmanagerLoginInfo: ${err.message}`))
 
   // Return user data without password
   const { password: _, webmanagerLoginInfo: __, ...userWithoutPassword } = user

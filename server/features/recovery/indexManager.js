@@ -4,6 +4,8 @@
  */
 
 const { getEarsDb, getCronRunLog } = require('./recoveryDeps')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('recovery')
 
 let indexReady = false
 
@@ -18,13 +20,13 @@ async function checkEarIndexes() {
 
     indexReady = hasCreateDateIndex
     if (!hasCreateDateIndex) {
-      console.error('[RecoverySummary] CRITICAL: EQP_AUTO_RECOVERY collection is missing a create_date index. Cron and backfill are DISABLED until the index is created.')
+      log.error('[RecoverySummary] CRITICAL: EQP_AUTO_RECOVERY collection is missing a create_date index. Cron and backfill are DISABLED until the index is created.')
     } else {
-      console.log('[RecoverySummary] EQP_AUTO_RECOVERY create_date index verified')
+      log.info('[RecoverySummary] EQP_AUTO_RECOVERY create_date index verified')
     }
     return hasCreateDateIndex
   } catch (err) {
-    console.error('[RecoverySummary] Failed to check EQP_AUTO_RECOVERY indexes:', err)
+    log.error(`[RecoverySummary] Failed to check EQP_AUTO_RECOVERY indexes: ${err.message}`)
     indexReady = false
     return false
   }
@@ -74,9 +76,9 @@ async function initializeRecoverySummary() {
 
     await checkEarIndexes()
 
-    console.log('[RecoverySummary] Indexes initialized')
+    log.info('[RecoverySummary] Indexes initialized')
   } catch (err) {
-    console.error('[RecoverySummary] Index initialization error:', err)
+    log.error(`[RecoverySummary] Index initialization error: ${err.message}`)
   }
 }
 

@@ -10,6 +10,7 @@
 
 const mongoose = require('mongoose')
 const { webManagerConnection } = require('../db/connection')
+const { createLogger } = require('../logger')
 
 const webmanagerLogSchema = new mongoose.Schema({
   // 공통 필드
@@ -135,6 +136,11 @@ const WebManagerLog = webManagerConnection.model('WebManagerLog', webmanagerLogS
  * Create an audit log entry
  * @param {Object} params - Log parameters
  */
+const auditLog = createLogger('audit')
+const errorLog = createLogger('error')
+const authLog = createLogger('auth')
+const batchLog = createLogger('batch')
+
 async function createAuditLog({
   collectionName,
   documentId,
@@ -144,6 +150,8 @@ async function createAuditLog({
   newData = null,
   userId = 'system'
 }) {
+  auditLog.info(`${action} ${collectionName} ${documentId} by ${userId}`)
+
   const log = new WebManagerLog({
     category: 'audit',
     collectionName,
@@ -241,6 +249,8 @@ async function createErrorLog({
   requestInfo = null,
   userId = 'system'
 }) {
+  errorLog.error(`[${errorType}] ${errorMessage}`)
+
   const log = new WebManagerLog({
     category: 'error',
     errorType,
@@ -289,6 +299,8 @@ async function createAuthLog({
   ipAddress = null,
   userAgent = null
 }) {
+  authLog.info(`${authAction} user=${userId} ip=${ipAddress || '-'}`)
+
   const log = new WebManagerLog({
     category: 'auth',
     authAction,
@@ -338,6 +350,8 @@ async function createBatchLog({
   batchResult = null,
   userId = 'system'
 }) {
+  batchLog.info(`${batchAction} period=${batchPeriod || '-'}`)
+
   const log = new WebManagerLog({
     category: 'batch',
     batchAction,

@@ -3,6 +3,8 @@
  */
 
 const { createErrorLog } = require('../models/webmanagerLogModel')
+const { createLogger } = require('../logger')
+const log = createLogger('error')
 
 /**
  * Custom API error class
@@ -99,16 +101,11 @@ async function saveErrorLog(err, req) {
  */
 async function errorHandler(err, req, res, next) {
   // Log error (in production, use proper logging)
-  console.error('Error:', {
-    message: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
-    path: req.path,
-    method: req.method
-  })
+  log.error(`Error: ${err.message} [${req.method} ${req.path}]`)
 
   // Save error log to database (non-blocking)
   saveErrorLog(err, req).catch(logErr => {
-    console.error('Failed to save error log:', logErr.message)
+    log.error(`Failed to save error log: ${logErr.message}`)
   })
 
   // Handle Mongoose validation errors

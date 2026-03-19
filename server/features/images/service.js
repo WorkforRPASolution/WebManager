@@ -1,6 +1,8 @@
 const storage = require('./storage');
 const EmailImage = require('./model');
 const { parsePaginationParams } = require('../../shared/utils/pagination');
+const { createLogger } = require('../../shared/logger');
+const log = createLogger('images');
 
 // 모듈 레벨 상수 (매 함수 호출마다 읽지 않도록 최적화)
 const STORAGE_TYPE = process.env.IMAGE_STORAGE || 'local';
@@ -10,7 +12,7 @@ const IS_MONGODB_STORAGE = STORAGE_TYPE === 'httpwebserver';
 async function initialize() {
   await storage.initialize();
   if (!IS_MONGODB_STORAGE) {
-    console.warn('  ⚠ IMAGE_STORAGE is not "httpwebserver" (current: "%s"). Email Image page will use in-memory filtering.', STORAGE_TYPE);
+    log.warn(`IMAGE_STORAGE is not "httpwebserver" (current: "${STORAGE_TYPE}"). Email Image page will use in-memory filtering.`);
   }
 }
 
@@ -143,7 +145,7 @@ async function getDistinctProcesses() {
     const processes = [...new Set(images.map(img => img.process).filter(Boolean))];
     return processes.sort();
   } catch (error) {
-    console.error('getDistinctProcesses error:', error);
+    log.error(`getDistinctProcesses error: ${error.message}`);
     return [];
   }
 }
@@ -170,7 +172,7 @@ async function getDistinctModels(processFilter, userProcesses) {
     const models = [...new Set(filtered.map(img => img.model).filter(Boolean))];
     return models.sort();
   } catch (error) {
-    console.error('getDistinctModels error:', error);
+    log.error(`getDistinctModels error: ${error.message}`);
     return [];
   }
 }
@@ -201,7 +203,7 @@ async function getDistinctCodes(processFilter, modelFilter, userProcesses) {
     const codes = [...new Set(filtered.map(img => img.code).filter(Boolean))];
     return codes.sort();
   } catch (error) {
-    console.error('getDistinctCodes error:', error);
+    log.error(`getDistinctCodes error: ${error.message}`);
     return [];
   }
 }
@@ -236,7 +238,7 @@ async function getDistinctSubcodes(processFilter, modelFilter, codeFilter, userP
     const subcodes = [...new Set(filtered.map(img => img.subcode).filter(Boolean))];
     return subcodes.sort();
   } catch (error) {
-    console.error('getDistinctSubcodes error:', error);
+    log.error(`getDistinctSubcodes error: ${error.message}`);
     return [];
   }
 }
@@ -305,7 +307,7 @@ async function listImagesPaginated(filters = {}, paginationQuery = {}, req = nul
       totalPages: Math.ceil(total / pageSize)
     };
   } catch (error) {
-    console.error('listImagesPaginated error:', error);
+    log.error(`listImagesPaginated error: ${error.message}`);
     return { data: [], total: 0, page, pageSize, totalPages: 0 };
   }
 }
@@ -353,7 +355,7 @@ async function updateImageMetadata(currentPrefix, name, updates) {
     }
     return null;
   } catch (error) {
-    console.error('updateImageMetadata error:', error);
+    log.error(`updateImageMetadata error: ${error.message}`);
     throw error;
   }
 }

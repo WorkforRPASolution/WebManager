@@ -1,4 +1,6 @@
 const Redis = require('ioredis')
+const { createLogger } = require('../logger')
+const log = createLogger('redis')
 
 let redisClient = null
 
@@ -38,13 +40,13 @@ function parseRedisUrl(url) {
 async function connectRedis() {
   const url = process.env.REDIS_URL
   if (!url) {
-    console.log('REDIS_URL not set, Redis features disabled')
+    log.info('REDIS_URL not set, Redis features disabled')
     return
   }
 
   const parsed = parseRedisUrl(url)
   if (!parsed) {
-    console.log('REDIS_URL not set, Redis features disabled')
+    log.info('REDIS_URL not set, Redis features disabled')
     return
   }
 
@@ -61,14 +63,14 @@ async function connectRedis() {
       })
       await redisClient.connect()
       const sentinelList = parsed.sentinels.map(s => `${s.host}:${s.port}`).join(', ')
-      console.log(`Redis Sentinel Connected: [${sentinelList}] master=${parsed.name}`)
+      log.info(`Redis Sentinel Connected: [${sentinelList}] master=${parsed.name}`)
     } else {
       redisClient = new Redis(parsed.url, COMMON_OPTS)
       await redisClient.connect()
-      console.log('Redis Connected:', parsed.url.replace(/\/\/.*@/, '//***@'))
+      log.info(`Redis Connected: ${parsed.url.replace(/\/\/.*@/, '//***@')}`)
     }
   } catch (err) {
-    console.warn('Redis connection failed (non-fatal):', err.message)
+    log.warn(`Redis connection failed (non-fatal): ${err.message}`)
     redisClient = null
   }
 }
@@ -77,7 +79,7 @@ async function closeRedis() {
   if (redisClient) {
     await redisClient.quit()
     redisClient = null
-    console.log('Redis connection closed')
+    log.info('Redis connection closed')
   }
 }
 

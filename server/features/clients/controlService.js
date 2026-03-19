@@ -3,6 +3,8 @@ const execCommandService = require('../exec-commands/service')
 const { getClientIpInfo } = require('./clientRepository')
 let Client = require('./model')
 let strategyRegistry = require('./strategies')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('clients')
 
 function isConnectionError(err) {
   const msg = err.message || ''
@@ -182,7 +184,7 @@ async function executeAction(eqpId, agentGroup, action) {
       try {
         basePath = await detectBasePath(eqpId)
       } catch (e) {
-        console.warn(`[executeAction] detectBasePath failed for ${eqpId}, proceeding with relative path: ${e.message}`)
+        log.warn(`[executeAction] detectBasePath failed for ${eqpId}, proceeding with relative path: ${e.message}`)
       }
     }
     if (basePath) {
@@ -205,7 +207,7 @@ async function executeAction(eqpId, agentGroup, action) {
     }
     throw err
   }
-  console.log(`[DEBUG] ${eqpId} ${action} rpcResult:`, JSON.stringify(rpcResult))
+  log.info(`[DEBUG] ${eqpId} ${action} rpcResult: ${JSON.stringify(rpcResult)}`)
   const parsed = strategy.parseResponse(action, rpcResult)
 
   return {
@@ -322,7 +324,7 @@ async function ensureBasePaths(eqpIds) {
       try {
         await detectBasePath(eqpId)
       } catch (e) {
-        console.warn(`[ensureBasePaths] ${eqpId}: ${e.message}`)
+        log.warn(`[ensureBasePaths] ${eqpId}: ${e.message}`)
       }
     }))
   }

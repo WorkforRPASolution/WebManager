@@ -5,6 +5,8 @@
 const authService = require('./service')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 const { createAuthLog } = require('../../shared/models/webmanagerLogModel')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('auth')
 
 /**
  * Helper: Extract client info from request
@@ -36,7 +38,7 @@ async function login(req, res) {
       authAction: 'login_failed',
       userId: username,
       ...clientInfo
-    }).catch(err => console.error('Failed to save auth log:', err.message))
+    }).catch(err => log.error(`Failed to save auth log: ${err.message}`))
 
     throw ApiError.unauthorized('아이디 또는 비밀번호가 올바르지 않습니다')
   }
@@ -47,7 +49,7 @@ async function login(req, res) {
       authAction: 'login_failed',
       userId: username,
       ...clientInfo
-    }).catch(err => console.error('Failed to save auth log:', err.message))
+    }).catch(err => log.error(`Failed to save auth log: ${err.message}`))
 
     const err = ApiError.unauthorized(result.error)
     if (result.code) err.code = result.code
@@ -59,7 +61,7 @@ async function login(req, res) {
     authAction: 'login',
     userId: username,
     ...clientInfo
-  }).catch(err => console.error('Failed to save auth log:', err.message))
+  }).catch(err => log.error(`Failed to save auth log: ${err.message}`))
 
   res.json(result)
 }
@@ -96,7 +98,7 @@ async function logout(req, res) {
     authAction: 'logout',
     userId: req.user?.singleid || req.user?.id || 'unknown',
     ...clientInfo
-  }).catch(err => console.error('Failed to save auth log:', err.message))
+  }).catch(err => log.error(`Failed to save auth log: ${err.message}`))
 
   res.json({
     success: true,
@@ -210,7 +212,7 @@ async function signup(req, res) {
     authAction: 'signup',
     userId: singleid.trim(),
     ...clientInfo
-  }).catch(err => console.error('Failed to save auth log:', err.message))
+  }).catch(err => log.error(`Failed to save auth log: ${err.message}`))
 
   res.status(201).json(result)
 }
@@ -234,7 +236,7 @@ async function requestPasswordReset(req, res) {
     authAction: 'password_reset_request',
     userId: singleid,
     ...clientInfo
-  }).catch(err => console.error('Failed to save auth log:', err.message))
+  }).catch(err => log.error(`Failed to save auth log: ${err.message}`))
 
   res.json(result)
 }
@@ -270,7 +272,7 @@ async function changePassword(req, res) {
     authAction: 'password_changed',
     userId: req.user?.singleid || req.user?.id,
     ...clientInfo
-  }).catch(err => console.error('Failed to save auth log:', err.message))
+  }).catch(err => log.error(`Failed to save auth log: ${err.message}`))
 
   res.json(result)
 }
@@ -306,7 +308,7 @@ async function setNewPassword(req, res) {
     authAction: 'password_changed',
     userId: req.user?.singleid || req.user?.id,
     ...clientInfo
-  }).catch(err => console.error('Failed to save auth log:', err.message))
+  }).catch(err => log.error(`Failed to save auth log: ${err.message}`))
 
   res.json(result)
 }
@@ -468,7 +470,7 @@ async function verifyAndResetPassword(req, res) {
     authAction: 'password_reset_verified',
     userId: mail.split('@')[0],
     ...clientInfo
-  }).catch(err => console.error('Failed to save auth log:', err.message))
+  }).catch(err => log.error(`Failed to save auth log: ${err.message}`))
 
   res.json(result)
 }

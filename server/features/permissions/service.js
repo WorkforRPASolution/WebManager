@@ -4,6 +4,8 @@
  */
 
 const { FeaturePermission, DEFAULT_FEATURE_PERMISSIONS, FEATURE_NAMES } = require('./model')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('permissions')
 
 /**
  * Get all feature permissions
@@ -182,10 +184,10 @@ async function initializeDefaultPermissions() {
   const result = await syncFeaturePermissions()
 
   if (result.added.length > 0) {
-    console.log(`  + Added features: ${result.added.join(', ')}`)
+    log.info(`Added features: ${result.added.join(', ')}`)
   }
   if (result.removed.length > 0) {
-    console.log(`  - Removed features: ${result.removed.join(', ')}`)
+    log.info(`Removed features: ${result.removed.join(', ')}`)
   }
 }
 

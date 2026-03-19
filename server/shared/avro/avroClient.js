@@ -1,5 +1,7 @@
 const avro = require('avsc')
 const { createConnection } = require('../utils/socksHelper')
+const { createLogger } = require('../logger')
+const log = createLogger('rpc')
 
 // ExecCommand Avro 프로토콜 정의
 const PROTOCOL = {
@@ -100,7 +102,7 @@ class AvroRpcClient {
         clearTimeout(timer)
         if (err) {
           const detail = err.message || err.string || JSON.stringify(err)
-          console.error('[DEBUG] Avro RPC err object:', typeof err, err)
+          log.error(`Avro RPC err object: ${typeof err} ${err.message || JSON.stringify(err)}`)
           reject(new Error(`RPC call failed: ${detail}`))
         } else {
           resolve(response)

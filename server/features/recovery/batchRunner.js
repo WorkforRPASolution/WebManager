@@ -11,6 +11,8 @@ const {
   floorToKSTBucket
 } = require('./dateUtils')
 const { getDeps, getEarsDb, getCronRunLog } = require('./recoveryDeps')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('recovery')
 
 // ── Pipeline Configuration ──
 
@@ -155,22 +157,22 @@ async function runBatch(period) {
   const indexManager = require('./indexManager')
 
   if (!indexManager.isIndexReady()) {
-    console.warn(`[RecoverySummary] Skipping ${period} batch — EQP_AUTO_RECOVERY create_date index not verified`)
+    log.warn(`[RecoverySummary] Skipping ${period} batch — EQP_AUTO_RECOVERY create_date index not verified`)
     deps.createBatchLog({
       batchAction: 'cron_skipped',
       batchPeriod: period,
       batchParams: { period, reason: 'indexNotReady' }
-    }).catch(e => console.error('[BatchLog] cron_skipped log failed:', e))
+    }).catch(e => log.error(`[BatchLog] cron_skipped log failed: ${e.message}`))
     return
   }
 
   if (isRunning) {
-    console.log(`[RecoverySummary] Skipping ${period} batch — previous run still in progress`)
+    log.info(`[RecoverySummary] Skipping ${period} batch — previous run still in progress`)
     deps.createBatchLog({
       batchAction: 'cron_skipped',
       batchPeriod: period,
       batchParams: { period, reason: 'isRunning' }
-    }).catch(e => console.error('[BatchLog] cron_skipped log failed:', e))
+    }).catch(e => log.error(`[BatchLog] cron_skipped log failed: ${e.message}`))
     return
   }
 
@@ -184,30 +186,30 @@ async function runBatch(period) {
 
     const { bucketStart, dateGte, dateLt } = boundaries
 
-    console.log(`[RecoverySummary] Starting ${period} batch: ${dateGte} ~ ${dateLt}`)
+    log.info(`[RecoverySummary] Starting ${period} batch: ${dateGte} ~ ${dateLt}`)
 
     const result = await runPipelinesForBucket(period, bucketStart, dateGte, dateLt, { source: 'cron' })
 
-    console.log(`[RecoverySummary] ${period} batch completed: ${result.status}`)
+    log.info(`[RecoverySummary] ${period} batch completed: ${result.status}`)
 
     deps.createBatchLog({
       batchAction: 'cron_completed',
       batchPeriod: period,
       batchParams: { period, bucket: bucketStart.toISOString() },
       batchResult: { status: result.status, pipelineResults: result.pipelineResults }
-    }).catch(e => console.error('[BatchLog] cron_completed log failed:', e))
+    }).catch(e => log.error(`[BatchLog] cron_completed log failed: ${e.message}`))
 
     // Auto backfill after successful/partial cron run
     if (result.status === 'success' || result.status === 'partial') {
       await runBackfillCheck(period)
     }
   } catch (err) {
-    console.error(`[RecoverySummary] ${period} batch fatal error:`, err)
+    log.error(`[RecoverySummary] ${period} batch fatal error: ${err.message}`)
     deps.createBatchLog({
       batchAction: 'cron_failed',
       batchPeriod: period,
       batchParams: { period, error: err.message }
-    }).catch(e => console.error('[BatchLog] cron_failed log failed:', e))
+    }).catch(e => log.error(`[BatchLog] cron_failed log failed: ${e.message}`))
   } finally {
     isRunning = false
   }
@@ -250,7 +252,7 @@ async function runBackfillCheck(period) {
     const limit = deps.autoBackfillLimit
     const toProcess = gaps.slice(0, limit)
 
-    console.log(`[RecoverySummary] Auto-backfilling ${toProcess.length} ${period} gaps (of ${gaps.length} total)`)
+    log.info(`[RecoverySummary] Auto-backfilling ${toProcess.length} ${period} gaps (of ${gaps.length} total)`)
 
     for (let i = 0; i < toProcess.length; i++) {
       const bucketDate = toProcess[i]
@@ -267,9 +269,9 @@ async function runBackfillCheck(period) {
       batchAction: 'auto_backfill_completed',
       batchPeriod: period,
       batchParams: { period, gapsFound: gaps.length, processed: toProcess.length }
-    }).catch(e => console.error('[BatchLog] auto_backfill_completed log failed:', e))
+    }).catch(e => log.error(`[BatchLog] auto_backfill_completed log failed: ${e.message}`))
   } catch (err) {
-    console.error(`[RecoverySummary] Auto-backfill error:`, err)
+    log.error(`[RecoverySummary] Auto-backfill error: ${err.message}`)
   }
 }
 

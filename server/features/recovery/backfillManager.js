@@ -8,6 +8,8 @@ const {
 } = require('./dateUtils')
 const { getDeps, getCronRunLog } = require('./recoveryDeps')
 const { runPipelinesForBucket } = require('./batchRunner')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('recovery')
 
 // ── Manual Backfill State ──
 
@@ -160,7 +162,7 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
         errorCount: backfillState.errors.length,
         durationMs
       }
-    }).catch(e => console.error('[BatchLog] backfill_completed log failed:', e))
+    }).catch(e => log.error(`[BatchLog] backfill_completed log failed: ${e.message}`))
   } catch (err) {
     backfillState.status = 'error'
     backfillState.completedAt = new Date()

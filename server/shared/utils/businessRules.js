@@ -15,6 +15,8 @@
  */
 
 const { createAuditLog, calculateChanges } = require('../models/webmanagerLogModel')
+const { createLogger } = require('../logger')
+const log = createLogger('error')
 
 // ============================================
 // Global Registry (컬렉션별 규칙 저장소)
@@ -160,7 +162,7 @@ function applyAutoSetters(rules, data, context = {}) {
     try {
       result = rule.apply(result, context)
     } catch (error) {
-      console.error(`Auto-setter '${rule.name}' failed:`, error.message)
+      log.error(`Auto-setter '${rule.name}' failed: ${error.message}`)
     }
   }
 
@@ -191,7 +193,7 @@ function validateRelations(rules, data, context = {}) {
         })
       }
     } catch (err) {
-      console.error(`Relation validator '${rule.name}' failed:`, err.message)
+      log.error(`Relation validator '${rule.name}' failed: ${err.message}`)
     }
   }
 
@@ -225,7 +227,7 @@ async function executeHooks(rules, hookType, data, context = {}) {
     try {
       await rule.execute(data, context)
     } catch (error) {
-      console.error(`Hook '${rule.name}' (${hookType}) failed:`, error.message)
+      log.error(`Hook '${rule.name}' (${hookType}) failed: ${error.message}`)
       if (rule.critical) throw error
     }
   }

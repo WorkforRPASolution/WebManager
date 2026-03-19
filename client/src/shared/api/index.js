@@ -128,6 +128,12 @@ export const permissionsApi = {
 }
 
 // Images API
+export const systemLogsApi = {
+  getLogs: (params = {}) => api.get('/system-logs', { params }),
+  getStatistics: (params = {}) => api.get('/system-logs/statistics', { params }),
+  getLogById: (id) => api.get(`/system-logs/${id}`),
+}
+
 export const imagesApi = {
   getConfig: () => api.get('/images/config'),
   /**
