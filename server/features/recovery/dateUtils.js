@@ -171,6 +171,38 @@ function computeGroupKey(bucketTime, granularity) {
   }
 }
 
+/**
+ * Compute date range and granularity for cron distribution query.
+ * @param {'today'|'7d'|'30d'|'90d'} period
+ * @param {Date} now
+ * @returns {{ startDate: Date, endDate: Date, granularity: 'hourly'|'daily'|'weekly' }}
+ */
+function computeCronDistributionRange(period, now) {
+  let startDate, granularity
+
+  if (period === 'today') {
+    startDate = floorToKSTBucket('daily', now)
+    granularity = 'hourly'
+  } else if (period === '7d') {
+    const d = new Date(now)
+    d.setDate(d.getDate() - 7)
+    startDate = floorToKSTBucket('daily', d)
+    granularity = 'daily'
+  } else if (period === '30d') {
+    const d = new Date(now)
+    d.setDate(d.getDate() - 30)
+    startDate = floorToKSTBucket('daily', d)
+    granularity = 'daily'
+  } else {
+    const d = new Date(now)
+    d.setDate(d.getDate() - 90)
+    startDate = floorToKSTBucket('daily', d)
+    granularity = 'weekly'
+  }
+
+  return { startDate, endDate: now, granularity }
+}
+
 module.exports = {
   KST_OFFSET_MS,
   formatKST,
@@ -179,5 +211,6 @@ module.exports = {
   computeBoundariesForBucket,
   generateExpectedBuckets,
   floorToKSTBucket,
-  computeGroupKey
+  computeGroupKey,
+  computeCronDistributionRange
 }
