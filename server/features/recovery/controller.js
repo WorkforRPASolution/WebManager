@@ -7,6 +7,7 @@ const service = require('./service')
 const { validatePeriodRange, validateBackfillRange } = require('./validation')
 const { parsePaginationParams, createPaginatedResponse } = require('../../shared/utils/pagination')
 const { createBatchLog, WebManagerLog } = require('../../shared/models/webmanagerLogModel')
+const { KST_OFFSET_MS } = require('./dateUtils')
 
 // ── Dependency Injection (for testing) ──
 
@@ -275,8 +276,6 @@ async function handleCancelBackfill(req, res) {
 }
 
 // ── Batch Logs API ──
-
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000
 
 function buildBatchLogsQuery(query) {
   const filter = { category: 'batch' }

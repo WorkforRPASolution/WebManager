@@ -2,9 +2,7 @@
  * Period validation utilities for Recovery Dashboard API.
  */
 
-const { formatKST } = require('./dateUtils')
-
-const KST_OFFSET_MS = 9 * 60 * 60 * 1000
+const { formatKST, KST_OFFSET_MS } = require('./dateUtils')
 
 /**
  * Validate that the date range doesn't exceed maxDays.

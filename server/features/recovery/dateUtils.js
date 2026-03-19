@@ -146,6 +146,7 @@ function floorToKSTBucket(period, date) {
 }
 
 module.exports = {
+  KST_OFFSET_MS,
   formatKST,
   computeHourlyBoundaries,
   computeDailyBoundaries,
