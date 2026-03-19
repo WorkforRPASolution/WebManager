@@ -6,13 +6,18 @@
 const service = require('./service')
 const { validatePeriodRange, validateBackfillRange } = require('./validation')
 const { parsePaginationParams, createPaginatedResponse } = require('../../shared/utils/pagination')
-const { createBatchLog, WebManagerLog } = require('../../shared/models/webmanagerLogModel')
-const { KST_OFFSET_MS } = require('./dateUtils')
+const { createBatchLog } = require('../../shared/models/webmanagerLogModel')
+const batchLogsService = require('./batchLogsService')
 
 // ── Dependency Injection (for testing) ──
 
 let deps = {}
-function _setDeps(overrides) { deps = { ...deps, ...overrides } }
+function _setDeps(overrides) {
+  deps = { ...deps, ...overrides }
+  if (overrides.WebManagerLog) {
+    batchLogsService._setDeps({ WebManagerLog: overrides.WebManagerLog })
+  }
+}
 
 function getSummaryService() {
   return deps.summaryService || require('./recoverySummaryService')
@@ -20,10 +25,6 @@ function getSummaryService() {
 
 function getDateUtils() {
   return deps.dateUtils || require('./dateUtils')
-}
-
-function getWebManagerLog() {
-  return deps.WebManagerLog || WebManagerLog
 }
 
 async function getOverview(req, res) {
@@ -277,72 +278,15 @@ async function handleCancelBackfill(req, res) {
 
 // ── Batch Logs API ──
 
-function buildBatchLogsQuery(query) {
-  const filter = { category: 'batch' }
-  if (query.batchAction) filter.batchAction = query.batchAction
-  if (query.startDate || query.endDate) {
-    filter.timestamp = {}
-    if (query.startDate) {
-      const start = new Date(query.startDate)
-      start.setUTCHours(0, 0, 0, 0)
-      filter.timestamp.$gte = new Date(start.getTime() - KST_OFFSET_MS)
-    }
-    if (query.endDate) {
-      const end = new Date(query.endDate)
-      end.setUTCHours(0, 0, 0, 0)
-      filter.timestamp.$lte = new Date(end.getTime() - KST_OFFSET_MS + 24 * 60 * 60 * 1000 - 1)
-    }
-  } else if (query.period) {
-    const now = new Date()
-    let startDate
-    if (query.period === 'today') {
-      const kstNow = new Date(now.getTime() + KST_OFFSET_MS)
-      kstNow.setUTCHours(0, 0, 0, 0)
-      startDate = new Date(kstNow.getTime() - KST_OFFSET_MS)
-    } else if (query.period === '7d') {
-      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-    } else if (query.period === '30d') {
-      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-    }
-    if (startDate) filter.timestamp = { $gte: startDate }
-  }
-  return filter
-}
-
 async function getBatchLogs(req, res) {
-  const Log = getWebManagerLog()
   const { page, pageSize, skip, limit } = parsePaginationParams(req.query, { defaultPageSize: 50 })
-  const filter = buildBatchLogsQuery(req.query)
-  const [data, total] = await Promise.all([
-    Log.find(filter).sort({ timestamp: -1 }).skip(skip).limit(limit).lean(),
-    Log.countDocuments(filter)
-  ])
+  const { data, total } = await batchLogsService.queryBatchLogs(req.query, { skip, limit })
   res.json(createPaginatedResponse(data, total, page, pageSize))
 }
 
-const BACKFILL_ACTIONS = new Set([
-  'backfill_started', 'backfill_completed', 'backfill_cancelled', 'auto_backfill_completed'
-])
-
 async function getBatchHeatmap(req, res) {
-  const Log = getWebManagerLog()
-  const days = Math.min(90, Math.max(1, parseInt(req.query.days, 10) || 30))
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-  const pipeline = [
-    { $match: { category: 'batch', timestamp: { $gte: since } } },
-    { $group: { _id: { date: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp', timezone: '+09:00' } }, action: '$batchAction' }, count: { $sum: 1 } } },
-    { $group: { _id: '$_id.date', total: { $sum: '$count' }, actions: { $push: { k: '$_id.action', v: '$count' } } } },
-    { $sort: { _id: 1 } },
-    { $project: { _id: 0, date: '$_id', total: 1, actions: { $arrayToObject: '$actions' } } }
-  ]
-  const raw = await Log.collection.aggregate(pipeline).toArray()
-  const data = raw.map(row => ({
-    date: row.date,
-    total: row.total,
-    cron: row.actions.cron_completed || 0,
-    skip: row.actions.cron_skipped || 0,
-    backfill: Object.entries(row.actions).filter(([k]) => BACKFILL_ACTIONS.has(k)).reduce((sum, [, v]) => sum + v, 0)
-  }))
+  const days = parseInt(req.query.days, 10) || 30
+  const data = await batchLogsService.queryBatchHeatmap(days)
   res.json({ data })
 }
 
