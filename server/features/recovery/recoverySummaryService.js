@@ -45,6 +45,7 @@ const PIPELINE_CONFIGS = {
 let deps = {
   earsDb: null,
   CronRunLog: CronRunLogModel,
+  createBatchLog,
   settlingHours: SETTLING_HOURS,
   autoBackfillLimit: AUTO_BACKFILL_LIMIT,
   defaultThrottleMs: DEFAULT_THROTTLE_MS,
@@ -214,7 +215,7 @@ let isRunning = false
 async function runBatch(period) {
   if (!indexReady) {
     console.warn(`[RecoverySummary] Skipping ${period} batch — EQP_AUTO_RECOVERY create_date index not verified`)
-    createBatchLog({
+    deps.createBatchLog({
       batchAction: 'cron_skipped',
       batchPeriod: period,
       batchParams: { period, reason: 'indexNotReady' }
@@ -224,7 +225,7 @@ async function runBatch(period) {
 
   if (isRunning) {
     console.log(`[RecoverySummary] Skipping ${period} batch — previous run still in progress`)
-    createBatchLog({
+    deps.createBatchLog({
       batchAction: 'cron_skipped',
       batchPeriod: period,
       batchParams: { period, reason: 'isRunning' }
@@ -248,7 +249,7 @@ async function runBatch(period) {
 
     console.log(`[RecoverySummary] ${period} batch completed: ${result.status}`)
 
-    createBatchLog({
+    deps.createBatchLog({
       batchAction: 'cron_completed',
       batchPeriod: period,
       batchParams: { period, bucket: bucketStart.toISOString() },
@@ -261,6 +262,11 @@ async function runBatch(period) {
     }
   } catch (err) {
     console.error(`[RecoverySummary] ${period} batch fatal error:`, err)
+    deps.createBatchLog({
+      batchAction: 'cron_failed',
+      batchPeriod: period,
+      batchParams: { period, error: err.message }
+    }).catch(e => console.error('[BatchLog] cron_failed log failed:', e))
   } finally {
     isRunning = false
   }
@@ -328,7 +334,7 @@ async function runBackfillCheck(period) {
       }
     }
 
-    createBatchLog({
+    deps.createBatchLog({
       batchAction: 'auto_backfill_completed',
       batchPeriod: period,
       batchParams: { period, gapsFound: gaps.length, processed: toProcess.length }
@@ -499,7 +505,7 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
     backfillState.current = backfillState.total
 
     const durationMs = backfillState.completedAt.getTime() - backfillState.startedAt.getTime()
-    createBatchLog({
+    deps.createBatchLog({
       batchAction: 'backfill_completed',
       batchResult: {
         status: backfillState.status,

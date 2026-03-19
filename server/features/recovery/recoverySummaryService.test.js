@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
 import {
   buildPipeline,
   runBatch,
@@ -428,6 +429,25 @@ describe('recoverySummaryService', () => {
 
       // Only one should have called findOneAndUpdate (the other should be skipped)
       expect(mockCronRunLog.findOneAndUpdate).toHaveBeenCalledTimes(1)
+    })
+
+    it('logs cron_failed batchAction when fatal error occurs in runBatch', async () => {
+      const mockCronRunLog = createMockCronRunLog()
+      // Make findOneAndUpdate throw to trigger the fatal catch block in runBatch
+      mockCronRunLog.findOneAndUpdate.mockRejectedValue(new Error('DB connection lost'))
+
+      const mockEarsDb = createMockEarsDb()
+      const mockBatchLog = vi.fn().mockReturnValue(Promise.resolve())
+      _setDeps({ earsDb: mockEarsDb, CronRunLog: mockCronRunLog, settlingHours: 0, autoBackfillLimit: 0, createBatchLog: mockBatchLog })
+
+      await runBatch('hourly')
+
+      // Should have called createBatchLog with cron_failed
+      const cronFailedCall = mockBatchLog.mock.calls.find(
+        call => call[0]?.batchAction === 'cron_failed'
+      )
+      expect(cronFailedCall).toBeDefined()
+      expect(cronFailedCall[0].batchPeriod).toBe('hourly')
     })
 
     it('uses allowDiskUse option', async () => {

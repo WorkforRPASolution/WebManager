@@ -77,7 +77,7 @@ const webmanagerLogSchema = new mongoose.Schema({
   // batch 전용 필드
   batchAction: {
     type: String,
-    enum: ['cron_completed', 'cron_skipped', 'backfill_started', 'backfill_completed', 'backfill_cancelled', 'auto_backfill_completed'],
+    enum: ['cron_completed', 'cron_skipped', 'cron_failed', 'backfill_started', 'backfill_completed', 'backfill_cancelled', 'auto_backfill_completed'],
     index: true
   },
   batchPeriod: {
