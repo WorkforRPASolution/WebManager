@@ -218,7 +218,7 @@ async function runBatch(period) {
       batchAction: 'cron_skipped',
       batchPeriod: period,
       batchParams: { period, reason: 'indexNotReady' }
-    }).catch(e => console.error('[BatchLog] cron_skipped log failed:', e.message))
+    }).catch(e => console.error('[BatchLog] cron_skipped log failed:', e))
     return
   }
 
@@ -228,7 +228,7 @@ async function runBatch(period) {
       batchAction: 'cron_skipped',
       batchPeriod: period,
       batchParams: { period, reason: 'isRunning' }
-    }).catch(e => console.error('[BatchLog] cron_skipped log failed:', e.message))
+    }).catch(e => console.error('[BatchLog] cron_skipped log failed:', e))
     return
   }
 
@@ -253,14 +253,14 @@ async function runBatch(period) {
       batchPeriod: period,
       batchParams: { period, bucket: bucketStart.toISOString() },
       batchResult: { status: result.status, pipelineResults: result.pipelineResults }
-    }).catch(e => console.error('[BatchLog] cron_completed log failed:', e.message))
+    }).catch(e => console.error('[BatchLog] cron_completed log failed:', e))
 
     // Auto backfill after successful/partial cron run
     if (result.status === 'success' || result.status === 'partial') {
       await runBackfillCheck(period)
     }
   } catch (err) {
-    console.error(`[RecoverySummary] ${period} batch fatal error:`, err.message)
+    console.error(`[RecoverySummary] ${period} batch fatal error:`, err)
   } finally {
     isRunning = false
   }
@@ -332,9 +332,9 @@ async function runBackfillCheck(period) {
       batchAction: 'auto_backfill_completed',
       batchPeriod: period,
       batchParams: { period, gapsFound: gaps.length, processed: toProcess.length }
-    }).catch(e => console.error('[BatchLog] auto_backfill_completed log failed:', e.message))
+    }).catch(e => console.error('[BatchLog] auto_backfill_completed log failed:', e))
   } catch (err) {
-    console.error(`[RecoverySummary] Auto-backfill error:`, err.message)
+    console.error(`[RecoverySummary] Auto-backfill error:`, err)
   }
 }
 
@@ -509,7 +509,7 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
         errorCount: backfillState.errors.length,
         durationMs
       }
-    }).catch(e => console.error('[BatchLog] backfill_completed log failed:', e.message))
+    }).catch(e => console.error('[BatchLog] backfill_completed log failed:', e))
   } catch (err) {
     backfillState.status = 'error'
     backfillState.completedAt = new Date()
@@ -573,7 +573,7 @@ async function checkEarIndexes() {
     }
     return hasCreateDateIndex
   } catch (err) {
-    console.error('[RecoverySummary] Failed to check EQP_AUTO_RECOVERY indexes:', err.message)
+    console.error('[RecoverySummary] Failed to check EQP_AUTO_RECOVERY indexes:', err)
     indexReady = false
     return false
   }
@@ -627,7 +627,7 @@ async function initializeRecoverySummary() {
 
     console.log('[RecoverySummary] Indexes initialized')
   } catch (err) {
-    console.error('[RecoverySummary] Index initialization error:', err.message)
+    console.error('[RecoverySummary] Index initialization error:', err)
   }
 }
 
