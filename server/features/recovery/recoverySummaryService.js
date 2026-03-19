@@ -16,6 +16,7 @@ const {
   generateExpectedBuckets,
   floorToKSTBucket
 } = require('./dateUtils')
+const { validateBackfillRange } = require('./validation')
 
 // ── Environment Config ──
 
@@ -384,27 +385,7 @@ async function getPartialBucketSet(period, startDate, endDate) {
   return new Set(logs.map(l => l.bucket.getTime()))
 }
 
-/**
- * Validate backfill date range (max 2 years = 730 days).
- */
-function validateBackfillRange(startDate, endDate) {
-  if (!startDate || !endDate) {
-    return { valid: false, error: 'startDate and endDate are required' }
-  }
-  const start = new Date(startDate)
-  const end = new Date(endDate)
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-    return { valid: false, error: 'Invalid date format' }
-  }
-  if (start >= end) {
-    return { valid: false, error: 'startDate must be before endDate' }
-  }
-  const diffDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
-  if (diffDays > 730) {
-    return { valid: false, error: 'Date range exceeds maximum of 730 days (2 years)' }
-  }
-  return { valid: true }
-}
+// validateBackfillRange: re-exported from validation.js for backward compatibility
 
 /**
  * Run manual backfill. Executes asynchronously — returns immediately.
