@@ -37,10 +37,12 @@ const option = computed(() => {
         const name = params[0].name
         const item = items.find(d => d.process === name)
         if (!item) return name
+        const rate = item.total > 0 ? (item.active / item.total * 100).toFixed(1) : '0.0'
         return `<b>${name}</b><br/>` +
           `Active: <b>${item.active}</b><br/>` +
           `Inactive: <b>${item.inactive}</b><br/>` +
-          `전체: <b>${item.total}</b>`
+          `전체: <b>${item.total}</b><br/>` +
+          `활성률: <b>${rate}%</b>`
       }
     },
     legend: {

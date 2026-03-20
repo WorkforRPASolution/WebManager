@@ -23,7 +23,16 @@ const cards = computed(() => {
     {
       label: '활성 시나리오',
       value: formatNumber(k.activeScenarios),
+      sub: k.totalScenarios > 0 ? `(${(k.activeScenarios / k.totalScenarios * 100).toFixed(1)}%)` : '',
       accent: 'text-blue-600 dark:text-blue-400',
+      badge: '고정',
+      badgeClass: 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+    },
+    {
+      label: '성과 입력 시나리오',
+      value: formatNumber(k.performanceFilled),
+      sub: k.totalScenarios > 0 ? `(${(k.performanceFilled / k.totalScenarios * 100).toFixed(1)}%)` : '',
+      accent: 'text-emerald-600 dark:text-emerald-400',
       badge: '고정',
       badgeClass: 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
     },
@@ -46,11 +55,11 @@ const cards = computed(() => {
 </script>
 
 <template>
-  <div class="grid grid-cols-4 gap-4">
+  <div class="flex flex-wrap gap-4" data-testid="scenario-kpi-cards">
     <div
       v-for="(card, idx) in cards"
       :key="idx"
-      class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4"
+      class="flex-1 min-w-[160px] bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4"
     >
       <div class="flex items-center gap-2 mb-1">
         <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
@@ -62,6 +71,7 @@ const cards = computed(() => {
       </div>
       <p class="text-2xl font-bold" :class="card.accent">
         {{ card.value }}
+        <span v-if="card.sub" class="text-sm font-medium text-gray-400 dark:text-gray-500">{{ card.sub }}</span>
       </p>
     </div>
   </div>

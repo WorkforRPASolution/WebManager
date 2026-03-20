@@ -85,7 +85,7 @@ async function getScenarioStats({ period = 'all', process, startDate }) {
   ])
 
   // Scenario KPI (period-independent)
-  const sKpi = scenarioKpiResult[0] || { totalScenarios: 0, activeScenarios: 0 }
+  const sKpi = scenarioKpiResult[0] || { totalScenarios: 0, activeScenarios: 0, performanceFilled: 0 }
 
   // Modification KPI (period-reactive)
   const mKpi = modKpiResult[0] || { modifiedScenarios: [], activeAuthors: [] }
@@ -96,6 +96,7 @@ async function getScenarioStats({ period = 'all', process, startDate }) {
     kpi: {
       totalScenarios: sKpi.totalScenarios || 0,
       activeScenarios: sKpi.activeScenarios || 0,
+      performanceFilled: sKpi.performanceFilled || 0,
       modifiedScenarios,
       activeAuthors,
       periodLabel: PERIOD_LABELS[period] || '전체'
@@ -130,6 +131,16 @@ async function getScenarioStats({ period = 'all', process, startDate }) {
  * Count total and active (IsEnabled) scenarios.
  */
 function buildScenarioKpiPipeline(baseMatch) {
+  const performanceCondition = {
+    $or: [
+      { $gt: ['$performance.ManWorkLoss', 0] },
+      { $gt: ['$performance.EqpPerfornmanceLoss', 0] }, // DB typo preserved
+      { $gt: ['$performance.EqpStopLoss', 0] },
+      { $gt: ['$performance.WaferLoss', 0] },
+      { $gt: ['$performance.InvestCostLoss', 0] }
+    ]
+  }
+
   return [
     { $match: { ...baseMatch } },
     {
@@ -138,6 +149,9 @@ function buildScenarioKpiPipeline(baseMatch) {
         totalScenarios: { $sum: 1 },
         activeScenarios: {
           $sum: { $cond: [{ $eq: ['$property.IsEnabled', true] }, 1, 0] }
+        },
+        performanceFilled: {
+          $sum: { $cond: [performanceCondition, 1, 0] }
         }
       }
     },

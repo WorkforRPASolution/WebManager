@@ -44,10 +44,10 @@ beforeEach(async () => {
 
 describe('scenarioService', () => {
   describe('getScenarioStats', () => {
-    it('returns correct KPI structure (5 fields)', async () => {
+    it('returns correct KPI structure (6 fields)', async () => {
       const coll = createMockCollection()
       mockFivePipelines(coll,
-        [{ totalScenarios: 450, activeScenarios: 380 }],
+        [{ totalScenarios: 450, activeScenarios: 380, performanceFilled: 300 }],
         [{ _id: 'DIFF', total: 50, active: 40, performanceFilled: 30 }],
         [{ modifiedScenarios: ['s1', 's2'], activeAuthors: ['a1', 'a2', 'a3'] }],
         [{ _id: 'youngsoo', modificationCount: 120, scenarios: ['s1', 's2'] }],
@@ -60,6 +60,7 @@ describe('scenarioService', () => {
       expect(result.kpi).toEqual({
         totalScenarios: 450,
         activeScenarios: 380,
+        performanceFilled: 300,
         modifiedScenarios: 2,
         activeAuthors: 3,
         periodLabel: '전체'

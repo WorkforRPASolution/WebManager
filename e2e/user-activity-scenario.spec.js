@@ -57,9 +57,10 @@ test.describe('User Activity — Scenario Tab', () => {
     await page.locator('button', { hasText: 'Scenario' }).click()
     await page.waitForLoadState('networkidle')
 
-    // KPI 4장 카드 확인
+    // KPI 5장 카드 확인
     await expect(page.locator('text=전체 시나리오')).toBeVisible()
     await expect(page.locator('text=활성 시나리오')).toBeVisible()
+    await expect(page.locator('text=성과 입력 시나리오')).toBeVisible()
     await expect(page.locator('text=수정 시나리오')).toBeVisible()
     await expect(page.locator('text=활동 작성자')).toBeVisible()
 
@@ -78,11 +79,10 @@ test.describe('User Activity — Scenario Tab', () => {
     await page.locator('button', { hasText: 'Scenario' }).click()
     await page.waitForLoadState('networkidle')
 
-    // KPI 카드 영역에서 "고정" 배지 2개 (전체 시나리오, 활성 시나리오)
-    // 배지는 text-[10px] 크기의 span — grid-cols-4 안에서 찾기
-    const kpiGrid = page.locator('.grid-cols-4')
+    // KPI 카드 영역에서 "고정" 배지 3개 (전체, 활성, 성과 입력)
+    const kpiGrid = page.locator('[data-testid="scenario-kpi-cards"]')
     const fixedBadges = kpiGrid.locator('span:text-is("고정")')
-    await expect(fixedBadges).toHaveCount(2)
+    await expect(fixedBadges).toHaveCount(3)
 
     // "기간" 배지 2개 (수정 시나리오, 활동 작성자)
     const periodBadges = kpiGrid.locator('span:text-is("기간")')
@@ -217,6 +217,7 @@ test.describe('User Activity — Scenario Tab', () => {
     expect(body.kpi).toBeDefined()
     expect(body.kpi).toHaveProperty('totalScenarios')
     expect(body.kpi).toHaveProperty('activeScenarios')
+    expect(body.kpi).toHaveProperty('performanceFilled')
     expect(body.kpi).toHaveProperty('modifiedScenarios')
     expect(body.kpi).toHaveProperty('activeAuthors')
     expect(body.kpi).toHaveProperty('periodLabel')
@@ -257,7 +258,7 @@ test.describe('User Activity — Scenario Tab', () => {
     expect(count).toBeGreaterThanOrEqual(1)
 
     // KPI 카드 영역에서 값이 0으로 표시 확인
-    const kpiGrid = page.locator('.grid-cols-4')
+    const kpiGrid = page.locator('[data-testid="scenario-kpi-cards"]')
     // "전체 시나리오" 카드 안의 bold 텍스트 "0"
     const totalCard = kpiGrid.locator('div').filter({ hasText: '전체 시나리오' }).first()
     await expect(totalCard.locator('.text-2xl')).toContainText('0')

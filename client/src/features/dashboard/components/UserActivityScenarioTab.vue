@@ -109,8 +109,8 @@ onMounted(() => {
 
     <!-- Loading Skeleton -->
     <div v-if="loading && !data" class="space-y-6">
-      <div class="grid grid-cols-4 gap-4">
-        <div v-for="i in 4" :key="i" class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4 animate-pulse">
+      <div class="flex flex-wrap gap-4">
+        <div v-for="i in 5" :key="i" class="flex-1 min-w-[160px] bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4 animate-pulse">
           <div class="h-3 bg-gray-200 dark:bg-gray-700 rounded w-20 mb-2"></div>
           <div class="h-7 bg-gray-200 dark:bg-gray-700 rounded w-16"></div>
         </div>
@@ -122,9 +122,9 @@ onMounted(() => {
       <!-- KPI Cards -->
       <ScenarioKPICards :kpi="data.kpi" />
 
-      <!-- Process Charts (2/3) + Performance (1/3) -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div class="lg:col-span-2 bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
+      <!-- Process Charts (1/2) + Performance (1/2) -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
           <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
             공정별 시나리오 현황
             <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">Active / Inactive</span>
