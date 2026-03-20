@@ -87,6 +87,11 @@ export const recoveryApi = {
   getBatchHeatmap: (params = {}) => api.get('/recovery/batch-logs/heatmap', { params }),
 }
 
+// User Activity API
+export const userActivityApi = {
+  getToolUsage: (params = {}) => api.get('/user-activity/tool-usage', { params, timeout: 30000 }),
+}
+
 // Auth API
 export const authApi = {
   login: (username, password) => api.post('/auth/login', { username, password }),

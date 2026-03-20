@@ -211,6 +211,27 @@ const routes = [
     }
   },
   {
+    path: '/user-activity',
+    name: 'UserActivity',
+    component: () => import('../features/dashboard/UserActivityView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'dashboardUserActivity',
+      menu: {
+        mainMenu: 'dashboard',
+        mainMenuLabel: 'Dashboard',
+        mainMenuIcon: 'dashboard',
+        mainMenuOrder: 1,
+        subMenu: 'user-activity',
+        subMenuLabel: 'User Activity',
+        subMenuIcon: 'group',
+        subMenuOrder: 9,
+        permission: 'dashboardUserActivity'
+      }
+    }
+  },
+  {
     path: '/clients',
     name: 'Clients',
     component: () => import('../features/clients/ClientsView.vue'),
