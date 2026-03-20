@@ -111,7 +111,7 @@ EARS Database의 컬렉션에 WebManager가 추가한 전용 필드는 `[WM]`으
 | lastLoginAt | Date | 선택 | `[WM]` 마지막 로그인 시각 |
 | accessnum | NumberLong | 선택 | 시스템접속 횟수(자동 update) |
 | accessnum_desktop | NumberLong | 선택 | Desktop시스템 접속횟수(자동 Update) |
-| lastExecution | String | 선택 | 마지막 접속 일자 |
+| latestExecution | String | 선택 | 마지막 SE 실행 일시 |
 
 ### Indexes
 
