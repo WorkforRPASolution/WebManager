@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
+const { httpLogger } = require('./shared/logger/httpLogger');
 const { errorHandler, notFoundHandler } = require('./shared/middleware/errorHandler');
 const { httpLogger } = require('./shared/logger/httpLogger');
 
@@ -33,6 +34,9 @@ app.use(httpLogger);
 
 // Body parser
 app.use(express.json({ limit: '10mb' }));
+
+// HTTP request logging
+app.use(httpLogger());
 
 // Routes
 app.get('/api/health', (req, res) => {
