@@ -132,7 +132,7 @@ const option = computed(() => {
       style="width: 100%; height: 320px"
     />
     <div v-else class="flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm" style="height: 200px">
-      데이터가 없습니다
+      등록된 시나리오가 없습니다
     </div>
   </div>
 </template>

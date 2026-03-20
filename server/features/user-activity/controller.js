@@ -9,7 +9,7 @@ const { createLogger } = require('../../shared/logger')
 const log = createLogger('user-activity')
 
 async function getToolUsage(req, res) {
-  const { period, process, startDate, includeAdmin } = req.query
+  const { period, process, startDate, includeAdmin, noLimit } = req.query
 
   if (period === 'custom') {
     if (!startDate) {
@@ -32,13 +32,14 @@ async function getToolUsage(req, res) {
     period: period || 'all',
     process: process || undefined,
     startDate,
-    includeAdmin: includeAdmin === 'true'
+    includeAdmin: includeAdmin === 'true',
+    noLimit: noLimit === 'true'
   })
   res.json(result)
 }
 
 async function getScenarioStats(req, res) {
-  const { period, process, startDate } = req.query
+  const { period, process, startDate, noLimit } = req.query
 
   if (period === 'custom') {
     if (!startDate) {
@@ -60,12 +61,22 @@ async function getScenarioStats(req, res) {
   const result = await scenarioService.getScenarioStats({
     period: period || 'all',
     process: process || undefined,
-    startDate
+    startDate,
+    noLimit: noLimit === 'true'
+  })
+  res.json(result)
+}
+
+async function getScenarioDetails(req, res) {
+  const { process } = req.query
+  const result = await scenarioService.getScenarioDetails({
+    process: process || undefined
   })
   res.json(result)
 }
 
 module.exports = {
   getToolUsage,
-  getScenarioStats
+  getScenarioStats,
+  getScenarioDetails
 }

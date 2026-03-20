@@ -43,11 +43,13 @@ const tabs = [
 
     <!-- Tab Content -->
     <div class="flex-1 min-h-0 overflow-y-auto">
-      <UserActivityToolUsageTab v-if="activeTab === 'tool-usage'" />
-      <UserActivityScenarioTab v-else-if="activeTab === 'scenario'" />
-      <div v-else class="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
-        준비 중입니다
-      </div>
+      <KeepAlive>
+        <UserActivityToolUsageTab v-if="activeTab === 'tool-usage'" />
+        <UserActivityScenarioTab v-else-if="activeTab === 'scenario'" />
+        <div v-else class="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
+          준비 중입니다
+        </div>
+      </KeepAlive>
     </div>
   </div>
 </template>

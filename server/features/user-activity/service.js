@@ -96,7 +96,7 @@ function buildActiveCondition(periodStart) {
 
 // ── Main API ──
 
-async function getToolUsage({ period = 'all', process, startDate, includeAdmin = false }) {
+async function getToolUsage({ period = 'all', process, startDate, includeAdmin = false, noLimit = false }) {
   const db = getEarsDb()
   const coll = db.collection('ARS_USER_INFO')
 
@@ -122,7 +122,7 @@ async function getToolUsage({ period = 'all', process, startDate, includeAdmin =
   const [kpiResult, topUsersResult, recentUsersResult, processSummaryResult] = await Promise.all([
     coll.aggregate(buildKpiPipeline(baseMatch, periodStart)).toArray(),
     coll.aggregate(buildTopUsersPipeline(baseMatch, periodStart)).toArray(),
-    coll.aggregate(buildRecentUsersPipeline(baseMatch, periodStart)).toArray(),
+    coll.aggregate(buildRecentUsersPipeline(baseMatch, periodStart, noLimit)).toArray(),
     coll.aggregate(buildProcessSummaryPipeline(baseMatch, periodStart, processFilter)).toArray()
   ])
 
@@ -190,23 +190,24 @@ function buildTopUsersPipeline(baseMatch, periodStart) {
   ]
 }
 
-function buildRecentUsersPipeline(baseMatch, periodStart) {
+function buildRecentUsersPipeline(baseMatch, periodStart, noLimit = false) {
   const match = { ...baseMatch, accessnum: { $gt: 0 } }
   if (periodStart) {
     match.latestExecution = { $gte: periodStart, $nin: ['', null] }
   }
 
   if (periodStart) {
-    return [
+    const pipeline = [
       NORMALIZE_PROCESSES_STAGE,
       { $match: match },
-      { $sort: { latestExecution: -1 } },
-      { $limit: 30 },
-      { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, _procs: 1, latestExecution: 1 } }
+      { $sort: { latestExecution: -1 } }
     ]
+    if (!noLimit) pipeline.push({ $limit: 30 })
+    pipeline.push({ $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, _procs: 1, latestExecution: 1 } })
+    return pipeline
   }
 
-  return [
+  const pipeline = [
     NORMALIZE_PROCESSES_STAGE,
     { $match: match },
     {
@@ -214,10 +215,11 @@ function buildRecentUsersPipeline(baseMatch, periodStart) {
         _hasExecution: { $and: [{ $ne: ['$latestExecution', ''] }, { $ne: ['$latestExecution', null] }] }
       }
     },
-    { $sort: { _hasExecution: -1, latestExecution: -1 } },
-    { $limit: 30 },
-    { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, _procs: 1, latestExecution: 1 } }
+    { $sort: { _hasExecution: -1, latestExecution: -1 } }
   ]
+  if (!noLimit) pipeline.push({ $limit: 30 })
+  pipeline.push({ $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, _procs: 1, latestExecution: 1 } })
+  return pipeline
 }
 
 function buildProcessSummaryPipeline(baseMatch, periodStart, processFilter) {

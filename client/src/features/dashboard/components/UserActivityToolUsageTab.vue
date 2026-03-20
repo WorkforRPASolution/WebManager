@@ -10,6 +10,10 @@ import UserActivityDonutChart from './UserActivityDonutChart.vue'
 import UserActivityTopUsersChart from './UserActivityTopUsersChart.vue'
 import UserActivityProcessChart from './UserActivityProcessChart.vue'
 import UserActivityRecentTable from './UserActivityRecentTable.vue'
+import {
+  exportToolUsageProcessCsv,
+  exportToolUsageRecentUsersCsv
+} from '../utils/csvExport'
 
 const { showError } = useToast()
 const processFilterStore = useProcessFilterStore()
@@ -86,6 +90,21 @@ function toggleEmptyProcesses() {
   // No re-fetch needed — computed handles it
 }
 
+async function handleExportRecentUsersCsv() {
+  try {
+    const queryFilters = { ...currentFilters.value, noLimit: 'true' }
+    if (!queryFilters.process) {
+      const userProcesses = buildUserProcessFilter()
+      if (userProcesses) queryFilters.process = userProcesses.join(',')
+    }
+    if (includeAdmin.value) queryFilters.includeAdmin = 'true'
+    const res = await userActivityApi.getToolUsage(queryFilters)
+    exportToolUsageRecentUsersCsv(res.data.recentUsers || [])
+  } catch (err) {
+    showError('CSV 내보내기에 실패했습니다')
+  }
+}
+
 onMounted(() => {
   loadFilterOptions()
   fetchData()
@@ -150,10 +169,16 @@ onMounted(() => {
       <!-- Process Chart (2/3) + Donut (1/3) -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-            공정별 사용 현황
-            <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">다중 공정 사용자 중복 포함</span>
-          </h3>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              공정별 사용 현황
+              <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">다중 공정 사용자 중복 포함</span>
+            </h3>
+            <button v-if="processChartData.length > 0" @click="exportToolUsageProcessCsv(processChartData)" class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              CSV
+            </button>
+          </div>
           <UserActivityProcessChart :data="processChartData" />
         </div>
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
@@ -176,10 +201,16 @@ onMounted(() => {
         </div>
 
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-            최근 실행 사용자
-            <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">최근 SE 실행 시간 역순</span>
-          </h3>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              최근 실행 사용자
+              <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">최근 SE 실행 시간 역순</span>
+            </h3>
+            <button v-if="(data.recentUsers || []).length > 0" @click="handleExportRecentUsersCsv" class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              CSV
+            </button>
+          </div>
           <UserActivityRecentTable :data="data.recentUsers || []" />
         </div>
       </div>

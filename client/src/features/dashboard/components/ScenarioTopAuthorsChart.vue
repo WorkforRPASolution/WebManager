@@ -97,7 +97,7 @@ const option = computed(() => {
       style="width: 100%; height: 100%"
     />
     <div v-else class="flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm h-full">
-      데이터가 없습니다
+      선택한 기간에 수정 이력이 없습니다
     </div>
   </div>
 </template>

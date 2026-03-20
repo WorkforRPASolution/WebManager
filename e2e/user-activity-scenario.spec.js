@@ -79,13 +79,13 @@ test.describe('User Activity — Scenario Tab', () => {
     await page.locator('button', { hasText: 'Scenario' }).click()
     await page.waitForLoadState('networkidle')
 
-    // KPI 카드 영역에서 "고정" 배지 3개 (전체, 활성, 성과 입력)
+    // KPI 카드 영역에서 "현재" 배지 3개 (전체, 활성, 성과 입력)
     const kpiGrid = page.locator('[data-testid="scenario-kpi-cards"]')
-    const fixedBadges = kpiGrid.locator('span:text-is("고정")')
+    const fixedBadges = kpiGrid.locator('span:text-is("현재")')
     await expect(fixedBadges).toHaveCount(3)
 
-    // "기간" 배지 2개 (수정 시나리오, 활동 작성자)
-    const periodBadges = kpiGrid.locator('span:text-is("기간")')
+    // "선택 기간" 배지 2개 (수정 시나리오, 활동 작성자)
+    const periodBadges = kpiGrid.locator('span:text-is("선택 기간")')
     await expect(periodBadges).toHaveCount(2)
   })
 
@@ -244,18 +244,17 @@ test.describe('User Activity — Scenario Tab', () => {
   })
 
   // ── C10: 빈 데이터 UI ──
-  test('C10: 빈 데이터 → "데이터가 없습니다" 표시', async ({ page }) => {
+  test('C10: 빈 데이터 → 맥락적 빈 상태 메시지 표시', async ({ page }) => {
     await page.goto('/user-activity')
     await page.waitForLoadState('networkidle')
 
     await page.locator('button', { hasText: 'Scenario' }).click()
     await page.waitForLoadState('networkidle')
 
-    // SC_PROPERTY가 비어있으므로 빈 데이터 메시지 확인
-    const emptyMessages = page.locator('text=데이터가 없습니다')
-    // 차트 4개 중 빈 영역에서 표시 (최소 1개 이상)
-    const count = await emptyMessages.count()
-    expect(count).toBeGreaterThanOrEqual(1)
+    // SC_PROPERTY가 비어있으므로 맥락적 빈 데이터 메시지 확인
+    await expect(page.locator('text=등록된 시나리오가 없습니다').first()).toBeVisible()
+    await expect(page.locator('text=선택한 기간에 수정 이력이 없습니다')).toBeVisible()
+    await expect(page.locator('text=선택한 기간에 수정된 시나리오가 없습니다')).toBeVisible()
 
     // KPI 카드 영역에서 값이 0으로 표시 확인
     const kpiGrid = page.locator('[data-testid="scenario-kpi-cards"]')

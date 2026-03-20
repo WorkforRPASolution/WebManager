@@ -60,7 +60,7 @@ function computeScenarioPeriodStart(period, startDate) {
 
 // ── Main API ──
 
-async function getScenarioStats({ period = 'all', process, startDate }) {
+async function getScenarioStats({ period = 'all', process, startDate, noLimit = false }) {
   const db = getEarsDb()
   const coll = db.collection('SC_PROPERTY')
 
@@ -81,7 +81,7 @@ async function getScenarioStats({ period = 'all', process, startDate }) {
     coll.aggregate(buildProcessSummaryPipeline(baseMatch), { allowDiskUse: true }).toArray(),
     coll.aggregate(buildModificationKpiPipeline(baseMatch, periodStart), { allowDiskUse: true }).toArray(),
     coll.aggregate(buildTopAuthorsPipeline(baseMatch, periodStart), { allowDiskUse: true }).toArray(),
-    coll.aggregate(buildRecentModificationsPipeline(baseMatch, periodStart), { allowDiskUse: true }).toArray()
+    coll.aggregate(buildRecentModificationsPipeline(baseMatch, periodStart, noLimit), { allowDiskUse: true }).toArray()
   ])
 
   // Scenario KPI (period-independent)
@@ -275,7 +275,7 @@ function buildTopAuthorsPipeline(baseMatch, periodStart) {
  * Pipeline 5: Recent 30 Modifications (period-reactive)
  * $unwind → $split → period filter → sort by timestamp desc → limit 30.
  */
-function buildRecentModificationsPipeline(baseMatch, periodStart) {
+function buildRecentModificationsPipeline(baseMatch, periodStart, noLimit = false) {
   const pipeline = [
     { $match: { ...baseMatch, 'property.Owners': { $exists: true, $ne: [] } } },
     { $unwind: '$property.Owners' },
@@ -296,16 +296,55 @@ function buildRecentModificationsPipeline(baseMatch, periodStart) {
     pipeline.push({ $match: { _ownerTimestamp: { $gte: periodStart } } })
   }
 
-  pipeline.push(
-    { $sort: { _ownerTimestamp: -1 } },
-    { $limit: 30 },
-    { $project: { _id: 0, scname: 1, process: 1, eqpModel: 1, _ownerId: 1, _ownerTimestamp: 1 } }
-  )
+  pipeline.push({ $sort: { _ownerTimestamp: -1 } })
+  if (!noLimit) pipeline.push({ $limit: 30 })
+  pipeline.push({ $project: { _id: 0, scname: 1, process: 1, eqpModel: 1, _ownerId: 1, _ownerTimestamp: 1 } })
 
   return pipeline
 }
 
+/**
+ * 시나리오 상세 목록 (CSV 내보내기용)
+ * Process, Model, Name, IsEnabled 반환.
+ */
+async function getScenarioDetails({ process }) {
+  const db = getEarsDb()
+  const coll = db.collection('SC_PROPERTY')
+
+  const match = {}
+  if (process) {
+    const processList = process.split(',').map(p => p.trim()).filter(Boolean)
+    if (processList.length === 1) {
+      match.process = processList[0]
+    } else if (processList.length > 1) {
+      match.process = { $in: processList }
+    }
+  }
+
+  const results = await coll.aggregate([
+    { $match: match },
+    { $sort: { process: 1, eqpModel: 1, scname: 1 } },
+    { $project: { _id: 0, process: 1, eqpModel: 1, scname: 1, 'property.IsEnabled': 1,
+      'performance.ManWorkLoss': 1, 'performance.EqpPerfornmanceLoss': 1,
+      'performance.EqpStopLoss': 1, 'performance.WaferLoss': 1, 'performance.InvestCostLoss': 1 } }
+  ], { allowDiskUse: true }).toArray()
+
+  return results.map(r => {
+    const p = r.performance || {}
+    const hasPerfData = (p.ManWorkLoss > 0) || (p.EqpPerfornmanceLoss > 0) ||
+      (p.EqpStopLoss > 0) || (p.WaferLoss > 0) || (p.InvestCostLoss > 0)
+    return {
+      process: r.process,
+      eqpModel: r.eqpModel,
+      scname: r.scname,
+      isEnabled: r.property?.IsEnabled === true,
+      performanceFilled: hasPerfData
+    }
+  })
+}
+
 module.exports = {
   getScenarioStats,
+  getScenarioDetails,
   _setDeps
 }

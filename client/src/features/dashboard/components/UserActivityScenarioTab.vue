@@ -10,6 +10,13 @@ import ScenarioProcessChart from './ScenarioProcessChart.vue'
 import ScenarioPerformanceChart from './ScenarioPerformanceChart.vue'
 import ScenarioTopAuthorsChart from './ScenarioTopAuthorsChart.vue'
 import ScenarioRecentTable from './ScenarioRecentTable.vue'
+import {
+  exportScenarioProcessCsv,
+  exportScenarioProcessDetailCsv,
+  exportScenarioPerformanceCsv,
+  exportScenarioPerformanceDetailCsv,
+  exportScenarioRecentCsv
+} from '../utils/csvExport'
 
 const { showError } = useToast()
 const processFilterStore = useProcessFilterStore()
@@ -75,6 +82,76 @@ function toggleEmptyProcesses() {
   includeEmptyProcesses.value = !includeEmptyProcesses.value
 }
 
+// CSV dropdown for process chart
+const processCsvMenuOpen = ref(false)
+
+function handleProcessCsvExport(type) {
+  processCsvMenuOpen.value = false
+  if (type === 'summary') {
+    exportScenarioProcessCsv(processChartData.value)
+  } else {
+    exportProcessDetailCsv()
+  }
+}
+
+// CSV dropdown for performance chart
+const perfCsvMenuOpen = ref(false)
+
+function handlePerfCsvExport(type) {
+  perfCsvMenuOpen.value = false
+  if (type === 'summary') {
+    exportScenarioPerformanceCsv(processChartData.value)
+  } else {
+    exportPerfDetailCsv()
+  }
+}
+
+async function exportPerfDetailCsv() {
+  try {
+    const queryFilters = {}
+    if (currentFilters.value.process) {
+      queryFilters.process = currentFilters.value.process
+    } else {
+      const userProcesses = buildUserProcessFilter()
+      if (userProcesses) queryFilters.process = userProcesses.join(',')
+    }
+    const res = await userActivityApi.getScenarioDetails(queryFilters)
+    exportScenarioPerformanceDetailCsv(res.data)
+  } catch (err) {
+    showError('CSV 내보내기에 실패했습니다')
+  }
+}
+
+async function handleExportRecentCsv() {
+  try {
+    const queryFilters = { ...currentFilters.value, noLimit: 'true' }
+    if (!queryFilters.process) {
+      const userProcesses = buildUserProcessFilter()
+      if (userProcesses) queryFilters.process = userProcesses.join(',')
+    }
+    const res = await userActivityApi.getScenarioStats(queryFilters)
+    exportScenarioRecentCsv(res.data.recentModifications || [])
+  } catch (err) {
+    showError('CSV 내보내기에 실패했습니다')
+  }
+}
+
+async function exportProcessDetailCsv() {
+  try {
+    const queryFilters = {}
+    if (currentFilters.value.process) {
+      queryFilters.process = currentFilters.value.process
+    } else {
+      const userProcesses = buildUserProcessFilter()
+      if (userProcesses) queryFilters.process = userProcesses.join(',')
+    }
+    const res = await userActivityApi.getScenarioDetails(queryFilters)
+    exportScenarioProcessDetailCsv(res.data)
+  } catch (err) {
+    showError('CSV 내보내기에 실패했습니다')
+  }
+}
+
 onMounted(() => {
   loadFilterOptions()
   fetchData()
@@ -125,17 +202,43 @@ onMounted(() => {
       <!-- Process Charts (1/2) + Performance (1/2) -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-            공정별 시나리오 현황
-            <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">Active / Inactive</span>
-          </h3>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              공정별 시나리오 현황
+              <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">Active / Inactive</span>
+            </h3>
+            <div v-if="processChartData.length > 0" class="relative">
+              <button @click="processCsvMenuOpen = !processCsvMenuOpen" class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                CSV
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              <div v-if="processCsvMenuOpen" class="absolute right-0 mt-1 w-40 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg shadow-lg z-10">
+                <button @click="handleProcessCsvExport('summary')" class="w-full px-4 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border rounded-t-lg">요약 (공정별)</button>
+                <button @click="handleProcessCsvExport('detail')" class="w-full px-4 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border rounded-b-lg">상세 (시나리오별)</button>
+              </div>
+            </div>
+          </div>
           <ScenarioProcessChart :data="processChartData" />
         </div>
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-            공정별 성과 입력률
-            <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">Loss 필드 기준</span>
-          </h3>
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              공정별 성과 입력률
+              <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">Loss 필드 기준</span>
+            </h3>
+            <div v-if="processChartData.length > 0" class="relative">
+              <button @click="perfCsvMenuOpen = !perfCsvMenuOpen" class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                CSV
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              <div v-if="perfCsvMenuOpen" class="absolute right-0 mt-1 w-40 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-lg shadow-lg z-10">
+                <button @click="handlePerfCsvExport('summary')" class="w-full px-4 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border rounded-t-lg">요약 (공정별)</button>
+                <button @click="handlePerfCsvExport('detail')" class="w-full px-4 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border rounded-b-lg">상세 (시나리오별)</button>
+              </div>
+            </div>
+          </div>
           <ScenarioPerformanceChart :data="processChartData" />
         </div>
       </div>
@@ -151,10 +254,16 @@ onMounted(() => {
         </div>
 
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-            최근 수정 이력
-            <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">수정 시간 역순</span>
-          </h3>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              최근 수정 이력
+              <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">수정 시간 역순</span>
+            </h3>
+            <button v-if="(data.recentModifications || []).length > 0" @click="handleExportRecentCsv" class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              CSV
+            </button>
+          </div>
           <ScenarioRecentTable :data="data.recentModifications || []" />
         </div>
       </div>

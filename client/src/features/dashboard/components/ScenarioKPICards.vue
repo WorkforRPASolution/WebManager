@@ -17,37 +17,37 @@ const cards = computed(() => {
       label: '전체 시나리오',
       value: formatNumber(k.totalScenarios),
       accent: 'text-gray-900 dark:text-white',
-      badge: '고정',
-      badgeClass: 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+      badge: '현재',
+      badgeClass: 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300'
     },
     {
       label: '활성 시나리오',
       value: formatNumber(k.activeScenarios),
       sub: k.totalScenarios > 0 ? `(${(k.activeScenarios / k.totalScenarios * 100).toFixed(1)}%)` : '',
       accent: 'text-blue-600 dark:text-blue-400',
-      badge: '고정',
-      badgeClass: 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+      badge: '현재',
+      badgeClass: 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300'
     },
     {
       label: '성과 입력 시나리오',
       value: formatNumber(k.performanceFilled),
       sub: k.totalScenarios > 0 ? `(${(k.performanceFilled / k.totalScenarios * 100).toFixed(1)}%)` : '',
       accent: 'text-emerald-600 dark:text-emerald-400',
-      badge: '고정',
-      badgeClass: 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+      badge: '현재',
+      badgeClass: 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300'
     },
     {
       label: '수정 시나리오',
       value: formatNumber(k.modifiedScenarios),
-      accent: 'text-green-600 dark:text-green-400',
-      badge: '기간',
-      badgeClass: 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+      accent: 'text-amber-600 dark:text-amber-400',
+      badge: '선택 기간',
+      badgeClass: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
     },
     {
       label: '활동 작성자',
       value: formatNumber(k.activeAuthors),
       accent: 'text-purple-600 dark:text-purple-400',
-      badge: '기간',
+      badge: '선택 기간',
       badgeClass: 'bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
     }
   ]

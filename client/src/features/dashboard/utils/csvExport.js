@@ -173,3 +173,101 @@ export function exportResourceAgentVersionDetailCsv(details) {
   const rows = details.map(d => [d.process, d.eqpModel, d.eqpId, d.version])
   downloadCsv(filename, headers, rows)
 }
+
+// ===================================================
+// Tool Usage CSV Export Functions
+// ===================================================
+
+/**
+ * 공정별 사용 현황 CSV
+ */
+export function exportToolUsageProcessCsv(data) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `ToolUsage_Process_${timestamp}.csv`
+  const headers = ['Process', 'Total Users', 'Active Users', 'Inactive Users', 'Usage Rate(%)']
+  const rows = data.map(d => [
+    d.process,
+    d.totalUsers,
+    d.activeUsers,
+    d.totalUsers - d.activeUsers,
+    (d.usageRate || 0).toFixed(1)
+  ])
+  downloadCsv(filename, headers, rows)
+}
+
+/**
+ * 최근 실행 사용자 CSV (전체 목록)
+ * @param {Array} data - recentUsers 전체 배열 (noLimit 호출 결과)
+ */
+export function exportToolUsageRecentUsersCsv(data) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `ToolUsage_RecentUsers_${timestamp}.csv`
+  const headers = ['#', 'Name', 'User ID', 'Process', 'Access Count', 'Latest Execution']
+  const rows = data.map((d, i) => [i + 1, d.name, d.singleid, d.process, d.accessnum, d.latestExecution || ''])
+  downloadCsv(filename, headers, rows)
+}
+
+// ===================================================
+// Scenario CSV Export Functions
+// ===================================================
+
+/**
+ * 공정별 시나리오 현황 CSV
+ */
+export function exportScenarioProcessCsv(data) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `Scenario_Process_${timestamp}.csv`
+  const headers = ['Process', 'Total', 'Active', 'Inactive', 'Active Rate(%)']
+  const rows = data.map(d => {
+    const rate = d.total > 0 ? ((d.active / d.total) * 100).toFixed(1) : '0.0'
+    return [d.process, d.total, d.active, d.inactive, rate]
+  })
+  downloadCsv(filename, headers, rows)
+}
+
+/**
+ * 공정별 시나리오 상세 CSV (시나리오별)
+ */
+export function exportScenarioProcessDetailCsv(data) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `Scenario_Process_Detail_${timestamp}.csv`
+  const headers = ['Process', 'Model', 'Scenario', 'Active']
+  const rows = data.map(d => [d.process, d.eqpModel, d.scname, d.isEnabled ? 'Y' : 'N'])
+  downloadCsv(filename, headers, rows)
+}
+
+/**
+ * 공정별 성과 입력률 CSV
+ */
+export function exportScenarioPerformanceCsv(data) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `Scenario_Performance_${timestamp}.csv`
+  const headers = ['Process', 'Total', 'Filled', 'Unfilled', 'Fill Rate(%)']
+  const rows = data.map(d => {
+    const unfilled = (d.total || 0) - (d.performanceFilled || 0)
+    return [d.process, d.total || 0, d.performanceFilled || 0, unfilled, (d.performanceRate || 0).toFixed(1)]
+  })
+  downloadCsv(filename, headers, rows)
+}
+
+/**
+ * 공정별 성과 입력 상세 CSV (시나리오별)
+ */
+export function exportScenarioPerformanceDetailCsv(data) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `Scenario_Performance_Detail_${timestamp}.csv`
+  const headers = ['Process', 'Model', 'Scenario', 'Performance Data']
+  const rows = data.map(d => [d.process, d.eqpModel, d.scname, d.performanceFilled ? 'Y' : 'N'])
+  downloadCsv(filename, headers, rows)
+}
+
+/**
+ * 최근 수정 이력 CSV (전체 목록)
+ */
+export function exportScenarioRecentCsv(data) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `Scenario_RecentModifications_${timestamp}.csv`
+  const headers = ['#', 'Scenario', 'Process', 'Model', 'Author', 'Modified At']
+  const rows = data.map((d, i) => [i + 1, d.scname, d.process, d.eqpModel, d.userId, d.modifiedAt])
+  downloadCsv(filename, headers, rows)
+}

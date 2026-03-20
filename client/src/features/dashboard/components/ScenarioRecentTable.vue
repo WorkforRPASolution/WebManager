@@ -84,6 +84,6 @@ const colWidths = {
     </div>
   </div>
   <div v-else class="flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm" style="height: 450px">
-    데이터가 없습니다
+    선택한 기간에 수정된 시나리오가 없습니다
   </div>
 </template>
