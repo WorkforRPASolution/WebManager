@@ -4,7 +4,6 @@ const helmet = require('helmet');
 const path = require('path');
 const { httpLogger } = require('./shared/logger/httpLogger');
 const { errorHandler, notFoundHandler } = require('./shared/middleware/errorHandler');
-const { httpLogger } = require('./shared/logger/httpLogger');
 
 const app = express();
 
@@ -35,9 +34,6 @@ app.use(httpLogger);
 // Body parser
 app.use(express.json({ limit: '10mb' }));
 
-// HTTP request logging
-app.use(httpLogger());
-
 // Routes
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -57,6 +53,7 @@ app.use('/api/images', require('./features/images/routes'));
 app.use('/api/popup-template', require('./features/popup-template/routes'));
 app.use('/api/recovery', require('./features/recovery/routes'));
 app.use('/api/system-logs', require('./features/system-logs/routes'));
+app.use('/api/user-activity', require('./features/user-activity/routes'));
 
 // Production: Serve static files from client/dist
 if (process.env.NODE_ENV === 'production') {

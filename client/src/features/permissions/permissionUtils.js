@@ -16,6 +16,7 @@ const permissionNames = {
   dashboardRecoveryOverview: 'Recovery Overview',
   dashboardRecoveryByProcess: 'Recovery by Process',
   dashboardRecoveryAnalysis: 'Recovery Analysis',
+  dashboardUserActivity: 'User Activity',
   arsAgent: 'ARS Agent',
   resourceAgent: 'Resource Agent',
   equipmentInfo: 'Equipment Info',
@@ -57,6 +58,12 @@ export const menuPermissionGroups = [
       { key: 'dashboardRecoveryOverview', name: 'Recovery Overview' },
       { key: 'dashboardRecoveryByProcess', name: 'Recovery by Process' },
       { key: 'dashboardRecoveryAnalysis', name: 'Recovery Analysis' },
+    ]
+  },
+  {
+    label: 'Dashboard - User Activity',
+    keys: [
+      { key: 'dashboardUserActivity', name: 'User Activity' },
     ]
   },
   {

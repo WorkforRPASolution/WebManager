@@ -29,6 +29,7 @@
  * | verification   | shared/services/verificationCode  | Verification code (Redis)        |
  * | audit          | shared/models/webmanagerLogModel   | DB audit log bridge              |
  * | batch          | shared/models/webmanagerLogModel   | DB batch log bridge              |
+ * | user-activity  | features/user-activity/            | Tool usage statistics            |
  */
 
 const winston = require('winston')
