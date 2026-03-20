@@ -55,8 +55,8 @@ function timeAgo(isoStr) {
           <td class="py-2 px-3 text-gray-600 dark:text-gray-300">{{ user.process || '-' }}</td>
           <td class="py-2 px-3 text-right text-gray-700 dark:text-gray-300">{{ user.accessnum?.toLocaleString() }}</td>
           <td class="py-2 px-3 text-right">
-            <span class="text-gray-700 dark:text-gray-300">{{ formatDateTime(user.lastExecution) }}</span>
-            <span class="ml-1.5 text-xs text-gray-400 dark:text-gray-500">({{ timeAgo(user.lastExecution) }})</span>
+            <span class="text-gray-700 dark:text-gray-300">{{ formatDateTime(user.latestExecution) }}</span>
+            <span class="ml-1.5 text-xs text-gray-400 dark:text-gray-500">({{ timeAgo(user.latestExecution) }})</span>
           </td>
         </tr>
       </tbody>

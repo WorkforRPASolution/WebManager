@@ -47,8 +47,8 @@ describe('user-activity service', () => {
       const coll = createMockCollection()
       mockFourPipelines(coll,
         [{ totalUsers: 150, activeUsers: 87, totalAccessNum: 6345 }],
-        [{ singleid: 'user1', name: '홍길동', accessnum: 350, processes: ['DIFF'], lastExecution: '2026-03-15T10:00:00.000+09:00' }],
-        [{ singleid: 'user1', name: '홍길동', accessnum: 350, processes: ['DIFF'], lastExecution: '2026-03-15T10:00:00.000+09:00' }],
+        [{ singleid: 'user1', name: '홍길동', accessnum: 350, processes: ['DIFF'], latestExecution: '2026-03-15T10:00:00.000+09:00' }],
+        [{ singleid: 'user1', name: '홍길동', accessnum: 350, processes: ['DIFF'], latestExecution: '2026-03-15T10:00:00.000+09:00' }],
         [{ _id: 'DIFF', totalUsers: 30, activeUsers: 20 }]
       )
       _setDeps({ earsDb: createMockEarsDb({ 'ARS_USER_INFO': coll }) })
@@ -114,7 +114,7 @@ describe('user-activity service', () => {
       expect(kpiMatch.$match.processes).toEqual({ $in: ['DIFF', 'ETCH'] })
     })
 
-    it('period=7d applies lastExecution filter to all pipelines', async () => {
+    it('period=7d applies latestExecution filter to all pipelines', async () => {
       const coll = createMockCollection()
       mockFourPipelines(coll,
         [{ totalUsers: 50, activeUsers: 15, totalAccessNum: 300 }], [], [], []
@@ -125,26 +125,26 @@ describe('user-activity service', () => {
 
       const calls = coll.aggregate.mock.calls
 
-      // KPI pipeline: activeUsers uses $cond with lastExecution
+      // KPI pipeline: activeUsers uses $cond with latestExecution
       const kpiPipeline = calls[0][0]
       const kpiStr = JSON.stringify(kpiPipeline)
-      expect(kpiStr).toContain('lastExecution')
+      expect(kpiStr).toContain('latestExecution')
 
-      // Top10 pipeline: $match includes lastExecution $gte
+      // Top10 pipeline: $match includes latestExecution $gte
       const topMatch = calls[1][0].find(s => s.$match)
-      expect(topMatch.$match.lastExecution).toBeDefined()
-      expect(topMatch.$match.lastExecution.$gte).toBeDefined()
+      expect(topMatch.$match.latestExecution).toBeDefined()
+      expect(topMatch.$match.latestExecution.$gte).toBeDefined()
 
-      // Recent pipeline: $match includes lastExecution $gte
+      // Recent pipeline: $match includes latestExecution $gte
       const recentMatch = calls[2][0].find(s => s.$match)
-      expect(recentMatch.$match.lastExecution).toBeDefined()
+      expect(recentMatch.$match.latestExecution).toBeDefined()
 
-      // Process pipeline: uses $cond with lastExecution
+      // Process pipeline: uses $cond with latestExecution
       const processStr = JSON.stringify(calls[3][0])
-      expect(processStr).toContain('lastExecution')
+      expect(processStr).toContain('latestExecution')
     })
 
-    it('period=all does not filter by lastExecution in top/recent pipelines', async () => {
+    it('period=all does not filter by latestExecution in top/recent pipelines', async () => {
       const coll = createMockCollection()
       mockFourPipelines(coll,
         [{ totalUsers: 100, activeUsers: 80, totalAccessNum: 5000 }], [], [], []
@@ -154,9 +154,9 @@ describe('user-activity service', () => {
       await service.getToolUsage({ period: 'all' })
 
       const calls = coll.aggregate.mock.calls
-      // Top10: no lastExecution in $match
+      // Top10: no latestExecution in $match
       const topMatch = calls[1][0].find(s => s.$match)
-      expect(topMatch.$match.lastExecution).toBeUndefined()
+      expect(topMatch.$match.latestExecution).toBeUndefined()
     })
 
     it('custom period uses startDate only (end is now)', async () => {
@@ -201,16 +201,16 @@ describe('user-activity service', () => {
       }
     })
 
-    it('recentUsers sorts valid lastExecution before null/empty (period=all)', async () => {
+    it('recentUsers sorts valid latestExecution before null/empty (period=all)', async () => {
       const coll = createMockCollection()
       mockFourPipelines(coll,
         [{ totalUsers: 3, activeUsers: 3, totalAccessNum: 30 }],
         [],
         // recent pipeline returns in order
         [
-          { singleid: 'u1', name: 'A', accessnum: 5, processes: ['DIFF'], lastExecution: '2026-03-20T10:00:00.000+09:00' },
-          { singleid: 'u2', name: 'B', accessnum: 3, processes: ['ETCH'], lastExecution: '' },
-          { singleid: 'u3', name: 'C', accessnum: 8, processes: ['CVD'], lastExecution: null }
+          { singleid: 'u1', name: 'A', accessnum: 5, processes: ['DIFF'], latestExecution: '2026-03-20T10:00:00.000+09:00' },
+          { singleid: 'u2', name: 'B', accessnum: 3, processes: ['ETCH'], latestExecution: '' },
+          { singleid: 'u3', name: 'C', accessnum: 8, processes: ['CVD'], latestExecution: null }
         ],
         []
       )
@@ -226,7 +226,7 @@ describe('user-activity service', () => {
       expect(addFieldsStage.$addFields._hasExecution).toBeDefined()
       const sortStage = recentPipeline.find(s => s.$sort)
       expect(sortStage.$sort._hasExecution).toBe(-1)
-      expect(sortStage.$sort.lastExecution).toBe(-1)
+      expect(sortStage.$sort.latestExecution).toBe(-1)
 
       // Result reflects the mock order
       expect(result.recentUsers[0].singleid).toBe('u1')
@@ -237,7 +237,7 @@ describe('user-activity service', () => {
       mockFourPipelines(coll,
         [{ totalUsers: 10, activeUsers: 5, totalAccessNum: 100 }],
         [],
-        [{ singleid: 'u1', name: 'A', accessnum: 5, processes: ['DIFF'], lastExecution: '2026-03-20T10:00:00.000+09:00' }],
+        [{ singleid: 'u1', name: 'A', accessnum: 5, processes: ['DIFF'], latestExecution: '2026-03-20T10:00:00.000+09:00' }],
         []
       )
       _setDeps({ earsDb: createMockEarsDb({ 'ARS_USER_INFO': coll }) })
@@ -246,7 +246,7 @@ describe('user-activity service', () => {
 
       const calls = coll.aggregate.mock.calls
       const recentPipeline = calls[2][0]
-      // No _hasExecution needed — $match already filters by lastExecution
+      // No _hasExecution needed — $match already filters by latestExecution
       const addFieldsStage = recentPipeline.find(s => s.$addFields)
       expect(addFieldsStage).toBeUndefined()
     })

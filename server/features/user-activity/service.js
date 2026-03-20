@@ -4,7 +4,7 @@
  *
  * Period filter logic:
  * - period=all: "SE 사용자" = accessnum > 0 (ever used)
- * - period=7d etc: "SE 사용자" = lastExecution >= periodStart (used within period)
+ * - period=7d etc: "SE 사용자" = latestExecution >= periodStart (used within period)
  * - End is always "now" — not configurable.
  * - "전체 사용자" is always period-independent (all active accounts).
  */
@@ -60,7 +60,7 @@ function computePeriodStart(period, startDate) {
 /**
  * Build period-aware "active user" condition.
  * - period=all: accessnum > 0
- * - period with date: accessnum > 0 AND lastExecution >= periodStart
+ * - period with date: accessnum > 0 AND latestExecution >= periodStart
  */
 function buildActiveCondition(periodStart) {
   if (!periodStart) {
@@ -69,9 +69,9 @@ function buildActiveCondition(periodStart) {
   return {
     $and: [
       { $gt: ['$accessnum', 0] },
-      { $ne: ['$lastExecution', ''] },
-      { $ne: ['$lastExecution', null] },
-      { $gte: ['$lastExecution', periodStart] }
+      { $ne: ['$latestExecution', ''] },
+      { $ne: ['$latestExecution', null] },
+      { $gte: ['$latestExecution', periodStart] }
     ]
   }
 }
@@ -111,7 +111,7 @@ async function getToolUsage({ period = 'all', process, startDate }) {
     name: u.name,
     accessnum: u.accessnum,
     process: (u.processes || []).join(', '),
-    lastExecution: u.lastExecution
+    latestExecution: u.latestExecution
   })
 
   return {
@@ -153,43 +153,43 @@ function buildKpiPipeline(baseMatch, periodStart) {
 function buildTopUsersPipeline(baseMatch, periodStart) {
   const match = { ...baseMatch, accessnum: { $gt: 0 } }
   if (periodStart) {
-    match.lastExecution = { $gte: periodStart, $nin: ['', null] }
+    match.latestExecution = { $gte: periodStart, $nin: ['', null] }
   }
   return [
     { $match: match },
     { $sort: { accessnum: -1 } },
     { $limit: 10 },
-    { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, processes: 1, lastExecution: 1 } }
+    { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, processes: 1, latestExecution: 1 } }
   ]
 }
 
 function buildRecentUsersPipeline(baseMatch, periodStart) {
   const match = { ...baseMatch, accessnum: { $gt: 0 } }
   if (periodStart) {
-    match.lastExecution = { $gte: periodStart, $nin: ['', null] }
+    match.latestExecution = { $gte: periodStart, $nin: ['', null] }
   }
 
   if (periodStart) {
-    // All results have valid lastExecution, simple sort
+    // All results have valid latestExecution, simple sort
     return [
       { $match: match },
-      { $sort: { lastExecution: -1 } },
+      { $sort: { latestExecution: -1 } },
       { $limit: 10 },
-      { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, processes: 1, lastExecution: 1 } }
+      { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, processes: 1, latestExecution: 1 } }
     ]
   }
 
-  // period=all: show users with valid lastExecution first
+  // period=all: show users with valid latestExecution first
   return [
     { $match: match },
     {
       $addFields: {
-        _hasExecution: { $and: [{ $ne: ['$lastExecution', ''] }, { $ne: ['$lastExecution', null] }] }
+        _hasExecution: { $and: [{ $ne: ['$latestExecution', ''] }, { $ne: ['$latestExecution', null] }] }
       }
     },
-    { $sort: { _hasExecution: -1, lastExecution: -1 } },
+    { $sort: { _hasExecution: -1, latestExecution: -1 } },
     { $limit: 10 },
-    { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, processes: 1, lastExecution: 1 } }
+    { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, processes: 1, latestExecution: 1 } }
   ]
 }
 
