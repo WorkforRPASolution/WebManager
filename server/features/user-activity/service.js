@@ -82,8 +82,7 @@ async function getToolUsage({ period = 'all', process, startDate }) {
   const db = getEarsDb()
   const coll = db.collection('ARS_USER_INFO')
 
-  // accountStatus가 없는 문서(Akka가 생성한 기존 사용자)도 포함
-  const baseMatch = { accountStatus: { $nin: ['pending', 'suspended'] } }
+  const baseMatch = {}
   if (process) {
     const processList = process.split(',').map(p => p.trim()).filter(Boolean)
     if (processList.length === 1) {

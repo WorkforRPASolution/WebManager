@@ -197,7 +197,7 @@ describe('user-activity service', () => {
       const calls = coll.aggregate.mock.calls
       for (const [pipeline] of calls) {
         const matchStage = pipeline.find(s => s.$match)
-        expect(matchStage.$match.accountStatus).toEqual({ $nin: ['pending', 'suspended'] })
+        expect(matchStage.$match.accountStatus).toBeUndefined()
       }
     })
 
