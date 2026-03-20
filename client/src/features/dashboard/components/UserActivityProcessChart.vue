@@ -9,11 +9,15 @@ import { useTheme } from '../../../shared/composables/useTheme'
 
 use([BarChart, TooltipComponent, GridComponent, LegendComponent, CanvasRenderer])
 
+const MAX_VISIBLE = 25
+
 const props = defineProps({
   data: { type: Array, default: () => [] }
 })
 
 const { isDark } = useTheme()
+
+const needsZoom = computed(() => props.data.length > MAX_VISIBLE)
 
 const option = computed(() => {
   const dark = isDark.value
@@ -40,16 +44,33 @@ const option = computed(() => {
       }
     },
     legend: {
-      bottom: 0,
+      bottom: needsZoom.value ? 30 : 0,
       textStyle: { color: dark ? '#9ca3af' : '#6b7280' }
     },
     grid: {
       left: 10,
       right: 10,
       top: 20,
-      bottom: 40,
+      bottom: needsZoom.value ? 70 : 40,
       containLabel: true
     },
+    ...(needsZoom.value ? {
+      dataZoom: [{
+        type: 'slider',
+        xAxisIndex: 0,
+        bottom: 5,
+        height: 16,
+        startValue: 0,
+        endValue: MAX_VISIBLE - 1,
+        minValueSpan: Math.min(MAX_VISIBLE - 1, names.length - 1),
+        brushSelect: false,
+        handleSize: '60%',
+        borderColor: 'transparent',
+        fillerColor: dark ? 'rgba(99,102,241,0.3)' : 'rgba(59,130,246,0.2)',
+        handleStyle: { color: dark ? '#6366f1' : '#3b82f6', borderColor: dark ? '#6366f1' : '#3b82f6' },
+        textStyle: { color: 'transparent' }
+      }]
+    } : {}),
     xAxis: {
       type: 'category',
       data: names,

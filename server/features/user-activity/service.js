@@ -6,7 +6,12 @@
  * - period=all: "SE 사용자" = accessnum > 0 (ever used)
  * - period=7d etc: "SE 사용자" = latestExecution >= periodStart (used within period)
  * - End is always "now" — not configurable.
- * - "전체 사용자" is always period-independent (all active accounts).
+ * - "전체 사용자" is always period-independent (all users).
+ *
+ * Process field handling:
+ * - `processes` (Array): WebManager가 동기화한 배열. 있으면 우선 사용.
+ * - `process` (String): Akka 원본. 세미콜론 구분 (e.g., "CVD;ETCH").
+ * - processes가 비어있거나 없으면 process를 split(';')하여 사용.
  */
 
 const { earsConnection } = require('../../shared/db/connection')
@@ -41,10 +46,6 @@ const PERIOD_DAYS = {
   '1y': 365
 }
 
-/**
- * Compute KST date string for period start.
- * End is always "now" — not configurable.
- */
 function computePeriodStart(period, startDate) {
   if (period === 'custom' && startDate) {
     const d = new Date(startDate + 'T00:00:00+09:00')
@@ -58,10 +59,27 @@ function computePeriodStart(period, startDate) {
 }
 
 /**
- * Build period-aware "active user" condition.
- * - period=all: accessnum > 0
- * - period with date: accessnum > 0 AND latestExecution >= periodStart
+ * $addFields stage: processes 배열이 비어있거나 없으면 process 문자열을 split하여 생성.
+ * 모든 파이프라인의 첫 번째 단계로 사용.
  */
+const NORMALIZE_PROCESSES_STAGE = {
+  $addFields: {
+    _procs: {
+      $cond: {
+        if: { $and: [{ $isArray: '$processes' }, { $gt: [{ $size: '$processes' }, 0] }] },
+        then: '$processes',
+        else: {
+          $cond: {
+            if: { $and: [{ $ne: ['$process', null] }, { $ne: ['$process', ''] }] },
+            then: { $split: ['$process', ';'] },
+            else: []
+          }
+        }
+      }
+    }
+  }
+}
+
 function buildActiveCondition(periodStart) {
   if (!periodStart) {
     return { $gt: ['$accessnum', 0] }
@@ -78,17 +96,21 @@ function buildActiveCondition(periodStart) {
 
 // ── Main API ──
 
-async function getToolUsage({ period = 'all', process, startDate }) {
+async function getToolUsage({ period = 'all', process, startDate, includeAdmin = false }) {
   const db = getEarsDb()
   const coll = db.collection('ARS_USER_INFO')
 
   const baseMatch = {}
+  if (!includeAdmin) {
+    baseMatch.authorityManager = { $ne: 1 }
+  }
   if (process) {
     const processList = process.split(',').map(p => p.trim()).filter(Boolean)
+    // _procs는 NORMALIZE_PROCESSES_STAGE에서 생성된 필드
     if (processList.length === 1) {
-      baseMatch.processes = processList[0]
+      baseMatch._procs = processList[0]
     } else if (processList.length > 1) {
-      baseMatch.processes = { $in: processList }
+      baseMatch._procs = { $in: processList }
     }
   }
 
@@ -110,7 +132,7 @@ async function getToolUsage({ period = 'all', process, startDate }) {
     singleid: u.singleid,
     name: u.name,
     accessnum: u.accessnum,
-    process: (u.processes || []).join(', '),
+    process: (u._procs || []).join(', '),
     latestExecution: u.latestExecution
   })
 
@@ -137,6 +159,7 @@ async function getToolUsage({ period = 'all', process, startDate }) {
 function buildKpiPipeline(baseMatch, periodStart) {
   const activeCondition = buildActiveCondition(periodStart)
   return [
+    NORMALIZE_PROCESSES_STAGE,
     { $match: { ...baseMatch } },
     {
       $group: {
@@ -156,10 +179,11 @@ function buildTopUsersPipeline(baseMatch, periodStart) {
     match.latestExecution = { $gte: periodStart, $nin: ['', null] }
   }
   return [
+    NORMALIZE_PROCESSES_STAGE,
     { $match: match },
     { $sort: { accessnum: -1 } },
     { $limit: 10 },
-    { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, processes: 1, latestExecution: 1 } }
+    { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, _procs: 1, latestExecution: 1 } }
   ]
 }
 
@@ -170,17 +194,17 @@ function buildRecentUsersPipeline(baseMatch, periodStart) {
   }
 
   if (periodStart) {
-    // All results have valid latestExecution, simple sort
     return [
+      NORMALIZE_PROCESSES_STAGE,
       { $match: match },
       { $sort: { latestExecution: -1 } },
       { $limit: 10 },
-      { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, processes: 1, latestExecution: 1 } }
+      { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, _procs: 1, latestExecution: 1 } }
     ]
   }
 
-  // period=all: show users with valid latestExecution first
   return [
+    NORMALIZE_PROCESSES_STAGE,
     { $match: match },
     {
       $addFields: {
@@ -189,18 +213,19 @@ function buildRecentUsersPipeline(baseMatch, periodStart) {
     },
     { $sort: { _hasExecution: -1, latestExecution: -1 } },
     { $limit: 10 },
-    { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, processes: 1, latestExecution: 1 } }
+    { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, _procs: 1, latestExecution: 1 } }
   ]
 }
 
 function buildProcessSummaryPipeline(baseMatch, periodStart) {
   const activeCondition = buildActiveCondition(periodStart)
   return [
+    NORMALIZE_PROCESSES_STAGE,
     { $match: { ...baseMatch } },
-    { $unwind: '$processes' },
+    { $unwind: '$_procs' },
     {
       $group: {
-        _id: '$processes',
+        _id: '$_procs',
         totalUsers: { $sum: 1 },
         activeUsers: { $sum: { $cond: [activeCondition, 1, 0] } }
       }

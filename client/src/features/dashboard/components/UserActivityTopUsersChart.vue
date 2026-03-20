@@ -20,6 +20,7 @@ const option = computed(() => {
   const items = props.data.slice(0, 10)
   const names = items.map(d => d.name || d.singleid)
   const values = items.map(d => d.accessnum)
+  const needsRotate = names.length > 5
 
   return {
     tooltip: {
@@ -39,8 +40,8 @@ const option = computed(() => {
     grid: {
       left: 10,
       right: 10,
-      top: 20,
-      bottom: 5,
+      top: 25,
+      bottom: needsRotate ? 60 : 30,
       containLabel: true
     },
     xAxis: {
@@ -49,7 +50,7 @@ const option = computed(() => {
       axisLabel: {
         color: dark ? '#d1d5db' : '#374151',
         fontSize: 10,
-        rotate: names.length > 5 ? 35 : 0,
+        rotate: needsRotate ? 35 : 0,
         overflow: 'truncate',
         width: 60
       },
@@ -88,14 +89,14 @@ const option = computed(() => {
 </script>
 
 <template>
-  <div class="w-full">
+  <div class="w-full" style="height: 450px">
     <VChart
       v-if="data.length > 0"
       :option="option"
       autoresize
-      style="width: 100%; height: 280px"
+      style="width: 100%; height: 100%"
     />
-    <div v-else class="flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm" style="height: 200px">
+    <div v-else class="flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm h-full">
       데이터가 없습니다
     </div>
   </div>

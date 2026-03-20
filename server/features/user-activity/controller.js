@@ -8,7 +8,7 @@ const { createLogger } = require('../../shared/logger')
 const log = createLogger('user-activity')
 
 async function getToolUsage(req, res) {
-  const { period, process, startDate } = req.query
+  const { period, process, startDate, includeAdmin } = req.query
 
   if (period === 'custom') {
     if (!startDate) {
@@ -30,7 +30,8 @@ async function getToolUsage(req, res) {
   const result = await service.getToolUsage({
     period: period || 'all',
     process: process || undefined,
-    startDate
+    startDate,
+    includeAdmin: includeAdmin === 'true'
   })
   res.json(result)
 }

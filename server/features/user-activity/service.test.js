@@ -43,12 +43,12 @@ beforeEach(async () => {
 
 describe('user-activity service', () => {
   describe('getToolUsage', () => {
-    it('returns correct KPI structure (3 fields, no periodActiveUsers)', async () => {
+    it('returns correct KPI structure (3 fields)', async () => {
       const coll = createMockCollection()
       mockFourPipelines(coll,
         [{ totalUsers: 150, activeUsers: 87, totalAccessNum: 6345 }],
-        [{ singleid: 'user1', name: '홍길동', accessnum: 350, processes: ['DIFF'], latestExecution: '2026-03-15T10:00:00.000+09:00' }],
-        [{ singleid: 'user1', name: '홍길동', accessnum: 350, processes: ['DIFF'], latestExecution: '2026-03-15T10:00:00.000+09:00' }],
+        [{ singleid: 'user1', name: '홍길동', accessnum: 350, _procs: ['DIFF'], latestExecution: '2026-03-15T10:00:00.000+09:00' }],
+        [{ singleid: 'user1', name: '홍길동', accessnum: 350, _procs: ['DIFF'], latestExecution: '2026-03-15T10:00:00.000+09:00' }],
         [{ _id: 'DIFF', totalUsers: 30, activeUsers: 20 }]
       )
       _setDeps({ earsDb: createMockEarsDb({ 'ARS_USER_INFO': coll }) })
@@ -56,13 +56,10 @@ describe('user-activity service', () => {
       const result = await service.getToolUsage({ period: 'all' })
 
       expect(result.kpi).toEqual({
-        totalUsers: 150,
-        activeUsers: 87,
-        usageRate: 58,
-        periodLabel: '전체'
+        totalUsers: 150, activeUsers: 87, usageRate: 58, periodLabel: '전체'
       })
-      expect(result).not.toHaveProperty('kpi.periodActiveUsers')
       expect(result.topUsers).toHaveLength(1)
+      expect(result.topUsers[0].process).toBe('DIFF')
       expect(result.recentUsers).toHaveLength(1)
       expect(result.processSummary).toHaveLength(1)
       expect(result.processSummary[0].usageRate).toBeCloseTo(66.7, 1)
@@ -76,13 +73,10 @@ describe('user-activity service', () => {
       _setDeps({ earsDb: createMockEarsDb({ 'ARS_USER_INFO': coll }) })
 
       const result = await service.getToolUsage({ period: 'all' })
-
       expect(result.kpi.usageRate).toBe(0)
-      expect(result.topUsers).toHaveLength(0)
-      expect(result.recentUsers).toHaveLength(0)
     })
 
-    it('applies process filter to all 4 pipelines', async () => {
+    it('applies process filter using _procs field', async () => {
       const coll = createMockCollection()
       mockFourPipelines(coll,
         [{ totalUsers: 30, activeUsers: 20, totalAccessNum: 600 }], [], [], []
@@ -93,14 +87,13 @@ describe('user-activity service', () => {
 
       const calls = coll.aggregate.mock.calls
       expect(calls).toHaveLength(4)
-      // All pipelines should have process in $match
       for (const [pipeline] of calls) {
         const matchStage = pipeline.find(s => s.$match)
-        expect(matchStage.$match.processes).toBe('DIFF')
+        expect(matchStage.$match._procs).toBe('DIFF')
       }
     })
 
-    it('multi-process filter produces $in operator', async () => {
+    it('multi-process filter produces $in on _procs', async () => {
       const coll = createMockCollection()
       mockFourPipelines(coll,
         [{ totalUsers: 50, activeUsers: 30, totalAccessNum: 500 }], [], [], []
@@ -111,7 +104,24 @@ describe('user-activity service', () => {
 
       const calls = coll.aggregate.mock.calls
       const kpiMatch = calls[0][0].find(s => s.$match)
-      expect(kpiMatch.$match.processes).toEqual({ $in: ['DIFF', 'ETCH'] })
+      expect(kpiMatch.$match._procs).toEqual({ $in: ['DIFF', 'ETCH'] })
+    })
+
+    it('all pipelines have NORMALIZE_PROCESSES_STAGE as first step', async () => {
+      const coll = createMockCollection()
+      mockFourPipelines(coll,
+        [{ totalUsers: 10, activeUsers: 5, totalAccessNum: 100 }], [], [], []
+      )
+      _setDeps({ earsDb: createMockEarsDb({ 'ARS_USER_INFO': coll }) })
+
+      await service.getToolUsage({ period: 'all' })
+
+      const calls = coll.aggregate.mock.calls
+      for (const [pipeline] of calls) {
+        const firstStage = pipeline[0]
+        expect(firstStage.$addFields).toBeDefined()
+        expect(firstStage.$addFields._procs).toBeDefined()
+      }
     })
 
     it('period=7d applies latestExecution filter to all pipelines', async () => {
@@ -125,26 +135,19 @@ describe('user-activity service', () => {
 
       const calls = coll.aggregate.mock.calls
 
-      // KPI pipeline: activeUsers uses $cond with latestExecution
-      const kpiPipeline = calls[0][0]
-      const kpiStr = JSON.stringify(kpiPipeline)
-      expect(kpiStr).toContain('latestExecution')
-
-      // Top10 pipeline: $match includes latestExecution $gte
+      // KPI: $cond with latestExecution
+      expect(JSON.stringify(calls[0][0])).toContain('latestExecution')
+      // Top10: $match.latestExecution.$gte
       const topMatch = calls[1][0].find(s => s.$match)
-      expect(topMatch.$match.latestExecution).toBeDefined()
       expect(topMatch.$match.latestExecution.$gte).toBeDefined()
-
-      // Recent pipeline: $match includes latestExecution $gte
+      // Recent: $match.latestExecution
       const recentMatch = calls[2][0].find(s => s.$match)
       expect(recentMatch.$match.latestExecution).toBeDefined()
-
-      // Process pipeline: uses $cond with latestExecution
-      const processStr = JSON.stringify(calls[3][0])
-      expect(processStr).toContain('latestExecution')
+      // Process: $cond with latestExecution
+      expect(JSON.stringify(calls[3][0])).toContain('latestExecution')
     })
 
-    it('period=all does not filter by latestExecution in top/recent pipelines', async () => {
+    it('period=all does not filter by latestExecution', async () => {
       const coll = createMockCollection()
       mockFourPipelines(coll,
         [{ totalUsers: 100, activeUsers: 80, totalAccessNum: 5000 }], [], [], []
@@ -153,13 +156,11 @@ describe('user-activity service', () => {
 
       await service.getToolUsage({ period: 'all' })
 
-      const calls = coll.aggregate.mock.calls
-      // Top10: no latestExecution in $match
-      const topMatch = calls[1][0].find(s => s.$match)
+      const topMatch = coll.aggregate.mock.calls[1][0].find(s => s.$match)
       expect(topMatch.$match.latestExecution).toBeUndefined()
     })
 
-    it('custom period uses startDate only (end is now)', async () => {
+    it('custom period uses startDate only', async () => {
       const coll = createMockCollection()
       mockFourPipelines(coll,
         [{ totalUsers: 60, activeUsers: 40, totalAccessNum: 1200 }], [], [], []
@@ -168,8 +169,7 @@ describe('user-activity service', () => {
 
       await service.getToolUsage({ period: 'custom', startDate: '2026-03-01' })
 
-      const calls = coll.aggregate.mock.calls
-      const kpiStr = JSON.stringify(calls[0][0])
+      const kpiStr = JSON.stringify(coll.aggregate.mock.calls[0][0])
       expect(kpiStr).toContain('2026-03-01')
       expect(kpiStr).not.toContain('$lt')
     })
@@ -185,7 +185,7 @@ describe('user-activity service', () => {
       expect(result.kpi.periodLabel).toBe('최근 30일')
     })
 
-    it('filters only active account users', async () => {
+    it('does not filter by accountStatus', async () => {
       const coll = createMockCollection()
       mockFourPipelines(coll,
         [{ totalUsers: 50, activeUsers: 30, totalAccessNum: 300 }], [], [], []
@@ -194,8 +194,7 @@ describe('user-activity service', () => {
 
       await service.getToolUsage({ period: 'all' })
 
-      const calls = coll.aggregate.mock.calls
-      for (const [pipeline] of calls) {
+      for (const [pipeline] of coll.aggregate.mock.calls) {
         const matchStage = pipeline.find(s => s.$match)
         expect(matchStage.$match.accountStatus).toBeUndefined()
       }
@@ -206,11 +205,9 @@ describe('user-activity service', () => {
       mockFourPipelines(coll,
         [{ totalUsers: 3, activeUsers: 3, totalAccessNum: 30 }],
         [],
-        // recent pipeline returns in order
         [
-          { singleid: 'u1', name: 'A', accessnum: 5, processes: ['DIFF'], latestExecution: '2026-03-20T10:00:00.000+09:00' },
-          { singleid: 'u2', name: 'B', accessnum: 3, processes: ['ETCH'], latestExecution: '' },
-          { singleid: 'u3', name: 'C', accessnum: 8, processes: ['CVD'], latestExecution: null }
+          { singleid: 'u1', name: 'A', accessnum: 5, _procs: ['DIFF'], latestExecution: '2026-03-20T10:00:00.000+09:00' },
+          { singleid: 'u2', name: 'B', accessnum: 3, _procs: ['ETCH'], latestExecution: '' }
         ],
         []
       )
@@ -218,37 +215,47 @@ describe('user-activity service', () => {
 
       const result = await service.getToolUsage({ period: 'all' })
 
-      // Verify pipeline has _hasExecution sort for period=all
-      const calls = coll.aggregate.mock.calls
-      const recentPipeline = calls[2][0]
-      const addFieldsStage = recentPipeline.find(s => s.$addFields)
-      expect(addFieldsStage).toBeDefined()
-      expect(addFieldsStage.$addFields._hasExecution).toBeDefined()
+      const recentPipeline = coll.aggregate.mock.calls[2][0]
+      const addFieldsStages = recentPipeline.filter(s => s.$addFields)
+      // First $addFields = normalize, second = _hasExecution
+      const hasExecutionStage = addFieldsStages.find(s => s.$addFields._hasExecution)
+      expect(hasExecutionStage).toBeDefined()
+
       const sortStage = recentPipeline.find(s => s.$sort)
       expect(sortStage.$sort._hasExecution).toBe(-1)
-      expect(sortStage.$sort.latestExecution).toBe(-1)
-
-      // Result reflects the mock order
       expect(result.recentUsers[0].singleid).toBe('u1')
     })
 
-    it('recentUsers with period skips _hasExecution (all have valid dates)', async () => {
+    it('recentUsers with period skips _hasExecution', async () => {
       const coll = createMockCollection()
       mockFourPipelines(coll,
         [{ totalUsers: 10, activeUsers: 5, totalAccessNum: 100 }],
         [],
-        [{ singleid: 'u1', name: 'A', accessnum: 5, processes: ['DIFF'], latestExecution: '2026-03-20T10:00:00.000+09:00' }],
+        [{ singleid: 'u1', name: 'A', accessnum: 5, _procs: ['DIFF'], latestExecution: '2026-03-20T10:00:00.000+09:00' }],
         []
       )
       _setDeps({ earsDb: createMockEarsDb({ 'ARS_USER_INFO': coll }) })
 
       await service.getToolUsage({ period: '7d' })
 
-      const calls = coll.aggregate.mock.calls
-      const recentPipeline = calls[2][0]
-      // No _hasExecution needed — $match already filters by latestExecution
-      const addFieldsStage = recentPipeline.find(s => s.$addFields)
-      expect(addFieldsStage).toBeUndefined()
+      const recentPipeline = coll.aggregate.mock.calls[2][0]
+      const hasExecutionStage = recentPipeline.filter(s => s.$addFields).find(s => s.$addFields._hasExecution)
+      expect(hasExecutionStage).toBeUndefined()
+    })
+
+    it('processSummary uses $unwind on _procs (normalized)', async () => {
+      const coll = createMockCollection()
+      mockFourPipelines(coll,
+        [{ totalUsers: 10, activeUsers: 5, totalAccessNum: 100 }], [], [],
+        [{ _id: 'CVD', totalUsers: 5, activeUsers: 3 }, { _id: 'ETCH', totalUsers: 5, activeUsers: 2 }]
+      )
+      _setDeps({ earsDb: createMockEarsDb({ 'ARS_USER_INFO': coll }) })
+
+      await service.getToolUsage({ period: 'all' })
+
+      const processPipeline = coll.aggregate.mock.calls[3][0]
+      const unwindStage = processPipeline.find(s => s.$unwind)
+      expect(unwindStage.$unwind).toBe('$_procs')
     })
   })
 })

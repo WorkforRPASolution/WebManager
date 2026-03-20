@@ -10,47 +10,47 @@ import { useTheme } from '../../../shared/composables/useTheme'
 use([PieChart, TooltipComponent, LegendComponent, CanvasRenderer])
 
 const props = defineProps({
-  activeUsers: { type: Number, default: 0 },
-  totalUsers: { type: Number, default: 0 },
-  usageRate: { type: Number, default: 0 }
+  processSummary: { type: Array, default: () => [] }
 })
 
 const { isDark } = useTheme()
 
+const COLORS_LIGHT = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1']
+const COLORS_DARK = ['#60a5fa', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#f472b6', '#22d3ee', '#a3e635', '#fb923c', '#818cf8']
+
+const totalActive = computed(() =>
+  props.processSummary.reduce((sum, p) => sum + (p.activeUsers || 0), 0)
+)
+
 const option = computed(() => {
   const dark = isDark.value
-  const inactive = props.totalUsers - props.activeUsers
-  const rateText = props.usageRate != null ? props.usageRate.toFixed(1) : '0'
+  const colors = dark ? COLORS_DARK : COLORS_LIGHT
+  const total = totalActive.value
 
-  const data = [
-    {
-      value: props.activeUsers,
-      name: 'Active',
-      itemStyle: { color: dark ? '#60a5fa' : '#3b82f6' }
-    },
-    {
-      value: inactive > 0 ? inactive : 0,
-      name: 'Inactive',
-      itemStyle: { color: dark ? '#374151' : '#e5e7eb' }
-    }
-  ]
+  const data = props.processSummary
+    .filter(p => p.activeUsers > 0)
+    .map((p, idx) => ({
+      value: p.activeUsers,
+      name: p.process,
+      itemStyle: { color: colors[idx % colors.length] }
+    }))
 
   return {
     tooltip: {
       trigger: 'item',
-      formatter: '{b}: {c} ({d}%)',
+      formatter: '{b}: {c}명 ({d}%)',
       backgroundColor: dark ? '#1f2937' : '#fff',
       borderColor: dark ? '#374151' : '#e5e7eb',
       textStyle: { color: dark ? '#e5e7eb' : '#111827' }
     },
     legend: {
       bottom: 0,
-      textStyle: { color: dark ? '#9ca3af' : '#6b7280' }
+      textStyle: { color: dark ? '#9ca3af' : '#6b7280', fontSize: 11 }
     },
     series: [{
       type: 'pie',
       radius: ['55%', '80%'],
-      center: ['50%', '45%'],
+      center: ['50%', '42%'],
       avoidLabelOverlap: false,
       itemStyle: {
         borderRadius: 6,
@@ -60,16 +60,16 @@ const option = computed(() => {
       label: {
         show: true,
         position: 'center',
-        formatter: `{rate|${rateText}%}\n{label|사용률}`,
+        formatter: `{count|${total}}\n{label|Active 사용자}`,
         rich: {
-          rate: {
+          count: {
             fontSize: 28,
             fontWeight: 'bold',
             color: dark ? '#fff' : '#111827',
             lineHeight: 36
           },
           label: {
-            fontSize: 13,
+            fontSize: 12,
             color: dark ? '#9ca3af' : '#6b7280',
             lineHeight: 20
           }
@@ -83,7 +83,7 @@ const option = computed(() => {
       animationType: 'scale',
       animationEasing: 'elasticOut',
       animationDelay: (idx) => idx * 200,
-      data: props.totalUsers > 0
+      data: data.length > 0
         ? data
         : [{ value: 1, name: 'No Data', itemStyle: { color: dark ? '#374151' : '#e5e7eb' } }]
     }]
