@@ -341,14 +341,27 @@ cd server && npm run reset:buckets -- --keep-logs  # batch 로그 유지
   - ARS_USER_INFO 기반 ScenarioEditor 사용 통계 (accessnum + latestExecution)
   - 3탭 구조 (Tool Usage 활성, Scenario/WebManager 준비 중)
   - KPI 3장 (전체 사용자/SE 사용자/사용률) — 기간 선택 시 전체 사용자 외 모든 항목 반응
-  - 기간: 전체/최근24시간/7일/30일/1년/시작일지정 (종료=항상 현재)
-  - 공정별 사용 현황 (2/3, Stacked Bar, dataZoom MAX 25) + 공정별 Active 분포 (1/3, Donut)
-  - Top 10 누적 실행 횟수 (Vertical Bar) + 최근 실행 사용자 (테이블, 450px 스크롤)
-  - 토글: 사용자미등록 공정포함 (프론트 computed) + 관리자 포함 (백엔드 authorityManager 필터)
-  - processes/process 필드 자동 정규화 (processes 배열 우선, 없으면 process 세미콜론 split)
+  - 기간: 전체/최근24시간/7일/30일/1년/시작일지정 (종료=항상 현재, 커스텀 최대 2년)
+  - 공정별 사용 현황 (2/3, Stacked Bar, dataZoom MAX 25) + 공정별 Active 분포 (1/3, Donut Top10+기타)
+  - Top 10 누적 실행 횟수 (Vertical Bar, 450px) + 최근 실행 사용자 30명 (테이블, 450px 고정+스크롤)
+  - 토글: 사용자미등록 공정포함 (프론트 computed, 프로세스 필터 범위 존중) + 관리자 포함 (백엔드 authorityManager 필터)
+  - processes/process 필드 자동 정규화 (_procs: processes 배열 우선, 없으면 process 세미콜론 split)
+  - 공정 필터 시 $unwind 후 선택 공정만 남기는 이중 $match (다중 공정 사용자의 비선택 공정 제거)
   - 다중 공정 사용자 중복 포함 표시
+  - accountStatus 미참조 (Akka 원본 사용자 포함)
   - 권한: dashboardUserActivity (전체 역할 기본 true)
   - 13개 서비스 테스트 (TDD)
+  - 초기 기획 대비 주요 변경사항:
+    - 기간 필터: 시작~종료 구간 → **종료=항상 현재** (lastExecution 스냅샷 특성에 맞춤)
+    - 기간 반응 범위: 기간 활성 KPI 1개만 → **전체 사용자 외 모든 항목** 반응
+    - KPI: 4장 (전체/SE/사용률/기간활성) → **3장** (기간활성 제거, SE사용자가 기간 반응)
+    - 도넛: Active/Inactive 비율 → **공정별 Active 분포** (Top10+기타 합산, scroll legend)
+    - 필드명: lastExecution → **latestExecution** (프로덕션 DB 실제 필드명)
+    - accountStatus: active 필터 → **미참조** (Akka 원본 사용자 필드 부재)
+    - processes: 배열 직접 사용 → **_procs 정규화** (processes 우선, 없으면 process split)
+    - 공정 필터: 사용자 매칭만 → **$unwind 후 이중 $match** (비선택 공정 노출 방지)
+    - 토글 2개 추가: 사용자미등록 공정포함 + 관리자 포함 (초기 기획에 없던 기능)
+    - "접속" 용어 → **"실행"** (latestExecution은 SE 실행 시각)
 
 ## Redis Key 구조 (Agent 상태)
 
