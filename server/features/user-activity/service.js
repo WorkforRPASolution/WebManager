@@ -104,9 +104,12 @@ async function getToolUsage({ period = 'all', process, startDate, includeAdmin =
   if (!includeAdmin) {
     baseMatch.authorityManager = { $ne: 1 }
   }
+  // processFilter: 선택된 공정 목록 (unwind 후 필터용)
+  let processFilter = null
   if (process) {
     const processList = process.split(',').map(p => p.trim()).filter(Boolean)
-    // _procs는 NORMALIZE_PROCESSES_STAGE에서 생성된 필드
+    processFilter = processList
+    // _procs는 NORMALIZE_PROCESSES_STAGE에서 생성된 배열 필드
     if (processList.length === 1) {
       baseMatch._procs = processList[0]
     } else if (processList.length > 1) {
@@ -120,7 +123,7 @@ async function getToolUsage({ period = 'all', process, startDate, includeAdmin =
     coll.aggregate(buildKpiPipeline(baseMatch, periodStart)).toArray(),
     coll.aggregate(buildTopUsersPipeline(baseMatch, periodStart)).toArray(),
     coll.aggregate(buildRecentUsersPipeline(baseMatch, periodStart)).toArray(),
-    coll.aggregate(buildProcessSummaryPipeline(baseMatch, periodStart)).toArray()
+    coll.aggregate(buildProcessSummaryPipeline(baseMatch, periodStart, processFilter)).toArray()
   ])
 
   const kpi = kpiResult[0] || { totalUsers: 0, activeUsers: 0, totalAccessNum: 0 }
@@ -217,12 +220,20 @@ function buildRecentUsersPipeline(baseMatch, periodStart) {
   ]
 }
 
-function buildProcessSummaryPipeline(baseMatch, periodStart) {
+function buildProcessSummaryPipeline(baseMatch, periodStart, processFilter) {
   const activeCondition = buildActiveCondition(periodStart)
-  return [
+  const pipeline = [
     NORMALIZE_PROCESSES_STAGE,
     { $match: { ...baseMatch } },
-    { $unwind: '$_procs' },
+    { $unwind: '$_procs' }
+  ]
+  // unwind 후 선택 공정만 남기기 (다중 공정 사용자의 비선택 공정 제거)
+  if (processFilter) {
+    pipeline.push({
+      $match: { _procs: processFilter.length === 1 ? processFilter[0] : { $in: processFilter } }
+    })
+  }
+  pipeline.push(
     {
       $group: {
         _id: '$_procs',
@@ -231,7 +242,8 @@ function buildProcessSummaryPipeline(baseMatch, periodStart) {
       }
     },
     { $sort: { _id: 1 } }
-  ]
+  )
+  return pipeline
 }
 
 module.exports = {

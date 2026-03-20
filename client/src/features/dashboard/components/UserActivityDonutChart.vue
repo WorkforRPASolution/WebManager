@@ -27,8 +27,9 @@ const option = computed(() => {
   const colors = dark ? COLORS_DARK : COLORS_LIGHT
   const total = totalActive.value
 
-  const data = props.processSummary
+  const data = [...props.processSummary]
     .filter(p => p.activeUsers > 0)
+    .sort((a, b) => b.activeUsers - a.activeUsers)
     .map((p, idx) => ({
       value: p.activeUsers,
       name: p.process,
@@ -44,7 +45,11 @@ const option = computed(() => {
       textStyle: { color: dark ? '#e5e7eb' : '#111827' }
     },
     legend: {
+      type: 'scroll',
       bottom: 0,
+      pageIconColor: dark ? '#9ca3af' : '#6b7280',
+      pageIconInactiveColor: dark ? '#374151' : '#d1d5db',
+      pageTextStyle: { color: dark ? '#9ca3af' : '#6b7280' },
       textStyle: { color: dark ? '#9ca3af' : '#6b7280', fontSize: 11 }
     },
     series: [{
