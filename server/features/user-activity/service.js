@@ -201,7 +201,7 @@ function buildRecentUsersPipeline(baseMatch, periodStart) {
       NORMALIZE_PROCESSES_STAGE,
       { $match: match },
       { $sort: { latestExecution: -1 } },
-      { $limit: 10 },
+      { $limit: 30 },
       { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, _procs: 1, latestExecution: 1 } }
     ]
   }
@@ -215,7 +215,7 @@ function buildRecentUsersPipeline(baseMatch, periodStart) {
       }
     },
     { $sort: { _hasExecution: -1, latestExecution: -1 } },
-    { $limit: 10 },
+    { $limit: 30 },
     { $project: { _id: 0, singleid: 1, name: 1, accessnum: 1, _procs: 1, latestExecution: 1 } }
   ]
 }

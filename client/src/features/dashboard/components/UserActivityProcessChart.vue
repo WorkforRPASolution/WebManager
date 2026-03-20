@@ -3,11 +3,11 @@ import { computed } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { BarChart } from 'echarts/charts'
-import { TooltipComponent, GridComponent, LegendComponent } from 'echarts/components'
+import { TooltipComponent, GridComponent, LegendComponent, DataZoomComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useTheme } from '../../../shared/composables/useTheme'
 
-use([BarChart, TooltipComponent, GridComponent, LegendComponent, CanvasRenderer])
+use([BarChart, TooltipComponent, GridComponent, LegendComponent, DataZoomComponent, CanvasRenderer])
 
 const MAX_VISIBLE = 25
 
