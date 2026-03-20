@@ -4,6 +4,8 @@
 
 const crypto = require('crypto')
 let UpdateSettings = require('./updateSettingsModel')
+const { createLogger } = require('../../shared/logger')
+const logger = createLogger('clients')
 
 /** @internal Replace model for testing */
 function _setModel(model) { UpdateSettings = model }
@@ -96,7 +98,7 @@ async function initializeUpdateSettings() {
   }
 
   if (legacy.length) {
-    console.log(`[UpdateSettings] Migrated ${legacy.length} legacy documents to profiles with tasks`)
+    logger.info(`[UpdateSettings] Migrated ${legacy.length} legacy documents to profiles with tasks`)
   }
 
   // Migration B: convert profiles.packages[] → profiles.tasks[]
@@ -128,7 +130,7 @@ async function initializeUpdateSettings() {
     migratedBCount++
   }
   if (migratedBCount) {
-    console.log(`[UpdateSettings] Migration B: converted packages→tasks in ${migratedBCount} documents`)
+    logger.info(`[UpdateSettings] Migration B: converted packages→tasks in ${migratedBCount} documents`)
   }
 
   // Clean source fields: strip irrelevant fields from existing profiles
@@ -146,10 +148,10 @@ async function initializeUpdateSettings() {
     }
   }
   if (cleanedCount) {
-    console.log(`[UpdateSettings] Cleaned source fields in ${cleanedCount} documents`)
+    logger.info(`[UpdateSettings] Cleaned source fields in ${cleanedCount} documents`)
   }
 
-  console.log('  + UPDATE_SETTINGS collection ready')
+  logger.info('  + UPDATE_SETTINGS collection ready')
 }
 
 async function getDocument(agentGroup) {
@@ -165,7 +167,7 @@ async function saveUpdateSettings(agentGroup, profiles, updatedBy = 'system') {
   return UpdateSettings.findOneAndUpdate(
     { agentGroup },
     { $set: { profiles: cleanProfiles(profiles), updatedBy }, $unset: { packages: 1, source: 1 } },
-    { new: true, upsert: true }
+    { returnDocument: 'after', upsert: true }
   ).lean()
 }
 

@@ -11,6 +11,8 @@ const {
   floorToKSTBucket
 } = require('./dateUtils')
 const { getDeps, getEarsDb, getCronRunLog } = require('./recoveryDeps')
+const { createLogger } = require('../../shared/logger')
+const logger = createLogger('recovery')
 
 // ── Pipeline Configuration ──
 
@@ -136,7 +138,7 @@ async function runPipelinesForBucket(period, bucketStart, dateGte, dateLt, optio
       },
       $unset: { docsInBucket: '' }
     },
-    { upsert: true, new: true }
+    { upsert: true, returnDocument: 'after' }
   )
 
   return { status, pipelineResults, errors }
@@ -157,24 +159,24 @@ async function runBatch(period) {
   if (!indexManager.isIndexReady()) {
     const rechecked = await indexManager.checkEarIndexes()
     if (!rechecked) {
-      console.warn(`[RecoverySummary] Skipping ${period} batch — EQP_AUTO_RECOVERY create_date index not verified`)
+      logger.warn(`[RecoverySummary] Skipping ${period} batch — EQP_AUTO_RECOVERY create_date index not verified`)
       deps.createBatchLog({
         batchAction: 'cron_skipped',
         batchPeriod: period,
         batchParams: { period, reason: 'indexNotReady' }
-      }).catch(e => console.error('[BatchLog] cron_skipped log failed:', e))
+      }).catch(e => logger.error('[BatchLog] cron_skipped log failed:', e))
       return
     }
-    console.log(`[RecoverySummary] create_date index now available — resuming ${period} batch`)
+    logger.info(`[RecoverySummary] create_date index now available — resuming ${period} batch`)
   }
 
   if (isRunning) {
-    console.log(`[RecoverySummary] Skipping ${period} batch — previous run still in progress`)
+    logger.info(`[RecoverySummary] Skipping ${period} batch — previous run still in progress`)
     deps.createBatchLog({
       batchAction: 'cron_skipped',
       batchPeriod: period,
       batchParams: { period, reason: 'isRunning' }
-    }).catch(e => console.error('[BatchLog] cron_skipped log failed:', e))
+    }).catch(e => logger.error('[BatchLog] cron_skipped log failed:', e))
     return
   }
 
@@ -188,30 +190,30 @@ async function runBatch(period) {
 
     const { bucketStart, dateGte, dateLt } = boundaries
 
-    console.log(`[RecoverySummary] Starting ${period} batch: ${dateGte} ~ ${dateLt}`)
+    logger.info(`[RecoverySummary] Starting ${period} batch: ${dateGte} ~ ${dateLt}`)
 
     const result = await runPipelinesForBucket(period, bucketStart, dateGte, dateLt, { source: 'cron' })
 
-    console.log(`[RecoverySummary] ${period} batch completed: ${result.status}`)
+    logger.info(`[RecoverySummary] ${period} batch completed: ${result.status}`)
 
     deps.createBatchLog({
       batchAction: 'cron_completed',
       batchPeriod: period,
       batchParams: { period, bucket: bucketStart.toISOString() },
       batchResult: { status: result.status, pipelineResults: result.pipelineResults }
-    }).catch(e => console.error('[BatchLog] cron_completed log failed:', e))
+    }).catch(e => logger.error('[BatchLog] cron_completed log failed:', e))
 
     // Auto backfill after successful/partial cron run
     if (result.status === 'success' || result.status === 'partial') {
       await runBackfillCheck(period)
     }
   } catch (err) {
-    console.error(`[RecoverySummary] ${period} batch fatal error:`, err)
+    logger.error(`[RecoverySummary] ${period} batch fatal error:`, err)
     deps.createBatchLog({
       batchAction: 'cron_failed',
       batchPeriod: period,
       batchParams: { period, error: err.message }
-    }).catch(e => console.error('[BatchLog] cron_failed log failed:', e))
+    }).catch(e => logger.error('[BatchLog] cron_failed log failed:', e))
   } finally {
     isRunning = false
   }
@@ -254,7 +256,7 @@ async function runBackfillCheck(period) {
     const limit = deps.autoBackfillLimit
     const toProcess = gaps.slice(0, limit)
 
-    console.log(`[RecoverySummary] Auto-backfilling ${toProcess.length} ${period} gaps (of ${gaps.length} total)`)
+    logger.info(`[RecoverySummary] Auto-backfilling ${toProcess.length} ${period} gaps (of ${gaps.length} total)`)
 
     for (let i = 0; i < toProcess.length; i++) {
       const bucketDate = toProcess[i]
@@ -271,9 +273,9 @@ async function runBackfillCheck(period) {
       batchAction: 'auto_backfill_completed',
       batchPeriod: period,
       batchParams: { period, gapsFound: gaps.length, processed: toProcess.length }
-    }).catch(e => console.error('[BatchLog] auto_backfill_completed log failed:', e))
+    }).catch(e => logger.error('[BatchLog] auto_backfill_completed log failed:', e))
   } catch (err) {
-    console.error(`[RecoverySummary] Auto-backfill error:`, err)
+    logger.error(`[RecoverySummary] Auto-backfill error:`, err)
   }
 }
 

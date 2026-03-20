@@ -3,6 +3,8 @@
  */
 
 const ConfigSettings = require('./configSettingsModel')
+const { createLogger } = require('../../shared/logger')
+const logger = createLogger('clients')
 
 /**
  * Initialize config settings collection and indexes
@@ -10,7 +12,7 @@ const ConfigSettings = require('./configSettingsModel')
 async function initializeConfigSettings() {
   // Ensure collection and indexes exist (model registration handles this)
   await ConfigSettings.createIndexes()
-  console.log('  + CONFIG_SETTINGS collection ready')
+  logger.info('  + CONFIG_SETTINGS collection ready')
 }
 
 /**
@@ -45,7 +47,7 @@ async function saveConfigSettings(agentGroup, configFiles, updatedBy = 'system')
   return ConfigSettings.findOneAndUpdate(
     { agentGroup },
     { $set: { configFiles: filesWithIds, updatedBy } },
-    { new: true, upsert: true }
+    { returnDocument: 'after', upsert: true }
   ).lean()
 }
 

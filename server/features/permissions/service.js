@@ -3,6 +3,9 @@
  * Business logic for feature-level permissions
  */
 
+const { createLogger } = require('../../shared/logger')
+const logger = createLogger('permissions')
+
 const { FeaturePermission, DEFAULT_FEATURE_PERMISSIONS, FEATURE_NAMES } = require('./model')
 
 /**
@@ -76,7 +79,7 @@ async function updateFeaturePermission(feature, permissions, updatedBy) {
         updatedBy
       }
     },
-    { new: true, upsert: true }
+    { returnDocument: 'after', upsert: true }
   ).lean()
 
   return {
@@ -182,10 +185,10 @@ async function initializeDefaultPermissions() {
   const result = await syncFeaturePermissions()
 
   if (result.added.length > 0) {
-    console.log(`  + Added features: ${result.added.join(', ')}`)
+    logger.info(`  + Added features: ${result.added.join(', ')}`)
   }
   if (result.removed.length > 0) {
-    console.log(`  - Removed features: ${result.removed.join(', ')}`)
+    logger.info(`  - Removed features: ${result.removed.join(', ')}`)
   }
 }
 

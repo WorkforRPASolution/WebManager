@@ -208,7 +208,7 @@ describe('saveUpdateSettings', () => {
         $set: { profiles: expect.any(Array), updatedBy: 'admin' },
         $unset: { packages: 1, source: 1 }
       },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     )
     expect(result).toEqual(expected)
   })

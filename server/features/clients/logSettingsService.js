@@ -3,6 +3,8 @@
  */
 
 const LogSettings = require('./logSettingsModel')
+const { createLogger } = require('../../shared/logger')
+const logger = createLogger('clients')
 
 const DEFAULT_LOG_SETTINGS = [
   {
@@ -33,7 +35,7 @@ async function initializeLogSettings() {
     )
   }
 
-  console.log('  + LOG_SETTINGS collection ready')
+  logger.info('  + LOG_SETTINGS collection ready')
 }
 
 /**
@@ -70,7 +72,7 @@ async function saveLogSettings(agentGroup, logSources, updatedBy = 'system') {
   return LogSettings.findOneAndUpdate(
     { agentGroup },
     { $set: { logSources: sourcesWithIds, updatedBy } },
-    { new: true, upsert: true }
+    { returnDocument: 'after', upsert: true }
   ).lean()
 }
 

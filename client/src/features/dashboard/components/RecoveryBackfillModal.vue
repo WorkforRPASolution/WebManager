@@ -323,7 +323,7 @@ const {
   shiftPeriod
 } = useRecoveryPeriod({
   periodDays: BACKFILL_PERIOD_DAYS,
-  onShifted: () => { analysisResult.value = null },
+  onShifted: () => { analysisResult.value = null; fetchDistribution() },
   maxDays: 730
 })
 const periodOptions = [

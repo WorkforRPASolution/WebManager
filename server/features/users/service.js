@@ -2,6 +2,9 @@
  * User service - Database operations and business logic
  */
 
+const { createLogger } = require('../../shared/logger')
+const logger = createLogger('users')
+
 const bcrypt = require('bcryptjs')
 const { User, RolePermission, DEFAULT_ROLE_PERMISSIONS } = require('./model')
 const { parsePaginationParams } = require('../../shared/utils/pagination')
@@ -262,7 +265,7 @@ async function updateRolePermissions(level, permissions) {
   const result = await RolePermission.findOneAndUpdate(
     { roleLevel: level },
     { $set: { permissions } },
-    { new: true, runValidators: true }
+    { returnDocument: 'after', runValidators: true }
   ).lean()
 
   return result
@@ -345,16 +348,16 @@ async function initializeRolePermissions() {
   const result = await syncRolePermissions()
 
   if (result.created > 0) {
-    console.log(`  + Created ${result.created} role permissions`)
+    logger.info(`  + Created ${result.created} role permissions`)
   }
   if (result.addedFields.length > 0) {
-    console.log(`  + Added permission fields: ${result.addedFields.join(', ')}`)
+    logger.info(`  + Added permission fields: ${result.addedFields.join(', ')}`)
   }
   if (result.removedFields.length > 0) {
-    console.log(`  - Removed permission fields: ${result.removedFields.join(', ')}`)
+    logger.info(`  - Removed permission fields: ${result.removedFields.join(', ')}`)
   }
   if (result.synced > 0) {
-    console.log(`  ✓ Synced ${result.synced} role(s)`)
+    logger.info(`  ✓ Synced ${result.synced} role(s)`)
   }
 
   return result.created > 0 || result.synced > 0
