@@ -29,8 +29,12 @@ const processChartData = computed(() => {
   const summary = data.value?.processSummary || []
   if (!includeEmptyProcesses.value) return summary
 
+  // 프로세스 필터 활성 시 선택된 공정 범위 내에서만 빈 공정 추가
+  const selectedProcs = currentFilters.value.process
+    ? currentFilters.value.process.split(',').map(p => p.trim())
+    : processes.value
   const existing = new Set(summary.map(p => p.process))
-  const empty = processes.value
+  const empty = selectedProcs
     .filter(p => !existing.has(p))
     .map(p => ({ process: p, totalUsers: 0, activeUsers: 0, usageRate: 0 }))
   return [...summary, ...empty].sort((a, b) => a.process.localeCompare(b.process))
