@@ -4,7 +4,7 @@
 
 const LogSettings = require('./logSettingsModel')
 const { createLogger } = require('../../shared/logger')
-const logger = createLogger('clients')
+const log = createLogger('clients')
 
 const DEFAULT_LOG_SETTINGS = [
   {
@@ -35,7 +35,7 @@ async function initializeLogSettings() {
     )
   }
 
-  logger.info('  + LOG_SETTINGS collection ready')
+  log.info('  + LOG_SETTINGS collection ready')
 }
 
 /**

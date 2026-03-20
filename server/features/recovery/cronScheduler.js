@@ -3,6 +3,8 @@
  */
 
 const cron = require('node-cron')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('recovery')
 const {
   generateExpectedBuckets,
   floorToKSTBucket,
@@ -19,16 +21,16 @@ function startCronJobs() {
   const settlingHours = deps.settlingHours
 
   const hourlyTask = cron.schedule('5 * * * *', () => {
-    runBatch('hourly').catch(err => console.error('[RecoverySummary] Hourly cron error:', err))
+    runBatch('hourly').catch(err => log.error(`[RecoverySummary] Hourly cron error: ${err.message}`))
   }, { timezone: 'Asia/Seoul' })
 
   const dailyCron = `10 ${settlingHours} * * *`
   const dailyTask = cron.schedule(dailyCron, () => {
-    runBatch('daily').catch(err => console.error('[RecoverySummary] Daily cron error:', err))
+    runBatch('daily').catch(err => log.error(`[RecoverySummary] Daily cron error: ${err.message}`))
   }, { timezone: 'Asia/Seoul' })
 
   cronTasks = [hourlyTask, dailyTask]
-  console.log(`[RecoverySummary] Cron jobs started (hourly :05, daily ${String(settlingHours).padStart(2, '0')}:10 KST)`)
+  log.info(`[RecoverySummary] Cron jobs started (hourly :05, daily ${String(settlingHours).padStart(2, '0')}:10 KST)`)
 }
 
 function stopCronJobs() {
@@ -36,7 +38,7 @@ function stopCronJobs() {
     task.stop()
   }
   cronTasks = []
-  console.log('[RecoverySummary] Cron jobs stopped')
+  log.info('[RecoverySummary] Cron jobs stopped')
 }
 
 async function getCronRunDistribution(period, _now) {

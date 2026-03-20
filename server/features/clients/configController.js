@@ -10,6 +10,8 @@ const configBackupService = require('./configBackupService')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 const { setupSSE } = require('../../shared/utils/sseHelper')
 const { isFtpNotFoundError } = require('../../shared/utils/ftpErrors')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('clients')
 
 /**
  * GET /api/clients/config/settings
@@ -124,6 +126,7 @@ async function deployConfig(req, res) {
       results
     })
   } catch (error) {
+    log.error(`[deployConfig] Error deploying to [${targetEqpIds.join(',')}]: ${error.message}`)
     sse.send({ done: true, error: error.message })
   }
 

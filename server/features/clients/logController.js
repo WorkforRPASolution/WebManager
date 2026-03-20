@@ -8,6 +8,8 @@ const logSettingsService = require('./logSettingsService')
 const controlService = require('./controlService')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 const { setupSSE } = require('../../shared/utils/sseHelper')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('clients')
 
 /**
  * GET /api/clients/log-settings/:agentGroup
@@ -134,6 +136,7 @@ async function handleLogTailStream(req, res) {
       }
     }, abortController.signal)
   } catch (error) {
+    log.error(`[tailLogStream] Error tailing logs: ${error.message}`)
     if (!abortController.signal.aborted) {
       sse.send({ error: error.message })
     }

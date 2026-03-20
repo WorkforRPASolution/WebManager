@@ -1,6 +1,8 @@
 const fs = require('fs').promises;
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const { createLogger } = require('../../../shared/logger');
+const log = createLogger('images');
 
 const UPLOAD_DIR = path.join(__dirname, '../../../uploads/images');
 const METADATA_FILE = path.join(UPLOAD_DIR, 'metadata.json');
@@ -35,7 +37,7 @@ async function writeMetadata(metadata) {
 // 디렉토리 초기화
 async function initialize() {
   await fs.mkdir(UPLOAD_DIR, { recursive: true });
-  console.log('  + Local image storage initialized:', UPLOAD_DIR);
+  log.info(`Local image storage initialized: ${UPLOAD_DIR}`);
 }
 
 // 이미지 업로드 (prefix, context 지원)
@@ -82,7 +84,7 @@ async function getImage(id) {
   try {
     // Path Traversal 방지: UUID 형식 검증
     if (!UUID_REGEX.test(id)) {
-      console.warn('Invalid image ID format:', id);
+      log.warn(`Invalid image ID format: ${id}`);
       return null;
     }
 
@@ -99,7 +101,7 @@ async function getImage(id) {
       mimetype: MIME_TYPES[ext] || 'application/octet-stream'
     };
   } catch (error) {
-    console.error('getImage error:', error);
+    log.error(`getImage error: ${error.message}`);
     return null;
   }
 }
@@ -108,7 +110,7 @@ async function getImage(id) {
 async function deleteImage(id) {
   // Path Traversal 방지: UUID 형식 검증
   if (!UUID_REGEX.test(id)) {
-    console.warn('Invalid image ID format for deletion:', id);
+    log.warn(`Invalid image ID format for deletion: ${id}`);
     return false;
   }
 
@@ -127,7 +129,7 @@ async function deleteImage(id) {
     }
     return false;
   } catch (error) {
-    console.error('deleteImage error:', error);
+    log.error(`deleteImage error: ${error.message}`);
     return false;
   }
 }
@@ -172,7 +174,7 @@ async function listImages(prefix) {
     // 최신순 정렬
     return images.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   } catch (error) {
-    console.error('listImages error:', error);
+    log.error(`listImages error: ${error.message}`);
     return [];
   }
 }
@@ -206,7 +208,7 @@ async function updateImageMetadata(id, updates) {
       subcode: newSubcode
     };
   } catch (error) {
-    console.error('updateImageMetadata error:', error);
+    log.error(`updateImageMetadata error: ${error.message}`);
     return null;
   }
 }

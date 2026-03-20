@@ -4,6 +4,8 @@
 
 const OSVersion = require('./model')
 const { validateBatchCreate, validateUpdate } = require('./validation')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('os-version')
 
 // ============================================
 // Default OS Versions (for initialization)
@@ -25,7 +27,7 @@ async function initializeOSVersions() {
   const count = await OSVersion.countDocuments()
   if (count === 0) {
     await OSVersion.insertMany(DEFAULT_OS_VERSIONS)
-    console.log(`  + Created ${DEFAULT_OS_VERSIONS.length} default OS versions`)
+    log.info(`Created ${DEFAULT_OS_VERSIONS.length} default OS versions`)
     return true
   }
   return false

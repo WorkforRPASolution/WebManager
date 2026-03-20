@@ -2,13 +2,12 @@
  * User service - Database operations and business logic
  */
 
-const { createLogger } = require('../../shared/logger')
-const logger = createLogger('users')
-
 const bcrypt = require('bcryptjs')
 const { User, RolePermission, DEFAULT_ROLE_PERMISSIONS } = require('./model')
 const { parsePaginationParams } = require('../../shared/utils/pagination')
 const { validateBatchCreate, validateUpdate } = require('./validation')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('users')
 
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
@@ -348,16 +347,16 @@ async function initializeRolePermissions() {
   const result = await syncRolePermissions()
 
   if (result.created > 0) {
-    logger.info(`  + Created ${result.created} role permissions`)
+    log.info(`Created ${result.created} role permissions`)
   }
   if (result.addedFields.length > 0) {
-    logger.info(`  + Added permission fields: ${result.addedFields.join(', ')}`)
+    log.info(`Added permission fields: ${result.addedFields.join(', ')}`)
   }
   if (result.removedFields.length > 0) {
-    logger.info(`  - Removed permission fields: ${result.removedFields.join(', ')}`)
+    log.info(`Removed permission fields: ${result.removedFields.join(', ')}`)
   }
   if (result.synced > 0) {
-    logger.info(`  ✓ Synced ${result.synced} role(s)`)
+    log.info(`Synced ${result.synced} role(s)`)
   }
 
   return result.created > 0 || result.synced > 0

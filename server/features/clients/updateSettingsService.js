@@ -5,7 +5,7 @@
 const crypto = require('crypto')
 let UpdateSettings = require('./updateSettingsModel')
 const { createLogger } = require('../../shared/logger')
-const logger = createLogger('clients')
+const log = createLogger('clients')
 
 /** @internal Replace model for testing */
 function _setModel(model) { UpdateSettings = model }
@@ -98,7 +98,7 @@ async function initializeUpdateSettings() {
   }
 
   if (legacy.length) {
-    logger.info(`[UpdateSettings] Migrated ${legacy.length} legacy documents to profiles with tasks`)
+    log.info(`[UpdateSettings] Migrated ${legacy.length} legacy documents to profiles with tasks`)
   }
 
   // Migration B: convert profiles.packages[] → profiles.tasks[]
@@ -130,7 +130,7 @@ async function initializeUpdateSettings() {
     migratedBCount++
   }
   if (migratedBCount) {
-    logger.info(`[UpdateSettings] Migration B: converted packages→tasks in ${migratedBCount} documents`)
+    log.info(`[UpdateSettings] Migration B: converted packages→tasks in ${migratedBCount} documents`)
   }
 
   // Clean source fields: strip irrelevant fields from existing profiles
@@ -148,10 +148,10 @@ async function initializeUpdateSettings() {
     }
   }
   if (cleanedCount) {
-    logger.info(`[UpdateSettings] Cleaned source fields in ${cleanedCount} documents`)
+    log.info(`[UpdateSettings] Cleaned source fields in ${cleanedCount} documents`)
   }
 
-  logger.info('  + UPDATE_SETTINGS collection ready')
+  log.info('  + UPDATE_SETTINGS collection ready')
 }
 
 async function getDocument(agentGroup) {

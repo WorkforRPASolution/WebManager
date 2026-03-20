@@ -419,23 +419,22 @@ const routes = [
     }
   },
   {
-    path: '/alerts',
-    name: 'Alerts',
-    component: () => import('../features/alerts/AlertsView.vue'),
+    path: '/system-logs',
+    name: 'SystemLogs',
+    component: () => import('../features/system-logs/SystemLogsView.vue'),
     meta: {
       layout: 'default',
       requiresAuth: true,
-      permission: 'alerts',
+      allowedRoles: [1],
       menu: {
         mainMenu: 'system',
         mainMenuLabel: 'System',
         mainMenuIcon: 'settings',
         mainMenuOrder: 4,
-        subMenu: 'alerts',
-        subMenuLabel: 'Alerts History',
-        subMenuIcon: 'notifications',
+        subMenu: 'system-logs',
+        subMenuLabel: 'System Logs',
+        subMenuIcon: 'description',
         subMenuOrder: 3,
-        permission: 'alerts'
       }
     }
   },

@@ -1,5 +1,7 @@
 const service = require('./service');
 const { validateFile, getConfig } = require('./validation');
+const { createLogger } = require('../../shared/logger');
+const log = createLogger('images');
 
 // 파일명 UTF-8 디코딩 (multer는 Latin1로 전달)
 function decodeFilename(filename) {
@@ -88,7 +90,7 @@ async function uploadImage(req, res) {
       }
     });
   } catch (error) {
-    console.error('Image upload error:', error);
+    log.error(`Image upload error: ${error.message}`);
     res.status(500).json({
       success: false,
       message: '이미지 업로드에 실패했습니다.'
@@ -105,7 +107,7 @@ async function getImage(req, res) {
     const image = await service.getImage(null, id);
     sendImageResponse(res, image);
   } catch (error) {
-    console.error('Image get error:', error);
+    log.error(`Image get error: ${error.message}`);
     res.status(500).json({
       success: false,
       message: '이미지 조회에 실패했습니다.'
@@ -120,7 +122,7 @@ async function getImageByPrefixAndName(req, res) {
     const image = await service.getImage(prefix, name);
     sendImageResponse(res, image);
   } catch (error) {
-    console.error('Image get error:', error);
+    log.error(`Image get error: ${error.message}`);
     res.status(500).json({
       success: false,
       message: '이미지 조회에 실패했습니다.'
@@ -135,7 +137,7 @@ async function deleteImage(req, res) {
     const result = await service.deleteImage(prefix, name);
     sendDeleteResponse(res, result);
   } catch (error) {
-    console.error('Image delete error:', error);
+    log.error(`Image delete error: ${error.message}`);
     res.status(500).json({
       success: false,
       message: '이미지 삭제에 실패했습니다.'
@@ -151,7 +153,7 @@ async function deleteImageById(req, res) {
     const result = await service.deleteImage(null, id);
     sendDeleteResponse(res, result);
   } catch (error) {
-    console.error('Image delete error:', error);
+    log.error(`Image delete error: ${error.message}`);
     res.status(500).json({
       success: false,
       message: '이미지 삭제에 실패했습니다.'
@@ -187,7 +189,7 @@ async function listImages(req, res) {
       images: imagesWithUrl
     });
   } catch (error) {
-    console.error('Image list error:', error);
+    log.error(`Image list error: ${error.message}`);
     res.status(500).json({
       success: false,
       message: '이미지 목록 조회에 실패했습니다.'
@@ -203,7 +205,7 @@ async function getProcesses(req, res) {
     const processes = await service.getDistinctProcesses();
     res.json(processes);
   } catch (error) {
-    console.error('Get processes error:', error);
+    log.error(`Get processes error: ${error.message}`);
     res.status(500).json({
       success: false,
       message: 'Process 목록 조회에 실패했습니다.'
@@ -222,7 +224,7 @@ async function getModels(req, res) {
     const models = await service.getDistinctModels(processFilter, userProcesses);
     res.json(models);
   } catch (error) {
-    console.error('Get models error:', error);
+    log.error(`Get models error: ${error.message}`);
     res.status(500).json({
       success: false,
       message: 'Model 목록 조회에 실패했습니다.'
@@ -241,7 +243,7 @@ async function getCodes(req, res) {
     const codes = await service.getDistinctCodes(processFilter, modelFilter, userProcesses);
     res.json(codes);
   } catch (error) {
-    console.error('Get codes error:', error);
+    log.error(`Get codes error: ${error.message}`);
     res.status(500).json({
       success: false,
       message: 'Code 목록 조회에 실패했습니다.'
@@ -260,7 +262,7 @@ async function getSubcodes(req, res) {
     const subcodes = await service.getDistinctSubcodes(processFilter, modelFilter, codeFilter, userProcesses);
     res.json(subcodes);
   } catch (error) {
-    console.error('Get subcodes error:', error);
+    log.error(`Get subcodes error: ${error.message}`);
     res.status(500).json({
       success: false,
       message: 'Subcode 목록 조회에 실패했습니다.'
@@ -287,7 +289,7 @@ async function listImagesPaginated(req, res) {
       ...result
     });
   } catch (error) {
-    console.error('List images paginated error:', error);
+    log.error(`List images paginated error: ${error.message}`);
     res.status(500).json({
       success: false,
       message: '이미지 목록 조회에 실패했습니다.'
@@ -315,7 +317,7 @@ async function deleteMultipleImages(req, res) {
       message: `${result.deleted}개의 이미지가 삭제되었습니다.`
     });
   } catch (error) {
-    console.error('Delete multiple images error:', error);
+    log.error(`Delete multiple images error: ${error.message}`);
     res.status(500).json({
       success: false,
       message: '이미지 삭제에 실패했습니다.'
@@ -354,7 +356,7 @@ async function updateMultipleImages(req, res) {
       message: `${result.updated}개의 이미지가 수정되었습니다.`
     });
   } catch (error) {
-    console.error('Update multiple images error:', error);
+    log.error(`Update multiple images error: ${error.message}`);
     res.status(500).json({
       success: false,
       message: '이미지 수정에 실패했습니다.'

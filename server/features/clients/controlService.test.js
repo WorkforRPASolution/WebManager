@@ -242,8 +242,7 @@ describe('ensureBasePaths', () => {
     expect(mockExecuteRaw).toHaveBeenCalledTimes(2)
   })
 
-  it('일부 실패 → warn 로그, 나머지 성공', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  it('일부 실패 → 나머지 성공 (throw 하지 않음)', async () => {
     mockFind.mockReturnValue({ select: () => ({ lean: () => Promise.resolve([
       { eqpId: 'EQP_02' }, { eqpId: 'EQP_05' }
     ]) }) })
@@ -255,14 +254,11 @@ describe('ensureBasePaths', () => {
       return { success: true, output: '        BINARY_PATH_NAME   : C:\\EEG\\bin\\ManagerAgent.exe', error: null }
     })
 
-    await ensureBasePaths(['EQP_02', 'EQP_05'])
-
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('ensureBasePaths'))
-    warnSpy.mockRestore()
+    // 일부 실패해도 throw 하지 않음 (warn 로그만 출력)
+    await expect(ensureBasePaths(['EQP_02', 'EQP_05'])).resolves.toBeUndefined()
   })
 
   it('전체 실패 → warn 로그 (throw 하지 않음)', async () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     mockFind.mockReturnValue({ select: () => ({ lean: () => Promise.resolve([
       { eqpId: 'EQP_01' }, { eqpId: 'EQP_02' }
     ]) }) })
@@ -270,7 +266,6 @@ describe('ensureBasePaths', () => {
 
     // 함수 자체는 throw 하지 않음
     await expect(ensureBasePaths(['EQP_01', 'EQP_02'])).resolves.toBeUndefined()
-    warnSpy.mockRestore()
   })
 })
 

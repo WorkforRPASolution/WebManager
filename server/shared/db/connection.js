@@ -6,6 +6,8 @@
  */
 
 const mongoose = require('mongoose');
+const { createLogger } = require('../logger');
+const log = createLogger('db');
 
 // Create separate connections for each database
 const earsConnection = mongoose.createConnection();
@@ -21,32 +23,32 @@ const connectDB = async () => {
 
     // Connect to EARS database (shared with Akka)
     await earsConnection.openUri(earsUri, { autoIndex: false });
-    console.log(`MongoDB EARS Connected: ${earsConnection.host}`);
+    log.info(`MongoDB EARS Connected: ${earsConnection.host}`);
 
     // Connect to WEBMANAGER database (WebManager-specific)
     await webManagerConnection.openUri(webManagerUri);
-    console.log(`MongoDB WEBMANAGER Connected: ${webManagerConnection.host}`);
+    log.info(`MongoDB WEBMANAGER Connected: ${webManagerConnection.host}`);
 
     // Error handlers for EARS connection
     earsConnection.on('error', (err) => {
-      console.error('MongoDB EARS connection error:', err);
+      log.error(`MongoDB EARS connection error: ${err.message}`);
     });
 
     earsConnection.on('disconnected', () => {
-      console.log('MongoDB EARS disconnected');
+      log.warn('MongoDB EARS disconnected');
     });
 
     // Error handlers for WEBMANAGER connection
     webManagerConnection.on('error', (err) => {
-      console.error('MongoDB WEBMANAGER connection error:', err);
+      log.error(`MongoDB WEBMANAGER connection error: ${err.message}`);
     });
 
     webManagerConnection.on('disconnected', () => {
-      console.log('MongoDB WEBMANAGER disconnected');
+      log.warn('MongoDB WEBMANAGER disconnected');
     });
 
   } catch (error) {
-    console.error('MongoDB connection failed:', error.message);
+    log.error(`MongoDB connection failed: ${error.message}`);
     process.exit(1);
   }
 };
@@ -57,7 +59,7 @@ const connectDB = async () => {
 const closeConnections = async () => {
   await earsConnection.close();
   await webManagerConnection.close();
-  console.log('All MongoDB connections closed');
+  log.info('All MongoDB connections closed');
 };
 
 module.exports = {

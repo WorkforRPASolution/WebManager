@@ -5,6 +5,9 @@
  * Environment: EARS_INTERFACE_URL
  */
 
+const { createLogger } = require('../logger')
+const log = createLogger('ears')
+
 // --- DI for testing ---
 let _fetch = globalThis.fetch
 
@@ -45,6 +48,7 @@ async function searchUsers(name) {
     })
 
     if (!response.ok) {
+      log.warn(`EARS searchUsers failed: ${response.status} ${response.statusText}`)
       return { success: false, error: `EARS responded with ${response.status} ${response.statusText}` }
     }
 
@@ -59,6 +63,7 @@ async function searchUsers(name) {
 
     return { success: true, data }
   } catch (err) {
+    log.warn(`EARS searchUsers error: ${err.message}`)
     return { success: false, error: err.message }
   } finally {
     clearTimeout(timeout)

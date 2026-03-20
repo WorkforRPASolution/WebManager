@@ -6,6 +6,8 @@
  */
 
 const { getRedisClient, isRedisAvailable } = require('../db/redisConnection')
+const { createLogger } = require('../logger')
+const log = createLogger('email')
 
 // --- DI for testing ---
 let _getRedisClient = getRedisClient
@@ -19,12 +21,16 @@ function _setDeps(deps) {
 // --- Transport: Redis PUBLISH (Phase 1) ---
 async function _sendViaRedis(to, title, contents) {
   if (!_isRedisAvailable()) {
+    log.warn('Redis not available — cannot send email')
     return { sent: false, error: 'Redis not available' }
   }
   const redis = _getRedisClient()
   const channel = `SendEmailTo-${to}`
   const message = `${title}:${contents}`
   const subscribers = await redis.publish(channel, message)
+  if (subscribers === 0) {
+    log.warn(`No subscribers on channel ${channel} — email not delivered`)
+  }
   return { sent: subscribers > 0, subscribers }
 }
 
@@ -46,6 +52,7 @@ async function sendEmailTo(to, title, contents) {
   try {
     return await _sendViaRedis(to, title, contents)
   } catch (err) {
+    log.error(`Failed to send email to ${to}: ${err.message}`)
     return { sent: false, error: err.message }
   }
 }

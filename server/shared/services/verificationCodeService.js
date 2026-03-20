@@ -9,6 +9,8 @@
 
 const crypto = require('crypto')
 const { getRedisClient, isRedisAvailable } = require('../db/redisConnection')
+const { createLogger } = require('../logger')
+const log = createLogger('verification')
 
 // --- DI for testing ---
 let _getRedisClient = getRedisClient
@@ -61,6 +63,7 @@ async function storeCode(mail) {
 
     return { code }
   } catch (err) {
+    log.error(`storeCode Redis error for ${mail}: ${err.message}`)
     return { error: err.message }
   }
 }
@@ -102,6 +105,7 @@ async function verifyCode(mail, code) {
 
     return { success: false, error: '인증 코드가 일치하지 않습니다.' }
   } catch (err) {
+    log.error(`verifyCode Redis error for ${mail}: ${err.message}`)
     return { success: false, error: err.message }
   }
 }
@@ -142,6 +146,7 @@ async function checkCode(mail, code) {
 
     return { success: false, error: '인증 코드가 일치하지 않습니다.' }
   } catch (err) {
+    log.error(`checkCode Redis error for ${mail}: ${err.message}`)
     return { success: false, error: err.message }
   }
 }

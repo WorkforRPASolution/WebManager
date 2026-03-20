@@ -1,7 +1,6 @@
-const { createLogger } = require('../../shared/logger')
-const logger = createLogger('exec-commands')
-
 const { ExecCommand } = require('./model')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('exec-commands')
 
 const DEFAULT_EXEC_COMMANDS = [
   {
@@ -63,9 +62,9 @@ async function initializeExecCommands() {
         { upsert: true, returnDocument: 'after' }
       )
     }
-    logger.info('ExecCommands initialized')
+    log.info('ExecCommands initialized')
   } catch (error) {
-    logger.error('Failed to initialize ExecCommands:', error.message)
+    log.error(`Failed to initialize ExecCommands: ${error.message}`)
     throw error
   }
 }

@@ -11,6 +11,8 @@
 
 const { v4: uuidv4 } = require('uuid');
 const EmailImage = require('../model');
+const { createLogger } = require('../../../shared/logger');
+const log = createLogger('images');
 
 // 이메일용 이미지 URL 경로 (HttpWebServer가 @HttpWebServerAddress를 실제 IP:PORT로 치환)
 const BASE_PATH = '/ARS/EmailImage';
@@ -19,8 +21,8 @@ const BASE_PATH = '/ARS/EmailImage';
  * Initialize storage
  */
 async function initialize() {
-  console.log(`  + HttpWebServer image storage initialized (MongoDB direct mode)`);
-  console.log(`  + Image URL pattern: http://@HttpWebServerAddress${BASE_PATH}/{prefix}/{name}`);
+  log.info(`HttpWebServer image storage initialized (MongoDB direct mode)`);
+  log.info(`Image URL pattern: http://@HttpWebServerAddress${BASE_PATH}/{prefix}/{name}`);
 }
 
 /**
@@ -84,7 +86,7 @@ async function getImage(prefix, name) {
       mimetype: image.mimetype || 'application/octet-stream'
     };
   } catch (error) {
-    console.error('getImage error:', error);
+    log.error(`getImage error: ${error.message}`);
     return null;
   }
 }
@@ -100,7 +102,7 @@ async function deleteImage(prefix, name) {
     const result = await EmailImage.deleteOne({ prefix, name });
     return result.deletedCount > 0;
   } catch (error) {
-    console.error('deleteImage error:', error);
+    log.error(`deleteImage error: ${error.message}`);
     return false;
   }
 }
@@ -132,7 +134,7 @@ async function listImages(prefix) {
       createdAt: img.createdAt instanceof Date ? img.createdAt.toISOString() : img.createdAt
     }));
   } catch (error) {
-    console.error('listImages error:', error);
+    log.error(`listImages error: ${error.message}`);
     return [];
   }
 }

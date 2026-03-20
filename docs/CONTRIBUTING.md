@@ -83,6 +83,9 @@ WEB_MANAGER DB에 새 컬렉션을 추가할 경우, **서버 시작 시 자동 
 
 ```javascript
 // service.js에 추가
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('items')  // ← 카테고리 등록 필수 (shared/logger/index.js JSDoc 참조)
+
 const DEFAULT_ITEMS = [
   { name: 'Item 1', active: true },
   { name: 'Item 2', active: true }
@@ -92,7 +95,7 @@ async function initializeItems() {
   const count = await Model.countDocuments()
   if (count === 0) {
     await Model.insertMany(DEFAULT_ITEMS)
-    console.log(`  + Created ${DEFAULT_ITEMS.length} default items`)
+    log.info(`Created ${DEFAULT_ITEMS.length} default items`)
     return true
   }
   return false
@@ -508,6 +511,51 @@ while (true) {
   // SSE 파싱 (data: {...}\n\n)
 }
 ```
+
+---
+
+## 6. 백엔드 로깅 패턴
+
+`console.log/error/warn`은 프로덕션 코드에서 사용하지 않습니다. 대신 winston 기반 로거를 사용합니다.
+
+### 기본 사용법
+
+```javascript
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('feature-name')  // 카테고리 필수
+
+log.info('Server started')
+log.warn(`Retry failed for ${eqpId}`)
+log.error(`Fatal error: ${err.message}`)
+log.debug('Debug info')  // LOG_LEVEL=debug 일 때만 출력
+```
+
+### 카테고리 규칙
+- `shared/logger/index.js` 상단 JSDoc 테이블에 등록된 카테고리만 사용
+- 새 카테고리 추가 시 반드시 테이블에 등록
+- 피처 모듈 내 하위 서비스는 동일 카테고리 사용 + 메시지에 접두사 (예: `log.info('[logSettings] initialized')`)
+
+### SSE 엔드포인트 catch 패턴 (필수)
+
+SSE 에러는 Express errorHandler에 도달하지 않으므로 반드시 catch에서 직접 로그를 남겨야 합니다.
+
+```javascript
+} catch (error) {
+  log.error(`[endpointName] Error: ${error.message}`)  // ← 항상 로그
+  if (!sse.isAborted()) {
+    sse.send({ done: true, error: error.message })
+  }
+}
+```
+
+### 공유 서비스 로깅
+- 외부 의존성 실패(Redis, EARS, Email)는 `log.warn()`으로 기록
+- 예상치 못한 에러는 `log.error()`로 기록
+- 반환값/throw 동작은 변경하지 않음 (로그만 추가)
+
+### 테스트 환경
+- `NODE_ENV=test` 또는 `VITEST` 환경에서는 파일/콘솔 출력이 자동 비활성화
+- `LOG_LEVEL`을 테스트에서 변경하려면 `vi.resetModules()` 필수 (모듈 레벨 싱글톤)
 
 ---
 

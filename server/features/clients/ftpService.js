@@ -11,6 +11,8 @@ const { runConcurrently } = require('../../shared/utils/concurrencyPool')
 const configBackupService = require('./configBackupService')
 const { deepMerge } = require('../../shared/utils/mergeUtils')
 const { isFtpNotFoundError } = require('../../shared/utils/ftpErrors')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('clients')
 
 const FTP_PORT = parseInt(process.env.FTP_PORT) || 21
 const FTP_USER = process.env.FTP_USER || 'ftpuser'
@@ -153,6 +155,9 @@ async function readAllConfigs(eqpId, agentGroup) {
         })
       } catch (err) {
         const isNotFound = isFtpNotFoundError(err)
+        if (!isNotFound) {
+          log.warn(`readAllConfigs: failed to read config ${config.fileId} (${config.path}) for ${eqpId}: ${err.message}`)
+        }
         if (isNotFound) {
           results.push({
             fileId: config.fileId,
@@ -201,6 +206,7 @@ async function deployConfig(content, targetEqpIds, remotePath, onProgress, concu
         onProgress({ completed, total, current: eqpId, status: 'success', error: null })
       }
     } catch (err) {
+      log.warn(`deployConfig: failed to deploy to ${eqpId} (${remotePath}): ${err.message}`)
       completed++
       results.push({ eqpId, success: false, error: err.message })
       if (onProgress) {
@@ -250,6 +256,7 @@ async function deployConfigSelective(sourceConfig, selectedKeys, targetEqpIds, r
         onProgress({ completed, total, current: eqpId, status: 'success', error: null })
       }
     } catch (err) {
+      log.warn(`deployConfigSelective: failed to deploy to ${eqpId} (${remotePath}): ${err.message}`)
       completed++
       results.push({ eqpId, success: false, error: err.message })
       if (onProgress) {

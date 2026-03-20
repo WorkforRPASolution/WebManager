@@ -8,6 +8,8 @@ const { validatePeriodRange, validateBackfillRange } = require('./validation')
 const { parsePaginationParams, createPaginatedResponse } = require('../../shared/utils/pagination')
 const { createBatchLog } = require('../../shared/models/webmanagerLogModel')
 const batchLogsService = require('./batchLogsService')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('recovery')
 
 // ── Dependency Injection (for testing) ──
 
@@ -235,7 +237,7 @@ async function startBackfill(req, res) {
         retryPartial: !!retryPartial
       },
       userId: req.user?.singleid || 'system'
-    }).catch(e => console.error('[BatchLog] backfill_started log failed:', e.message))
+    }).catch(e => log.error(`[BatchLog] backfill_started log failed: ${e.message}`))
 
     res.status(202).json({ message: 'Backfill started' })
   } catch (err) {
@@ -271,7 +273,7 @@ async function handleCancelBackfill(req, res) {
     batchAction: 'backfill_cancelled',
     batchParams: {},
     userId: req.user?.singleid || 'system'
-  }).catch(e => console.error('[BatchLog] backfill_cancelled log failed:', e.message))
+  }).catch(e => log.error(`[BatchLog] backfill_cancelled log failed: ${e.message}`))
 
   res.json({ message: 'Backfill cancel requested' })
 }

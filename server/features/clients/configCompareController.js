@@ -6,6 +6,8 @@
 let configCompareService = require('./configCompareService')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 let _setupSSE = require('../../shared/utils/sseHelper').setupSSE
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('clients')
 
 /** @internal Replace dependencies for testing */
 function _setDeps(deps) {
@@ -59,6 +61,7 @@ async function handleCompareConfigs(req, res) {
       })
     }
   } catch (error) {
+    log.error(`[configCompare] Error comparing configs: ${error.message}`)
     if (!sse.isAborted()) {
       sse.send({ done: true, type: 'done', error: error.message })
     }

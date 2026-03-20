@@ -4,7 +4,7 @@
 
 const ConfigSettings = require('./configSettingsModel')
 const { createLogger } = require('../../shared/logger')
-const logger = createLogger('clients')
+const log = createLogger('clients')
 
 /**
  * Initialize config settings collection and indexes
@@ -12,7 +12,7 @@ const logger = createLogger('clients')
 async function initializeConfigSettings() {
   // Ensure collection and indexes exist (model registration handles this)
   await ConfigSettings.createIndexes()
-  logger.info('  + CONFIG_SETTINGS collection ready')
+  log.info('  + CONFIG_SETTINGS collection ready')
 }
 
 /**

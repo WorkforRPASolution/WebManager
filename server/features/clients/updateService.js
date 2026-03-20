@@ -15,6 +15,8 @@ let updateSettingsService = require('./updateSettingsService')
 let createUpdateSource = require('./updateSources').createUpdateSource
 let controlService = require('./controlService')
 const { runConcurrently } = require('../../shared/utils/concurrencyPool')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('clients')
 
 /** Infer copy type from sourcePath: trailing '/' means directory */
 function isDirectoryTask(task) {
@@ -127,6 +129,7 @@ async function deployUpdate(agentGroup, profileId, taskIds, targetEqpIds, onProg
             onProgress({ eqpId, taskId: task.taskId, status: 'success', completed, total })
           }
         } catch (err) {
+          log.warn(`deployUpdate: task ${task.taskId} failed for ${eqpId}: ${err.message}`)
           completed++
           failCount++
           if (onProgress) {

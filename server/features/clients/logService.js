@@ -10,6 +10,8 @@ const strategyRegistry = require('./strategies')
 const { listLogFiles, readLogFile, downloadLogFileToStream, deleteLogFile } = require('./ftpService')
 const path = require('path')
 const crypto = require('crypto')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('clients')
 
 const LOG_MAX_FILE_SIZE = parseInt(process.env.LOG_MAX_FILE_SIZE) || 10485760 // 10MB
 const LOG_TAIL_INTERVAL = parseInt(process.env.LOG_TAIL_INTERVAL) || 3000
@@ -42,6 +44,7 @@ async function getLogFileList(eqpId, agentGroup) {
         })
       }
     } catch (err) {
+      log.warn(`getLogFileList: failed to list files for source ${source.sourceId} (${source.path}) on ${eqpId}: ${err.message}`)
       results.push({
         sourceId: source.sourceId,
         sourceName: source.name,
@@ -80,6 +83,7 @@ async function deleteLogFiles(eqpId, filePaths) {
       await deleteLogFile(eqpId, filePath)
       results.push({ path: filePath, success: true })
     } catch (err) {
+      log.warn(`deleteLogFiles: failed to delete ${filePath} on ${eqpId}: ${err.message}`)
       results.push({ path: filePath, success: false, error: err.message })
     }
   }
@@ -188,6 +192,7 @@ async function tailLogStream(targets, onData, signal) {
           onData({ eqpId, filePath, error: errMsg })
         }
       } catch (err) {
+        log.warn(`tailLogStream: RPC poll error for ${eqpId} (${filePath}): ${err.message}`)
         onData({ eqpId, filePath, error: err.message })
       } finally {
         if (rpcClient) rpcClient.disconnect()
