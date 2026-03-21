@@ -2,13 +2,14 @@
 import { ref } from 'vue'
 import UserActivityToolUsageTab from './components/UserActivityToolUsageTab.vue'
 import UserActivityScenarioTab from './components/UserActivityScenarioTab.vue'
+import UserActivityWebManagerTab from './components/UserActivityWebManagerTab.vue'
 
 const activeTab = ref('tool-usage')
 
 const tabs = [
   { id: 'tool-usage', label: 'Tool Usage' },
   { id: 'scenario', label: 'Scenario' },
-  { id: 'webmanager', label: 'WebManager', disabled: true }
+  { id: 'webmanager', label: 'WebManager' }
 ]
 </script>
 
@@ -46,9 +47,7 @@ const tabs = [
       <KeepAlive>
         <UserActivityToolUsageTab v-if="activeTab === 'tool-usage'" />
         <UserActivityScenarioTab v-else-if="activeTab === 'scenario'" />
-        <div v-else class="flex items-center justify-center h-full text-gray-400 dark:text-gray-500">
-          준비 중입니다
-        </div>
+        <UserActivityWebManagerTab v-else-if="activeTab === 'webmanager'" />
       </KeepAlive>
     </div>
   </div>

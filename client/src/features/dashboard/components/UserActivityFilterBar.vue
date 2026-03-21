@@ -1,20 +1,26 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import MultiSelect from '../../../shared/components/MultiSelect.vue'
 import AppIcon from '../../../shared/components/AppIcon.vue'
 
 const props = defineProps({
   processes: { type: Array, default: () => [] },
-  loading: { type: Boolean, default: false }
+  loading: { type: Boolean, default: false },
+  hideProcess: { type: Boolean, default: false },
+  periodOptions: { type: Array, default: null },
+  defaultPeriod: { type: String, default: null },
+  showEndDate: { type: Boolean, default: false },
+  maxDays: { type: Number, default: 730 }
 })
 
 const emit = defineEmits(['search'])
 
-const selectedPeriod = ref('all')
+const selectedPeriod = ref(props.defaultPeriod || (props.periodOptions ? props.periodOptions[0]?.value : 'all'))
 const startDate = ref('')
+const endDate = ref('')
 const selectedProcesses = ref([])
 
-const periodOptions = [
+const defaultPeriodOptions = [
   { value: 'all', label: '전체' },
   { value: 'today', label: '최근 24시간' },
   { value: '7d', label: '최근 7일' },
@@ -23,13 +29,22 @@ const periodOptions = [
   { value: 'custom', label: '시작일 지정' }
 ]
 
+const periodOptions = computed(() => props.periodOptions || defaultPeriodOptions)
+
 const periodDropdownOpen = ref(false)
 const periodContainerRef = ref(null)
 
 const isCustom = computed(() => selectedPeriod.value === 'custom')
 
+const minDateStr = computed(() => {
+  const d = new Date(Date.now() - props.maxDays * 24 * 60 * 60 * 1000)
+  return d.toISOString().slice(0, 10)
+})
+
+const todayStr = computed(() => new Date().toISOString().slice(0, 10))
+
 const selectedPeriodLabel = computed(() => {
-  return periodOptions.find(o => o.value === selectedPeriod.value)?.label || '전체'
+  return periodOptions.value.find(o => o.value === selectedPeriod.value)?.label || '전체'
 })
 
 function selectPeriod(value) {
@@ -60,21 +75,40 @@ function handleSearch() {
       customError.value = '시작일을 입력하세요'
       return
     }
+    if (props.showEndDate && !endDate.value) {
+      customError.value = '종료일을 입력하세요'
+      return
+    }
     const s = new Date(startDate.value)
     if (s > new Date()) {
       customError.value = '시작일은 미래일 수 없습니다'
       return
     }
+    const diffDays = (Date.now() - s.getTime()) / (1000 * 60 * 60 * 24)
+    if (diffDays > props.maxDays) {
+      customError.value = `시작일은 최근 ${props.maxDays}일 이내여야 합니다`
+      return
+    }
+    if (props.showEndDate && endDate.value) {
+      const e = new Date(endDate.value)
+      if (e < s) {
+        customError.value = '종료일은 시작일 이후여야 합니다'
+        return
+      }
+    }
   }
 
   const filters = { period: selectedPeriod.value }
 
-  if (selectedProcesses.value.length > 0) {
+  if (!props.hideProcess && selectedProcesses.value.length > 0) {
     filters.process = selectedProcesses.value.join(',')
   }
 
   if (isCustom.value) {
     filters.startDate = startDate.value
+    if (props.showEndDate && endDate.value) {
+      filters.endDate = endDate.value
+    }
   }
 
   emit('search', filters)
@@ -127,17 +161,35 @@ function handleSearch() {
       <input
         v-model="startDate"
         type="date"
+        :min="minDateStr"
+        :max="todayStr"
         class="text-sm border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
     </div>
 
-    <!-- "~ 현재" indicator -->
-    <div v-if="selectedPeriod !== 'all'" class="flex items-center pb-0.5">
+    <!-- End date (custom + showEndDate only) -->
+    <template v-if="isCustom && showEndDate">
+      <div class="flex items-center pb-0.5">
+        <span class="text-xs text-gray-400 dark:text-gray-500 italic">~</span>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">종료일</label>
+        <input
+          v-model="endDate"
+          type="date"
+          class="text-sm border border-gray-300 dark:border-dark-border rounded-lg px-3 py-2 bg-white dark:bg-dark-bg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+    </template>
+
+    <!-- "~ 현재" indicator (non-custom with endDate, or non-showEndDate custom) -->
+    <div v-if="selectedPeriod !== 'all' && !(isCustom && showEndDate)" class="flex items-center pb-0.5">
       <span class="text-xs text-gray-400 dark:text-gray-500 italic">~ 현재</span>
     </div>
 
     <!-- Process filter -->
     <MultiSelect
+      v-if="!hideProcess"
       v-model="selectedProcesses"
       :options="processes"
       label="Process"

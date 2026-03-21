@@ -13,4 +13,7 @@ router.get('/scenario-stats', authenticate, requireMenuPermission('dashboardUser
 // GET /api/user-activity/scenario-details - 시나리오 상세 목록 (CSV 내보내기용)
 router.get('/scenario-details', authenticate, requireMenuPermission('dashboardUserActivity'), asyncHandler(controller.getScenarioDetails))
 
+// GET /api/user-activity/webmanager-stats - WebManager 사용 통계
+router.get('/webmanager-stats', authenticate, requireMenuPermission('dashboardUserActivity'), asyncHandler(controller.getWebManagerStats))
+
 module.exports = router

@@ -271,3 +271,58 @@ export function exportScenarioRecentCsv(data) {
   const rows = data.map((d, i) => [i + 1, d.scname, d.process, d.eqpModel, d.userId, d.modifiedAt])
   downloadCsv(filename, headers, rows)
 }
+
+// ===================================================
+// WebManager CSV Export Functions
+// ===================================================
+
+function formatDurationCsv(ms) {
+  if (!ms || ms <= 0) return '0s'
+  const totalSec = Math.round(ms / 1000)
+  const min = Math.floor(totalSec / 60)
+  const sec = totalSec % 60
+  if (min === 0) return `${sec}s`
+  return `${min}m ${sec}s`
+}
+
+/**
+ * 페이지별 방문 현황 CSV
+ */
+export function exportWebManagerPageSummaryCsv(data) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `WebManager_PageSummary_${timestamp}.csv`
+  const headers = ['Menu Group', 'Page', 'Path', 'Visits', 'Unique Users', 'Avg Duration']
+  const rows = data.map(d => [
+    d.menuGroup, d.pageName, d.pagePath, d.visitCount, d.uniqueUsers, formatDurationCsv(d.avgDurationMs)
+  ])
+  downloadCsv(filename, headers, rows)
+}
+
+/**
+ * Top 10 활성 사용자 CSV
+ */
+export function exportWebManagerTopUsersCsv(data) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `WebManager_TopUsers_${timestamp}.csv`
+  const headers = ['#', 'User ID', 'Visits', 'Total Duration', 'Last Visit']
+  const rows = data.map((d, i) => [
+    i + 1, d.userId, d.visitCount, formatDurationCsv(d.totalDurationMs),
+    d.lastVisitTime ? new Date(d.lastVisitTime).toISOString() : ''
+  ])
+  downloadCsv(filename, headers, rows)
+}
+
+/**
+ * 최근 접속 이력 CSV
+ */
+export function exportWebManagerRecentVisitsCsv(data) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `WebManager_RecentVisits_${timestamp}.csv`
+  const headers = ['#', 'User ID', 'Page', 'Path', 'Duration', 'Enter Time']
+  const rows = data.map((d, i) => [
+    i + 1, d.userId, d.pageName || d.pagePath, d.pagePath,
+    formatDurationCsv(d.durationMs),
+    d.enterTime ? new Date(d.enterTime).toISOString() : ''
+  ])
+  downloadCsv(filename, headers, rows)
+}

@@ -5,6 +5,7 @@
 
 const service = require('./service')
 const scenarioService = require('./scenarioService')
+const webManagerService = require('./webManagerService')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('user-activity')
 
@@ -75,8 +76,39 @@ async function getScenarioDetails(req, res) {
   res.json(result)
 }
 
+async function getWebManagerStats(req, res) {
+  const { period, startDate, endDate, includeAdmin, noLimit } = req.query
+
+  if (period === 'custom') {
+    if (!startDate) {
+      return res.status(400).json({ error: 'startDate is required for custom period' })
+    }
+    const s = new Date(startDate)
+    if (isNaN(s.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' })
+    }
+    if (s > new Date()) {
+      return res.status(400).json({ error: 'startDate cannot be in the future' })
+    }
+    const diffDays = (Date.now() - s.getTime()) / (1000 * 60 * 60 * 24)
+    if (diffDays > 90) {
+      return res.status(400).json({ error: 'startDate cannot be more than 90 days ago' })
+    }
+  }
+
+  const result = await webManagerService.getWebManagerStats({
+    period: period || 'all',
+    startDate,
+    endDate,
+    includeAdmin: includeAdmin === 'true',
+    noLimit: noLimit === 'true'
+  })
+  res.json(result)
+}
+
 module.exports = {
   getToolUsage,
   getScenarioStats,
-  getScenarioDetails
+  getScenarioDetails,
+  getWebManagerStats
 }

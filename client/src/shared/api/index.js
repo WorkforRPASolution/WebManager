@@ -92,6 +92,7 @@ export const userActivityApi = {
   getToolUsage: (params = {}) => api.get('/user-activity/tool-usage', { params, timeout: 30000 }),
   getScenarioStats: (params = {}) => api.get('/user-activity/scenario-stats', { params, timeout: 30000 }),
   getScenarioDetails: (params = {}) => api.get('/user-activity/scenario-details', { params, timeout: 30000 }),
+  getWebManagerStats: (params = {}) => api.get('/user-activity/webmanager-stats', { params, timeout: 30000 }),
 }
 
 // Auth API
