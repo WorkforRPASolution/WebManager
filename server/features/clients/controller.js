@@ -374,6 +374,16 @@ async function handleBatchExecuteAction(req, res) {
     throw ApiError.badRequest('eqpIds array is required')
   }
   const results = await controlService.batchExecuteAction(eqpIds, agentGroup, action)
+
+  // Audit logging (fire-and-forget)
+  createActionLog({
+    action,
+    targetType: `${agentGroup}_service_batch`,
+    targetId: eqpIds.join(','),
+    details: { agentGroup, eqpIds, resultCount: results.length },
+    userId: req.user?.singleid || 'system'
+  }).catch(() => {})
+
   res.json({ results })
 }
 
@@ -398,6 +408,15 @@ async function handleBatchActionStream(req, res) {
     await controlService.batchExecuteActionStream(eqpIds, agentGroup, action, (progress) => {
       sse.send(progress)
     })
+    // Audit logging (fire-and-forget)
+    createActionLog({
+      action,
+      targetType: `${agentGroup}_service_batch`,
+      targetId: eqpIds.join(','),
+      details: { agentGroup, eqpIds, count: eqpIds.length },
+      userId: req.user?.singleid || 'system'
+    }).catch(() => {})
+
     // Append alive statuses before done (non-fatal)
     if (!sse.isAborted()) {
       try {

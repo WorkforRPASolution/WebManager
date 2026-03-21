@@ -49,7 +49,7 @@ async function saveUpdateSettings(req, res) {
     }
   }
 
-  const updatedBy = req.user?.username || 'unknown'
+  const updatedBy = req.user?.singleid || 'unknown'
   const doc = await updateSettingsService.saveUpdateSettings(agentGroup, profiles, updatedBy)
   res.json(doc)
 }

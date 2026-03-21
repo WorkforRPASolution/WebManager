@@ -4,8 +4,22 @@
 
 const OSVersion = require('./model')
 const { validateBatchCreate, validateUpdate } = require('./validation')
+const { createAuditLog, calculateChanges } = require('../../shared/models/webmanagerLogModel')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('os-version')
+
+function auditLog(action, docId, context, extra = {}) {
+  const userId = context?.user?.singleid || context?.user?.id || 'system'
+  createAuditLog({
+    collectionName: 'OS_VERSION_LIST',
+    documentId: String(docId),
+    action,
+    changes: extra.changes || {},
+    previousData: extra.previousData || null,
+    newData: extra.newData || null,
+    userId
+  }).catch(err => log.error(`Audit log failed: ${err.message}`))
+}
 
 // ============================================
 // Default OS Versions (for initialization)
@@ -81,6 +95,10 @@ async function createOSVersion(itemsData, context = {}) {
   if (valid.length > 0) {
     const insertedDocs = await OSVersion.insertMany(valid)
     created = insertedDocs.length
+    for (const doc of insertedDocs) {
+      const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc
+      auditLog('create', plain.version || plain._id, context, { newData: plain })
+    }
   }
 
   return { created, errors }
@@ -133,6 +151,13 @@ async function updateOSVersion(itemsData, context = {}) {
     const result = await OSVersion.updateOne({ _id }, { $set: updateData })
     if (result.modifiedCount > 0) {
       updated++
+      const updatedDoc = await OSVersion.findById(_id).lean()
+      if (updatedDoc) {
+        const changes = calculateChanges(existingDoc, updatedDoc)
+        if (Object.keys(changes).length > 0) {
+          auditLog('update', existingDoc.version || _id, context, { changes, previousData: existingDoc, newData: updatedDoc })
+        }
+      }
     }
   }
 
@@ -145,7 +170,11 @@ async function updateOSVersion(itemsData, context = {}) {
  * @param {Object} context - Execution context (user, etc.)
  */
 async function deleteOSVersion(ids, context = {}) {
+  const docsToDelete = await OSVersion.find({ _id: { $in: ids } }).lean()
   const result = await OSVersion.deleteMany({ _id: { $in: ids } })
+  for (const doc of docsToDelete) {
+    auditLog('delete', doc.version || doc._id, context, { previousData: doc })
+  }
   return { deleted: result.deletedCount }
 }
 

@@ -179,7 +179,7 @@ async function saveConfigSettingsDocument(req, res) {
     if (!f.path || !f.path.trim()) throw ApiError.badRequest('Config file path is required')
   }
 
-  const updatedBy = req.user?.username || 'unknown'
+  const updatedBy = req.user?.singleid || 'unknown'
   const doc = await configSettingsService.saveConfigSettings(agentGroup, configFiles, updatedBy)
   res.json(doc)
 }

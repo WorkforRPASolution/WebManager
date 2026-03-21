@@ -44,7 +44,7 @@ function mockReq(overrides = {}) {
   return {
     params: {},
     body: {},
-    user: { username: 'tester' },
+    user: { singleid: 'tester' },
     ...overrides
   }
 }

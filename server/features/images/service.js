@@ -1,6 +1,7 @@
 const storage = require('./storage');
 const EmailImage = require('./model');
 const { parsePaginationParams } = require('../../shared/utils/pagination');
+const { createActionLog } = require('../../shared/models/webmanagerLogModel');
 const { createLogger } = require('../../shared/logger');
 const log = createLogger('images');
 
@@ -20,6 +21,17 @@ async function initialize() {
 async function uploadImage(file, prefix, context = {}) {
   // 모든 스토리지 타입에 prefix와 context 전달
   const result = await storage.uploadImage(file, prefix, context);
+
+  // Audit logging (fire-and-forget)
+  const userId = context?.user?.singleid || context?.user?.id || 'system'
+  createActionLog({
+    action: 'upload',
+    targetType: 'email_image',
+    targetId: `${prefix}/${result.name || file.originalname}`,
+    details: { prefix, filename: file.originalname, size: file.size },
+    userId
+  }).catch(() => {})
+
   return { ...result, prefix: result.prefix || prefix };
 }
 
@@ -315,11 +327,21 @@ async function listImagesPaginated(filters = {}, paginationQuery = {}, req = nul
 /**
  * Delete multiple images
  */
-async function deleteMultipleImages(items) {
+async function deleteMultipleImages(items, context = {}) {
   let deleted = 0;
+  const userId = context?.user?.singleid || context?.user?.id || 'system'
   for (const item of items) {
     const result = await deleteImage(item.prefix, item.name);
-    if (result) deleted++;
+    if (result) {
+      deleted++;
+      createActionLog({
+        action: 'delete',
+        targetType: 'email_image',
+        targetId: `${item.prefix}/${item.name}`,
+        details: { prefix: item.prefix, name: item.name },
+        userId
+      }).catch(() => {})
+    }
   }
   return { deleted };
 }

@@ -309,7 +309,8 @@ async function deleteMultipleImages(req, res) {
       });
     }
 
-    const result = await service.deleteMultipleImages(items);
+    const context = { user: req.user }
+    const result = await service.deleteMultipleImages(items, context);
 
     res.json({
       success: true,

@@ -5,6 +5,22 @@
 const EmailRecipients = require('./model')
 const { parsePaginationParams } = require('../../shared/utils/pagination')
 const { validateBatchCreate, validateUpdate } = require('./validation')
+const { createAuditLog, calculateChanges } = require('../../shared/models/webmanagerLogModel')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('audit')
+
+function auditLog(action, docId, context, extra = {}) {
+  const userId = context?.user?.singleid || context?.user?.id || 'system'
+  createAuditLog({
+    collectionName: 'EMAIL_RECIPIENTS',
+    documentId: String(docId),
+    action,
+    changes: extra.changes || {},
+    previousData: extra.previousData || null,
+    newData: extra.newData || null,
+    userId
+  }).catch(err => log.error(`Audit log failed: ${err.message}`))
+}
 
 /**
  * Parse comma-separated filter values
@@ -188,6 +204,10 @@ async function createEmailRecipients(itemsData, context = {}) {
   if (valid.length > 0) {
     const insertedDocs = await EmailRecipients.insertMany(valid)
     created = insertedDocs.length
+    for (const doc of insertedDocs) {
+      const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc
+      auditLog('create', plain._id, context, { newData: plain })
+    }
   }
 
   return { created, errors }
@@ -242,6 +262,13 @@ async function updateEmailRecipients(itemsData, context = {}) {
     const result = await EmailRecipients.updateOne({ _id }, { $set: updateData })
     if (result.modifiedCount > 0) {
       updated++
+      const updatedDoc = await EmailRecipients.findById(_id).lean()
+      if (updatedDoc) {
+        const changes = calculateChanges(existingDoc, updatedDoc)
+        if (Object.keys(changes).length > 0) {
+          auditLog('update', _id, context, { changes, previousData: existingDoc, newData: updatedDoc })
+        }
+      }
     }
   }
 
@@ -254,7 +281,11 @@ async function updateEmailRecipients(itemsData, context = {}) {
  * @param {Object} context - Execution context (user, etc.)
  */
 async function deleteEmailRecipients(ids, context = {}) {
+  const docsToDelete = await EmailRecipients.find({ _id: { $in: ids } }).lean()
   const result = await EmailRecipients.deleteMany({ _id: { $in: ids } })
+  for (const doc of docsToDelete) {
+    auditLog('delete', doc._id, context, { previousData: doc })
+  }
   return { deleted: result.deletedCount }
 }
 

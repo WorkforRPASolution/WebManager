@@ -5,6 +5,22 @@
 const EmailInfo = require('./model')
 const { parsePaginationParams } = require('../../shared/utils/pagination')
 const { validateBatchCreate, validateUpdate } = require('./validation')
+const { createAuditLog, calculateChanges } = require('../../shared/models/webmanagerLogModel')
+const { createLogger } = require('../../shared/logger')
+const log = createLogger('audit')
+
+function auditLog(action, docId, context, extra = {}) {
+  const userId = context?.user?.singleid || context?.user?.id || 'system'
+  createAuditLog({
+    collectionName: 'EMAILINFO',
+    documentId: String(docId),
+    action,
+    changes: extra.changes || {},
+    previousData: extra.previousData || null,
+    newData: extra.newData || null,
+    userId
+  }).catch(err => log.error(`Audit log failed: ${err.message}`))
+}
 
 /**
  * Parse comma-separated filter values
@@ -265,6 +281,10 @@ async function createEmailInfo(itemsData, context = {}) {
   if (valid.length > 0) {
     const insertedDocs = await EmailInfo.insertMany(valid)
     created = insertedDocs.length
+    for (const doc of insertedDocs) {
+      const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc
+      auditLog('create', plain.category || plain._id, context, { newData: plain })
+    }
   }
 
   return { created, errors }
@@ -317,6 +337,13 @@ async function updateEmailInfo(itemsData, context = {}) {
     const result = await EmailInfo.updateOne({ _id }, { $set: updateData })
     if (result.modifiedCount > 0) {
       updated++
+      const updatedDoc = await EmailInfo.findById(_id).lean()
+      if (updatedDoc) {
+        const changes = calculateChanges(existingDoc, updatedDoc)
+        if (Object.keys(changes).length > 0) {
+          auditLog('update', existingDoc.category || _id, context, { changes, previousData: existingDoc, newData: updatedDoc })
+        }
+      }
     }
   }
 
@@ -329,7 +356,11 @@ async function updateEmailInfo(itemsData, context = {}) {
  * @param {Object} context - Execution context (user, etc.)
  */
 async function deleteEmailInfo(ids, context = {}) {
+  const docsToDelete = await EmailInfo.find({ _id: { $in: ids } }).lean()
   const result = await EmailInfo.deleteMany({ _id: { $in: ids } })
+  for (const doc of docsToDelete) {
+    auditLog('delete', doc.category || doc._id, context, { previousData: doc })
+  }
   return { deleted: result.deletedCount }
 }
 

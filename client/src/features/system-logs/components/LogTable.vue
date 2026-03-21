@@ -40,9 +40,21 @@ function getActionText(row) {
       return row.errorType || '-'
     case 'audit':
       return row.action || '-'
+    case 'access':
+      return row.pagePath || '-'
     default:
       return row.action || row.authAction || row.batchAction || row.errorType || '-'
   }
+}
+
+function formatDuration(ms) {
+  if (!ms && ms !== 0) return ''
+  if (ms < 1000) return `${ms}ms`
+  const sec = Math.round(ms / 1000)
+  if (sec < 60) return `${sec}s`
+  const min = Math.floor(sec / 60)
+  const remSec = sec % 60
+  return `${min}m ${remSec}s`
 }
 
 function getMessageText(row) {
@@ -52,13 +64,21 @@ function getMessageText(row) {
     case 'audit': {
       const parts = []
       if (row.collectionName) parts.push(row.collectionName)
+      if (row.targetType) parts.push(row.targetType)
       if (row.documentId) parts.push(row.documentId)
+      if (row.targetId) parts.push(row.targetId)
       return parts.length > 0 ? parts.join(' / ') : '-'
     }
     case 'auth':
       return row.authAction ? describeAuthAction(row.authAction) : '-'
     case 'batch':
       return row.batchAction || '-'
+    case 'access': {
+      const parts = []
+      if (row.pageName) parts.push(row.pageName)
+      if (row.durationMs != null) parts.push(formatDuration(row.durationMs))
+      return parts.length > 0 ? parts.join(' — ') : '-'
+    }
     default:
       return row.message || row.errorMessage || '-'
   }

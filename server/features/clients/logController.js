@@ -38,7 +38,7 @@ async function saveLogSettings(req, res) {
     if (!s.keyword || !s.keyword.trim()) throw ApiError.badRequest('Log source keyword is required')
   }
 
-  const updatedBy = req.user?.username || 'unknown'
+  const updatedBy = req.user?.singleid || 'unknown'
   const result = await logSettingsService.saveLogSettings(agentGroup, logSources, updatedBy)
   res.json(result)
 }
