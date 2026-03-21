@@ -6,6 +6,7 @@ const service = require('./service')
 const controlService = require('./controlService')
 const { getAliveStatusWithVersions } = require('./aliveStatusHelper')
 const { ApiError } = require('../../shared/middleware/errorHandler')
+const { createActionLog } = require('../../shared/models/webmanagerLogModel')
 const strategyRegistry = require('./strategies')
 const { setupSSE } = require('../../shared/utils/sseHelper')
 const { parseCommaSeparated } = require('../../shared/utils/parseUtils')
@@ -345,6 +346,16 @@ async function handleExecuteAction(req, res) {
 
   try {
     const result = await controlService.executeAction(id, agentGroup, action)
+
+    // Audit logging (fire-and-forget)
+    createActionLog({
+      action,
+      targetType: `${agentGroup}_service`,
+      targetId: id,
+      details: { agentGroup, result: result?.status || 'ok' },
+      userId: req.user?.singleid || 'system'
+    }).catch(() => {})
+
     res.json(result)
   } catch (error) {
     throw ApiError.internal(`Action '${action}' failed: ${error.message}`)

@@ -1,4 +1,4 @@
-const VALID_CATEGORIES = ['audit', 'error', 'auth', 'batch']
+const VALID_CATEGORIES = ['audit', 'error', 'auth', 'batch', 'access']
 const VALID_PERIODS = ['today', '7d', '30d', '90d', 'custom']
 
 function validateCategory(category) {

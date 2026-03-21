@@ -16,12 +16,13 @@ const props = defineProps({
 
 const { isDark } = useTheme()
 
-const CATEGORIES = ['audit', 'error', 'auth', 'batch']
+const CATEGORIES = ['audit', 'error', 'auth', 'batch', 'access']
 const COLORS = {
   audit: '#3b82f6',
   error: '#ef4444',
   auth: '#22c55e',
-  batch: '#a855f7'
+  batch: '#a855f7',
+  access: '#f59e0b'
 }
 
 const option = computed(() => {

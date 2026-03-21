@@ -4,6 +4,7 @@
 
 const crypto = require('crypto')
 let UpdateSettings = require('./updateSettingsModel')
+const { createAuditLog } = require('../../shared/models/webmanagerLogModel')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('clients')
 
@@ -164,11 +165,22 @@ async function getProfile(agentGroup, profileId) {
 }
 
 async function saveUpdateSettings(agentGroup, profiles, updatedBy = 'system') {
-  return UpdateSettings.findOneAndUpdate(
+  const result = await UpdateSettings.findOneAndUpdate(
     { agentGroup },
     { $set: { profiles: cleanProfiles(profiles), updatedBy }, $unset: { packages: 1, source: 1 } },
     { returnDocument: 'after', upsert: true }
   ).lean()
+
+  // Audit logging (fire-and-forget)
+  createAuditLog({
+    collectionName: 'UPDATE_SETTINGS',
+    documentId: agentGroup,
+    action: 'update',
+    changes: { profiles: { from: '(previous)', to: `${(result?.profiles || []).length} profiles` } },
+    userId: updatedBy
+  }).catch(err => log.error(`Audit log failed: ${err.message}`))
+
+  return result
 }
 
 module.exports = {

@@ -4,6 +4,7 @@
  */
 
 const { FeaturePermission, DEFAULT_FEATURE_PERMISSIONS, FEATURE_NAMES } = require('./model')
+const { createAuditLog, calculateChanges } = require('../../shared/models/webmanagerLogModel')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('permissions')
 
@@ -61,6 +62,12 @@ async function updateFeaturePermission(feature, permissions, updatedBy) {
     throw new Error('Invalid feature')
   }
 
+  // Get previous state for audit
+  const previousDoc = await FeaturePermission.findOne({ feature }).lean()
+  const previousPermissions = previousDoc?.permissions instanceof Map
+    ? Object.fromEntries(previousDoc.permissions)
+    : previousDoc?.permissions || {}
+
   // Normalize keys to strings (Mongoose Map requires string keys)
   const normalizedPermissions = {}
   for (const [key, value] of Object.entries(permissions)) {
@@ -80,6 +87,23 @@ async function updateFeaturePermission(feature, permissions, updatedBy) {
     },
     { returnDocument: 'after', upsert: true }
   ).lean()
+
+  // Audit logging (fire-and-forget)
+  const changes = calculateChanges(
+    { permissions: previousPermissions },
+    { permissions: normalizedPermissions }
+  )
+  if (Object.keys(changes).length > 0) {
+    createAuditLog({
+      collectionName: 'FEATURE_PERMISSIONS',
+      documentId: feature,
+      action: 'update',
+      changes,
+      previousData: { feature, permissions: previousPermissions },
+      newData: { feature, permissions: normalizedPermissions },
+      userId: updatedBy
+    }).catch(err => log.error(`Audit log failed: ${err.message}`))
+  }
 
   return {
     feature: updated.feature,

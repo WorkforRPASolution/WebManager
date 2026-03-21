@@ -3,6 +3,7 @@
  */
 
 const ConfigSettings = require('./configSettingsModel')
+const { createAuditLog, calculateChanges } = require('../../shared/models/webmanagerLogModel')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('clients')
 
@@ -38,17 +39,37 @@ async function getDocument(agentGroup) {
  * Save config settings for an agentGroup (upsert)
  */
 async function saveConfigSettings(agentGroup, configFiles, updatedBy = 'system') {
+  // Get previous state for audit
+  const previousDoc = await ConfigSettings.findOne({ agentGroup }).lean()
+
   const filesWithIds = configFiles.map((f, i) => ({
     fileId: f.fileId || `config_${i + 1}`,
     name: f.name.trim(),
     path: f.path.trim()
   }))
 
-  return ConfigSettings.findOneAndUpdate(
+  const result = await ConfigSettings.findOneAndUpdate(
     { agentGroup },
     { $set: { configFiles: filesWithIds, updatedBy } },
     { returnDocument: 'after', upsert: true }
   ).lean()
+
+  // Audit logging (fire-and-forget)
+  const changes = calculateChanges(
+    { configFiles: previousDoc?.configFiles || [] },
+    { configFiles: filesWithIds }
+  )
+  if (Object.keys(changes).length > 0) {
+    createAuditLog({
+      collectionName: 'CONFIG_SETTINGS',
+      documentId: agentGroup,
+      action: 'update',
+      changes,
+      userId: updatedBy
+    }).catch(err => log.error(`Audit log failed: ${err.message}`))
+  }
+
+  return result
 }
 
 module.exports = {

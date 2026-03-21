@@ -54,6 +54,7 @@ app.use('/api/popup-template', require('./features/popup-template/routes'));
 app.use('/api/recovery', require('./features/recovery/routes'));
 app.use('/api/system-logs', require('./features/system-logs/routes'));
 app.use('/api/user-activity', require('./features/user-activity/routes'));
+app.use('/api/access-logs', require('./features/access-logs/routes'));
 
 // Production: Serve static files from client/dist
 if (process.env.NODE_ENV === 'production') {

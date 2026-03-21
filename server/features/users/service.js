@@ -6,11 +6,31 @@ const bcrypt = require('bcryptjs')
 const { User, RolePermission, DEFAULT_ROLE_PERMISSIONS } = require('./model')
 const { parsePaginationParams } = require('../../shared/utils/pagination')
 const { validateBatchCreate, validateUpdate } = require('./validation')
+const { createAuditLog, calculateChanges, redactSensitiveFields } = require('../../shared/models/webmanagerLogModel')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('users')
 
+const SENSITIVE_FIELDS = ['password']
+
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
+
+// ============================================
+// Audit Logging Helper (fire-and-forget)
+// ============================================
+
+function logUserAudit(action, docId, context, extra = {}) {
+  const userId = context?.user?.singleid || context?.user?.id || 'system'
+  createAuditLog({
+    collectionName: 'ARS_USER_INFO',
+    documentId: String(docId),
+    action,
+    changes: extra.changes || {},
+    previousData: extra.previousData ? redactSensitiveFields(extra.previousData, SENSITIVE_FIELDS) : null,
+    newData: extra.newData ? redactSensitiveFields(extra.newData, SENSITIVE_FIELDS) : null,
+    userId
+  }).catch(err => log.error(`Audit log failed: ${err.message}`))
+}
 
 // ===========================================
 // Process Field Synchronization
@@ -141,8 +161,10 @@ async function getUserBySingleId(singleid) {
 
 /**
  * Create multiple users
+ * @param {Array} usersData
+ * @param {Object} context - { user } execution context
  */
-async function createUsers(usersData) {
+async function createUsers(usersData, context = {}) {
   // Get existing singleids for validation
   const existingUsers = await User.find({}, 'singleid').lean()
   const existingSingleIds = existingUsers.map(u => u.singleid)
@@ -167,6 +189,12 @@ async function createUsers(usersData) {
 
     const inserted = await User.insertMany(usersToCreate)
     created = inserted.length
+
+    // Audit logging (fire-and-forget)
+    for (const doc of inserted) {
+      const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc
+      logUserAudit('create', plain.singleid || plain._id, context, { newData: plain })
+    }
   }
 
   return { created, errors }
@@ -174,8 +202,10 @@ async function createUsers(usersData) {
 
 /**
  * Update multiple users
+ * @param {Array} usersData
+ * @param {Object} context - { user } execution context
  */
-async function updateUsers(usersData) {
+async function updateUsers(usersData, context = {}) {
   const errors = []
   let updated = 0
 
@@ -190,6 +220,9 @@ async function updateUsers(usersData) {
       errors.push({ rowIndex: i, field: '_id', message: '_id is required for update' })
       continue
     }
+
+    // Get existing document for audit
+    const existingDoc = await User.findById(_id).select('-webmanagerLoginInfo').lean()
 
     // Get other users (excluding current one)
     const otherUsers = allUsers.filter(u => u._id.toString() !== _id)
@@ -223,6 +256,19 @@ async function updateUsers(usersData) {
     const result = await User.updateOne({ _id }, { $set: updateData })
     if (result.modifiedCount > 0) {
       updated++
+
+      // Audit logging (fire-and-forget)
+      if (existingDoc) {
+        const updatedDoc = await User.findById(_id).select('-webmanagerLoginInfo').lean()
+        if (updatedDoc) {
+          const changes = calculateChanges(existingDoc, updatedDoc, { sensitiveFields: SENSITIVE_FIELDS })
+          if (Object.keys(changes).length > 0) {
+            logUserAudit('update', existingDoc.singleid || _id, context, {
+              changes, previousData: existingDoc, newData: updatedDoc
+            })
+          }
+        }
+      }
     }
   }
 
@@ -231,9 +277,20 @@ async function updateUsers(usersData) {
 
 /**
  * Delete multiple users
+ * @param {Array} ids
+ * @param {Object} context - { user } execution context
  */
-async function deleteUsers(ids) {
+async function deleteUsers(ids, context = {}) {
+  // Get documents before deletion for audit
+  const docsToDelete = await User.find({ _id: { $in: ids } }).select('-webmanagerLoginInfo').lean()
+
   const result = await User.deleteMany({ _id: { $in: ids } })
+
+  // Audit logging (fire-and-forget)
+  for (const doc of docsToDelete) {
+    logUserAudit('delete', doc.singleid || doc._id, context, { previousData: doc })
+  }
+
   return { deleted: result.deletedCount }
 }
 
@@ -259,13 +316,36 @@ async function getRolePermissionByLevel(level) {
 
 /**
  * Update role permissions
+ * @param {number} level - Role level
+ * @param {Object} permissions - New permissions
+ * @param {Object} context - { user } execution context
  */
-async function updateRolePermissions(level, permissions) {
+async function updateRolePermissions(level, permissions, context = {}) {
+  // Get previous state for audit
+  const previousDoc = await RolePermission.findOne({ roleLevel: level }).lean()
+
   const result = await RolePermission.findOneAndUpdate(
     { roleLevel: level },
     { $set: { permissions } },
     { returnDocument: 'after', runValidators: true }
   ).lean()
+
+  // Audit logging (fire-and-forget)
+  if (result && previousDoc) {
+    const changes = calculateChanges(previousDoc.permissions || {}, permissions)
+    if (Object.keys(changes).length > 0) {
+      const userId = context.user?.singleid || context.user?.id || 'system'
+      createAuditLog({
+        collectionName: 'WEBMANAGER_ROLE_PERMISSIONS',
+        documentId: `role_${level}`,
+        action: 'update',
+        changes,
+        previousData: { roleLevel: level, permissions: previousDoc.permissions },
+        newData: { roleLevel: level, permissions },
+        userId
+      }).catch(err => log.error(`Audit log failed: ${err.message}`))
+    }
+  }
 
   return result
 }

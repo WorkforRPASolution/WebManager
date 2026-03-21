@@ -6,18 +6,41 @@
  * - error: 서버 에러/예외
  * - auth: 인증/권한 관련
  * - batch: Cron/Backfill 배치 실행 이력
+ * - access: 페이지 접근 이력
  */
 
 const mongoose = require('mongoose')
 const { webManagerConnection } = require('../db/connection')
 const { createLogger } = require('../logger')
 
+// ============================================
+// 민감 필드 & 보존 정책
+// ============================================
+
+const GLOBAL_SENSITIVE_FIELDS = ['password', 'currentPassword', 'newPassword', 'token', 'refreshToken']
+
+const RETENTION_DAYS = {
+  audit: parseInt(process.env.AUDIT_RETENTION_DAYS, 10) || 730,
+  auth: parseInt(process.env.AUTH_RETENTION_DAYS, 10) || 365,
+  error: parseInt(process.env.ERROR_RETENTION_DAYS, 10) || 90,
+  batch: parseInt(process.env.BATCH_RETENTION_DAYS, 10) || 365,
+  access: parseInt(process.env.ACCESS_RETENTION_DAYS, 10) || 90
+}
+
+function getExpireAt(category) {
+  const days = RETENTION_DAYS[category]
+  if (!days) return undefined
+  const expireAt = new Date()
+  expireAt.setDate(expireAt.getDate() + days)
+  return expireAt
+}
+
 const webmanagerLogSchema = new mongoose.Schema({
   // 공통 필드
   category: {
     type: String,
     required: true,
-    enum: ['audit', 'error', 'auth', 'batch'],
+    enum: ['audit', 'error', 'auth', 'batch', 'access'],
     index: true
   },
   timestamp: {
@@ -42,7 +65,7 @@ const webmanagerLogSchema = new mongoose.Schema({
   },
   action: {
     type: String,
-    enum: ['create', 'update', 'delete'],
+    enum: ['create', 'update', 'delete', 'upload', 'save', 'deploy', 'start', 'stop', 'restart', 'kill', 'approve', 'download', 'backup', 'restore'],
     index: true
   },
   changes: {
@@ -103,6 +126,40 @@ const webmanagerLogSchema = new mongoose.Schema({
   },
   userAgent: {
     type: String
+  },
+
+  // audit action log 전용 필드 (CRUD가 아닌 액션)
+  targetType: {
+    type: String
+  },
+  targetId: {
+    type: String
+  },
+  details: {
+    type: mongoose.Schema.Types.Mixed
+  },
+
+  // access 전용 필드
+  pagePath: {
+    type: String,
+    index: true
+  },
+  pageName: {
+    type: String
+  },
+  enterTime: {
+    type: Date
+  },
+  leaveTime: {
+    type: Date
+  },
+  durationMs: {
+    type: Number
+  },
+
+  // TTL 지원
+  expireAt: {
+    type: Date
   }
 }, {
   collection: 'WEBMANAGER_LOG',
@@ -125,6 +182,12 @@ webmanagerLogSchema.index({ category: 1, authAction: 1, timestamp: -1 })
 
 // batch 관련 인덱스
 webmanagerLogSchema.index({ category: 1, batchAction: 1, timestamp: -1 })
+
+// access 관련 인덱스
+webmanagerLogSchema.index({ category: 1, pagePath: 1, timestamp: -1 })
+
+// TTL 인덱스 (expireAt 기반 자동 삭제)
+webmanagerLogSchema.index({ expireAt: 1 }, { expireAfterSeconds: 0 })
 
 const WebManagerLog = webManagerConnection.model('WebManagerLog', webmanagerLogSchema)
 
@@ -161,7 +224,37 @@ async function createAuditLog({
     previousData,
     newData,
     userId,
-    timestamp: new Date()
+    timestamp: new Date(),
+    expireAt: getExpireAt('audit')
+  })
+
+  return await log.save()
+}
+
+/**
+ * Create an action log entry (non-CRUD operations like start/stop/deploy)
+ * @param {Object} params - Action log parameters
+ */
+async function createActionLog({
+  action,
+  collectionName = null,
+  targetType,
+  targetId,
+  details = null,
+  userId = 'system'
+}) {
+  auditLog.info(`${action} ${targetType} ${targetId} by ${userId}`)
+
+  const log = new WebManagerLog({
+    category: 'audit',
+    action,
+    collectionName,
+    targetType,
+    targetId,
+    details,
+    userId,
+    timestamp: new Date(),
+    expireAt: getExpireAt('audit')
   })
 
   return await log.save()
@@ -205,8 +298,14 @@ async function getRecentAuditLogs(collectionName, options = {}) {
 
 /**
  * Calculate changes between two objects
+ * @param {Object} oldData - Previous document
+ * @param {Object} newData - New document
+ * @param {Object} options - Options
+ * @param {string[]} options.sensitiveFields - Additional sensitive fields to redact
  */
-function calculateChanges(oldData, newData) {
+function calculateChanges(oldData, newData, options = {}) {
+  const { sensitiveFields = [] } = options
+  const allSensitive = [...GLOBAL_SENSITIVE_FIELDS, ...sensitiveFields]
   const changes = {}
 
   const allKeys = new Set([
@@ -224,14 +323,33 @@ function calculateChanges(oldData, newData) {
     const newStr = JSON.stringify(newVal)
 
     if (oldStr !== newStr) {
-      changes[key] = {
-        from: oldVal,
-        to: newVal
+      if (allSensitive.includes(key)) {
+        changes[key] = { from: '[REDACTED]', to: '[REDACTED]' }
+      } else {
+        changes[key] = { from: oldVal, to: newVal }
       }
     }
   }
 
   return changes
+}
+
+/**
+ * Redact sensitive fields from a data object
+ * @param {Object} data - Data to redact
+ * @param {string[]} extraSensitiveFields - Additional sensitive fields
+ * @returns {Object|null} - Redacted copy (or null if input is null)
+ */
+function redactSensitiveFields(data, extraSensitiveFields = []) {
+  if (!data) return data
+  const allSensitive = [...GLOBAL_SENSITIVE_FIELDS, ...extraSensitiveFields]
+  const result = { ...data }
+  for (const field of allSensitive) {
+    if (field in result) {
+      result[field] = '[REDACTED]'
+    }
+  }
+  return result
 }
 
 // ============================================
@@ -258,7 +376,8 @@ async function createErrorLog({
     errorStack,
     requestInfo,
     userId,
-    timestamp: new Date()
+    timestamp: new Date(),
+    expireAt: getExpireAt('error')
   })
 
   return await log.save()
@@ -307,7 +426,8 @@ async function createAuthLog({
     userId,
     ipAddress,
     userAgent,
-    timestamp: new Date()
+    timestamp: new Date(),
+    expireAt: getExpireAt('auth')
   })
 
   return await log.save()
@@ -359,7 +479,8 @@ async function createBatchLog({
     batchParams,
     batchResult,
     userId,
-    timestamp: new Date()
+    timestamp: new Date(),
+    expireAt: getExpireAt('batch')
   })
 
   return await log.save()
@@ -416,20 +537,25 @@ async function getAllLogs(options = {}) {
 
 module.exports = {
   WebManagerLog,
-  // Audit functions (기존)
+  // Audit functions
   createAuditLog,
+  createActionLog,
   getAuditLogs,
   getRecentAuditLogs,
   calculateChanges,
-  // Error functions (신규)
+  redactSensitiveFields,
+  GLOBAL_SENSITIVE_FIELDS,
+  // Error functions
   createErrorLog,
   getRecentErrorLogs,
-  // Auth functions (신규)
+  // Auth functions
   createAuthLog,
   getRecentAuthLogs,
-  // Batch functions (신규)
+  // Batch functions
   createBatchLog,
   getRecentBatchLogs,
   // 통합 조회
-  getAllLogs
+  getAllLogs,
+  // TTL 유틸
+  getExpireAt
 }

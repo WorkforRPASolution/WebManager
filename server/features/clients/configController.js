@@ -8,6 +8,7 @@ const ftpService = require('./ftpService')
 const configSettingsService = require('./configSettingsService')
 const configBackupService = require('./configBackupService')
 const { ApiError } = require('../../shared/middleware/errorHandler')
+const { createActionLog } = require('../../shared/models/webmanagerLogModel')
 const { setupSSE } = require('../../shared/utils/sseHelper')
 const { isFtpNotFoundError } = require('../../shared/utils/ftpErrors')
 const { createLogger } = require('../../shared/logger')
@@ -73,6 +74,16 @@ async function updateClientConfig(req, res) {
     await ftpService.withFtp(id, async (ftpClient) => {
       await configBackupService.writeConfigWithBackup(ftpClient, config.path, content)
     })
+
+    // Audit logging (fire-and-forget)
+    createActionLog({
+      action: 'save',
+      targetType: 'config',
+      targetId: `${id}/${fileId}`,
+      details: { eqpId: id, fileId, agentGroup },
+      userId: req.user?.singleid || 'system'
+    }).catch(() => {})
+
     res.json({ success: true, message: 'Config saved successfully' })
   } catch (error) {
     throw ApiError.internal(`Failed to save config: ${error.message}`)
@@ -118,6 +129,16 @@ async function deployConfig(req, res) {
 
     const successCount = results.filter(r => r.success).length
     const failCount = results.filter(r => !r.success).length
+
+    // Audit logging (fire-and-forget)
+    createActionLog({
+      action: 'deploy',
+      targetType: 'config',
+      targetId: `${sourceEqpId}/${fileId}`,
+      details: { sourceEqpId, fileId, mode, targetCount: targetEqpIds.length, success: successCount, failed: failCount },
+      userId: req.user?.singleid || 'system'
+    }).catch(() => {})
+
     sse.send({
       done: true,
       total: targetEqpIds.length,

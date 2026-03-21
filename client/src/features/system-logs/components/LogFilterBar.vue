@@ -29,7 +29,8 @@ const categories = [
   { value: 'audit', label: 'audit' },
   { value: 'error', label: 'error' },
   { value: 'auth', label: 'auth' },
-  { value: 'batch', label: 'batch' }
+  { value: 'batch', label: 'batch' },
+  { value: 'access', label: 'access' }
 ]
 
 const periods = [

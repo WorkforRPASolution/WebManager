@@ -7,6 +7,7 @@ const logService = require('./logService')
 const logSettingsService = require('./logSettingsService')
 const controlService = require('./controlService')
 const { ApiError } = require('../../shared/middleware/errorHandler')
+const { createActionLog } = require('../../shared/models/webmanagerLogModel')
 const { setupSSE } = require('../../shared/utils/sseHelper')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('clients')
@@ -89,6 +90,16 @@ async function deleteLogFiles(req, res) {
 
   try {
     const results = await logService.deleteLogFiles(id, paths)
+
+    // Audit logging (fire-and-forget)
+    createActionLog({
+      action: 'delete',
+      targetType: 'log_file',
+      targetId: id,
+      details: { paths, results },
+      userId: req.user?.singleid || 'system'
+    }).catch(() => {})
+
     res.json({ results })
   } catch (error) {
     throw ApiError.internal(`Failed to delete log files: ${error.message}`)
@@ -107,6 +118,15 @@ async function downloadLogFile(req, res) {
   }
 
   try {
+    // Audit logging (fire-and-forget)
+    createActionLog({
+      action: 'download',
+      targetType: 'log_file',
+      targetId: id,
+      details: { path: paths[0] },
+      userId: req.user?.singleid || 'system'
+    }).catch(() => {})
+
     await logService.downloadLogFile(id, paths[0], res)
   } catch (error) {
     if (!res.headersSent) {

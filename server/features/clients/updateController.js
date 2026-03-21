@@ -6,6 +6,7 @@
 let updateSettingsService = require('./updateSettingsService')
 let updateService = require('./updateService')
 const { ApiError } = require('../../shared/middleware/errorHandler')
+const { createActionLog } = require('../../shared/models/webmanagerLogModel')
 let _setupSSE = require('../../shared/utils/sseHelper').setupSSE
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('clients')
@@ -92,6 +93,15 @@ async function deployUpdate(req, res) {
     const result = await updateService.deployUpdate(agentGroup, profileId, taskIds, targetEqpIds, (progress) => {
       sse.send(progress)
     })
+    // Audit logging (fire-and-forget)
+    createActionLog({
+      action: 'deploy',
+      targetType: 'software_update',
+      targetId: profileId,
+      details: { agentGroup, profileId, taskCount: taskIds.length, targetCount: targetEqpIds.length, ...result },
+      userId: req.user?.singleid || 'system'
+    }).catch(() => {})
+
     if (!sse.isAborted()) {
       sse.send({ done: true, ...result })
     }

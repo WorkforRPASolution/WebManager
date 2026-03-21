@@ -5,6 +5,7 @@
 const service = require('./service')
 const authService = require('../auth/service')
 const { ApiError } = require('../../shared/middleware/errorHandler')
+const { createActionLog } = require('../../shared/models/webmanagerLogModel')
 
 // ===========================================
 // User CRUD Controllers
@@ -99,7 +100,8 @@ async function updateRole(req, res) {
     throw ApiError.badRequest('Invalid role level. Must be 0-3')
   }
 
-  const result = await service.updateRolePermissions(roleLevel, permissions)
+  const context = { user: req.user }
+  const result = await service.updateRolePermissions(roleLevel, permissions, context)
 
   if (!result) {
     throw ApiError.notFound('Role not found')
@@ -134,7 +136,8 @@ async function createUsers(req, res) {
     throw ApiError.badRequest('users array is required')
   }
 
-  const { created, errors } = await service.createUsers(users)
+  const context = { user: req.user }
+  const { created, errors } = await service.createUsers(users, context)
 
   const statusCode = errors.length > 0 && created === 0 ? 400 : 201
   res.status(statusCode).json({
@@ -155,7 +158,8 @@ async function updateUsers(req, res) {
     throw ApiError.badRequest('users array is required')
   }
 
-  const { updated, errors } = await service.updateUsers(users)
+  const context = { user: req.user }
+  const { updated, errors } = await service.updateUsers(users, context)
 
   res.json({
     success: updated > 0 || errors.length === 0,
@@ -175,7 +179,8 @@ async function deleteUsers(req, res) {
     throw ApiError.badRequest('ids array is required')
   }
 
-  const { deleted } = await service.deleteUsers(ids)
+  const context = { user: req.user }
+  const { deleted } = await service.deleteUsers(ids, context)
 
   res.json({
     success: true,
@@ -193,8 +198,9 @@ async function approveUser(req, res) {
   const updateData = req.body
 
   // If update data is provided, update the user first
+  const context = { user: req.user }
   if (updateData && Object.keys(updateData).length > 0) {
-    const { updated, errors } = await service.updateUsers([{ _id: id, ...updateData }])
+    const { updated, errors } = await service.updateUsers([{ _id: id, ...updateData }], context)
     if (errors.length > 0) {
       throw ApiError.badRequest(errors[0])
     }
@@ -206,6 +212,15 @@ async function approveUser(req, res) {
   if (result.error) {
     throw ApiError.notFound(result.error)
   }
+
+  // Audit logging (fire-and-forget)
+  createActionLog({
+    action: 'approve',
+    targetType: 'user_account',
+    targetId: id,
+    details: { accountStatus: 'active' },
+    userId: req.user?.singleid || 'system'
+  }).catch(() => {})
 
   res.json(result)
 }
@@ -223,6 +238,15 @@ async function approvePasswordReset(req, res) {
   if (result.error) {
     throw ApiError.notFound(result.error)
   }
+
+  // Audit logging (fire-and-forget)
+  createActionLog({
+    action: 'approve',
+    targetType: 'password_reset',
+    targetId: result.singleid || id,
+    details: { emailSent: result.emailSent },
+    userId: req.user?.singleid || 'system'
+  }).catch(() => {})
 
   res.json(result)
 }
