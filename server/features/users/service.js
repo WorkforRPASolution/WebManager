@@ -320,16 +320,12 @@ async function updateRolePermissions(level, permissions, context = {}) {
   if (result && previousDoc) {
     const changes = calculateChanges(previousDoc.permissions || {}, permissions)
     if (Object.keys(changes).length > 0) {
-      const userId = context.user?.singleid || context.user?.id || 'system'
-      createAuditLog({
-        collectionName: 'WEBMANAGER_ROLE_PERMISSIONS',
-        documentId: `role_${level}`,
-        action: 'update',
+      const roleAudit = makeAuditHelper('WEBMANAGER_ROLE_PERMISSIONS', { log })
+      roleAudit('update', `role_${level}`, context, {
         changes,
         previousData: { roleLevel: level, permissions: previousDoc.permissions },
-        newData: { roleLevel: level, permissions },
-        userId
-      }).catch(err => log.error(`Audit log failed: ${err.message}`))
+        newData: { roleLevel: level, permissions }
+      })
     }
   }
 
