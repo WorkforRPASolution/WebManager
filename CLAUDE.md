@@ -219,10 +219,11 @@ WebManager/
 │   │   │   └── *.test.js               # TDD 테스트 (161 tests)
 │   │   ├── user-activity/   # User Activity Dashboard (SE 사용 통계)
 │   │   ├── users/          # 사용자 관리 + 역할 권한
+│   │   ├── access-logs/    # Access 로그 배치 수집 API
 │   │   └── exec-commands/  # 실행 명령어 관리
 │   └── shared/
 │       ├── middleware/     # 미들웨어 (errorHandler 등)
-│       ├── utils/          # 유틸리티 (pagination, queryBuilder, socksHelper, configCompareUtils)
+│       ├── utils/          # 유틸리티 (pagination, queryBuilder, socksHelper, createCrudService, createTemplateService, businessRules)
 │       ├── avro/           # Avro RPC 클라이언트
 │       └── db/             # DB 연결
 └── docs/                   # 스키마, 개발 가이드, 코드 리뷰 보고서
@@ -370,17 +371,15 @@ cd server && npm run reset:buckets -- --keep-logs  # batch 로그 유지
     - 공정 필터: 사용자 매칭만 → **$unwind 후 이중 $match** (비선택 공정 노출 방지)
     - 토글 2개 추가: 사용자미등록 공정포함 + 관리자 포함 (초기 기획에 없던 기능)
     - "접속" 용어 → **"실행"** (latestExecution은 SE 실행 시각)
-- 통합 Audit & Activity Logging 시스템 완료
-  - `createCrudService` 팩토리: 모든 CRUD 서비스 audit 자동화 (`server/shared/utils/createCrudService.js`)
+- 통합 Audit & Activity Logging 시스템 완료 (설계: `docs/plans/audit-logging-design.md`)
+  - 핵심 팩토리: `createCrudService` (CRUD audit 자동), `createTemplateService` (Template CRUD 공유), `makeAuditHelper` (공유 audit 헬퍼)
   - `createActionLog` 헬퍼: 비-CRUD 액션 로깅 (start/stop/deploy/save/download/delete)
-  - `calculateChanges` 확장: sensitiveFields 자동 `[REDACTED]` 처리
-  - WEBMANAGER_LOG 스키마 확장: `access` 카테고리 + `expireAt` TTL + `action` 확장 enum
-  - 카테고리별 데이터 보존: audit 2년, auth/batch 1년, error/access 90일 (TTL 인덱스)
-  - Email/Popup Template 서비스 레이어 분리: routes → controller → service (createCrudService 적용)
-  - User Management audit 연결: sensitiveFields=['password'], context 전달
-  - System 도메인: Feature/Role Permissions + Account/PW 승인 + Admin Settings audit
-  - Clients 도메인: Service Control + Config(save/deploy) + Log(delete/download) + SW Update action 로깅
-  - Access Logging: `POST /api/access-logs` 배치 수집 API + `useAccessLogger` Vue composable (Router guard + 30초 배치 + sendBeacon)
+  - WEBMANAGER_LOG 스키마 확장: `access` 카테고리 + `expireAt` TTL (audit 2년, auth/batch 1년, error/access 90일)
+  - 기준정보 전체 audit: EQP_INFO, Email/Popup Template, Email Info/Recipients, Email Image, OS Version, User Management
+  - Email/Popup Template 서비스 레이어 분리: routes → controller → `createTemplateService` 팩토리 (중복 제거)
+  - System 도메인: Feature/Role Permissions + Account/PW 승인 + Config/Log/Update Settings audit
+  - Clients 도메인: Service Control(단건+배치) + Config(save/deploy) + Log(delete/download) + SW Update action 로깅
+  - Access Logging: `POST /api/access-logs` + `useAccessLogger` composable (Router guard + 30초 배치 + sendBeacon + body token 폴백)
 
 ## Redis Key 구조 (Agent 상태)
 

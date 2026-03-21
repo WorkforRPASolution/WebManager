@@ -654,15 +654,16 @@ ManagerAgent를 통해 실행할 수 있는 명령어를 관리하는 컬렉션
 
 ## WEBMANAGER_LOG (통합 로그)
 
-WebManager의 감사 로그, 에러 로그, 인증 로그를 통합 저장하는 컬렉션
+WebManager의 모든 로그를 통합 저장하는 컬렉션 (감사, 에러, 인증, 배치, 접근)
 
 ### 공통 Fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| category | String | Required | 로그 카테고리 (enum: `audit`, `error`, `auth`) |
+| category | String | Required | 로그 카테고리 (enum: `audit`, `error`, `auth`, `batch`, `access`) |
 | timestamp | Date | Optional | 타임스탬프 (기본: 현재 시각) |
 | userId | String | Optional | 사용자 ID (기본: `system`) |
+| expireAt | Date | Optional | TTL 만료 시각 (카테고리별 자동 설정) |
 
 ### audit 카테고리 전용 Fields
 
@@ -670,10 +671,13 @@ WebManager의 감사 로그, 에러 로그, 인증 로그를 통합 저장하는
 |-------|------|-------------|
 | collectionName | String | 대상 컬렉션명 |
 | documentId | String | 문서 ID |
-| action | String | 액션 (enum: `create`, `update`, `delete`) |
-| changes | Mixed | 변경사항 |
-| previousData | Mixed | 이전 데이터 |
-| newData | Mixed | 새 데이터 |
+| action | String | 액션 (enum: `create`, `update`, `delete`, `upload`, `save`, `deploy`, `start`, `stop`, `restart`, `kill`, `approve`, `download`, `backup`, `restore`) |
+| changes | Mixed | 변경사항 (`{ field: { from, to } }`) |
+| previousData | Mixed | 이전 데이터 (sensitiveFields는 `[REDACTED]`) |
+| newData | Mixed | 새 데이터 (skipFullDataInAudit 시 null) |
+| targetType | String | 액션 대상 유형 (createActionLog용) |
+| targetId | String | 액션 대상 식별자 (createActionLog용) |
+| details | Mixed | 추가 정보 (createActionLog용) |
 
 ### error 카테고리 전용 Fields
 
@@ -690,9 +694,38 @@ WebManager의 감사 로그, 에러 로그, 인증 로그를 통합 저장하는
 
 | Field | Type | Description |
 |-------|------|-------------|
-| authAction | String | 인증 액션 (enum: `login`, `logout`, `login_failed`, `signup`, `password_reset_request`, `password_changed`, `permission_denied`) |
+| authAction | String | 인증 액션 (enum: `login`, `logout`, `login_failed`, `signup`, `password_reset_request`, `password_changed`, `password_reset_verified`, `permission_denied`) |
 | ipAddress | String | 클라이언트 IP 주소 |
 | userAgent | String | User Agent 문자열 |
+
+### batch 카테고리 전용 Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| batchAction | String | 배치 액션 (enum: `cron_completed`, `cron_skipped`, `cron_failed`, `backfill_started`, `backfill_completed`, `backfill_cancelled`, `auto_backfill_completed`) |
+| batchPeriod | String | 배치 주기 (`hourly`, `daily`) |
+| batchParams | Mixed | 배치 파라미터 |
+| batchResult | Mixed | 배치 결과 |
+
+### access 카테고리 전용 Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| pagePath | String | 페이지 경로 (예: `/email-template`) |
+| pageName | String | 페이지 이름 (예: `EmailTemplate`) |
+| enterTime | Date | 페이지 진입 시각 |
+| leaveTime | Date | 페이지 이탈 시각 |
+| durationMs | Number | 체류 시간 (ms) |
+
+### TTL 보존 정책
+
+| 카테고리 | 기본 보존 | 환경변수 |
+|---------|----------|---------|
+| audit | 730일 (2년) | `AUDIT_RETENTION_DAYS` |
+| auth | 365일 (1년) | `AUTH_RETENTION_DAYS` |
+| error | 90일 | `ERROR_RETENTION_DAYS` |
+| batch | 365일 (1년) | `BATCH_RETENTION_DAYS` |
+| access | 90일 | `ACCESS_RETENTION_DAYS` |
 
 ### Indexes
 
@@ -702,5 +735,8 @@ WebManager의 감사 로그, 에러 로그, 인증 로그를 통합 저장하는
 - `{ collectionName: 1, timestamp: -1 }` (compound, audit용)
 - `{ category: 1, errorType: 1, timestamp: -1 }` (compound, error용)
 - `{ category: 1, authAction: 1, timestamp: -1 }` (compound, auth용)
+- `{ category: 1, batchAction: 1, timestamp: -1 }` (compound, batch용)
+- `{ category: 1, pagePath: 1, timestamp: -1 }` (compound, access용)
+- `{ expireAt: 1 }` (TTL index, expireAfterSeconds: 0)
 
 ---
