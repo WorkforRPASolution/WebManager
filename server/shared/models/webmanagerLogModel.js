@@ -535,11 +535,41 @@ async function getAllLogs(options = {}) {
     .lean()
 }
 
+/**
+ * Fire-and-forget audit helper factory
+ * 반복되는 auditLog 래퍼 패턴을 제거하기 위한 유틸
+ *
+ * @param {string} collectionName - 컬렉션 이름
+ * @param {Object} options
+ * @param {string[]} options.sensitiveFields - 민감 필드 목록
+ * @param {Object} options.log - winston 로거 (fallback 기록용)
+ * @returns {Function} auditLog(action, docId, context, extra)
+ */
+function makeAuditHelper(collectionName, options = {}) {
+  const { sensitiveFields: sf = [], log: logger = auditLog } = options
+
+  return function logAudit(action, docId, context, extra = {}) {
+    const userId = context?.user?.singleid || context?.user?.id || 'system'
+    const prevData = extra.previousData ? redactSensitiveFields(extra.previousData, sf) : null
+    const newDataVal = extra.newData ? redactSensitiveFields(extra.newData, sf) : null
+    createAuditLog({
+      collectionName,
+      documentId: String(docId),
+      action,
+      changes: extra.changes || {},
+      previousData: prevData,
+      newData: newDataVal,
+      userId
+    }).catch(err => logger.error(`Audit log failed for ${action} ${collectionName}: ${err.message}`))
+  }
+}
+
 module.exports = {
   WebManagerLog,
   // Audit functions
   createAuditLog,
   createActionLog,
+  makeAuditHelper,
   getAuditLogs,
   getRecentAuditLogs,
   calculateChanges,

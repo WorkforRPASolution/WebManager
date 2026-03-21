@@ -6,31 +6,16 @@ const bcrypt = require('bcryptjs')
 const { User, RolePermission, DEFAULT_ROLE_PERMISSIONS } = require('./model')
 const { parsePaginationParams } = require('../../shared/utils/pagination')
 const { validateBatchCreate, validateUpdate } = require('./validation')
-const { createAuditLog, calculateChanges, redactSensitiveFields } = require('../../shared/models/webmanagerLogModel')
+const { makeAuditHelper, calculateChanges } = require('../../shared/models/webmanagerLogModel')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('users')
 
 const SENSITIVE_FIELDS = ['password']
+const logUserAudit = makeAuditHelper('ARS_USER_INFO', { sensitiveFields: SENSITIVE_FIELDS, log })
 
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
 
-// ============================================
-// Audit Logging Helper (fire-and-forget)
-// ============================================
-
-function logUserAudit(action, docId, context, extra = {}) {
-  const userId = context?.user?.singleid || context?.user?.id || 'system'
-  createAuditLog({
-    collectionName: 'ARS_USER_INFO',
-    documentId: String(docId),
-    action,
-    changes: extra.changes || {},
-    previousData: extra.previousData ? redactSensitiveFields(extra.previousData, SENSITIVE_FIELDS) : null,
-    newData: extra.newData ? redactSensitiveFields(extra.newData, SENSITIVE_FIELDS) : null,
-    userId
-  }).catch(err => log.error(`Audit log failed: ${err.message}`))
-}
 
 // ===========================================
 // Process Field Synchronization
@@ -209,8 +194,9 @@ async function updateUsers(usersData, context = {}) {
   const errors = []
   let updated = 0
 
-  // Get all other users' singleids once (avoid N+1)
-  const allUsers = await User.find({}, '_id singleid').lean()
+  // Get all users once (avoid N+1 — audit + validation 모두 사용)
+  const allUsers = await User.find({}).select('-webmanagerLoginInfo').lean()
+  const allUsersById = new Map(allUsers.map(u => [u._id.toString(), u]))
 
   for (let i = 0; i < usersData.length; i++) {
     const userData = usersData[i]
@@ -221,8 +207,8 @@ async function updateUsers(usersData, context = {}) {
       continue
     }
 
-    // Get existing document for audit
-    const existingDoc = await User.findById(_id).select('-webmanagerLoginInfo').lean()
+    // Get existing document from pre-fetched map (no N+1)
+    const existingDoc = allUsersById.get(_id)
 
     // Get other users (excluding current one)
     const otherUsers = allUsers.filter(u => u._id.toString() !== _id)

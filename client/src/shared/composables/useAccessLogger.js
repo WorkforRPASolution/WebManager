@@ -101,14 +101,13 @@ export function useAccessLogger(router) {
 
   initialized = true
 
-  // Router afterEach: 페이지 진입 기록
-  router.afterEach((to) => {
+  // Router guards (Vue Router 4는 deregister 함수를 반환)
+  const unregisterAfter = router.afterEach((to) => {
     const name = to.meta?.title || to.name || to.path
     startPage(to.path, name)
   })
 
-  // Router beforeEach: 이전 페이지 종료
-  router.beforeEach((to, from, next) => {
+  const unregisterBefore = router.beforeEach((to, from, next) => {
     endCurrentPage()
     next()
   })
@@ -120,6 +119,8 @@ export function useAccessLogger(router) {
   window.addEventListener('beforeunload', flushBeacon)
 
   onUnmounted(() => {
+    unregisterAfter()
+    unregisterBefore()
     if (flushTimer) {
       clearInterval(flushTimer)
       flushTimer = null

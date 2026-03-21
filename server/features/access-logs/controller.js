@@ -39,14 +39,17 @@ async function collectAccessLogs(req, res) {
   const userId = user.singleid || user.id || 'system'
   const expireAt = getExpireAt('access')
 
+  const MAX_STR_LEN = 500
+  const MAX_DURATION = 86400000 // 24h
+
   const documents = batch.map(entry => ({
     category: 'access',
     userId,
-    pagePath: entry.pagePath,
-    pageName: entry.pageName,
+    pagePath: String(entry.pagePath || '').slice(0, MAX_STR_LEN),
+    pageName: String(entry.pageName || '').slice(0, MAX_STR_LEN),
     enterTime: entry.enterTime ? new Date(entry.enterTime) : null,
     leaveTime: entry.leaveTime ? new Date(entry.leaveTime) : null,
-    durationMs: entry.durationMs || null,
+    durationMs: Math.max(0, Math.min(Number(entry.durationMs) || 0, MAX_DURATION)),
     timestamp: entry.enterTime ? new Date(entry.enterTime) : new Date(),
     expireAt
   }))

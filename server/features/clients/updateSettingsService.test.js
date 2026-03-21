@@ -198,6 +198,7 @@ describe('saveUpdateSettings', () => {
     const profiles = [{ profileId: 'prof_1', name: 'Default', packages: [], source: {} }]
     const expected = { agentGroup: 'EQP', profiles, updatedBy: 'admin' }
 
+    mockModel.findOne.mockReturnValue(chainLean(null))
     mockModel.findOneAndUpdate.mockReturnValue(chainLean(expected))
 
     const result = await saveUpdateSettings('EQP', profiles, 'admin')
@@ -214,6 +215,7 @@ describe('saveUpdateSettings', () => {
   })
 
   it('defaults updatedBy to system', async () => {
+    mockModel.findOne.mockReturnValue(chainLean(null))
     mockModel.findOneAndUpdate.mockReturnValue(chainLean({}))
 
     await saveUpdateSettings('EQP', [])

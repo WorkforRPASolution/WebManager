@@ -5,22 +5,9 @@
 const EmailRecipients = require('./model')
 const { parsePaginationParams } = require('../../shared/utils/pagination')
 const { validateBatchCreate, validateUpdate } = require('./validation')
-const { createAuditLog, calculateChanges } = require('../../shared/models/webmanagerLogModel')
-const { createLogger } = require('../../shared/logger')
-const log = createLogger('audit')
+const { makeAuditHelper, calculateChanges } = require('../../shared/models/webmanagerLogModel')
 
-function auditLog(action, docId, context, extra = {}) {
-  const userId = context?.user?.singleid || context?.user?.id || 'system'
-  createAuditLog({
-    collectionName: 'EMAIL_RECIPIENTS',
-    documentId: String(docId),
-    action,
-    changes: extra.changes || {},
-    previousData: extra.previousData || null,
-    newData: extra.newData || null,
-    userId
-  }).catch(err => log.error(`Audit log failed: ${err.message}`))
-}
+const auditLog = makeAuditHelper('EMAIL_RECIPIENTS')
 
 /**
  * Parse comma-separated filter values

@@ -4,22 +4,11 @@
 
 const OSVersion = require('./model')
 const { validateBatchCreate, validateUpdate } = require('./validation')
-const { createAuditLog, calculateChanges } = require('../../shared/models/webmanagerLogModel')
+const { makeAuditHelper, calculateChanges } = require('../../shared/models/webmanagerLogModel')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('os-version')
 
-function auditLog(action, docId, context, extra = {}) {
-  const userId = context?.user?.singleid || context?.user?.id || 'system'
-  createAuditLog({
-    collectionName: 'OS_VERSION_LIST',
-    documentId: String(docId),
-    action,
-    changes: extra.changes || {},
-    previousData: extra.previousData || null,
-    newData: extra.newData || null,
-    userId
-  }).catch(err => log.error(`Audit log failed: ${err.message}`))
-}
+const auditLog = makeAuditHelper('OS_VERSION_LIST', { log })
 
 // ============================================
 // Default OS Versions (for initialization)
