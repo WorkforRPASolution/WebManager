@@ -385,9 +385,10 @@ async function updateImageMetadata(currentPrefix, name, updates) {
 /**
  * Update multiple images metadata
  */
-async function updateMultipleImages(items) {
+async function updateMultipleImages(items, context = {}) {
   let updated = 0;
   const errors = [];
+  const userId = context?.user?.singleid || context?.user?.id || 'system'
 
   for (const item of items) {
     try {
@@ -395,6 +396,13 @@ async function updateMultipleImages(items) {
       const result = await updateImageMetadata(prefix, name, updates);
       if (result) {
         updated++;
+        createActionLog({
+          action: 'update',
+          targetType: 'email_image',
+          targetId: `${prefix}/${name}`,
+          details: { previousPrefix: prefix, newPrefix: result.prefix, ...updates },
+          userId
+        }).catch(() => {})
       } else {
         errors.push({ prefix, name, error: 'Image not found' });
       }

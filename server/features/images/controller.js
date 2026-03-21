@@ -348,7 +348,8 @@ async function updateMultipleImages(req, res) {
       }
     }
 
-    const result = await service.updateMultipleImages(items);
+    const context = { user: req.user }
+    const result = await service.updateMultipleImages(items, context);
 
     res.json({
       success: true,

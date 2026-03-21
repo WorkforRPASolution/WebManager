@@ -118,7 +118,7 @@ const webmanagerLogSchema = new mongoose.Schema({
   // auth 전용 필드
   authAction: {
     type: String,
-    enum: ['login', 'logout', 'login_failed', 'signup', 'password_reset_request', 'password_changed', 'permission_denied'],
+    enum: ['login', 'logout', 'login_failed', 'signup', 'password_reset_request', 'password_changed', 'password_reset_verified', 'permission_denied'],
     index: true
   },
   ipAddress: {
