@@ -29,6 +29,7 @@ const currentFilters = ref({ period: 'all' })
 
 // Toggle state
 const includeAdmin = ref(false)
+const recentMode = ref('detail') // 'detail' | 'user'
 
 // WebManager 전용 기간 옵션 (access log TTL = 90일)
 const wmPeriodOptions = [
@@ -50,6 +51,9 @@ async function fetchData(filters = { period: 'all' }) {
     if (includeAdmin.value) {
       queryFilters.includeAdmin = 'true'
     }
+    if (recentMode.value === 'user') {
+      queryFilters.recentMode = 'user'
+    }
     const res = await userActivityApi.getWebManagerStats(queryFilters)
     data.value = res.data
   } catch (err) {
@@ -65,6 +69,12 @@ function handleSearch(filters) {
 
 function toggleIncludeAdmin() {
   includeAdmin.value = !includeAdmin.value
+  fetchData(currentFilters.value)
+}
+
+function setRecentMode(mode) {
+  if (recentMode.value === mode) return
+  recentMode.value = mode
   fetchData(currentFilters.value)
 }
 
@@ -84,6 +94,7 @@ async function handleExportRecentCsv() {
   try {
     const queryFilters = { ...currentFilters.value, noLimit: 'true' }
     if (includeAdmin.value) queryFilters.includeAdmin = 'true'
+    if (recentMode.value === 'user') queryFilters.recentMode = 'user'
     const res = await userActivityApi.getWebManagerStats(queryFilters)
     exportWebManagerRecentVisitsCsv(res.data.recentVisits || [])
   } catch (err) {
@@ -243,10 +254,28 @@ onMounted(() => {
 
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
           <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              최근 접속 이력
-              <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">접속 시간 역순</span>
-            </h3>
+            <div class="flex items-center gap-3">
+              <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                최근 접속 이력
+                <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">접속 시간 역순</span>
+              </h3>
+              <div class="flex rounded-lg border border-gray-300 dark:border-dark-border overflow-hidden">
+                <button
+                  @click="setRecentMode('detail')"
+                  class="px-2.5 py-1 text-xs font-medium transition-colors"
+                  :class="recentMode === 'detail'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white dark:bg-dark-card text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-border'"
+                >상세</button>
+                <button
+                  @click="setRecentMode('user')"
+                  class="px-2.5 py-1 text-xs font-medium transition-colors border-l border-gray-300 dark:border-dark-border"
+                  :class="recentMode === 'user'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white dark:bg-dark-card text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-border'"
+                >사용자별</button>
+              </div>
+            </div>
             <button v-if="(data.recentVisits || []).length > 0" @click="handleExportRecentCsv" class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition-colors">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               CSV

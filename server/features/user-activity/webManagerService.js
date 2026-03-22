@@ -275,7 +275,8 @@ async function getWebManagerStats({
   startDate,
   endDate,
   includeAdmin = false,
-  noLimit = false
+  noLimit = false,
+  recentMode = 'detail'
 }) {
   const wmDb = getWebManagerDb()
   const wmColl = wmDb.collection('WEBMANAGER_LOG')
@@ -307,7 +308,7 @@ async function getWebManagerStats({
   if (noLimit) {
     const earsDbNl = getEarsDb()
     const [recentResult, nameList] = await Promise.all([
-      wmColl.aggregate(buildRecentVisitsPipeline(baseMatch, true), aggOpts).toArray(),
+      wmColl.aggregate(buildRecentVisitsPipeline(baseMatch, true, recentMode), aggOpts).toArray(),
       earsDbNl.collection('ARS_USER_INFO').aggregate([
         { $project: { _id: 0, singleid: 1, name: 1 } }
       ]).toArray()
@@ -434,7 +435,7 @@ async function getWebManagerStats({
     wmColl.aggregate(buildKpiPipeline(baseMatch), aggOpts).toArray(),
     wmColl.aggregate(buildPageSummaryPipeline(baseMatch), aggOpts).toArray(),
     wmColl.aggregate(buildTopUsersPipeline(baseMatch), aggOpts).toArray(),
-    wmColl.aggregate(buildRecentVisitsPipeline(baseMatch, noLimit), aggOpts).toArray(),
+    wmColl.aggregate(buildRecentVisitsPipeline(baseMatch, noLimit, recentMode), aggOpts).toArray(),
     wmColl.aggregate(buildTrendPipeline(baseMatch), aggOpts).toArray(),
     wmColl.aggregate(buildHourlyHeatmapPipeline(baseMatch), aggOpts).toArray(),
     wmColl.aggregate(buildPageTrendPipeline(baseMatch, dateFormat), aggOpts).toArray(),
@@ -667,14 +668,30 @@ function buildTopUsersPipeline(baseMatch) {
   ]
 }
 
-function buildRecentVisitsPipeline(baseMatch, noLimit = false) {
-  const pipeline = [
+function buildRecentVisitsPipeline(baseMatch, noLimit = false, recentMode = 'detail') {
+  if (recentMode === 'user') {
+    // 사용자별 모드: userId별 최근 방문 1건만
+    return [
+      { $match: { ...baseMatch } },
+      { $sort: { enterTime: -1 } },
+      { $group: {
+        _id: '$userId',
+        pagePath: { $first: '$pagePath' },
+        pageName: { $first: '$pageName' },
+        enterTime: { $first: '$enterTime' },
+        durationMs: { $first: '$durationMs' }
+      }},
+      { $sort: { enterTime: -1 } },
+      { $limit: noLimit ? 10000 : 30 },
+      { $project: { _id: 0, userId: '$_id', pagePath: 1, pageName: 1, enterTime: 1, durationMs: 1 } }
+    ]
+  }
+  return [
     { $match: { ...baseMatch } },
     { $sort: { enterTime: -1 } },
     { $limit: noLimit ? 10000 : 30 },
     { $project: { _id: 0, userId: 1, pagePath: 1, pageName: 1, enterTime: 1, durationMs: 1 } }
   ]
-  return pipeline
 }
 
 function buildTrendPipeline(baseMatch) {

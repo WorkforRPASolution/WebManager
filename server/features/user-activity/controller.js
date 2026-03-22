@@ -77,7 +77,7 @@ async function getScenarioDetails(req, res) {
 }
 
 async function getWebManagerStats(req, res) {
-  const { period, startDate, endDate, includeAdmin, noLimit } = req.query
+  const { period, startDate, endDate, includeAdmin, noLimit, recentMode } = req.query
 
   if (period === 'custom') {
     if (!startDate) {
@@ -101,7 +101,8 @@ async function getWebManagerStats(req, res) {
     startDate,
     endDate,
     includeAdmin: includeAdmin === 'true',
-    noLimit: noLimit === 'true'
+    noLimit: noLimit === 'true',
+    recentMode: recentMode === 'user' ? 'user' : 'detail'
   })
   res.json(result)
 }

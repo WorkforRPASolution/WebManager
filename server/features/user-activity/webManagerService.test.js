@@ -864,5 +864,52 @@ describe('webManagerService', () => {
       // peak should still work
       expect(result.concurrent.peak).toBeGreaterThan(0)
     })
+
+    it('recentMode=user groups by userId and returns latest visit per user', async () => {
+      const wmColl = createMockCollection()
+      const userColl = createMockCollection()
+
+      mockUserColl(userColl)
+      mockPipelines(wmColl,
+        [{ _users: ['u1'], totalVisits: 10, _cappedDurationSum: 10000, _validDurationCount: 5, _visitedPaths: ['/'] }],
+        [], [], [], []
+      )
+
+      _setDeps({
+        webManagerDb: createMockDb({ 'WEBMANAGER_LOG': wmColl }),
+        earsDb: createMockDb({ 'ARS_USER_INFO': userColl })
+      })
+
+      await service.getWebManagerStats({ period: '30d', recentMode: 'user' })
+
+      // recent pipeline (index 5) should have $group by userId
+      const recentPipeline = wmColl.aggregate.mock.calls[5][0]
+      const groupStage = recentPipeline.find(s => s.$group)
+      expect(groupStage).toBeDefined()
+      expect(groupStage.$group._id).toBe('$userId')
+    })
+
+    it('recentMode=detail (default) uses standard pipeline without $group', async () => {
+      const wmColl = createMockCollection()
+      const userColl = createMockCollection()
+
+      mockUserColl(userColl)
+      mockPipelines(wmColl,
+        [{ _users: ['u1'], totalVisits: 10, _cappedDurationSum: 10000, _validDurationCount: 5, _visitedPaths: ['/'] }],
+        [], [], [], []
+      )
+
+      _setDeps({
+        webManagerDb: createMockDb({ 'WEBMANAGER_LOG': wmColl }),
+        earsDb: createMockDb({ 'ARS_USER_INFO': userColl })
+      })
+
+      await service.getWebManagerStats({ period: '30d' })
+
+      // recent pipeline (index 5) should NOT have $group
+      const recentPipeline = wmColl.aggregate.mock.calls[5][0]
+      const groupStage = recentPipeline.find(s => s.$group)
+      expect(groupStage).toBeUndefined()
+    })
   })
 })
