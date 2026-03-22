@@ -2,12 +2,12 @@
 import { computed } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
-import { BarChart } from 'echarts/charts'
+import { LineChart } from 'echarts/charts'
 import { TooltipComponent, GridComponent, LegendComponent, DataZoomComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useTheme } from '../../../shared/composables/useTheme'
 
-use([BarChart, TooltipComponent, GridComponent, LegendComponent, DataZoomComponent, CanvasRenderer])
+use([LineChart, TooltipComponent, GridComponent, LegendComponent, DataZoomComponent, CanvasRenderer])
 
 const props = defineProps({
   data: { type: Array, default: () => [] },
@@ -17,45 +17,42 @@ const props = defineProps({
 
 const { isDark } = useTheme()
 
-// 메뉴 그룹별 색상 팔레트 (light / dark, 농도 3단계)
-const GROUP_PALETTE = {
-  Dashboard:    { light: ['#3B82F6', '#60A5FA', '#93C5FD'], dark: ['#60A5FA', '#93C5FD', '#BFDBFE'] },
-  Clients:      { light: ['#10B981', '#34D399', '#6EE7B7'], dark: ['#34D399', '#6EE7B7', '#A7F3D0'] },
-  'Master Data': { light: ['#8B5CF6', '#A78BFA', '#C4B5FD'], dark: ['#A78BFA', '#C4B5FD', '#DDD6FE'] },
-  System:       { light: ['#F59E0B', '#FBBF24', '#FCD34D'], dark: ['#FBBF24', '#FCD34D', '#FDE68A'] }
-}
-const FALLBACK_COLORS = ['#6B7280', '#9CA3AF', '#D1D5DB']
-
+const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316']
+const DARK_COLORS = ['#60A5FA', '#34D399', '#FBBF24', '#F87171', '#A78BFA', '#F472B6', '#2DD4BF', '#FB923C']
 const MAX_VISIBLE = 24
-const TOP_N = 9
+const TOP_N = 6
 
 function formatDateLabel(dateStr, granularity) {
   if (granularity === 'hourly') {
-    // "2026-03-21T14:00" → "14:00" or "03/21 14:00"
     const parts = dateStr.split('T')
     if (parts.length === 2) {
       const time = parts[1]
-      const d = parts[0].slice(5) // MM-DD
+      const d = parts[0].slice(5)
       const today = new Date().toISOString().slice(5, 10)
       return d === today ? time : `${d.replace('-', '/')} ${time}`
     }
     return dateStr
   }
   if (granularity === 'weekly') {
-    // "2026-03-17" → "~03/23"
     const d = new Date(dateStr + 'T00:00:00+09:00')
     const end = new Date(d.getTime() + 6 * 24 * 60 * 60 * 1000)
     const mm = String(end.getUTCMonth() + 1).padStart(2, '0')
     const dd = String(end.getUTCDate()).padStart(2, '0')
     return `~${mm}/${dd}`
   }
-  // daily: "2026-03-21" → "03/21"
   return dateStr.slice(5).replace('-', '/')
 }
 
-const needsZoom = computed(() => (props.data || []).length > MAX_VISIBLE)
+function formatDuration(ms) {
+  if (!ms || ms <= 0) return '0s'
+  const totalSec = Math.round(ms / 1000)
+  const min = Math.floor(totalSec / 60)
+  const sec = totalSec % 60
+  if (min === 0) return `${sec}s`
+  return `${min}m ${sec}s`
+}
 
-// Top N 페이지 결정 (pageSummary 기준 visitCount 내림차순)
+// Top N 페이지 (pageSummary 기준 방문 횟수 내림차순)
 const topPages = computed(() => {
   const summary = props.pageSummary || []
   return [...summary]
@@ -64,86 +61,40 @@ const topPages = computed(() => {
     .map(p => p.pageName)
 })
 
+const needsZoom = computed(() => (props.data || []).length > MAX_VISIBLE)
+
 const option = computed(() => {
   const items = props.data || []
   if (items.length === 0) return {}
 
   const dark = isDark.value
-  const mode = dark ? 'dark' : 'light'
+  const colors = dark ? DARK_COLORS : COLORS
+  const textColor = dark ? '#9CA3AF' : '#6B7280'
   const dates = items.map(d => formatDateLabel(d.date, props.granularity))
   const pages = topPages.value
 
-  // 각 페이지 → menuGroup 매핑 + 그룹 내 인덱스 → 색상 결정
-  const pageGroupMap = {}
-  for (const p of (props.pageSummary || [])) {
-    pageGroupMap[p.pageName] = p.menuGroup
-  }
-  const groupCounters = {}
-  function getPageColor(pageName) {
-    const group = pageGroupMap[pageName] || 'Other'
-    const palette = GROUP_PALETTE[group]
-    if (!palette) return FALLBACK_COLORS[0]
-    const idx = groupCounters[group] || 0
-    groupCounters[group] = idx + 1
-    return palette[mode][idx % palette[mode].length]
-  }
-
-  // 각 페이지 시리즈 + "기타"
-  const allKeys = new Set()
-  for (const d of items) {
-    for (const key of Object.keys(d)) {
-      if (key !== 'date') allKeys.add(key)
-    }
-  }
-  const otherKeys = [...allKeys].filter(k => !pages.includes(k))
-
-  const seriesNames = [...pages, '기타']
-
-  const series = pages.map((page) => ({
+  const series = pages.map((page, idx) => ({
     name: page,
-    type: 'bar',
-    stack: 'total',
-    data: items.map(d => d[page] || 0),
-    itemStyle: {
-      color: getPageColor(page),
-      borderRadius: [0, 0, 0, 0]
-    },
-    emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } },
-    barMaxWidth: 50
+    type: 'line',
+    smooth: true,
+    symbol: 'circle',
+    symbolSize: 3,
+    lineStyle: { color: colors[idx % colors.length], width: 1.5 },
+    itemStyle: { color: colors[idx % colors.length] },
+    data: items.map(d => Math.round((d[page] || 0) / 60000 * 10) / 10) // ms → min (소수점 1자리)
   }))
-
-  // "기타" 시리즈 (나머지 합산)
-  series.push({
-    name: '기타',
-    type: 'bar',
-    stack: 'total',
-    data: items.map(d => {
-      let sum = 0
-      for (const k of otherKeys) sum += (d[k] || 0)
-      return sum
-    }),
-    itemStyle: {
-      color: dark ? '#4b5563' : '#d1d5db',
-      borderRadius: [3, 3, 0, 0]
-    },
-    emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } },
-    barMaxWidth: 50
-  })
 
   return {
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'shadow' },
       backgroundColor: dark ? '#1f2937' : '#fff',
       borderColor: dark ? '#374151' : '#e5e7eb',
       textStyle: { color: dark ? '#e5e7eb' : '#111827' },
       formatter: (params) => {
-        const date = params[0].name
-        const total = params.reduce((s, p) => s + (p.value || 0), 0)
-        let html = `<b>${date}</b> (총 ${total}회)<br/>`
+        let html = `<b>${params[0].name}</b><br/>`
         for (const p of params) {
           if (p.value > 0) {
-            html += `${p.marker} ${p.seriesName}: <b>${p.value}</b><br/>`
+            html += `${p.marker} ${p.seriesName}: <b>${formatDuration(p.value * 60000)}</b><br/>`
           }
         }
         return html
@@ -152,8 +103,10 @@ const option = computed(() => {
     legend: {
       top: 0,
       type: 'scroll',
-      textStyle: { color: dark ? '#9ca3af' : '#6b7280' },
-      pageTextStyle: { color: dark ? '#9ca3af' : '#6b7280' }
+      textStyle: { color: textColor, fontSize: 11 },
+      pageTextStyle: { color: textColor },
+      pageIconColor: dark ? '#9ca3af' : '#6b7280',
+      pageIconInactiveColor: dark ? '#374151' : '#d1d5db'
     },
     grid: {
       left: 10,
@@ -170,7 +123,6 @@ const option = computed(() => {
         height: 16,
         startValue: 0,
         endValue: MAX_VISIBLE - 1,
-        minValueSpan: Math.min(MAX_VISIBLE - 1, dates.length - 1),
         brushSelect: false,
         handleSize: '60%',
         borderColor: 'transparent',
@@ -182,6 +134,7 @@ const option = computed(() => {
     xAxis: {
       type: 'category',
       data: dates,
+      boundaryGap: false,
       axisLabel: {
         color: dark ? '#d1d5db' : '#374151',
         fontSize: 11,
@@ -192,11 +145,11 @@ const option = computed(() => {
     },
     yAxis: {
       type: 'value',
+      name: '분',
+      nameTextStyle: { color: textColor, fontSize: 10 },
       splitLine: { lineStyle: { color: dark ? '#374151' : '#e5e7eb' } },
-      axisLabel: { color: dark ? '#9ca3af' : '#6b7280' }
+      axisLabel: { color: textColor, fontSize: 10 }
     },
-    animationEasing: 'elasticOut',
-    animationDuration: 800,
     series
   }
 })
@@ -208,9 +161,9 @@ const option = computed(() => {
       v-if="(data || []).length > 0"
       :option="option"
       autoresize
-      style="width: 100%; height: 320px"
+      style="width: 100%; height: 280px"
     />
-    <div v-else class="flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm" style="height: 200px">
+    <div v-else class="flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm" style="height: 280px">
       데이터가 없습니다
     </div>
   </div>

@@ -18,7 +18,7 @@ const { isDark } = useTheme()
 const option = computed(() => {
   const dark = isDark.value
   const items = props.data.slice(0, 10)
-  const names = items.map(d => d.userId)
+  const names = items.map(d => d.name || d.userId)
   const values = items.map(d => d.modificationCount)
   const needsRotate = names.length > 5
 
@@ -32,7 +32,8 @@ const option = computed(() => {
       formatter: (params) => {
         const p = params[0]
         const author = items[p.dataIndex] || {}
-        return `<b>${author.userId}</b><br/>` +
+        const nameLine = author.name ? `<b>${author.name}</b> <span style="opacity:0.6">(${author.userId})</span>` : `<b>${author.userId}</b>`
+        return `${nameLine}<br/>` +
           `수정: <b>${p.value}건</b><br/>` +
           `시나리오: <b>${author.scenarioCount || 0}개</b>`
       }

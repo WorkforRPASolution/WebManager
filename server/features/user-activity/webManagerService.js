@@ -107,9 +107,11 @@ function getTrendDateFormat(granularity) {
  * 일별 데이터를 주별로 롤업 (월요일 기준)
  * @param {Array} dailyData - [{ date, ...values }]
  * @param {string[]} valueKeys - 합산할 필드 목록
+ * @param {'sum'|'avg'} mode - 'sum': 합산 (방문 횟수 등), 'avg': 평균 (체류시간 등)
  */
-function rollupWeekly(dailyData, valueKeys) {
+function rollupWeekly(dailyData, valueKeys, mode = 'sum') {
   const buckets = {}
+  const counts = {}
   for (const item of dailyData) {
     const d = new Date(item.date + 'T00:00:00+09:00')
     const day = d.getUTCDay()
@@ -118,12 +120,106 @@ function rollupWeekly(dailyData, valueKeys) {
     monday.setUTCDate(monday.getUTCDate() + mondayOffset)
     const weekKey = monday.toISOString().slice(0, 10)
 
-    if (!buckets[weekKey]) buckets[weekKey] = { date: weekKey }
+    if (!buckets[weekKey]) {
+      buckets[weekKey] = { date: weekKey }
+      counts[weekKey] = {}
+    }
     for (const key of valueKeys) {
-      buckets[weekKey][key] = (buckets[weekKey][key] || 0) + (item[key] || 0)
+      const val = item[key] || 0
+      buckets[weekKey][key] = (buckets[weekKey][key] || 0) + val
+      if (val > 0) counts[weekKey][key] = (counts[weekKey][key] || 0) + 1
+    }
+  }
+  if (mode === 'avg') {
+    for (const weekKey of Object.keys(buckets)) {
+      for (const key of valueKeys) {
+        const cnt = counts[weekKey][key] || 1
+        buckets[weekKey][key] = Math.round(buckets[weekKey][key] / cnt)
+      }
     }
   }
   return Object.values(buckets).sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/**
+ * 동시접속자 계산 (sweep line algorithm)
+ * enterTime~leaveTime 겹치는 세션 수를 시간 버킷별 피크로 집계
+ */
+function computeConcurrentUsers(logs, granularity, periodDurationMs = 0) {
+  if (logs.length === 0) return { peak: 0, average: 0, trend: [] }
+
+  const events = []
+  let totalSessionMs = 0
+  for (const log of logs) {
+    const enter = new Date(log.enterTime).getTime()
+    const leave = new Date(log.leaveTime).getTime()
+    if (isNaN(enter) || isNaN(leave) || leave <= enter) continue
+    totalSessionMs += (leave - enter)
+    events.push({ time: enter, delta: 1 })
+    events.push({ time: leave, delta: -1 })
+  }
+  if (events.length === 0) return { peak: 0, average: 0, trend: [] }
+
+  // leave(-1)를 enter(+1)보다 먼저 처리 → 동시간 떠난 사용자 반영 후 카운트
+  events.sort((a, b) => a.time - b.time || a.delta - b.delta)
+
+  let current = 0
+  let peak = 0
+  const hourlyPeaks = {}
+
+  for (const ev of events) {
+    current += ev.delta
+    if (current < 0) current = 0
+    if (current > peak) peak = current
+
+    // KST 시간 버킷
+    const kstMs = ev.time + 9 * 3600000
+    const hourStart = Math.floor(kstMs / 3600000) * 3600000
+    const hourKey = new Date(hourStart - 9 * 3600000).toISOString().slice(0, 13) // "2026-03-21T14"
+    hourlyPeaks[hourKey] = Math.max(hourlyPeaks[hourKey] || 0, current)
+  }
+
+  const hourlyEntries = Object.entries(hourlyPeaks)
+    .map(([key, val]) => ({ date: key + ':00', concurrent: val }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  let trend
+  if (granularity === 'hourly') {
+    trend = hourlyEntries
+  } else {
+    // 일별 피크
+    const dailyMap = {}
+    for (const e of hourlyEntries) {
+      const day = e.date.slice(0, 10)
+      dailyMap[day] = Math.max(dailyMap[day] || 0, e.concurrent)
+    }
+    trend = Object.entries(dailyMap)
+      .map(([date, concurrent]) => ({ date, concurrent }))
+      .sort((a, b) => a.date.localeCompare(b.date))
+
+    if (granularity === 'weekly') {
+      const weeklyMap = {}
+      for (const item of trend) {
+        const d = new Date(item.date + 'T00:00:00+09:00')
+        const day = d.getUTCDay()
+        const mondayOffset = day === 0 ? -6 : 1 - day
+        const monday = new Date(d)
+        monday.setUTCDate(monday.getUTCDate() + mondayOffset)
+        const weekKey = monday.toISOString().slice(0, 10)
+        weeklyMap[weekKey] = Math.max(weeklyMap[weekKey] || 0, item.concurrent)
+      }
+      trend = Object.entries(weeklyMap)
+        .map(([date, concurrent]) => ({ date, concurrent }))
+        .sort((a, b) => a.date.localeCompare(b.date))
+    }
+  }
+
+  // 평균 동시접속 = 총 세션 시간 / 조회 기간
+  const average = periodDurationMs > 0
+    ? Math.round(totalSessionMs / periodDurationMs * 10) / 10
+    : 0
+
+  return { peak, average, trend }
 }
 
 function computePeriodRange(period, startDate, endDate) {
@@ -145,6 +241,12 @@ function computePeriodRange(period, startDate, endDate) {
 }
 
 // ── Path normalization ──
+
+function normalizePath(pagePath) {
+  if (/^\/clients\/[^/]+$/.test(pagePath)) return '/clients/:id'
+  if (/^\/resource-clients\/[^/]+$/.test(pagePath)) return '/resource-clients/:id'
+  return pagePath
+}
 
 const PATH_NORMALIZATION_STAGE = {
   $addFields: {
@@ -200,10 +302,135 @@ async function getWebManagerStats({
   }
 
   const aggOpts = { allowDiskUse: true, maxTimeMS: 55000 }
+
+  // noLimit=true: CSV 내보내기 전용 — recentVisits + 이름 조회 후 early return
+  if (noLimit) {
+    const earsDbNl = getEarsDb()
+    const [recentResult, nameList] = await Promise.all([
+      wmColl.aggregate(buildRecentVisitsPipeline(baseMatch, true), aggOpts).toArray(),
+      earsDbNl.collection('ARS_USER_INFO').aggregate([
+        { $project: { _id: 0, singleid: 1, name: 1 } }
+      ]).toArray()
+    ])
+    const nlNameMap = {}
+    for (const u of nameList) { if (u.name) nlNameMap[u.singleid] = u.name }
+    const recentVisits = recentResult.map(r => {
+      const normalized = normalizePath(r.pagePath || '')
+      const mapped = PAGE_MAP[normalized]
+      return {
+        userId: r.userId,
+        name: nlNameMap[r.userId] || null,
+        pagePath: r.pagePath,
+        pageName: mapped ? mapped.name : (r.pageName || r.pagePath),
+        enterTime: r.enterTime,
+        durationMs: r.durationMs
+      }
+    })
+    return {
+      kpi: { activeUsers: 0, totalVisits: 0, pageReachRate: 0, visitedPages: 0, totalPages: TOTAL_PAGES, avgDurationMs: 0, periodLabel: PERIOD_LABELS[period] || '최근 30일' },
+      pageSummary: [], menuGroupSummary: [], trend: [], hourlyHeatmap: [],
+      pageTrend: [], groupTrend: [], concurrent: { peak: 0, avg: 0, trend: [] },
+      processTrend: [], processActiveUsers: [], durationTrend: [],
+      granularity: 'daily', topUsers: [], recentVisits
+    }
+  }
+
   const granularity = determineTrendGranularity(period, startDate, endDate)
   const dateFormat = getTrendDateFormat(granularity)
 
-  const [kpiResult, pageSummaryResult, topUsersResult, recentResult, trendResult, heatmapResult, pageTrendResult, groupTrendResult] = await Promise.all([
+  // 동시접속 계산용 raw 로그 조회 (enterTime, leaveTime만)
+  const concurrentLogs = await wmColl.aggregate([
+    { $match: { ...baseMatch, enterTime: { $exists: true }, leaveTime: { $exists: true } } },
+    { $project: { _id: 0, enterTime: 1, leaveTime: 1 } }
+  ], aggOpts).toArray()
+  const periodDurationMs = periodEnd.getTime() - periodStart.getTime()
+  const concurrent = computeConcurrentUsers(concurrentLogs, granularity, periodDurationMs)
+
+  // 공정별 활성 사용자 추이: 시간 버킷별 고유 userId 조회 + process 매핑
+  const earsDb2 = getEarsDb()
+  const [userInfoResult, activeUsersByBucket] = await Promise.all([
+    earsDb2.collection('ARS_USER_INFO').aggregate([
+      { $project: { _id: 0, singleid: 1, name: 1, processes: 1, process: 1 } }
+    ]).toArray().then(users => {
+      const map = {}
+      for (const u of users) {
+        let procs = []
+        if (Array.isArray(u.processes) && u.processes.length > 0) {
+          procs = u.processes
+        } else if (u.process) {
+          procs = u.process.split(';').map(p => p.trim()).filter(Boolean)
+        }
+        if (procs.length > 0) map[u.singleid] = procs
+      }
+      return { processMap: map, users }
+    }),
+    wmColl.aggregate([
+      { $match: { ...baseMatch } },
+      { $group: {
+        _id: { date: { $dateToString: { format: dateFormat, date: '$timestamp', timezone: '+09:00' } } },
+        _users: { $addToSet: '$userId' }
+      }},
+      { $sort: { '_id.date': 1 } }
+    ], aggOpts).toArray()
+  ])
+
+  const userProcessMap = userInfoResult.processMap
+  const userNameMap = {}
+  for (const u of userInfoResult.users) {
+    if (u.name) userNameMap[u.singleid] = u.name
+  }
+
+  // JS에서 process 매핑 → 시간 버킷 × process별 활성 사용자 수
+  const processTrendMap = {}
+  const processNames = new Set()
+  for (const bucket of activeUsersByBucket) {
+    const date = bucket._id.date
+    const userIds = bucket._users || []
+    const processCount = {}
+    for (const uid of userIds) {
+      const procs = userProcessMap[uid]
+      if (procs) {
+        for (const p of procs) {
+          processCount[p] = (processCount[p] || 0) + 1
+          processNames.add(p)
+        }
+      } else {
+        processCount['미지정'] = (processCount['미지정'] || 0) + 1
+        processNames.add('미지정')
+      }
+    }
+    processTrendMap[date] = { date, ...processCount }
+  }
+  let processTrend = Object.values(processTrendMap).sort((a, b) => a.date.localeCompare(b.date))
+  if (granularity === 'weekly') {
+    processTrend = rollupWeekly(processTrend, [...processNames])
+  }
+
+  // 공정별 활성 사용자 도넛용: 전체 기간 고유 userId → process 매핑
+  const allActiveUserIds = new Set()
+  for (const bucket of activeUsersByBucket) {
+    for (const uid of (bucket._users || [])) allActiveUserIds.add(uid)
+  }
+  const processActiveUsers = []
+  const processCountMap = {}
+  let unmappedCount = 0
+  for (const uid of allActiveUserIds) {
+    const procs = userProcessMap[uid]
+    if (procs) {
+      for (const p of procs) processCountMap[p] = (processCountMap[p] || 0) + 1
+    } else {
+      unmappedCount++
+    }
+  }
+  for (const [process, count] of Object.entries(processCountMap)) {
+    processActiveUsers.push({ process, activeUsers: count })
+  }
+  if (unmappedCount > 0) {
+    processActiveUsers.push({ process: '미지정', activeUsers: unmappedCount })
+  }
+  processActiveUsers.sort((a, b) => b.activeUsers - a.activeUsers)
+
+  const [kpiResult, pageSummaryResult, topUsersResult, recentResult, trendResult, heatmapResult, pageTrendResult, groupTrendResult, durationTrendResult] = await Promise.all([
     wmColl.aggregate(buildKpiPipeline(baseMatch), aggOpts).toArray(),
     wmColl.aggregate(buildPageSummaryPipeline(baseMatch), aggOpts).toArray(),
     wmColl.aggregate(buildTopUsersPipeline(baseMatch), aggOpts).toArray(),
@@ -211,7 +438,8 @@ async function getWebManagerStats({
     wmColl.aggregate(buildTrendPipeline(baseMatch), aggOpts).toArray(),
     wmColl.aggregate(buildHourlyHeatmapPipeline(baseMatch), aggOpts).toArray(),
     wmColl.aggregate(buildPageTrendPipeline(baseMatch, dateFormat), aggOpts).toArray(),
-    wmColl.aggregate(buildGroupTrendPipeline(baseMatch, dateFormat), aggOpts).toArray()
+    wmColl.aggregate(buildGroupTrendPipeline(baseMatch, dateFormat), aggOpts).toArray(),
+    wmColl.aggregate(buildDurationTrendPipeline(baseMatch, dateFormat), aggOpts).toArray()
   ])
 
   // KPI
@@ -225,6 +453,10 @@ async function getWebManagerStats({
   const pageReachRate = TOTAL_PAGES > 0
     ? Math.round((visitedPages / TOTAL_PAGES) * 1000) / 10
     : 0
+  const visitedPathSet = new Set(Array.isArray(kpi._visitedPaths) ? kpi._visitedPaths : [])
+  const unvisitedPages = Object.entries(PAGE_MAP)
+    .filter(([path]) => !visitedPathSet.has(path))
+    .map(([, info]) => info.name)
 
   // Page summary + PAGE_MAP 매핑
   const pageSummary = pageSummaryResult.map(p => {
@@ -254,19 +486,25 @@ async function getWebManagerStats({
   // Top users
   const topUsers = topUsersResult.map(u => ({
     userId: u._id,
+    name: userNameMap[u._id] || null,
     visitCount: u.visitCount,
     totalDurationMs: u.totalDurationMs || 0,
     lastVisitTime: u.lastVisitTime
   }))
 
-  // Recent visits
-  const recentVisits = recentResult.map(r => ({
-    userId: r.userId,
-    pagePath: r.pagePath,
-    pageName: r.pageName,
-    enterTime: r.enterTime,
-    durationMs: r.durationMs
-  }))
+  // Recent visits (PAGE_MAP 매핑 적용)
+  const recentVisits = recentResult.map(r => {
+    const normalized = normalizePath(r.pagePath || '')
+    const mapped = PAGE_MAP[normalized]
+    return {
+      userId: r.userId,
+      name: userNameMap[r.userId] || null,
+      pagePath: r.pagePath,
+      pageName: mapped ? mapped.name : (r.pageName || r.pagePath),
+      enterTime: r.enterTime,
+      durationMs: r.durationMs
+    }
+  })
 
   // Trend
   const trend = trendResult.map(t => ({
@@ -314,6 +552,23 @@ async function getWebManagerStats({
     groupTrend = rollupWeekly(groupTrend, [...groupNames])
   }
 
+  // Duration trend: date × page avg duration (Top pages, 30분 캡 + 0 제외 적용됨)
+  const durationTrendMap = {}
+  const durationPageNames = new Set()
+  for (const r of durationTrendResult) {
+    const date = r._id.date
+    const path = r._id.path
+    const mapped = PAGE_MAP[path]
+    const pageName = mapped ? mapped.name : path
+    durationPageNames.add(pageName)
+    if (!durationTrendMap[date]) durationTrendMap[date] = { date }
+    durationTrendMap[date][pageName] = Math.round(r.avgDurationMs || 0)
+  }
+  let durationTrend = Object.values(durationTrendMap).sort((a, b) => a.date.localeCompare(b.date))
+  if (granularity === 'weekly') {
+    durationTrend = rollupWeekly(durationTrend, [...durationPageNames], 'avg')
+  }
+
   return {
     kpi: {
       activeUsers,
@@ -322,6 +577,7 @@ async function getWebManagerStats({
       visitedPages,
       totalPages: TOTAL_PAGES,
       avgDurationMs,
+      unvisitedPages,
       periodLabel: PERIOD_LABELS[period] || '최근 30일'
     },
     pageSummary,
@@ -330,6 +586,10 @@ async function getWebManagerStats({
     hourlyHeatmap,
     pageTrend,
     groupTrend,
+    concurrent,
+    processTrend,
+    processActiveUsers,
+    durationTrend,
     granularity,
     topUsers,
     recentVisits
@@ -502,6 +762,25 @@ function buildGroupTrendPipeline(baseMatch, dateFormat = '%Y-%m-%d') {
           group: '$_menuGroup'
         },
         visits: { $sum: 1 }
+      }
+    },
+    { $sort: { '_id.date': 1 } }
+  ]
+}
+
+function buildDurationTrendPipeline(baseMatch, dateFormat = '%Y-%m-%d') {
+  return [
+    { $match: { ...baseMatch, durationMs: { $gt: 0 } } },
+    PATH_NORMALIZATION_STAGE,
+    {
+      $group: {
+        _id: {
+          date: { $dateToString: { format: dateFormat, date: '$timestamp', timezone: '+09:00' } },
+          path: '$_normalizedPath'
+        },
+        avgDurationMs: {
+          $avg: { $min: ['$durationMs', DURATION_CAP_MS] }
+        }
       }
     },
     { $sort: { '_id.date': 1 } }

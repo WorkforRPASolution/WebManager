@@ -31,7 +31,7 @@ const option = computed(() => {
 
   const dark = isDark.value
   const textColor = dark ? '#9CA3AF' : '#6B7280'
-  const names = items.map(u => u.userId)
+  const names = items.map(u => u.name || u.userId)
   const counts = items.map(u => u.visitCount)
 
   return {
@@ -47,7 +47,8 @@ const option = computed(() => {
         const lastVisit = u.lastVisitTime
           ? new Date(u.lastVisitTime).toLocaleString('ko-KR')
           : '-'
-        return `<b>${u.userId}</b><br/>` +
+        const nameLine = u.name ? `<b>${u.name}</b> <span style="opacity:0.6">(${u.userId})</span>` : `<b>${u.userId}</b>`
+        return `${nameLine}<br/>` +
           `방문: ${u.visitCount}회<br/>` +
           `총 체류: ${formatDuration(u.totalDurationMs)}<br/>` +
           `마지막 접속: ${lastVisit}`

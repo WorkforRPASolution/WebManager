@@ -76,13 +76,19 @@ async function getScenarioStats({ period = 'all', process, startDate, noLimit = 
 
   const periodStart = computeScenarioPeriodStart(period, startDate)
 
-  const [scenarioKpiResult, processSummaryResult, modKpiResult, topAuthorsResult, recentResult] = await Promise.all([
+  const userColl = db.collection('ARS_USER_INFO')
+
+  const [scenarioKpiResult, processSummaryResult, modKpiResult, topAuthorsResult, recentResult, nameList] = await Promise.all([
     coll.aggregate(buildScenarioKpiPipeline(baseMatch), { allowDiskUse: true }).toArray(),
     coll.aggregate(buildProcessSummaryPipeline(baseMatch), { allowDiskUse: true }).toArray(),
     coll.aggregate(buildModificationKpiPipeline(baseMatch, periodStart), { allowDiskUse: true }).toArray(),
     coll.aggregate(buildTopAuthorsPipeline(baseMatch, periodStart), { allowDiskUse: true }).toArray(),
-    coll.aggregate(buildRecentModificationsPipeline(baseMatch, periodStart, noLimit), { allowDiskUse: true }).toArray()
+    coll.aggregate(buildRecentModificationsPipeline(baseMatch, periodStart, noLimit), { allowDiskUse: true }).toArray(),
+    userColl.aggregate([{ $project: { _id: 0, singleid: 1, name: 1 } }]).toArray()
   ])
+
+  const userNameMap = {}
+  for (const u of nameList) { if (u.name) userNameMap[u.singleid] = u.name }
 
   // Scenario KPI (period-independent)
   const sKpi = scenarioKpiResult[0] || { totalScenarios: 0, activeScenarios: 0, performanceFilled: 0 }
@@ -111,6 +117,7 @@ async function getScenarioStats({ period = 'all', process, startDate, noLimit = 
     })),
     topAuthors: topAuthorsResult.map(a => ({
       userId: a._id,
+      name: userNameMap[a._id] || null,
       modificationCount: a.modificationCount,
       scenarioCount: Array.isArray(a.scenarios) ? a.scenarios.length : 0
     })),
@@ -119,6 +126,7 @@ async function getScenarioStats({ period = 'all', process, startDate, noLimit = 
       process: r.process,
       eqpModel: r.eqpModel,
       userId: r._ownerId,
+      name: userNameMap[r._ownerId] || null,
       modifiedAt: r._ownerTimestamp
     }))
   }

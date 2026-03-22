@@ -267,8 +267,8 @@ export function exportScenarioPerformanceDetailCsv(data) {
 export function exportScenarioRecentCsv(data) {
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
   const filename = `Scenario_RecentModifications_${timestamp}.csv`
-  const headers = ['#', 'Scenario', 'Process', 'Model', 'Author', 'Modified At']
-  const rows = data.map((d, i) => [i + 1, d.scname, d.process, d.eqpModel, d.userId, d.modifiedAt])
+  const headers = ['#', 'Scenario', 'Process', 'Model', 'Name', 'Author ID', 'Modified At']
+  const rows = data.map((d, i) => [i + 1, d.scname, d.process, d.eqpModel, d.name || '', d.userId, d.modifiedAt])
   downloadCsv(filename, headers, rows)
 }
 
@@ -304,11 +304,33 @@ export function exportWebManagerPageSummaryCsv(data) {
 export function exportWebManagerTopUsersCsv(data) {
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
   const filename = `WebManager_TopUsers_${timestamp}.csv`
-  const headers = ['#', 'User ID', 'Visits', 'Total Duration', 'Last Visit']
+  const headers = ['#', 'Name', 'User ID', 'Visits', 'Total Duration', 'Last Visit']
   const rows = data.map((d, i) => [
-    i + 1, d.userId, d.visitCount, formatDurationCsv(d.totalDurationMs),
+    i + 1, d.name || '', d.userId, d.visitCount, formatDurationCsv(d.totalDurationMs),
     d.lastVisitTime ? new Date(d.lastVisitTime).toISOString() : ''
   ])
+  downloadCsv(filename, headers, rows)
+}
+
+/**
+ * 공정별 활성 사용자 추이 CSV
+ */
+export function exportWebManagerProcessTrendCsv(data) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `WebManager_ProcessTrend_${timestamp}.csv`
+
+  if (!data || data.length === 0) return
+
+  // 동적 컬럼: date + 각 공정명
+  const processNames = new Set()
+  for (const row of data) {
+    for (const key of Object.keys(row)) {
+      if (key !== 'date') processNames.add(key)
+    }
+  }
+  const sorted = [...processNames].sort()
+  const headers = ['Date', ...sorted]
+  const rows = data.map(d => [d.date, ...sorted.map(p => d[p] || 0)])
   downloadCsv(filename, headers, rows)
 }
 
@@ -318,9 +340,9 @@ export function exportWebManagerTopUsersCsv(data) {
 export function exportWebManagerRecentVisitsCsv(data) {
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
   const filename = `WebManager_RecentVisits_${timestamp}.csv`
-  const headers = ['#', 'User ID', 'Page', 'Path', 'Duration', 'Enter Time']
+  const headers = ['#', 'Name', 'User ID', 'Page', 'Path', 'Duration', 'Enter Time']
   const rows = data.map((d, i) => [
-    i + 1, d.userId, d.pageName || d.pagePath, d.pagePath,
+    i + 1, d.name || '', d.userId, d.pageName || d.pagePath, d.pagePath,
     formatDurationCsv(d.durationMs),
     d.enterTime ? new Date(d.enterTime).toISOString() : ''
   ])

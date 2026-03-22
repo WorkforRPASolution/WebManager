@@ -34,14 +34,15 @@ function timeAgo(kstStr) {
   return `${diffMonths}개월 전`
 }
 
-// #(5%) 시나리오(30%) 공정(15%) 모델(15%) 작성자(15%) 수정시간(20%)
+// #(4%) 시나리오(24%) 공정(12%) 모델(12%) 이름(12%) ID(12%) 수정시간(24%)
 const colWidths = {
-  rank: 'w-[5%]',
-  scname: 'w-[30%]',
-  process: 'w-[15%]',
-  model: 'w-[15%]',
-  author: 'w-[15%]',
-  time: 'w-[20%]'
+  rank: 'w-[4%]',
+  scname: 'w-[24%]',
+  process: 'w-[12%]',
+  model: 'w-[12%]',
+  name: 'w-[12%]',
+  id: 'w-[12%]',
+  time: 'w-[24%]'
 }
 </script>
 
@@ -55,7 +56,8 @@ const colWidths = {
           <th :class="colWidths.scname" class="text-left py-2 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">시나리오</th>
           <th :class="colWidths.process" class="text-left py-2 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">공정</th>
           <th :class="colWidths.model" class="text-left py-2 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">모델</th>
-          <th :class="colWidths.author" class="text-left py-2 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">작성자</th>
+          <th :class="colWidths.name" class="text-left py-2 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">이름</th>
+          <th :class="colWidths.id" class="text-left py-2 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">ID</th>
           <th :class="colWidths.time" class="text-right py-2 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">수정 시간</th>
         </tr>
       </thead>
@@ -73,7 +75,8 @@ const colWidths = {
             <td :class="colWidths.scname" class="py-2 px-2 font-medium text-gray-900 dark:text-white truncate" :title="item.scname">{{ item.scname }}</td>
             <td :class="colWidths.process" class="py-2 px-2 text-gray-600 dark:text-gray-300 truncate">{{ item.process || '-' }}</td>
             <td :class="colWidths.model" class="py-2 px-2 text-gray-600 dark:text-gray-300 truncate" :title="item.eqpModel">{{ item.eqpModel || '-' }}</td>
-            <td :class="colWidths.author" class="py-2 px-2 text-gray-500 dark:text-gray-400 truncate" :title="item.userId">{{ item.userId || '-' }}</td>
+            <td :class="colWidths.name" class="py-2 px-2 font-medium text-gray-900 dark:text-white truncate" :title="item.name || '-'">{{ item.name || '-' }}</td>
+            <td :class="colWidths.id" class="py-2 px-2 text-gray-500 dark:text-gray-400 truncate" :title="item.userId">{{ item.userId || '-' }}</td>
             <td :class="colWidths.time" class="py-2 px-2 text-right whitespace-nowrap">
               <span class="text-gray-700 dark:text-gray-300">{{ formatDateTime(item.modifiedAt) }}</span>
               <span class="ml-1 text-xs text-gray-400 dark:text-gray-500">({{ timeAgo(item.modifiedAt) }})</span>

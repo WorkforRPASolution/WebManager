@@ -18,10 +18,10 @@ const { isDark } = useTheme()
 
 const GROUPS = ['Dashboard', 'Clients', 'Master Data', 'System']
 const GROUP_COLORS = {
-  Dashboard: '#3B82F6',
-  Clients: '#10B981',
-  'Master Data': '#8B5CF6',
-  System: '#F59E0B'
+  Dashboard: ['#3B82F6', '#60A5FA'],
+  Clients: ['#10B981', '#34D399'],
+  'Master Data': ['#8B5CF6', '#A78BFA'],
+  System: ['#F59E0B', '#FBBF24']
 }
 
 function formatDateLabel(dateStr, granularity) {
@@ -53,17 +53,20 @@ const option = computed(() => {
   const textColor = dark ? '#9CA3AF' : '#6B7280'
   const dates = items.map(d => formatDateLabel(d.date, props.granularity))
 
-  const series = GROUPS.map(group => ({
-    name: group,
-    type: 'line',
-    stack: 'total',
-    areaStyle: { opacity: 0.4 },
-    smooth: true,
-    symbol: 'none',
-    lineStyle: { width: 1.5, color: GROUP_COLORS[group] },
-    itemStyle: { color: GROUP_COLORS[group] },
-    data: items.map(d => d[group] || 0)
-  }))
+  const series = GROUPS.map(group => {
+    const color = GROUP_COLORS[group][dark ? 1 : 0]
+    return {
+      name: group,
+      type: 'line',
+      stack: 'total',
+      areaStyle: { opacity: 0.4 },
+      smooth: true,
+      symbol: 'none',
+      lineStyle: { width: 1.5, color },
+      itemStyle: { color },
+      data: items.map(d => d[group] || 0)
+    }
+  })
 
   return {
     tooltip: {

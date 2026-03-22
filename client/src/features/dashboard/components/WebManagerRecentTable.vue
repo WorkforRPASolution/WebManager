@@ -39,12 +39,13 @@ function timeAgo(dt) {
   return `${diffMonths}개월 전`
 }
 
-// #(5%) 사용자(20%) 페이지(30%) 체류시간(15%) 접속시간(30%)
+// #(5%) 이름(13%) ID(14%) 페이지(25%) 체류시간(13%) 접속시간(30%)
 const colWidths = {
   rank: 'w-[5%]',
-  user: 'w-[20%]',
-  page: 'w-[30%]',
-  duration: 'w-[15%]',
+  name: 'w-[13%]',
+  id: 'w-[14%]',
+  page: 'w-[25%]',
+  duration: 'w-[13%]',
   time: 'w-[30%]'
 }
 </script>
@@ -56,7 +57,8 @@ const colWidths = {
       <thead>
         <tr class="border-b border-gray-200 dark:border-dark-border">
           <th :class="colWidths.rank" class="text-left py-2 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">#</th>
-          <th :class="colWidths.user" class="text-left py-2 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">사용자</th>
+          <th :class="colWidths.name" class="text-left py-2 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">이름</th>
+          <th :class="colWidths.id" class="text-left py-2 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">ID</th>
           <th :class="colWidths.page" class="text-left py-2 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">페이지</th>
           <th :class="colWidths.duration" class="text-right py-2 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">체류</th>
           <th :class="colWidths.time" class="text-right py-2 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">접속 시간</th>
@@ -73,7 +75,8 @@ const colWidths = {
             class="border-b border-gray-100 dark:border-dark-border/50 hover:bg-gray-50 dark:hover:bg-dark-border/30 transition-colors"
           >
             <td :class="colWidths.rank" class="py-2 px-2 text-gray-400 dark:text-gray-500">{{ idx + 1 }}</td>
-            <td :class="colWidths.user" class="py-2 px-2 font-medium text-gray-900 dark:text-white truncate" :title="item.userId">{{ item.userId }}</td>
+            <td :class="colWidths.name" class="py-2 px-2 font-medium text-gray-900 dark:text-white truncate" :title="item.name || '-'">{{ item.name || '-' }}</td>
+            <td :class="colWidths.id" class="py-2 px-2 text-gray-500 dark:text-gray-400 truncate" :title="item.userId">{{ item.userId }}</td>
             <td :class="colWidths.page" class="py-2 px-2 text-gray-600 dark:text-gray-300 truncate" :title="item.pageName || item.pagePath">{{ item.pageName || item.pagePath }}</td>
             <td :class="colWidths.duration" class="py-2 px-2 text-right text-gray-500 dark:text-gray-400">{{ formatDuration(item.durationMs) }}</td>
             <td :class="colWidths.time" class="py-2 px-2 text-right whitespace-nowrap">

@@ -15,8 +15,13 @@ const props = defineProps({
 
 const { isDark } = useTheme()
 
-const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
+const DAY_LABELS = ['월', '화', '수', '목', '금', '토', '일']
 const HOURS = Array.from({ length: 24 }, (_, i) => `${i}시`)
+
+// MongoDB $dayOfWeek: 1=Sun, 2=Mon, ..., 7=Sat → Mon-Sun 인덱스로 변환
+function toMonSunIndex(dow) {
+  return dow === 1 ? 6 : dow - 2 // 1(Sun)→6, 2(Mon)→0, 3(Tue)→1, ..., 7(Sat)→5
+}
 
 const option = computed(() => {
   const items = props.data || []
@@ -25,8 +30,18 @@ const option = computed(() => {
   const dark = isDark.value
   const textColor = dark ? '#9CA3AF' : '#6B7280'
 
-  // dayOfWeek: 1=Sun → index 0, 2=Mon → index 1, ...
-  const heatData = items.map(d => [d.hour, d.dayOfWeek - 1, d.count])
+  // 모든 168셀(24h × 7d) 초기화 후 데이터 덮어쓰기 → 빈 셀도 0으로 표시
+  const grid = {}
+  for (let h = 0; h < 24; h++) {
+    for (let d = 0; d < 7; d++) {
+      grid[`${h}-${d}`] = [h, d, 0]
+    }
+  }
+  for (const d of items) {
+    const idx = toMonSunIndex(d.dayOfWeek)
+    grid[`${d.hour}-${idx}`] = [d.hour, idx, d.count]
+  }
+  const heatData = Object.values(grid)
   const maxCount = Math.max(...items.map(d => d.count), 1)
 
   return {
@@ -34,7 +49,7 @@ const option = computed(() => {
       backgroundColor: dark ? '#1f2937' : '#fff',
       borderColor: dark ? '#374151' : '#e5e7eb',
       textStyle: { color: dark ? '#e5e7eb' : '#111827' },
-      formatter: (p) => `${DAY_LABELS[p.value[1]]} ${p.value[0]}시<br/>방문: <b>${p.value[2]}</b>회`
+      formatter: (p) => `${DAY_LABELS[p.value[1]] || ''} ${p.value[0]}시<br/>방문: <b>${p.value[2]}</b>회`
     },
     grid: { left: 40, right: 20, top: 10, bottom: 60 },
     xAxis: {

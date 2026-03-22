@@ -6,12 +6,17 @@ import UserActivityFilterBar from './UserActivityFilterBar.vue'
 import WebManagerKPICards from './WebManagerKPICards.vue'
 import WebManagerPageChart from './WebManagerPageChart.vue'
 import WebManagerPageDonut from './WebManagerPageDonut.vue'
+import WebManagerConcurrentChart from './WebManagerConcurrentChart.vue'
+import WebManagerDurationTrendChart from './WebManagerDurationTrendChart.vue'
+import WebManagerProcessTrendChart from './WebManagerProcessTrendChart.vue'
+import WebManagerProcessDonut from './WebManagerProcessDonut.vue'
 import WebManagerHourlyHeatmap from './WebManagerHourlyHeatmap.vue'
 import WebManagerGroupTrendChart from './WebManagerGroupTrendChart.vue'
 import WebManagerTopUsersChart from './WebManagerTopUsersChart.vue'
 import WebManagerRecentTable from './WebManagerRecentTable.vue'
 import {
   exportWebManagerPageSummaryCsv,
+  exportWebManagerProcessTrendCsv,
   exportWebManagerTopUsersCsv,
   exportWebManagerRecentVisitsCsv
 } from '../utils/csvExport'
@@ -65,6 +70,10 @@ function toggleIncludeAdmin() {
 
 async function handleExportPageCsv() {
   exportWebManagerPageSummaryCsv(data.value?.pageSummary || [])
+}
+
+async function handleExportProcessTrendCsv() {
+  exportWebManagerProcessTrendCsv(data.value?.processTrend || [])
 }
 
 async function handleExportTopUsersCsv() {
@@ -129,7 +138,7 @@ onMounted(() => {
     <!-- Data Content -->
     <template v-if="data">
       <!-- KPI Cards -->
-      <WebManagerKPICards :kpi="data.kpi" />
+      <WebManagerKPICards :kpi="data.kpi" :concurrent="data.concurrent" />
 
       <!-- 일별 방문 현황 (2/3) + 페이지별 방문 비율 (1/3) — Recovery Overview 스타일 -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -150,6 +159,53 @@ onMounted(() => {
             페이지별 방문 비율
           </h3>
           <WebManagerPageDonut :data="data.pageSummary || []" />
+        </div>
+      </div>
+
+      <!-- 공정별 활성 사용자 추이 (2/3) + 공정별 도넛 (1/3) -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300">
+              공정별 활성 사용자 추이
+              <span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">다중 공정 중복 포함</span>
+            </h3>
+            <button v-if="(data.processTrend || []).length > 0" @click="handleExportProcessTrendCsv" class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              CSV
+            </button>
+          </div>
+          <WebManagerProcessTrendChart :data="data.processTrend || []" :granularity="data.granularity || 'daily'" />
+        </div>
+        <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
+          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">
+            공정별 활성 사용자 현황
+          </h3>
+          <WebManagerProcessDonut :data="data.processActiveUsers || []" />
+        </div>
+      </div>
+
+      <!-- 동시접속 추이 (1/2) + 페이지별 평균 체류시간 추이 (1/2) -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
+          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">
+            동시접속 추이
+          </h3>
+          <WebManagerConcurrentChart
+            :data="(data.concurrent || {}).trend || []"
+            :granularity="data.granularity || 'daily'"
+            :peak="(data.concurrent || {}).peak || 0"
+          />
+        </div>
+        <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
+          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">
+            페이지별 평균 체류시간 추이
+          </h3>
+          <WebManagerDurationTrendChart
+            :data="data.durationTrend || []"
+            :page-summary="data.pageSummary || []"
+            :granularity="data.granularity || 'daily'"
+          />
         </div>
       </div>
 

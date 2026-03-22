@@ -243,8 +243,8 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Top 10 Authors + Recent Modifications (side by side) -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Top 10 Authors (1/3) + Recent Modifications (2/3) -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
           <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
             Top 10 작성자
@@ -253,7 +253,7 @@ onMounted(() => {
           <ScenarioTopAuthorsChart :data="data.topAuthors || []" />
         </div>
 
-        <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
+        <div class="lg:col-span-2 bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
           <div class="flex items-center justify-between mb-3">
             <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
               최근 수정 이력
