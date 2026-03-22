@@ -41,11 +41,24 @@ function stopCronJobs() {
   log.info('[RecoverySummary] Cron jobs stopped')
 }
 
-async function getCronRunDistribution(period, _now) {
+const PERIOD_GRANULARITY = { today: 'hourly', '7d': 'daily', '30d': 'daily', '90d': 'weekly' }
+
+async function getCronRunDistribution(period, _nowOrOptions) {
   const deps = getDeps()
   const CronRunLog = getCronRunLog()
-  const now = _now || new Date()
-  const { startDate, endDate, granularity } = computeCronDistributionRange(period, now)
+
+  let startDate, endDate, granularity, now
+
+  if (_nowOrOptions && !(_nowOrOptions instanceof Date) && _nowOrOptions.startDate) {
+    // Custom date range from shifted period navigation
+    granularity = PERIOD_GRANULARITY[period] || 'daily'
+    startDate = floorToKSTBucket('daily', new Date(_nowOrOptions.startDate + 'T00:00:00+09:00'))
+    now = new Date(_nowOrOptions.endDate + 'T00:00:00+09:00')
+    endDate = now
+  } else {
+    now = _nowOrOptions || new Date()
+    ;({ startDate, endDate, granularity } = computeCronDistributionRange(period, now))
+  }
 
   const settledEnd = new Date(now.getTime() - deps.settlingHours * 60 * 60 * 1000)
   const hourlyEnd = floorToKSTBucket('hourly', settledEnd)

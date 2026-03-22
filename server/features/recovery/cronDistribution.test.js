@@ -62,7 +62,7 @@ describe('getCronRunDistribution controller', () => {
     const res = mockRes()
     await getCronRunDistribution(req, res)
     expect(res.statusCode).toBe(200)
-    expect(mockGetCronRunDistribution).toHaveBeenCalledWith('7d')
+    expect(mockGetCronRunDistribution).toHaveBeenCalledWith('7d', undefined)
   })
 
   it('accepts valid periods: today, 7d, 30d, 90d', async () => {
@@ -73,8 +73,32 @@ describe('getCronRunDistribution controller', () => {
       const res = mockRes()
       await getCronRunDistribution(req, res)
       expect(res.statusCode).toBe(200)
-      expect(mockGetCronRunDistribution).toHaveBeenCalledWith(period)
+      expect(mockGetCronRunDistribution).toHaveBeenCalledWith(period, undefined)
     }
+  })
+
+  it('forwards startDate/endDate to service when both provided', async () => {
+    const req = mockReq({ period: '7d', startDate: '2026-03-04', endDate: '2026-03-11' })
+    const res = mockRes()
+    await getCronRunDistribution(req, res)
+    expect(res.statusCode).toBe(200)
+    expect(mockGetCronRunDistribution).toHaveBeenCalledWith('7d', {
+      startDate: '2026-03-04', endDate: '2026-03-11'
+    })
+  })
+
+  it('does not forward date range when only startDate provided', async () => {
+    const req = mockReq({ period: '7d', startDate: '2026-03-04' })
+    const res = mockRes()
+    await getCronRunDistribution(req, res)
+    expect(mockGetCronRunDistribution).toHaveBeenCalledWith('7d', undefined)
+  })
+
+  it('does not forward date range when only endDate provided', async () => {
+    const req = mockReq({ period: '7d', endDate: '2026-03-11' })
+    const res = mockRes()
+    await getCronRunDistribution(req, res)
+    expect(mockGetCronRunDistribution).toHaveBeenCalledWith('7d', undefined)
   })
 
   it('returns data from summaryService including pending', async () => {
@@ -254,6 +278,56 @@ describe('getCronRunDistribution service', () => {
 
     // Two different weeks → at least 2 groups
     expect(result.data.length).toBeGreaterThanOrEqual(2)
+  })
+
+  // ── Custom date range (shifted period) ──
+
+  it('uses custom date range when options object with startDate/endDate is provided', async () => {
+    // Simulate shifted 7d period: March 4-11
+    const b1 = new Date('2026-03-03T15:00:00.000Z') // KST March 4
+    const logs = [
+      { bucket: b1, period: 'daily', status: 'success' },
+    ]
+    mockFind.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue(logs)
+      })
+    })
+
+    const result = await svc('7d', { startDate: '2026-03-04', endDate: '2026-03-11' })
+    expect(result.granularity).toBe('daily')
+
+    // Verify query used custom dates (KST midnight boundaries)
+    const queryArg = mockFind.mock.calls[0][0]
+    const qStart = new Date(queryArg.bucket.$gte)
+    const qEnd = new Date(queryArg.bucket.$lt)
+    // startDate KST March 4 00:00 = UTC March 3 15:00
+    expect(qStart.toISOString()).toBe('2026-03-03T15:00:00.000Z')
+    // endDate KST March 11 00:00 = UTC March 10 15:00
+    expect(qEnd.toISOString()).toBe('2026-03-10T15:00:00.000Z')
+  })
+
+  it('custom date range with today period uses hourly granularity', async () => {
+    mockFind.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([])
+      })
+    })
+
+    // Backfill 'today' shifted: startDate=March 17, endDate=March 18
+    const result = await svc('today', { startDate: '2026-03-17', endDate: '2026-03-18' })
+    expect(result.granularity).toBe('hourly')
+  })
+
+  it('custom date range with 90d period uses weekly granularity', async () => {
+    mockFind.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([])
+      })
+    })
+
+    const result = await svc('90d', { startDate: '2025-12-20', endDate: '2026-03-18' })
+    expect(result.granularity).toBe('weekly')
   })
 
   // ── Sorting ──

@@ -418,7 +418,7 @@ async function handleStart() {
 
 function fetchDistribution() {
   const period = selectedPeriod.value === 'custom' ? '90d' : selectedPeriod.value
-  _fetchDistribution(period)
+  _fetchDistribution(period, startDate.value, endDate.value)
 }
 
 const distributionChartOption = computed(() => {

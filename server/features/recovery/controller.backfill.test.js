@@ -386,6 +386,85 @@ describe('controller.backfill — KST alignment', () => {
   })
 
   // ────────────────────────────────────────────
+  // Section G: Settling time clamping in analysis
+  // ────────────────────────────────────────────
+
+  describe('Section G: Settling time clamping in analysis', () => {
+    it('G1: analysis excludes buckets within settling window from pending count', async () => {
+      // settlingHours = 3
+      // Fake now: 2026-03-18T12:00Z (KST 21:00)
+      // maxEnd = 2026-03-18T09:00Z (KST 18:00)
+      const fakeNow = new Date('2026-03-18T12:00:00.000Z').getTime()
+      vi.spyOn(Date, 'now').mockReturnValue(fakeNow)
+
+      // endDate = "2026-03-19" → unclamped end = KST 03/20 = 2026-03-19T15:00Z
+      // clamped end = min(03-19T15:00Z, 03-18T09:00Z) = 03-18T09:00Z
+      // Daily bucket 03-16T15:00Z: completion = 03-17T15:00Z ≤ 03-18T09:00Z ✓
+      // Daily bucket 03-17T15:00Z: completion = 03-18T15:00Z > 03-18T09:00Z ✗ (settling 내)
+      // → only 1 daily bucket
+      const req = mockReq({
+        startDate: '2026-03-17',
+        endDate: '2026-03-19',
+        skipHourly: true
+      })
+      const res = mockRes()
+
+      await analyzeBackfill(req, res)
+
+      expect(res.body.daily.total).toBe(1)
+      expect(res.body.daily.pending).toBe(1)
+      expect(res.body.settlingInfo).toBeDefined()
+
+      vi.restoreAllMocks()
+    })
+
+    it('G2: past dates are unaffected by settling clamping', async () => {
+      // settlingHours = 3, fakeNow well after the requested period
+      const fakeNow = new Date('2026-03-25T12:00:00.000Z').getTime()
+      vi.spyOn(Date, 'now').mockReturnValue(fakeNow)
+
+      const req = mockReq({
+        startDate: '2026-03-17',
+        endDate: '2026-03-18',
+        skipHourly: true
+      })
+      const res = mockRes()
+
+      await analyzeBackfill(req, res)
+
+      // No clamping — 2 daily buckets as usual
+      expect(res.body.daily.total).toBe(2)
+      expect(res.body.settlingInfo).toBeUndefined()
+
+      vi.restoreAllMocks()
+    })
+
+    it('G3: hourly buckets also clamped by settling time', async () => {
+      // Fake now: 2026-03-17T18:00Z (KST 03:00 03/18)
+      // maxEnd = 2026-03-17T15:00Z (KST 00:00 03/18)
+      const fakeNow = new Date('2026-03-17T18:00:00.000Z').getTime()
+      vi.spyOn(Date, 'now').mockReturnValue(fakeNow)
+
+      // startDate = "2026-03-17" → start = KST 03/17 = 2026-03-16T15:00Z
+      // endDate = "2026-03-18" → unclamped end = KST 03/19 = 2026-03-18T15:00Z
+      // clamped end = min(03-18T15:00Z, 03-17T15:00Z) = 03-17T15:00Z
+      // Hourly: start 03-16T15:00Z to 03-17T15:00Z = 24 hourly buckets
+      const req = mockReq({
+        startDate: '2026-03-17',
+        endDate: '2026-03-18',
+        skipDaily: true
+      })
+      const res = mockRes()
+
+      await analyzeBackfill(req, res)
+
+      expect(res.body.hourly.total).toBe(24)
+
+      vi.restoreAllMocks()
+    })
+  })
+
+  // ────────────────────────────────────────────
   // Section F: Partial 분리 표시 + retryPartial (4개)
   // ────────────────────────────────────────────
 

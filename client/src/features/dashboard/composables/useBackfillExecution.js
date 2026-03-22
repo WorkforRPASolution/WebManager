@@ -164,10 +164,15 @@ export function useBackfillExecution({ getFormValues, showError }) {
     }
   }
 
-  async function fetchDistribution(period) {
+  async function fetchDistribution(period, startDate, endDate) {
     distributionLoading.value = true
     try {
-      const res = await recoveryApi.getCronRunDistribution({ period })
+      const params = { period }
+      if (startDate && endDate) {
+        params.startDate = startDate
+        params.endDate = endDate
+      }
+      const res = await recoveryApi.getCronRunDistribution(params)
       distributionData.value = res.data
     } catch {
       distributionData.value = null

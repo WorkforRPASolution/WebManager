@@ -142,12 +142,19 @@ async function analyzeBackfill(req, res) {
   let totalActionable = 0
   const effectiveThrottle = throttleMs ?? 1000
 
+  // Settling time clamping — match runManualBackfill behavior
+  const settlingHours = summaryService._getSettlingHours()
+  const maxEnd = new Date(Date.now() - settlingHours * 60 * 60 * 1000)
+
   for (const period of ['hourly', 'daily']) {
     if ((period === 'hourly' && skipHourly) || (period === 'daily' && skipDaily)) continue
 
     const start = floorToKSTBucket('daily', rawStart)
     const endFloored = floorToKSTBucket('daily', rawEnd)
-    const end = new Date(endFloored.getTime() + 24 * 60 * 60 * 1000)
+    const rawEndMs = endFloored.getTime() + 24 * 60 * 60 * 1000
+    const end = new Date(Math.min(rawEndMs, maxEnd.getTime()))
+
+    if (end <= start) continue
 
     const expected = generateExpectedBuckets(period, start, end)
     const completedSet = await summaryService.getCompletedBucketSet(period, start, end)
@@ -173,14 +180,13 @@ async function analyzeBackfill(req, res) {
   result.estimatedMinutes = Math.round(totalActionable * (1.5 + effectiveThrottle / 1000) / 60 * 10) / 10
 
   // Settling 안내: endDate가 클램핑되는 경우 실제 적용 범위 표시
-  const maxEnd = new Date(Date.now() - summaryService._getSettlingHours() * 60 * 60 * 1000)
   const requestedEnd = new Date(endDate)
   if (requestedEnd > maxEnd) {
     result.settlingInfo = {
       requestedEnd: requestedEnd.toISOString(),
       effectiveEnd: maxEnd.toISOString(),
-      settlingHours: summaryService._getSettlingHours(),
-      message: `settling 기간(${summaryService._getSettlingHours()}시간) 이내 데이터는 제외됩니다`
+      settlingHours: settlingHours,
+      message: `settling 기간(${settlingHours}시간) 이내 데이터는 제외됩니다`
     }
   }
 
@@ -261,7 +267,9 @@ async function getCronRunDistribution(req, res) {
     return res.status(400).json({ error: `Invalid period. Must be one of: ${VALID_DISTRIBUTION_PERIODS.join(', ')}` })
   }
   const summaryService = getSummaryService()
-  const result = await summaryService.getCronRunDistribution(period)
+  const { startDate, endDate } = req.query
+  const dateRange = (startDate && endDate) ? { startDate, endDate } : undefined
+  const result = await summaryService.getCronRunDistribution(period, dateRange)
   res.json(result)
 }
 
