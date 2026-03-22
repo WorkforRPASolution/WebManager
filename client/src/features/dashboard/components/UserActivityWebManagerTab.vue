@@ -25,7 +25,7 @@ const { showError } = useToast()
 
 const loading = ref(false)
 const data = ref(null)
-const currentFilters = ref({ period: 'all' })
+const currentFilters = ref({ period: '7d' })
 
 // Toggle state
 const includeAdmin = ref(false)
@@ -43,7 +43,7 @@ const wmPeriodOptions = [
 const GRANULARITY_LABELS = { hourly: '시간별', daily: '일별', weekly: '주별' }
 const granularityLabel = computed(() => GRANULARITY_LABELS[data.value?.granularity] || '일별')
 
-async function fetchData(filters = { period: 'all' }) {
+async function fetchData(filters = { period: '7d' }) {
   loading.value = true
   currentFilters.value = filters
   try {
@@ -115,7 +115,7 @@ onMounted(() => {
         :loading="loading"
         :hide-process="true"
         :period-options="wmPeriodOptions"
-        default-period="all"
+        default-period="7d"
         :max-days="90"
         @search="handleSearch"
       />

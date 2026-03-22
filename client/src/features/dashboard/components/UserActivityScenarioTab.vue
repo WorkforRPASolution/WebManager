@@ -25,7 +25,7 @@ const { buildUserProcessFilter } = useProcessPermission()
 const loading = ref(false)
 const data = ref(null)
 const processes = ref([])
-const currentFilters = ref({ period: 'all' })
+const currentFilters = ref({ period: '7d' })
 
 // Toggle state
 const includeEmptyProcesses = ref(false)
@@ -45,7 +45,7 @@ const processChartData = computed(() => {
   return [...summary, ...empty].sort((a, b) => a.process.localeCompare(b.process))
 })
 
-async function fetchData(filters = { period: 'all' }) {
+async function fetchData(filters = { period: '7d' }) {
   loading.value = true
   currentFilters.value = filters
   try {
@@ -165,6 +165,7 @@ onMounted(() => {
       <UserActivityFilterBar
         :processes="processes"
         :loading="loading"
+        default-period="7d"
         @search="handleSearch"
       />
       <div class="flex items-center gap-3 ml-auto">
