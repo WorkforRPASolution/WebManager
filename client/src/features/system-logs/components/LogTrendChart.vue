@@ -3,16 +3,19 @@ import { computed } from 'vue'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { BarChart } from 'echarts/charts'
-import { TooltipComponent, GridComponent, LegendComponent } from 'echarts/components'
+import { TooltipComponent, GridComponent, LegendComponent, DataZoomComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useTheme } from '@/shared/composables/useTheme'
 
-use([BarChart, TooltipComponent, GridComponent, LegendComponent, CanvasRenderer])
+use([BarChart, TooltipComponent, GridComponent, LegendComponent, DataZoomComponent, CanvasRenderer])
 
 const props = defineProps({
-  data: { type: Array, default: () => [] }
-  // Array of { _id: { date, hour, category }, count }
+  data: { type: Array, default: () => [] },
+  // M4: granularity from server ('hourly', 'daily', or 'weekly')
+  granularity: { type: String, default: 'hourly' }
 })
+
+const MAX_VISIBLE = 25
 
 const { isDark } = useTheme()
 
@@ -27,21 +30,27 @@ const COLORS = {
 
 const option = computed(() => {
   const dark = isDark.value
+  const isHourly = props.granularity === 'hourly'
+  const isWeekly = props.granularity === 'weekly'
 
   // Build unique time labels sorted chronologically
   const timeLabelSet = new Set()
   for (const item of props.data) {
     const id = item._id || {}
-    const label = `${id.date || ''} ${String(id.hour ?? '').padStart(2, '0')}:00`
+    const label = isHourly
+      ? `${id.date || ''} ${String(id.hour ?? '').padStart(2, '0')}:00`
+      : id.date || ''
     timeLabelSet.add(label)
   }
   const timeLabels = [...timeLabelSet].sort()
 
-  // Build lookup: "date hour" -> category -> count
+  // Build lookup: label -> category -> count
   const lookup = {}
   for (const item of props.data) {
     const id = item._id || {}
-    const label = `${id.date || ''} ${String(id.hour ?? '').padStart(2, '0')}:00`
+    const label = isHourly
+      ? `${id.date || ''} ${String(id.hour ?? '').padStart(2, '0')}:00`
+      : id.date || ''
     if (!lookup[label]) lookup[label] = {}
     lookup[label][id.category] = (lookup[label][id.category] || 0) + item.count
   }
@@ -55,6 +64,11 @@ const option = computed(() => {
     barMaxWidth: 40,
     emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } }
   }))
+
+  // dataZoom for long ranges
+  const needsZoom = timeLabels.length > MAX_VISIBLE
+  const zoomEnd = needsZoom ? Math.round(MAX_VISIBLE / timeLabels.length * 100) : 100
+  const bottomMargin = needsZoom ? 60 : 30
 
   return {
     tooltip: {
@@ -80,15 +94,35 @@ const option = computed(() => {
       left: 50,
       right: 20,
       top: 40,
-      bottom: 30
+      bottom: bottomMargin
     },
+    dataZoom: needsZoom ? [{
+      type: 'slider',
+      start: 0,
+      end: zoomEnd,
+      bottom: 5,
+      height: 20,
+      borderColor: dark ? '#374151' : '#e5e7eb',
+      backgroundColor: dark ? '#1f2937' : '#f3f4f6',
+      fillerColor: dark ? 'rgba(59,130,246,0.2)' : 'rgba(59,130,246,0.1)',
+      textStyle: { color: dark ? '#9ca3af' : '#6b7280', fontSize: 10 }
+    }] : [],
     xAxis: {
       type: 'category',
       data: timeLabels,
       axisLabel: {
         color: dark ? '#d1d5db' : '#374151',
         fontSize: 11,
-        rotate: timeLabels.length > 12 ? 35 : 0
+        rotate: timeLabels.length > 12 ? 35 : 0,
+        formatter: (val) => {
+          // For weekly, show "MM-DD~"
+          if (isWeekly && val.length === 10) return val.slice(5) + '~'
+          // For daily, show shorter date format
+          if (!isHourly && val.length === 10) return val.slice(5)
+          // For hourly, show HH:00 only (date in tooltip)
+          if (isHourly && val.length > 10) return val.slice(11)
+          return val
+        }
       },
       axisLine: { lineStyle: { color: dark ? '#374151' : '#e5e7eb' } },
       axisTick: { show: false }

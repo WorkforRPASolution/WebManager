@@ -1,22 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { queryLogs, getLogById, getStatistics, _setDeps } from './service.js'
+import { queryLogs, getLogById, getStatistics, getFilterOptions, _setDeps, _resetFilterCache } from './service.js'
 
 // Mock WebManagerLog model
 const mockFind = vi.fn()
 const mockCountDocuments = vi.fn()
 const mockFindById = vi.fn()
 const mockAggregate = vi.fn()
+const mockDistinct = vi.fn()
 
 const MockModel = {
   find: mockFind,
   countDocuments: mockCountDocuments,
   findById: mockFindById,
-  aggregate: mockAggregate
+  aggregate: mockAggregate,
+  distinct: mockDistinct
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
   _setDeps({ WebManagerLog: MockModel })
+  _resetFilterCache()
 })
 
 describe('queryLogs', () => {
@@ -106,7 +109,7 @@ describe('queryLogs', () => {
     expect(query.timestamp.$lte).toEqual(new Date(end))
   })
 
-  it('filters by search text (errorMessage)', async () => {
+  it('filters by search text using $and', async () => {
     mockFind.mockReturnValue({
       sort: vi.fn().mockReturnValue({
         skip: vi.fn().mockReturnValue({
@@ -121,10 +124,13 @@ describe('queryLogs', () => {
     await queryLogs({ search: 'connection failed' })
 
     const query = mockFind.mock.calls[0][0]
-    expect(query.$or).toBeDefined()
+    expect(query.$and).toBeDefined()
+    expect(query.$and.length).toBe(1)
+    // Should contain search $or
+    expect(query.$and[0].$or).toBeDefined()
   })
 
-  it('filters by action (audit action)', async () => {
+  it('filters by action using $and', async () => {
     mockFind.mockReturnValue({
       sort: vi.fn().mockReturnValue({
         skip: vi.fn().mockReturnValue({
@@ -139,7 +145,80 @@ describe('queryLogs', () => {
     await queryLogs({ action: 'login' })
 
     const query = mockFind.mock.calls[0][0]
-    expect(query.$or).toBeDefined()
+    expect(query.$and).toBeDefined()
+    expect(query.$and.length).toBe(1)
+    expect(query.$and[0].$or).toEqual([
+      { action: 'login' },
+      { authAction: 'login' },
+      { batchAction: 'login' }
+    ])
+  })
+
+  it('filters by pagePath', async () => {
+    mockFind.mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        skip: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({
+            lean: vi.fn().mockResolvedValue([])
+          })
+        })
+      })
+    })
+    mockCountDocuments.mockResolvedValue(0)
+
+    await queryLogs({ pagePath: '/clients' })
+
+    const query = mockFind.mock.calls[0][0]
+    expect(query.pagePath).toBe('/clients')
+  })
+
+  it('H1: action + search 동시 사용 시 $and로 결합 (충돌 없음)', async () => {
+    mockFind.mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        skip: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({
+            lean: vi.fn().mockResolvedValue([])
+          })
+        })
+      })
+    })
+    mockCountDocuments.mockResolvedValue(0)
+
+    await queryLogs({ action: 'login', search: 'admin' })
+
+    const query = mockFind.mock.calls[0][0]
+    expect(query.$and).toBeDefined()
+    expect(query.$and.length).toBe(2)
+    // First condition: action match
+    expect(query.$and[0].$or).toEqual([
+      { action: 'login' },
+      { authAction: 'login' },
+      { batchAction: 'login' }
+    ])
+    // Second condition: search regex
+    expect(query.$and[1].$or.length).toBeGreaterThan(0)
+    // No top-level $or (was the bug)
+    expect(query.$or).toBeUndefined()
+  })
+
+  it('H2: regex 특수문자 이스케이프', async () => {
+    mockFind.mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        skip: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({
+            lean: vi.fn().mockResolvedValue([])
+          })
+        })
+      })
+    })
+    mockCountDocuments.mockResolvedValue(0)
+
+    await queryLogs({ search: 'test.*error(foo)' })
+
+    const query = mockFind.mock.calls[0][0]
+    const searchOr = query.$and[0].$or
+    // Special chars should be escaped
+    expect(searchOr[0].errorMessage.$regex).toBe('test\\.\\*error\\(foo\\)')
   })
 
   it('paginates correctly', async () => {
@@ -193,68 +272,260 @@ describe('getLogById', () => {
 })
 
 describe('getStatistics', () => {
-  it('returns KPI counts and trend data', async () => {
-    // Mock aggregate for categoryKPI
+  function mockAggregateChain() {
+    // Make aggregate chainable with allowDiskUse
+    const createChainableResult = (resolvedValue) => {
+      const chain = {}
+      chain.allowDiskUse = vi.fn().mockReturnValue(chain)
+      // Make it thenable (Promise-like)
+      chain.then = (resolve) => Promise.resolve(resolvedValue).then(resolve)
+      chain.catch = (reject) => Promise.resolve(resolvedValue).catch(reject)
+      return chain
+    }
+    return createChainableResult
+  }
+
+  // Helper: mock all 8 aggregate pipelines
+  function mockAllAggregates(results = {}) {
+    const createChain = mockAggregateChain()
+    mockAggregate
+      .mockReturnValueOnce(createChain(results.kpi || []))       // 1. KPI
+      .mockReturnValueOnce(createChain(results.trend || []))     // 2. Trend
+      .mockReturnValueOnce(createChain(results.topErrors || [])) // 3. Top Errors
+      .mockReturnValueOnce(createChain(results.securityTrend || []))  // 4. Security Trend
+      .mockReturnValueOnce(createChain(results.authBreakdown || []))  // 5. Auth Breakdown
+      .mockReturnValueOnce(createChain(results.batchBreakdown || [])) // 6. Batch Breakdown
+      .mockReturnValueOnce(createChain(results.topUsers || []))       // 7. Top Users
+      .mockReturnValueOnce(createChain(results.recentAudits || []))   // 8. Recent Audits
+  }
+
+  it('returns KPI counts including access category', async () => {
     const mockKpi = [
       { _id: 'audit', count: 100 },
       { _id: 'error', count: 20 },
       { _id: 'auth', count: 50 },
-      { _id: 'batch', count: 30 }
+      { _id: 'batch', count: 30 },
+      { _id: 'access', count: 200 }
     ]
 
-    // Mock aggregate for trend
-    const mockTrend = [
-      { _id: { date: '2026-03-19', hour: 10, category: 'auth' }, count: 5 },
-      { _id: { date: '2026-03-19', hour: 11, category: 'error' }, count: 3 }
-    ]
-
-    // Mock aggregate for topErrors
-    const mockTopErrors = [
-      { _id: 'ServerError', count: 15, lastOccurrence: new Date() },
-      { _id: 'ValidationError', count: 8, lastOccurrence: new Date() }
-    ]
-
-    // Mock aggregate for loginFailures
-    const mockLoginFailures = [
-      { _id: { date: '2026-03-19', hour: 10 }, count: 2 }
-    ]
-
-    mockAggregate
-      .mockResolvedValueOnce(mockKpi)       // categoryKPI
-      .mockResolvedValueOnce(mockTrend)     // trend
-      .mockResolvedValueOnce(mockTopErrors) // topErrors
-      .mockResolvedValueOnce(mockLoginFailures) // loginFailures
+    mockAllAggregates({ kpi: mockKpi })
 
     const result = await getStatistics({ period: 'today' })
 
-    expect(result.kpi).toBeDefined()
-    expect(result.trend).toBeDefined()
-    expect(result.topErrors).toBeDefined()
-    expect(result.loginFailures).toBeDefined()
-    expect(mockAggregate).toHaveBeenCalledTimes(4)
+    expect(result.kpi.access).toBe(200)
+    expect(result.kpi.audit).toBe(100)
   })
 
-  it('handles 7d period', async () => {
-    mockAggregate
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
+  it('returns enhanced KPI with derived fields', async () => {
+    const mockKpi = [
+      { _id: 'audit', count: 100 },
+      { _id: 'error', count: 20 },
+      { _id: 'auth', count: 50 },
+      { _id: 'batch', count: 30 },
+      { _id: 'access', count: 200 }
+    ]
+    const mockAuthBreakdown = [
+      { _id: 'login', count: 20 },
+      { _id: 'logout', count: 15 },
+      { _id: 'login_failed', count: 10 },
+      { _id: 'permission_denied', count: 5 }
+    ]
+    const mockBatchBreakdown = [
+      { _id: 'cron_completed', count: 20 },
+      { _id: 'backfill_completed', count: 5 },
+      { _id: 'cron_failed', count: 3 },
+      { _id: 'cron_skipped', count: 2 }
+    ]
+
+    mockAllAggregates({ kpi: mockKpi, authBreakdown: mockAuthBreakdown, batchBreakdown: mockBatchBreakdown })
 
     const result = await getStatistics({ period: '7d' })
 
-    expect(result.kpi).toBeDefined()
-    expect(result.trend).toBeDefined()
-    expect(result.topErrors).toBeDefined()
-    expect(result.loginFailures).toBeDefined()
+    // total = 100+20+50+30+200 = 400
+    expect(result.kpi.total).toBe(400)
+    // errorRate = 20/400*100 = 5.0
+    expect(result.kpi.errorRate).toBe(5)
+    // securityEvents = login_failed(10) + permission_denied(5) = 15
+    expect(result.kpi.securityEvents).toBe(15)
+    // batchTotal = 20+5+3+2 = 30
+    expect(result.kpi.batchTotal).toBe(30)
+    // batchSuccess = cron_completed(20) + backfill_completed(5) = 25
+    expect(result.kpi.batchSuccess).toBe(25)
+    // batchSuccessRate = 25/30*100 = 83.3
+    expect(result.kpi.batchSuccessRate).toBe(83.3)
+    // auditPerDay and periodDays should be defined
+    expect(result.kpi.auditPerDay).toBeDefined()
+    expect(result.kpi.periodDays).toBeGreaterThan(0)
+  })
+
+  it('returns securityTrend (login_failed + permission_denied)', async () => {
+    const mockSecurityTrend = [
+      { _id: { date: '2026-03-20', authAction: 'login_failed' }, count: 5 },
+      { _id: { date: '2026-03-20', authAction: 'permission_denied' }, count: 2 },
+      { _id: { date: '2026-03-21', authAction: 'login_failed' }, count: 3 }
+    ]
+
+    mockAllAggregates({ securityTrend: mockSecurityTrend })
+
+    const result = await getStatistics({ period: '7d' })
+
+    expect(result.securityTrend).toHaveLength(3)
+    expect(result.securityTrend[0]._id.authAction).toBe('login_failed')
+    // No more loginFailures key
+    expect(result.loginFailures).toBeUndefined()
+  })
+
+  it('returns authBreakdown grouped by authAction', async () => {
+    const mockAuthBreakdown = [
+      { _id: 'login', count: 100 },
+      { _id: 'logout', count: 80 },
+      { _id: 'login_failed', count: 10 }
+    ]
+
+    mockAllAggregates({ authBreakdown: mockAuthBreakdown })
+
+    const result = await getStatistics({ period: 'today' })
+
+    expect(result.authBreakdown).toHaveLength(3)
+    expect(result.authBreakdown[0]._id).toBe('login')
+    expect(result.authBreakdown[0].count).toBe(100)
+  })
+
+  it('returns batchBreakdown grouped by batchAction', async () => {
+    const mockBatchBreakdown = [
+      { _id: 'cron_completed', count: 50 },
+      { _id: 'cron_failed', count: 5 },
+      { _id: 'cron_skipped', count: 3 }
+    ]
+
+    mockAllAggregates({ batchBreakdown: mockBatchBreakdown })
+
+    const result = await getStatistics({ period: 'today' })
+
+    expect(result.batchBreakdown).toHaveLength(3)
+    expect(result.batchBreakdown[0]._id).toBe('cron_completed')
+  })
+
+  it('returns topUsers (top 10, excludes access)', async () => {
+    const mockTopUsers = [
+      { _id: 'admin', count: 200 },
+      { _id: 'user1', count: 150 },
+      { _id: 'user2', count: 100 }
+    ]
+
+    mockAllAggregates({ topUsers: mockTopUsers })
+
+    const result = await getStatistics({ period: '7d' })
+
+    expect(result.topUsers).toHaveLength(3)
+    expect(result.topUsers[0]._id).toBe('admin')
+
+    // Verify pipeline: should exclude access category
+    const topUsersPipeline = mockAggregate.mock.calls[6][0]
+    const matchStage = topUsersPipeline.find(s => s.$match)
+    expect(matchStage.$match.category.$ne).toBe('access')
+    // Should limit to 10
+    const limitStage = topUsersPipeline.find(s => s.$limit)
+    expect(limitStage.$limit).toBe(10)
+  })
+
+  it('returns recentAudits (latest 20, audit only)', async () => {
+    const mockAudits = [
+      { timestamp: new Date(), userId: 'admin', action: 'create', collectionName: 'EQP_INFO', targetType: 'equipmentInfo', documentId: '123' }
+    ]
+
+    mockAllAggregates({ recentAudits: mockAudits })
+
+    const result = await getStatistics({ period: '7d' })
+
+    expect(result.recentAudits).toHaveLength(1)
+    expect(result.recentAudits[0].userId).toBe('admin')
+
+    // Verify pipeline: audit only, limit 20, sorted desc
+    const auditPipeline = mockAggregate.mock.calls[7][0]
+    const matchStage = auditPipeline.find(s => s.$match)
+    expect(matchStage.$match.category).toBe('audit')
+    const limitStage = auditPipeline.find(s => s.$limit)
+    expect(limitStage.$limit).toBe(20)
+    const sortStage = auditPipeline.find(s => s.$sort)
+    expect(sortStage.$sort.timestamp).toBe(-1)
+  })
+
+  it('M5: calls allowDiskUse(true) on all 8 aggregations', async () => {
+    const chains = []
+    const createChain = () => {
+      const chain = { allowDiskUse: vi.fn() }
+      chain.allowDiskUse.mockReturnValue(chain)
+      chain.then = (resolve) => Promise.resolve([]).then(resolve)
+      chain.catch = (reject) => Promise.resolve([]).catch(reject)
+      chains.push(chain)
+      return chain
+    }
+
+    for (let i = 0; i < 8; i++) {
+      mockAggregate.mockReturnValueOnce(createChain())
+    }
+
+    await getStatistics({ period: 'today' })
+
+    // All 8 aggregations should call allowDiskUse(true)
+    expect(chains).toHaveLength(8)
+    for (const chain of chains) {
+      expect(chain.allowDiskUse).toHaveBeenCalledWith(true)
+    }
+  })
+
+  it('M4: uses hourly granularity for today period', async () => {
+    mockAllAggregates({})
+
+    const result = await getStatistics({ period: 'today' })
+
+    expect(result.granularity).toBe('hourly')
+
+    // Check the trend aggregation pipeline (2nd call)
+    const trendPipeline = mockAggregate.mock.calls[1][0]
+    const groupStage = trendPipeline.find(s => s.$group)
+    expect(groupStage.$group._id.hour).toBeDefined()
+  })
+
+  it('M4: uses daily granularity for 7d/30d periods', async () => {
+    mockAllAggregates({})
+
+    const result = await getStatistics({ period: '7d' })
+
+    expect(result.granularity).toBe('daily')
+
+    // Check the trend pipeline uses date-only grouping (no hour)
+    const trendPipeline = mockAggregate.mock.calls[1][0]
+    const groupStage = trendPipeline.find(s => s.$group)
+    expect(groupStage.$group._id.hour).toBeUndefined()
+  })
+
+  it('uses weekly granularity for 90d period', async () => {
+    const mockTrend = [
+      { _id: { date: '2026-03-17', category: 'audit' }, count: 10 },
+      { _id: { date: '2026-03-18', category: 'audit' }, count: 20 },
+      { _id: { date: '2026-03-24', category: 'audit' }, count: 15 }
+    ]
+    const mockSecurityTrend = [
+      { _id: { date: '2026-03-17', authAction: 'login_failed' }, count: 3 },
+      { _id: { date: '2026-03-18', authAction: 'login_failed' }, count: 2 }
+    ]
+
+    mockAllAggregates({ trend: mockTrend, securityTrend: mockSecurityTrend })
+
+    const result = await getStatistics({ period: '90d' })
+
+    expect(result.granularity).toBe('weekly')
+    // Trend should be rolled up: 03-17 and 03-18 are same week (Mon 03-16)
+    // 03-24 is next week (Mon 03-23)
+    expect(result.trend.length).toBeLessThanOrEqual(mockTrend.length)
+    // Security trend should also be rolled up
+    expect(result.securityTrend.length).toBeLessThanOrEqual(mockSecurityTrend.length)
   })
 
   it('handles custom period', async () => {
-    mockAggregate
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
+    mockAllAggregates({})
 
     const result = await getStatistics({
       period: 'custom',
@@ -263,5 +534,137 @@ describe('getStatistics', () => {
     })
 
     expect(result.kpi).toBeDefined()
+    // 19 days → daily granularity
+    expect(result.granularity).toBe('daily')
+  })
+
+  it('uses weekly granularity for custom period > 30 days', async () => {
+    mockAllAggregates({})
+
+    const result = await getStatistics({
+      period: 'custom',
+      startDate: '2026-01-01T00:00:00Z',
+      endDate: '2026-03-19T23:59:59Z'
+    })
+
+    expect(result.granularity).toBe('weekly')
+  })
+})
+
+describe('getFilterOptions', () => {
+  it('H3: returns merged and sorted filter options including pagePaths', async () => {
+    mockDistinct
+      .mockResolvedValueOnce(['admin', 'user1'])
+      .mockResolvedValueOnce(['create', 'update'])
+      .mockResolvedValueOnce(['login', 'logout'])
+      .mockResolvedValueOnce(['cron_completed'])
+      .mockResolvedValueOnce(['/clients', '/users', '/'])
+
+    const result = await getFilterOptions()
+
+    expect(result.userIds).toEqual(['admin', 'user1'])
+    expect(result.actions).toEqual(['create', 'cron_completed', 'login', 'logout', 'update'])
+    expect(result.pagePaths).toEqual(['/', '/clients', '/users'])
+  })
+
+  it('H3: applies 90-day timestamp filter to distinct queries', async () => {
+    mockDistinct
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+
+    await getFilterOptions()
+
+    // Each distinct call should have a timestamp filter
+    for (const call of mockDistinct.mock.calls) {
+      expect(call[1]).toBeDefined()
+      expect(call[1].timestamp).toBeDefined()
+      expect(call[1].timestamp.$gte).toBeInstanceOf(Date)
+    }
+    // pagePath distinct should also filter by category: 'access'
+    const pagePathCall = mockDistinct.mock.calls[4]
+    expect(pagePathCall[0]).toBe('pagePath')
+    expect(pagePathCall[1].category).toBe('access')
+  })
+
+  it('H3: caches unfiltered results for 60 seconds', async () => {
+    mockDistinct
+      .mockResolvedValueOnce(['admin'])
+      .mockResolvedValueOnce(['create'])
+      .mockResolvedValueOnce(['login'])
+      .mockResolvedValueOnce(['cron_completed'])
+      .mockResolvedValueOnce(['/clients'])
+
+    const result1 = await getFilterOptions()
+    const result2 = await getFilterOptions()
+
+    // Second call should use cache (only 5 distinct calls total, not 10)
+    expect(mockDistinct).toHaveBeenCalledTimes(5)
+    expect(result2).toEqual(result1)
+  })
+
+  it('H3: skips cache for filtered requests', async () => {
+    // First call: unfiltered (cached)
+    mockDistinct
+      .mockResolvedValueOnce(['admin', 'user1'])
+      .mockResolvedValueOnce(['create'])
+      .mockResolvedValueOnce(['login'])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+
+    await getFilterOptions()
+    expect(mockDistinct).toHaveBeenCalledTimes(5)
+
+    // Second call: with category filter (should NOT use cache)
+    mockDistinct
+      .mockResolvedValueOnce(['admin'])
+      .mockResolvedValueOnce(['create'])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+
+    const result = await getFilterOptions({ category: 'audit' })
+    expect(mockDistinct).toHaveBeenCalledTimes(10) // 5 + 5 new calls
+
+    // Should have category filter on userId/action distinct calls
+    const userIdCall = mockDistinct.mock.calls[5]
+    expect(userIdCall[1].category).toBe('audit')
+  })
+
+  it('cascading: category narrows userId, userId narrows action', async () => {
+    mockDistinct
+      .mockResolvedValueOnce(['admin'])       // userId with category filter
+      .mockResolvedValueOnce(['create'])       // action with category + userId filter
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+
+    await getFilterOptions({ category: 'audit', userId: 'admin' })
+
+    // userId distinct: should have category filter
+    const userIdFilter = mockDistinct.mock.calls[0][1]
+    expect(userIdFilter.category).toBe('audit')
+
+    // action distinct: should have category + userId filter
+    const actionFilter = mockDistinct.mock.calls[1][1]
+    expect(actionFilter.category).toBe('audit')
+    expect(actionFilter.userId).toBe('admin')
+  })
+
+  it('H3: filters out null/empty values', async () => {
+    mockDistinct
+      .mockResolvedValueOnce(['admin', null, '', 'user1'])
+      .mockResolvedValueOnce([null, 'create'])
+      .mockResolvedValueOnce(['login', null])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([null, '/clients'])
+
+    const result = await getFilterOptions()
+
+    expect(result.userIds).toEqual(['admin', 'user1'])
+    expect(result.actions).toEqual(['create', 'login'])
+    expect(result.pagePaths).toEqual(['/clients'])
   })
 })
