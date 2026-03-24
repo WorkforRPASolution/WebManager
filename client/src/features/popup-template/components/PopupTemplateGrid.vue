@@ -351,7 +351,22 @@ const handlePaste = (event) => {
 
   event.preventDefault()
 
-  const rows = pastedText.split('\n').filter(row => row.trim())
+  // 행 경계 판단: 줄 자체의 탭 수 ≥ 컬럼수-1 이면 새 행, 미만이면 이전 행에 병합 (셀 내 줄바꿈 대응)
+  const expectedTabs = pasteColumnOrder.length - 1
+  const lines = pastedText.split('\n')
+  const rows = []
+
+  for (const line of lines) {
+    const lineTabs = (line.match(/\t/g) || []).length
+    if (lineTabs >= expectedTabs) {
+      rows.push(line)
+    } else if (rows.length > 0) {
+      rows[rows.length - 1] += '\n' + line
+    } else if (line.trim()) {
+      rows.push(line)
+    }
+  }
+
   if (rows.length === 0) return
 
   const parsedRows = []
@@ -368,7 +383,8 @@ const handlePaste = (event) => {
     const rowData = {}
     for (let i = 0; i < Math.min(cells.length, pasteColumnOrder.length); i++) {
       const field = pasteColumnOrder[i]
-      rowData[field] = cells[i]?.trim() || ''
+      // HTML 필드는 줄바꿈 유지, 나머지는 trim
+      rowData[field] = field === 'html' ? (cells[i] || '') : (cells[i]?.trim() || '')
     }
 
     const hasValue = Object.values(rowData).some(v => v !== '' && v !== null)
