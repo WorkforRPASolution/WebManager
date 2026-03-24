@@ -99,7 +99,7 @@
                     <input
                       v-model="item.name"
                       @input="changed = true"
-                      class="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      class="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       :class="{ 'border-red-500': item._nameError }"
                       placeholder="e.g., Agent Log"
                     />
@@ -109,7 +109,7 @@
                     <input
                       v-model="item.path"
                       @input="changed = true"
-                      class="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                      class="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
                       :class="{ 'border-red-500': item._pathError }"
                       placeholder="e.g., log/ARSAgent"
                     />
@@ -119,7 +119,7 @@
                     <input
                       v-model="item.keyword"
                       @input="changed = true"
-                      class="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                      class="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
                       :class="{ 'border-red-500': item._keywordError }"
                       placeholder="e.g., arsagent"
                     />
@@ -129,7 +129,7 @@
                     <select
                       v-model="item.encoding"
                       @change="changed = true"
-                      class="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      class="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="utf-8">UTF-8</option>
                       <option value="euc-kr">EUC-KR</option>

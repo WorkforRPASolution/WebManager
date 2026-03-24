@@ -93,7 +93,7 @@
                     <input
                       v-model="item.name"
                       @input="changed = true"
-                      class="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      class="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                       :class="{ 'border-red-500': item._nameError }"
                       placeholder="e.g., Main Config"
                     />
@@ -103,7 +103,7 @@
                     <input
                       v-model="item.path"
                       @input="changed = true"
-                      class="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono"
+                      class="w-full px-2 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-purple-500 focus:border-purple-500 font-mono"
                       :class="{ 'border-red-500': item._pathError }"
                       placeholder="e.g., /config/main.json"
                     />

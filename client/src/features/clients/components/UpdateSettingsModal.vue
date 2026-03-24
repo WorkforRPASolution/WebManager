@@ -113,7 +113,7 @@
                 <div>
                   <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-1">Name</label>
                   <input v-model="selectedProfile.name" @input="changed = true"
-                    class="w-full px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
+                    class="w-full px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                     :class="{ 'border-red-500': selectedProfile._nameError }"
                     placeholder="Windows v2.0" />
                   <p v-if="selectedProfile._nameError" class="mt-0.5 text-xs text-red-500">{{ selectedProfile._nameError }}</p>
@@ -121,7 +121,7 @@
                 <div>
                   <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-1">OS Version</label>
                   <select v-model="selectedProfile.osVer" @change="changed = true"
-                    class="w-full px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500">
+                    class="w-full px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500">
                     <option value="">All OS</option>
                     <option v-for="ov in osVersionOptions" :key="ov" :value="ov">{{ ov }}</option>
                   </select>
@@ -129,7 +129,7 @@
                 <div>
                   <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-1">Version</label>
                   <input v-model="selectedProfile.version" @input="changed = true"
-                    class="w-full px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
+                    class="w-full px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                     placeholder="2.0.0" />
                 </div>
               </div>
@@ -156,7 +156,7 @@
                       <div class="w-24 flex-shrink-0">
                         <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Type</label>
                         <select v-model="task.type" @change="onTaskTypeChange(task)"
-                          class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500">
+                          class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500">
                           <option value="copy">Copy</option>
                           <option value="exec">Exec</option>
                         </select>
@@ -164,7 +164,7 @@
                       <div class="flex-1">
                         <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Name</label>
                         <input v-model="task.name" @input="changed = true"
-                          class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
+                          class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                           :class="{ 'border-red-500': task._nameError }"
                           :placeholder="task.type === 'exec' ? 'Stop Agent' : 'Agent Binary'" />
                         <p v-if="task._nameError" class="mt-0.5 text-xs text-red-500">{{ task._nameError }}</p>
@@ -207,7 +207,7 @@
                           <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Source Path</label>
                           <div class="flex gap-1">
                             <input v-model="task.sourcePath" @input="changed = true"
-                              class="flex-1 px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
+                              class="flex-1 px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
                               :class="{ 'border-red-500': task._sourcePathError }"
                               placeholder="release/bin/agent.jar" />
                             <button @click="browseSource(index)" type="button"
@@ -257,7 +257,7 @@
                         <div>
                           <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Target Path</label>
                           <input v-model="task.targetPath" @input="changed = true"
-                            class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
+                            class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
                             :class="{ 'border-red-500': task._targetPathError }"
                             placeholder="bin/agent.jar" />
                           <p v-if="task._targetPathError" class="mt-0.5 text-xs text-red-500">{{ task._targetPathError }}</p>
@@ -270,7 +270,7 @@
                         <div class="col-span-2">
                           <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Command</label>
                           <input v-model="task.commandLine" @input="changed = true"
-                            class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
+                            class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
                             :class="{ 'border-red-500': task._commandLineError }"
                             placeholder="net stop resourceagent" />
                           <p v-if="task._commandLineError" class="mt-0.5 text-xs text-red-500">{{ task._commandLineError }}</p>
@@ -278,14 +278,14 @@
                         <div>
                           <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Timeout (sec)</label>
                           <input v-model.number="task.timeout" @input="changed = true" type="number" min="1"
-                            class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
+                            class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                             placeholder="30" />
                         </div>
                       </div>
                       <div>
                         <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Args (space-separated)</label>
                         <input v-model="task._argsText" @input="onArgsInput(task)"
-                          class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
+                          class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
                           placeholder="/y /force (optional)" />
                       </div>
                     </template>
@@ -294,7 +294,7 @@
                     <div>
                       <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Description</label>
                       <input v-model="task.description" @input="changed = true"
-                        class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
+                        class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                         placeholder="Optional" />
                     </div>
                   </div>
