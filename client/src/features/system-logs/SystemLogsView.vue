@@ -13,10 +13,11 @@ const activeTab = ref('logs')
 
 // Logs tab state
 const logs = ref([])
+const pageSize = ref(50)
 const pagination = ref({
   total: 0,
   page: 1,
-  pageSize: 25,
+  pageSize: 50,
   totalPages: 0,
   hasNextPage: false,
   hasPrevPage: false
@@ -42,7 +43,7 @@ const fetchLogs = async () => {
     const { data } = await systemLogsApi.getLogs({
       ...filters.value,
       page: currentPage.value,
-      pageSize: 25
+      pageSize: pageSize.value
     })
     logs.value = data.data
     pagination.value = data.pagination
@@ -61,6 +62,12 @@ function handleSearch(newFilters) {
 
 function handlePageChange(page) {
   currentPage.value = page
+  fetchLogs()
+}
+
+function handlePageSizeChange(size) {
+  pageSize.value = size
+  currentPage.value = 1
   fetchLogs()
 }
 
@@ -119,6 +126,7 @@ onMounted(fetchLogs)
           :pagination="pagination"
           :loading="loading"
           @page-change="handlePageChange"
+          @page-size-change="handlePageSizeChange"
           @row-click="handleRowClick"
         />
       </div>

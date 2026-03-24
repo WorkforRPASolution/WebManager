@@ -10,7 +10,9 @@ const props = defineProps({
   loading: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['page-change', 'row-click'])
+const emit = defineEmits(['page-change', 'page-size-change', 'row-click'])
+
+const pageSizeOptions = [25, 50, 100, 200]
 
 const categoryBadgeClasses = {
   audit: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
@@ -207,12 +209,21 @@ const visiblePages = computed(() => {
       v-if="pagination.total > 0"
       class="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-dark-border"
     >
-      <!-- Left: result count -->
-      <p class="text-sm text-gray-500 dark:text-gray-400">
-        Showing <span class="font-medium text-gray-700 dark:text-gray-200">{{ showingFrom }}</span>
-        to <span class="font-medium text-gray-700 dark:text-gray-200">{{ showingTo }}</span>
-        of <span class="font-medium text-gray-700 dark:text-gray-200">{{ pagination.total }}</span> results
-      </p>
+      <!-- Left: result count + page size -->
+      <div class="flex items-center gap-3">
+        <p class="text-sm text-gray-500 dark:text-gray-400">
+          Showing <span class="font-medium text-gray-700 dark:text-gray-200">{{ showingFrom }}</span>
+          to <span class="font-medium text-gray-700 dark:text-gray-200">{{ showingTo }}</span>
+          of <span class="font-medium text-gray-700 dark:text-gray-200">{{ pagination.total }}</span> results
+        </p>
+        <select
+          :value="pagination.pageSize"
+          @change="emit('page-size-change', Number($event.target.value))"
+          class="px-2 py-1 text-sm border rounded bg-white dark:bg-dark-card text-gray-700 dark:text-gray-300 border-gray-300 dark:border-dark-border"
+        >
+          <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }} / page</option>
+        </select>
+      </div>
 
       <!-- Right: page buttons -->
       <div class="flex items-center gap-1">
