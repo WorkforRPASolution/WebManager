@@ -63,27 +63,30 @@ function validateEmailInfoData(data, isUpdate = false) {
 /**
  * Validate batch of email info data for creation
  * @param {Array} items - Array of email info data
- * @param {Array} existingKeys - Existing project+category combinations
+ * @param {Array} existingRecords - Existing records (full objects with project, category)
  * @returns {Object} - { valid: [], errors: [] }
  */
-function validateBatchCreate(items, existingKeys) {
+function validateBatchCreate(items, existingRecords) {
   const valid = []
   const errors = []
-  const batchKeys = []
+  const batchEntries = []
 
   for (let i = 0; i < items.length; i++) {
     const itemData = items[i]
-    const key = `${itemData.project}|${itemData.category}`
+    const key = `${itemData.project}|${itemData.category}`.toLowerCase()
 
     // Check for duplicate key within batch
-    if (batchKeys.includes(key.toLowerCase())) {
-      errors.push({ rowIndex: i, field: 'category', message: '중복된 Project + Category 조합' })
+    if (batchEntries.some(e => e.key === key)) {
+      errors.push({ rowIndex: i, field: 'category', message: '중복된 Project + Category 조합 (배치 내)' })
       continue
     }
 
     // Check for duplicate key against existing data
-    if (existingKeys.includes(key.toLowerCase())) {
-      errors.push({ rowIndex: i, field: 'category', message: '이미 존재하는 Project + Category 조합' })
+    const conflict = existingRecords.find(r =>
+      `${r.project}|${r.category}`.toLowerCase() === key
+    )
+    if (conflict) {
+      errors.push({ rowIndex: i, field: 'category', message: `이미 존재하는 Project + Category 조합 (${conflict.project}/${conflict.category})` })
       continue
     }
 
@@ -94,7 +97,7 @@ function validateBatchCreate(items, existingKeys) {
         errors.push({ rowIndex: i, field, message })
       }
     } else {
-      batchKeys.push(key.toLowerCase())
+      batchEntries.push({ key })
       valid.push(itemData)
     }
   }
@@ -105,16 +108,21 @@ function validateBatchCreate(items, existingKeys) {
 /**
  * Validate email info data for update
  * @param {Object} data - EmailInfo data (including _id)
- * @param {Array} existingKeys - Other items' project+category combinations (lowercase)
+ * @param {Array} otherRecords - Other items' full records (excluding current)
  * @returns {Object} - { valid: boolean, errors: Object|null }
  */
-function validateUpdate(data, existingKeys) {
+function validateUpdate(data, otherRecords) {
   const errors = {}
-  const key = `${data.project}|${data.category}`
+  const key = `${data.project}|${data.category}`.toLowerCase()
 
   // Check unique constraints against other items
-  if (data.project && data.category && existingKeys.includes(key.toLowerCase())) {
-    errors.category = '이미 존재하는 Project + Category 조합'
+  if (data.project && data.category) {
+    const conflict = otherRecords.find(r =>
+      `${r.project}|${r.category}`.toLowerCase() === key
+    )
+    if (conflict) {
+      errors.category = `이미 존재하는 Project + Category 조합 (${conflict.project}/${conflict.category})`
+    }
   }
 
   if (Object.keys(errors).length > 0) {

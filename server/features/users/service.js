@@ -150,12 +150,11 @@ async function getUserBySingleId(singleid) {
  * @param {Object} context - { user } execution context
  */
 async function createUsers(usersData, context = {}) {
-  // Get existing singleids for validation
-  const existingUsers = await User.find({}, 'singleid').lean()
-  const existingSingleIds = existingUsers.map(u => u.singleid)
+  // Get existing records for validation
+  const existingRecords = await User.find({}, 'singleid').lean()
 
   // Validate
-  const { valid, errors } = validateBatchCreate(usersData, existingSingleIds)
+  const { valid, errors } = validateBatchCreate(usersData, existingRecords)
 
   // Hash passwords and insert valid users
   let created = 0
@@ -211,11 +210,10 @@ async function updateUsers(usersData, context = {}) {
     const existingDoc = allUsersById.get(_id)
 
     // Get other users (excluding current one)
-    const otherUsers = allUsers.filter(u => u._id.toString() !== _id)
-    const existingSingleIds = otherUsers.map(u => u.singleid)
+    const otherRecords = allUsers.filter(u => u._id.toString() !== _id)
 
     // Validate
-    const validation = validateUpdate(updateData, existingSingleIds)
+    const validation = validateUpdate(updateData, otherRecords)
 
     if (!validation.valid) {
       for (const [field, message] of Object.entries(validation.errors)) {

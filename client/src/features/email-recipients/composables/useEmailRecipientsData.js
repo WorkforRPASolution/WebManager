@@ -190,42 +190,6 @@ export function useEmailRecipientsData() {
     deletedRows.value.delete(id)
   }
 
-  // Check for duplicate compound key
-  const checkDuplicateKey = () => {
-    const keyMap = new Map()
-
-    for (const row of currentData.value) {
-      if (row._id && deletedRows.value.has(row._id)) continue
-
-      const rowId = row._id || row._tempId
-      const key = `${row.app}|${row.line}|${row.process}|${row.model}|${row.code}`.toLowerCase()
-
-      if (!row.app || !row.line || !row.process || !row.model || !row.code) continue
-
-      const isNew = row._tempId && newRows.value.has(row._tempId)
-      const isModified = row._id && modifiedRows.value.has(row._id)
-      const isNewOrModified = isNew || isModified
-
-      if (!keyMap.has(key)) {
-        keyMap.set(key, [])
-      }
-      keyMap.get(key).push({ rowId, isNewOrModified })
-    }
-
-    for (const [, rows] of keyMap) {
-      if (rows.length > 1) {
-        for (const { rowId, isNewOrModified } of rows) {
-          if (isNewOrModified) {
-            if (!validationErrors.value[rowId]) {
-              validationErrors.value[rowId] = {}
-            }
-            validationErrors.value[rowId].code = 'Duplicate key combination'
-          }
-        }
-      }
-    }
-  }
-
   const validate = () => {
     const rowsToValidate = currentData.value.filter(r => {
       if (r._id && deletedRows.value.has(r._id)) return false
@@ -234,7 +198,6 @@ export function useEmailRecipientsData() {
       return false
     })
     validationErrors.value = validateAllRows(rowsToValidate)
-    checkDuplicateKey()
     return Object.keys(validationErrors.value).length === 0
   }
 

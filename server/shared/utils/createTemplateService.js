@@ -150,7 +150,10 @@ function createTemplateService(Model, collectionName, options = {}) {
         errors.push(...result.errors)
       } catch (insertError) {
         if (insertError.code === 11000) {
-          errors.push({ rowIndex: -1, field: 'key', message: 'One or more templates already exist with the same key' })
+          const keyInfo = insertError.keyValue
+            ? Object.entries(insertError.keyValue).map(([k, v]) => `${k}=${v}`).join(', ')
+            : 'unknown'
+          errors.push({ rowIndex: -1, field: 'key', message: `Duplicate template key (${keyInfo})` })
         } else {
           throw insertError
         }
@@ -186,7 +189,10 @@ function createTemplateService(Model, collectionName, options = {}) {
         errors.push(...result.errors.map(e => ({ ...e, rowIndex: i })))
       } catch (updateError) {
         if (updateError.code === 11000) {
-          errors.push({ rowIndex: i, field: 'key', message: 'Duplicate template key' })
+          const keyInfo = updateError.keyValue
+            ? Object.entries(updateError.keyValue).map(([k, v]) => `${k}=${v}`).join(', ')
+            : 'unknown'
+          errors.push({ rowIndex: i, field: 'key', message: `Duplicate template key (${keyInfo})` })
         } else {
           throw updateError
         }

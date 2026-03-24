@@ -48,27 +48,30 @@ function validateEmailRecipientsData(data, isUpdate = false) {
 /**
  * Validate batch of email recipients data for creation
  * @param {Array} items - Array of email recipients data
- * @param {Array} existingKeys - Existing compound key combinations (lowercase)
+ * @param {Array} existingRecords - Existing records (full objects with app, line, process, model, code)
  * @returns {Object} - { valid: [], errors: [] }
  */
-function validateBatchCreate(items, existingKeys) {
+function validateBatchCreate(items, existingRecords) {
   const valid = []
   const errors = []
-  const batchKeys = []
+  const batchEntries = []
 
   for (let i = 0; i < items.length; i++) {
     const itemData = items[i]
-    const key = `${itemData.app}|${itemData.line}|${itemData.process}|${itemData.model}|${itemData.code}`
+    const key = `${itemData.app}|${itemData.line}|${itemData.process}|${itemData.model}|${itemData.code}`.toLowerCase()
 
     // Check for duplicate key within batch
-    if (batchKeys.includes(key.toLowerCase())) {
+    if (batchEntries.some(e => e.key === key)) {
       errors.push({ rowIndex: i, field: 'code', message: 'Duplicate key combination in batch' })
       continue
     }
 
     // Check for duplicate key against existing data
-    if (existingKeys.includes(key.toLowerCase())) {
-      errors.push({ rowIndex: i, field: 'code', message: 'Key combination already exists' })
+    const conflict = existingRecords.find(r =>
+      `${r.app}|${r.line}|${r.process}|${r.model}|${r.code}`.toLowerCase() === key
+    )
+    if (conflict) {
+      errors.push({ rowIndex: i, field: 'code', message: `Key combination already exists (${conflict.code})` })
       continue
     }
 
@@ -79,7 +82,7 @@ function validateBatchCreate(items, existingKeys) {
         errors.push({ rowIndex: i, field, message })
       }
     } else {
-      batchKeys.push(key.toLowerCase())
+      batchEntries.push({ key })
       valid.push(itemData)
     }
   }
@@ -90,17 +93,20 @@ function validateBatchCreate(items, existingKeys) {
 /**
  * Validate email recipients data for update
  * @param {Object} data - EmailRecipients data (including _id)
- * @param {Array} existingKeys - Other items' key combinations (lowercase)
+ * @param {Array} otherRecords - Other items' full records (excluding current)
  * @returns {Object} - { valid: boolean, errors: Object|null }
  */
-function validateUpdate(data, existingKeys) {
+function validateUpdate(data, otherRecords) {
   const errors = {}
-  const key = `${data.app}|${data.line}|${data.process}|${data.model}|${data.code}`
+  const key = `${data.app}|${data.line}|${data.process}|${data.model}|${data.code}`.toLowerCase()
 
   // Check unique constraints against other items
   if (data.app && data.line && data.process && data.model && data.code) {
-    if (existingKeys.includes(key.toLowerCase())) {
-      errors.code = 'Key combination already exists'
+    const conflict = otherRecords.find(r =>
+      `${r.app}|${r.line}|${r.process}|${r.model}|${r.code}`.toLowerCase() === key
+    )
+    if (conflict) {
+      errors.code = `Key combination already exists (${conflict.code})`
     }
   }
 

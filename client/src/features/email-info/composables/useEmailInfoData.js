@@ -194,42 +194,6 @@ export function useEmailInfoData() {
     deletedRows.value.delete(id)
   }
 
-  // Check for duplicate project+category
-  const checkDuplicateKey = () => {
-    const keyMap = new Map()
-
-    for (const row of currentData.value) {
-      if (row._id && deletedRows.value.has(row._id)) continue
-
-      const rowId = row._id || row._tempId
-      const key = `${row.project}|${row.category}`.toLowerCase()
-
-      if (!row.project || !row.category) continue
-
-      const isNew = row._tempId && newRows.value.has(row._tempId)
-      const isModified = row._id && modifiedRows.value.has(row._id)
-      const isNewOrModified = isNew || isModified
-
-      if (!keyMap.has(key)) {
-        keyMap.set(key, [])
-      }
-      keyMap.get(key).push({ rowId, isNewOrModified })
-    }
-
-    for (const [, rows] of keyMap) {
-      if (rows.length > 1) {
-        for (const { rowId, isNewOrModified } of rows) {
-          if (isNewOrModified) {
-            if (!validationErrors.value[rowId]) {
-              validationErrors.value[rowId] = {}
-            }
-            validationErrors.value[rowId].category = '중복된 Project + Category 조합'
-          }
-        }
-      }
-    }
-  }
-
   const validate = () => {
     const rowsToValidate = currentData.value.filter(r => {
       if (r._id && deletedRows.value.has(r._id)) return false
@@ -238,7 +202,6 @@ export function useEmailInfoData() {
       return false
     })
     validationErrors.value = validateAllRows(rowsToValidate)
-    checkDuplicateKey()
     return Object.keys(validationErrors.value).length === 0
   }
 

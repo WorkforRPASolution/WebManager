@@ -248,12 +248,11 @@ async function getEmailInfoPaginated(filters, paginationQuery) {
 async function createEmailInfo(itemsData, context = {}) {
   const errors = []
 
-  // Get existing keys for uniqueness validation
-  const existingItems = await EmailInfo.find({}, 'project category').lean()
-  const existingKeys = existingItems.map(item => `${item.project}|${item.category}`.toLowerCase())
+  // Get existing records for uniqueness validation
+  const existingRecords = await EmailInfo.find({}, 'project category').lean()
 
   // Validate format and uniqueness
-  const { valid, errors: validationErrors } = validateBatchCreate(itemsData, existingKeys)
+  const { valid, errors: validationErrors } = validateBatchCreate(itemsData, existingRecords)
 
   for (const err of validationErrors) {
     errors.push({
@@ -307,11 +306,10 @@ async function updateEmailInfo(itemsData, context = {}) {
     }
 
     // Get other items (excluding current one) for uniqueness validation
-    const otherItems = allItems.filter(item => item._id.toString() !== _id)
-    const existingKeys = otherItems.map(item => `${item.project}|${item.category}`.toLowerCase())
+    const otherRecords = allItems.filter(item => item._id.toString() !== _id)
 
     // Validate format and uniqueness
-    const validation = validateUpdate(updateData, existingKeys)
+    const validation = validateUpdate(updateData, otherRecords)
 
     if (!validation.valid) {
       for (const [field, message] of Object.entries(validation.errors)) {

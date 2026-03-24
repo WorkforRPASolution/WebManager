@@ -99,13 +99,13 @@ function validateUser(userData, isUpdate = false) {
 /**
  * Validate batch user creation
  * @param {Array} users - Array of user data
- * @param {Array} existingSingleIds - Existing user IDs to check for duplicates
+ * @param {Array} existingRecords - Existing user records (full objects with singleid)
  * @returns {Object} - { valid: Array, errors: Array }
  */
-function validateBatchCreate(users, existingSingleIds = []) {
+function validateBatchCreate(users, existingRecords = []) {
   const valid = []
   const errors = []
-  const seenIds = new Set(existingSingleIds.map(id => id.toLowerCase()))
+  const batchEntries = []
 
   users.forEach((user, index) => {
     const validation = validateUser(user, false)
@@ -117,14 +117,21 @@ function validateBatchCreate(users, existingSingleIds = []) {
       return
     }
 
-    // Check for duplicate singleid
+    // Check for duplicate singleid within batch
     const lowerSingleId = user.singleid.toLowerCase()
-    if (seenIds.has(lowerSingleId)) {
-      errors.push({ rowIndex: index, field: 'singleid', message: 'User ID already exists' })
+    if (batchEntries.some(e => e === lowerSingleId)) {
+      errors.push({ rowIndex: index, field: 'singleid', message: 'Duplicate User ID in batch' })
       return
     }
 
-    seenIds.add(lowerSingleId)
+    // Check for duplicate singleid against existing data
+    const conflict = existingRecords.find(r => r.singleid?.toLowerCase?.() === lowerSingleId)
+    if (conflict) {
+      errors.push({ rowIndex: index, field: 'singleid', message: `User ID already exists (${conflict.singleid})` })
+      return
+    }
+
+    batchEntries.push(lowerSingleId)
     valid.push(user)
   })
 
@@ -134,18 +141,19 @@ function validateBatchCreate(users, existingSingleIds = []) {
 /**
  * Validate batch user update
  * @param {Object} userData - User data to update
- * @param {Array} existingSingleIds - Other users' IDs (excluding current user)
+ * @param {Array} otherRecords - Other users' full records (excluding current user)
  * @returns {Object} - { valid: boolean, errors: Object }
  */
-function validateUpdate(userData, existingSingleIds = []) {
+function validateUpdate(userData, otherRecords = []) {
   const validation = validateUser(userData, true)
   const errors = { ...Object.fromEntries(validation.errors.map(e => [e.field, e.message])) }
 
   // Check for duplicate singleid if changed
   if (userData.singleid) {
     const lowerSingleId = userData.singleid.toLowerCase()
-    if (existingSingleIds.some(id => id.toLowerCase() === lowerSingleId)) {
-      errors.singleid = 'User ID already exists'
+    const conflict = otherRecords.find(r => r.singleid?.toLowerCase?.() === lowerSingleId)
+    if (conflict) {
+      errors.singleid = `User ID already exists (${conflict.singleid})`
     }
   }
 
