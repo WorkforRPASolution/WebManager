@@ -475,8 +475,9 @@ const activeFileTab = computed(() => {
 const handleReloadActiveTab = async () => {
   if (!activeFileTab.value) return
   const { eqpId, filePath } = activeFileTab.value
+  saveScrollPosition(props.logViewer.activeTabId.value)
   await props.logViewer.reloadFile(eqpId, filePath)
-  nextTick(() => scrollEditorToBottom())
+  nextTick(() => restoreScrollPosition(props.logViewer.activeTabId.value))
 }
 
 // Tail-related computed properties
@@ -731,30 +732,44 @@ function scrollToLine(lineNum) {
   editor.revealLineInCenter(lineNum)
 }
 
-// Re-apply highlights + scroll to bottom when switching tabs
-watch(() => props.logViewer.activeTabId.value, () => {
+// Per-tab scroll position store
+const tabScrollPositions = new Map()
+
+function saveScrollPosition(tabId) {
+  if (!tabId || !monacoEditorRef.value) return
+  const editor = monacoEditorRef.value.getEditor()
+  if (editor) tabScrollPositions.set(tabId, editor.getScrollTop())
+}
+
+function restoreScrollPosition(tabId) {
+  if (!monacoEditorRef.value) return
+  const editor = monacoEditorRef.value.getEditor()
+  if (!editor) return
+  const saved = tabScrollPositions.get(tabId)
+  if (saved != null) {
+    editor.setScrollTop(saved)
+  } else {
+    // 처음 열리는 탭 → 마지막 줄
+    const model = editor.getModel()
+    if (model) editor.revealLine(model.getLineCount())
+  }
+}
+
+// Save position of leaving tab, restore position of entering tab
+watch(() => props.logViewer.activeTabId.value, (newId, oldId) => {
+  saveScrollPosition(oldId)
   nextTick(() => {
     if (lastSearchResults.length > 0) applyHighlights()
-    scrollEditorToBottom()
+    restoreScrollPosition(newId)
   })
 })
 
 // Scroll to bottom when content is first loaded (new tab opened)
 watch(() => props.logViewer.activeTabContent.value, (newVal, oldVal) => {
   if (newVal && !oldVal) {
-    nextTick(() => scrollEditorToBottom())
+    nextTick(() => restoreScrollPosition(props.logViewer.activeTabId.value))
   }
 })
-
-function scrollEditorToBottom() {
-  if (!monacoEditorRef.value) return
-  const editor = monacoEditorRef.value.getEditor()
-  if (!editor) return
-  const model = editor.getModel()
-  if (!model) return
-  const lastLine = model.getLineCount()
-  editor.revealLine(lastLine)
-}
 
 // Update tab scroll state when tabs change
 watch(() => props.logViewer.openTabs.value.length, () => {
