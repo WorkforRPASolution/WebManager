@@ -260,6 +260,10 @@ export function useEmailTemplateData() {
         ...results
       }
     } catch (err) {
+      const serverErrors = err.response?.data?.errors
+      if (serverErrors?.length > 0) {
+        return { success: false, errors: serverErrors }
+      }
       error.value = err.response?.data?.error || 'Failed to save changes'
       return { success: false, message: error.value }
     } finally {
