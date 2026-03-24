@@ -137,6 +137,20 @@ async function tailLogStream(targets, onData, signal) {
     let currentBasePath = client.basePath || ''
     let basePathRetried = false
 
+    // basePath 없으면 tail 시작 전 자동 감지 시도
+    if (!currentBasePath) {
+      try {
+        const detected = await detectBasePath(eqpId)
+        if (detected) {
+          currentBasePath = detected
+          onData({ eqpId, filePath, info: `basePath auto-detected: ${detected}` })
+        }
+      } catch (e) {
+        log.warn(`tailLogStream: basePath pre-detect failed for ${eqpId}: ${e.message}`)
+        onData({ eqpId, filePath, info: `basePath 자동 감지 실패: ${e.message}` })
+      }
+    }
+
     while (!signal.aborted) {
       let rpcClient = null
       try {
@@ -187,7 +201,9 @@ async function tailLogStream(targets, onData, signal) {
                 onData({ eqpId, filePath, info: `basePath updated to ${newBasePath}, retrying...` })
                 continue // retry immediately with new basePath
               }
-            } catch (_) { /* detect failed, fall through to report original error */ }
+            } catch (detectErr) {
+              log.warn(`tailLogStream: basePath detect failed for ${eqpId}: ${detectErr.message}`)
+            }
           }
           onData({ eqpId, filePath, error: errMsg })
         }
