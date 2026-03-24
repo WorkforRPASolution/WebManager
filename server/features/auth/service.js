@@ -326,9 +326,10 @@ async function requestPasswordReset(singleid, { email } = {}) {
     }
   }
 
-  user.passwordStatus = 'reset_requested'
-  user.passwordResetRequestedAt = new Date()
-  await user.save()
+  await _User.updateOne(
+    { _id: user._id },
+    { $set: { passwordStatus: 'reset_requested', passwordResetRequestedAt: new Date() } }
+  )
 
   return {
     success: true,
@@ -401,10 +402,10 @@ async function verifyCodeAndResetPassword(mail, code, newPassword) {
 
   // 사용자 입력 비밀번호로 직접 저장
   const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS)
-  user.password = hashedPassword
-  user.passwordStatus = 'normal'
-  user.passwordResetRequestedAt = null
-  await user.save()
+  await _User.updateOne(
+    { _id: user._id },
+    { $set: { password: hashedPassword, passwordStatus: 'normal', passwordResetRequestedAt: null } }
+  )
 
   return { success: true, message: '비밀번호가 변경되었습니다.' }
 }
@@ -433,8 +434,10 @@ async function changePassword(userId, currentPassword, newPassword) {
   const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS)
 
   // Update password
-  user.password = hashedPassword
-  await user.save()
+  await User.updateOne(
+    { _id: user._id },
+    { $set: { password: hashedPassword } }
+  )
 
   return {
     success: true,
@@ -463,10 +466,10 @@ async function setNewPassword(userId, newPassword) {
   const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS)
 
   // Update password and reset status
-  user.password = hashedPassword
-  user.passwordStatus = 'normal'
-  user.passwordResetRequestedAt = null
-  await user.save()
+  await User.updateOne(
+    { _id: user._id },
+    { $set: { password: hashedPassword, passwordStatus: 'normal', passwordResetRequestedAt: null } }
+  )
 
   return {
     success: true,
@@ -491,10 +494,10 @@ async function approvePasswordReset(userId, { email: manualEmail } = {}) {
 
   // Hash and save temporary password
   const hashedPassword = await bcrypt.hash(tempPassword, SALT_ROUNDS)
-  user.password = hashedPassword
-  user.passwordStatus = 'must_change'
-  user.passwordResetRequestedAt = null
-  await user.save()
+  await _User.updateOne(
+    { _id: user._id },
+    { $set: { password: hashedPassword, passwordStatus: 'must_change', passwordResetRequestedAt: null } }
+  )
 
   // Send email notification (only in integrated mode)
   let emailSent = false
@@ -530,8 +533,10 @@ async function approveUserAccount(userId) {
   }
 
   // Activate user
-  user.accountStatus = 'active'
-  await user.save()
+  await User.updateOne(
+    { _id: user._id },
+    { $set: { accountStatus: 'active' } }
+  )
 
   return {
     success: true,

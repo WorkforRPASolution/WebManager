@@ -13,8 +13,10 @@ const mockFindById = vi.fn()
 const mockSendEmailTo = vi.fn()
 const mockBuildTempPasswordEmail = vi.fn()
 
+const mockUpdateOne = vi.fn().mockResolvedValue({ modifiedCount: 1 })
+
 _setDeps({
-  User: { findById: mockFindById },
+  User: { findById: mockFindById, updateOne: mockUpdateOne },
   sendEmailTo: mockSendEmailTo,
   buildTempPasswordEmail: mockBuildTempPasswordEmail
 })

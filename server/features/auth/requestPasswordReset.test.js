@@ -12,8 +12,10 @@ const mockFindOne = vi.fn()
 const mockSendEmailTo = vi.fn()
 const mockBuildTempPasswordEmail = vi.fn()
 
+const mockUpdateOne = vi.fn().mockResolvedValue({ modifiedCount: 1 })
+
 _setDeps({
-  User: { findOne: mockFindOne, findById: vi.fn() },
+  User: { findOne: mockFindOne, findById: vi.fn(), updateOne: mockUpdateOne },
   sendEmailTo: mockSendEmailTo,
   buildTempPasswordEmail: mockBuildTempPasswordEmail
 })
@@ -60,18 +62,24 @@ describe('requestPasswordReset — standalone mode', () => {
     const result = await requestPasswordReset('testuser')
 
     expect(result.success).toBe(true)
-    expect(user.passwordStatus).toBe('reset_requested')
-    expect(user.passwordResetRequestedAt).toBeInstanceOf(Date)
-    expect(user.save).toHaveBeenCalled()
+    expect(mockUpdateOne).toHaveBeenCalledWith(
+      { _id: 'user123' },
+      { $set: expect.objectContaining({ passwordStatus: 'reset_requested' }) }
+    )
+    const setArg = mockUpdateOne.mock.calls[0][1].$set
+    expect(setArg.passwordResetRequestedAt).toBeInstanceOf(Date)
   })
 
   it('email 전달해도 무시 (standalone에서는 이메일 발송 없음)', async () => {
-    const user = mockUser()
+    mockUser()
 
     const result = await requestPasswordReset('testuser', { email: 'user@test.com' })
 
     expect(result.success).toBe(true)
-    expect(user.passwordStatus).toBe('reset_requested')
+    expect(mockUpdateOne).toHaveBeenCalledWith(
+      { _id: 'user123' },
+      { $set: expect.objectContaining({ passwordStatus: 'reset_requested' }) }
+    )
     expect(mockSendEmailTo).not.toHaveBeenCalled()
   })
 

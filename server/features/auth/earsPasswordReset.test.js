@@ -16,8 +16,10 @@ const mockSendEmailTo = vi.fn()
 const mockBuildVerificationCodeEmail = vi.fn()
 const mockBuildTempPasswordEmail = vi.fn()
 
+const mockUpdateOne = vi.fn().mockResolvedValue({ modifiedCount: 1 })
+
 _setDeps({
-  User: { findOne: mockFindOne, findById: vi.fn() },
+  User: { findOne: mockFindOne, findById: vi.fn(), updateOne: mockUpdateOne },
   searchUsers: mockSearchUsers,
   storeCode: mockStoreCode,
   verifyCode: mockVerifyCode,
@@ -131,9 +133,14 @@ describe('verifyCodeAndResetPassword', () => {
 
     expect(mockVerifyCode).toHaveBeenCalledWith('testuser@test.com', '123456')
     expect(mockFindOne).toHaveBeenCalledWith({ singleid: 'testuser' })
-    expect(user.passwordStatus).toBe('normal')
-    expect(user.password).not.toBe('$2a$12$existinghash')
-    expect(user.save).toHaveBeenCalled()
+    expect(mockUpdateOne).toHaveBeenCalledWith(
+      { _id: 'user123' },
+      { $set: expect.objectContaining({ passwordStatus: 'normal', passwordResetRequestedAt: null }) }
+    )
+    // password should be a bcrypt hash, not the original
+    const setArg = mockUpdateOne.mock.calls[0][1].$set
+    expect(setArg.password).toBeDefined()
+    expect(setArg.password).not.toBe('$2a$12$existinghash')
     // 임시 비밀번호 이메일 발송 없음
     expect(mockBuildTempPasswordEmail).not.toHaveBeenCalled()
     expect(mockSendEmailTo).not.toHaveBeenCalled()

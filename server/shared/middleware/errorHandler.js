@@ -86,7 +86,7 @@ async function saveErrorLog(err, req) {
   await createErrorLog({
     errorType,
     errorMessage: err.message,
-    errorStack: process.env.NODE_ENV === 'development' ? err.stack : null,
+    errorStack: err.stack || null,
     requestInfo: {
       method: req.method,
       url: req.originalUrl,
@@ -114,8 +114,9 @@ async function errorHandler(err, req, res, next) {
       field: e.path,
       message: e.message
     }))
+    const fieldSummary = details.map(d => d.field).join(', ')
     return res.status(400).json({
-      error: 'Validation failed',
+      error: `입력값 검증 실패: ${fieldSummary} 필드를 확인해주세요`,
       details
     })
   }
