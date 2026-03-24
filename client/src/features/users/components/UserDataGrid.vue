@@ -526,25 +526,8 @@ const handleCopy = (event) => {
 
   let copyData = ''
 
-  // 1. 체크박스로 선택된 행들 확인
-  const selectedRows = gridApi.value.getSelectedRows()
-
-  if (selectedRows.length > 0) {
-    // 선택된 행들 복사 (모든 편집 가능한 컬럼)
-    const rows = selectedRows.map(rowData => {
-      return editableColumns.map(colId => {
-        const value = rowData[colId]
-        if (colId === 'password') return '' // Don't copy password
-        // Convert processes array to semicolon-separated string
-        if (colId === 'processes' && Array.isArray(value)) {
-          return value.join(';')
-        }
-        return value !== null && value !== undefined ? String(value) : ''
-      }).join('\t')
-    })
-    copyData = rows.join('\n')
-  } else if (cellSelectionStart.value && cellSelectionEnd.value) {
-    // 2. 셀 범위가 선택되어 있으면 해당 범위 복사
+  // 1. 셀 범위가 선택되어 있으면 해당 범위 복사 (우선)
+  if (cellSelectionStart.value && cellSelectionEnd.value) {
     const startRowIndex = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
     const endRowIndex = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
 
@@ -577,7 +560,7 @@ const handleCopy = (event) => {
     }
     copyData = rows.join('\n')
   } else {
-    // 3. 선택된 행이나 셀 범위가 없으면 포커스된 셀 값만 복사
+    // 2. 포커스된 셀이 있으면 해당 셀 값 복사
     const focusedCell = gridApi.value.getFocusedCell()
     if (focusedCell) {
       const rowNode = gridApi.value.getDisplayedRowAtIndex(focusedCell.rowIndex)
@@ -594,6 +577,25 @@ const handleCopy = (event) => {
             copyData = value !== null && value !== undefined ? String(value) : ''
           }
         }
+      }
+    }
+
+    // 3. 포커스된 셀도 없으면 체크박스로 선택된 행 복사 (fallback)
+    if (!copyData) {
+      const selectedRows = gridApi.value.getSelectedRows()
+      if (selectedRows.length > 0) {
+        const rows = selectedRows.map(rowData => {
+          return editableColumns.map(colId => {
+            const value = rowData[colId]
+            if (colId === 'password') return '' // Don't copy password
+            // Convert processes array to semicolon-separated string
+            if (colId === 'processes' && Array.isArray(value)) {
+              return value.join(';')
+            }
+            return value !== null && value !== undefined ? String(value) : ''
+          }).join('\t')
+        })
+        copyData = rows.join('\n')
       }
     }
   }

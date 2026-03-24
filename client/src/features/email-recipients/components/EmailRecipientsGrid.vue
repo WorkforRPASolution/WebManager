@@ -419,17 +419,8 @@ const handleCopy = (event) => {
 
   let copyData = ''
 
-  const selectedRows = gridApi.value.getSelectedRows()
-
-  if (selectedRows.length > 0) {
-    const rows = selectedRows.map(rowData => {
-      return editableColumns.map(colId => {
-        const value = rowData[colId]
-        return value !== null && value !== undefined ? String(value) : ''
-      }).join('\t')
-    })
-    copyData = rows.join('\n')
-  } else if (cellSelectionStart.value && cellSelectionEnd.value) {
+  // 1. 셀 범위가 선택되어 있으면 해당 범위 복사 (우선)
+  if (cellSelectionStart.value && cellSelectionEnd.value) {
     const startRowIndex = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
     const endRowIndex = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
 
@@ -453,12 +444,27 @@ const handleCopy = (event) => {
     }
     copyData = rows.join('\n')
   } else {
+    // 2. 포커스된 셀이 있으면 해당 셀 값 복사
     const focusedCell = gridApi.value.getFocusedCell()
     if (focusedCell) {
       const rowNode = gridApi.value.getDisplayedRowAtIndex(focusedCell.rowIndex)
       if (rowNode) {
         const value = rowNode.data[focusedCell.column.colId]
         copyData = value !== null && value !== undefined ? String(value) : ''
+      }
+    }
+
+    // 3. 포커스된 셀도 없으면 체크박스로 선택된 행 복사 (fallback)
+    if (!copyData) {
+      const selectedRows = gridApi.value.getSelectedRows()
+      if (selectedRows.length > 0) {
+        const rows = selectedRows.map(rowData => {
+          return editableColumns.map(colId => {
+            const value = rowData[colId]
+            return value !== null && value !== undefined ? String(value) : ''
+          }).join('\t')
+        })
+        copyData = rows.join('\n')
       }
     }
   }
