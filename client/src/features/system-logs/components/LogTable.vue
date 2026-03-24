@@ -135,7 +135,7 @@ const visiblePages = computed(() => {
 </script>
 
 <template>
-  <div class="relative">
+  <div class="relative flex flex-col h-full">
     <!-- Loading overlay -->
     <div
       v-if="loading"
@@ -159,10 +159,10 @@ const visiblePages = computed(() => {
     </div>
 
     <!-- Table -->
-    <div v-else class="overflow-x-auto">
+    <div v-else class="flex-1 min-h-0 overflow-auto">
       <table class="w-full text-sm text-left">
         <thead>
-          <tr class="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-dark-border">
+          <tr class="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-dark-border sticky top-0 z-[1]">
             <th class="px-4 py-3 font-medium">Timestamp</th>
             <th class="px-4 py-3 font-medium">Category</th>
             <th class="px-4 py-3 font-medium">User</th>
