@@ -59,7 +59,10 @@ function buildFilter({ category, userId, action, pagePath, startDate, endDate, s
       { action: regex },
       { documentId: regex },
       { pagePath: regex },
-      { pageName: regex }
+      { pageName: regex },
+      { syncEqpId: regex },
+      { syncError: regex },
+      { syncOperation: regex }
     ]})
   }
 
@@ -303,12 +306,12 @@ async function getStatistics({ period = 'today', startDate, endDate }) {
   const securityTrend = granularity === 'weekly' ? rollupWeeklySecurityTrend(securityTrendRaw) : securityTrendRaw
 
   // Transform KPI to object with derived fields
-  const kpi = { audit: 0, error: 0, auth: 0, batch: 0, access: 0 }
+  const kpi = { audit: 0, error: 0, auth: 0, batch: 0, access: 0, 'eqp-redis': 0 }
   for (const item of kpiRaw) {
     if (item._id in kpi) kpi[item._id] = item.count
   }
 
-  const total = kpi.audit + kpi.error + kpi.auth + kpi.batch + kpi.access
+  const total = kpi.audit + kpi.error + kpi.auth + kpi.batch + kpi.access + kpi['eqp-redis']
   const errorRate = total > 0 ? Math.round(kpi.error / total * 1000) / 10 : 0
 
   // Security events from authBreakdown
@@ -370,17 +373,18 @@ async function getFilterOptions({ category, userId, startDate, endDate } = {}) {
   const pagePathFilter = { ...baseFilter, category: 'access' }
   if (userId) pagePathFilter.userId = userId
 
-  const [userIds, actions, authActions, batchActions, pagePaths] = await Promise.all([
+  const [userIds, actions, authActions, batchActions, syncOperations, pagePaths] = await Promise.all([
     Model.distinct('userId', userIdFilter),
     Model.distinct('action', actionFilter),
     Model.distinct('authAction', actionFilter),
     Model.distinct('batchAction', actionFilter),
+    Model.distinct('syncOperation', actionFilter),
     Model.distinct('pagePath', pagePathFilter)
   ])
 
   // Merge all action-type fields, remove nulls/empty
   const allActions = [...new Set([
-    ...actions, ...authActions, ...batchActions
+    ...actions, ...authActions, ...batchActions, ...syncOperations
   ])].filter(Boolean).sort()
 
   const result = {

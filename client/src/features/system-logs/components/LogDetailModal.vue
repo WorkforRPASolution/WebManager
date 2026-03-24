@@ -12,7 +12,8 @@ const categoryBadgeClasses = {
   audit: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
   error: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
   auth: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
-  batch: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+  batch: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+  'eqp-redis': 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
 }
 
 function getBadgeClass(category) {
@@ -42,6 +43,7 @@ const isAudit = computed(() => props.log?.category === 'audit')
 const isError = computed(() => props.log?.category === 'error')
 const isAuth = computed(() => props.log?.category === 'auth')
 const isBatch = computed(() => props.log?.category === 'batch')
+const isEqpRedis = computed(() => props.log?.category === 'eqp-redis')
 </script>
 
 <template>
@@ -172,6 +174,22 @@ const isBatch = computed(() => props.log?.category === 'batch')
             <div v-if="log.batchResult">
               <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Batch Result</p>
               <pre class="bg-gray-50 dark:bg-dark-bg rounded-lg p-3 text-xs font-mono overflow-x-auto mt-1 text-gray-900 dark:text-white">{{ formatJson(log.batchResult) }}</pre>
+            </div>
+          </template>
+
+          <!-- EQP Redis fields -->
+          <template v-if="isEqpRedis">
+            <div>
+              <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Sync Operation</p>
+              <p class="text-sm text-gray-900 dark:text-white mt-1">{{ log.syncOperation || '-' }}</p>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Equipment ID</p>
+              <p class="text-sm text-gray-900 dark:text-white mt-1 font-mono">{{ log.syncEqpId || '-' }}</p>
+            </div>
+            <div>
+              <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Sync Error</p>
+              <p class="text-sm text-gray-900 dark:text-white mt-1">{{ log.syncError || '-' }}</p>
             </div>
           </template>
         </div>

@@ -17,7 +17,8 @@ const categoryBadgeClasses = {
   error: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
   auth: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
   batch: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-  access: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+  access: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
+  'eqp-redis': 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
 }
 
 function getBadgeClass(category) {
@@ -43,6 +44,8 @@ function getActionText(row) {
       return row.action || '-'
     case 'access':
       return row.pagePath || '-'
+    case 'eqp-redis':
+      return row.syncOperation || '-'
     default:
       return row.action || row.authAction || row.batchAction || row.errorType || '-'
   }
@@ -78,6 +81,12 @@ function getMessageText(row) {
       const parts = []
       if (row.pageName) parts.push(row.pageName)
       if (row.durationMs != null) parts.push(formatDuration(row.durationMs))
+      return parts.length > 0 ? parts.join(' — ') : '-'
+    }
+    case 'eqp-redis': {
+      const parts = []
+      if (row.syncEqpId) parts.push(row.syncEqpId)
+      if (row.syncError) parts.push(row.syncError)
       return parts.length > 0 ? parts.join(' — ') : '-'
     }
     default:
