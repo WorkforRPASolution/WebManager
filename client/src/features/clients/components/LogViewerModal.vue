@@ -730,12 +730,30 @@ function scrollToLine(lineNum) {
   editor.revealLineInCenter(lineNum)
 }
 
-// Re-apply highlights when switching tabs
+// Re-apply highlights + scroll to bottom when switching tabs
 watch(() => props.logViewer.activeTabId.value, () => {
-  if (lastSearchResults.length > 0) {
-    nextTick(() => applyHighlights())
+  nextTick(() => {
+    if (lastSearchResults.length > 0) applyHighlights()
+    scrollEditorToBottom()
+  })
+})
+
+// Scroll to bottom when content is first loaded (new tab opened)
+watch(() => props.logViewer.activeTabContent.value, (newVal, oldVal) => {
+  if (newVal && !oldVal) {
+    nextTick(() => scrollEditorToBottom())
   }
 })
+
+function scrollEditorToBottom() {
+  if (!monacoEditorRef.value) return
+  const editor = monacoEditorRef.value.getEditor()
+  if (!editor) return
+  const model = editor.getModel()
+  if (!model) return
+  const lastLine = model.getLineCount()
+  editor.revealLine(lastLine)
+}
 
 // Update tab scroll state when tabs change
 watch(() => props.logViewer.openTabs.value.length, () => {
