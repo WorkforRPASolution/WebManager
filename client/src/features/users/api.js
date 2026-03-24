@@ -7,7 +7,7 @@ import api from '../../shared/api'
 export const usersApi = {
   // Get users with pagination and filtering
   // Supports multi-process filtering via `processes` array (sent as comma-separated string)
-  getAll: (filters = {}, page = 1, pageSize = 25) => {
+  getAll: (filters = {}, page = 1, pageSize = 50) => {
     const params = { ...filters, page, pageSize }
     // Convert processes array to comma-separated string for API
     if (params.processes && Array.isArray(params.processes)) {

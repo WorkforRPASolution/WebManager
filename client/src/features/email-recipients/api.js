@@ -3,7 +3,7 @@ import { emailInfoApi } from '@/features/email-info/api'
 
 export const emailRecipientsApi = {
   // Server-side pagination: returns { data, total, page, pageSize, totalPages }
-  getAll: (filters = {}, page = 1, pageSize = 25) => {
+  getAll: (filters = {}, page = 1, pageSize = 50) => {
     const params = { page, pageSize }
     if (filters.app) params.app = filters.app
     if (filters.process) params.process = filters.process

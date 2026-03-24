@@ -19,7 +19,7 @@ export function useEmailRecipientsData() {
   const currentPage = ref(1)
   const totalRecords = ref(0)
   const totalPages = ref(0)
-  const pageSize = ref(25)
+  const pageSize = ref(50)
   const currentFilters = ref({})
 
   // Store for unsaved rows across pages

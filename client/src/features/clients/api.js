@@ -2,7 +2,7 @@ import api from '../../shared/api'
 
 export const clientListApi = {
   // Server-side pagination: returns { data, total, page, pageSize, totalPages }
-  getClients: (filters = {}, page = 1, pageSize = 25) => {
+  getClients: (filters = {}, page = 1, pageSize = 50) => {
     const params = { page, pageSize }
     if (filters.processes?.length) params.process = filters.processes.join(',')
     if (filters.models?.length) params.model = filters.models.join(',')

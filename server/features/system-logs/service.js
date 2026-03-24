@@ -76,7 +76,7 @@ function buildFilter({ category, userId, action, pagePath, startDate, endDate, s
 /**
  * Query logs with filtering and pagination
  */
-async function queryLogs({ category, userId, action, pagePath, startDate, endDate, search, page = 1, pageSize = 25 }) {
+async function queryLogs({ category, userId, action, pagePath, startDate, endDate, search, page = 1, pageSize = 50 }) {
   const Model = getModel()
   const filter = buildFilter({ category, userId, action, pagePath, startDate, endDate, search })
 
