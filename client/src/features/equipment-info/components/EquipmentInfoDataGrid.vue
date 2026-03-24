@@ -184,7 +184,9 @@ const {
 async function loadServiceTypeOptions() {
   try {
     const response = await serviceApi.getServiceTypes()
-    serviceTypeOptions.value = (response.data.data || response.data || []).map(t => t.id || t)
+    const raw = response.data.data || response.data || []
+    // API returns [{ serviceType, label, ... }] — extract unique serviceType values
+    serviceTypeOptions.value = [...new Set(raw.map(t => t.serviceType || t.id || t))]
   } catch (error) {
     console.error('Failed to load service types:', error)
   }
