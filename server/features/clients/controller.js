@@ -271,13 +271,14 @@ async function createMasterData(req, res) {
   // Build context from request
   const context = { user: req.user }
 
-  const { created, errors } = await service.createClients(clients, context)
+  const { created, errors, syncStatus } = await service.createClients(clients, context)
 
   const statusCode = errors.length > 0 && created === 0 ? 400 : 201
   res.status(statusCode).json({
     success: created > 0,
     created,
-    errors
+    errors,
+    ...(syncStatus && { syncStatus })
   })
 }
 
@@ -294,12 +295,13 @@ async function updateMasterData(req, res) {
   // Build context from request
   const context = { user: req.user }
 
-  const { updated, errors } = await service.updateClients(clients, context)
+  const { updated, errors, syncStatus } = await service.updateClients(clients, context)
 
   res.json({
     success: updated > 0 || errors.length === 0,
     updated,
-    errors
+    errors,
+    ...(syncStatus && { syncStatus })
   })
 }
 
@@ -316,11 +318,12 @@ async function deleteMasterData(req, res) {
   // Build context from request
   const context = { user: req.user }
 
-  const { deleted } = await service.deleteClients(ids, context)
+  const { deleted, syncStatus } = await service.deleteClients(ids, context)
 
   res.json({
     success: true,
-    deleted
+    deleted,
+    ...(syncStatus && { syncStatus })
   })
 }
 

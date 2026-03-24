@@ -20,7 +20,8 @@ const COLORS = {
   error: '#ef4444',
   auth: '#22c55e',
   batch: '#a855f7',
-  access: '#f59e0b'
+  access: '#f59e0b',
+  'eqp-redis': '#f97316'
 }
 
 const LABELS = {
@@ -28,19 +29,20 @@ const LABELS = {
   error: 'Error',
   auth: 'Auth',
   batch: 'Batch',
-  access: 'Access'
+  access: 'Access',
+  'eqp-redis': 'EQP Redis'
 }
 
 const hasData = computed(() => {
   const d = props.data
-  return (d.audit || 0) + (d.error || 0) + (d.auth || 0) + (d.batch || 0) + (d.access || 0) > 0
+  return (d.audit || 0) + (d.error || 0) + (d.auth || 0) + (d.batch || 0) + (d.access || 0) + (d['eqp-redis'] || 0) > 0
 })
 
 const option = computed(() => {
   const dark = isDark.value
   const d = props.data
 
-  const seriesData = ['audit', 'error', 'auth', 'batch', 'access']
+  const seriesData = ['audit', 'error', 'auth', 'batch', 'access', 'eqp-redis']
     .map(cat => ({
       name: LABELS[cat],
       value: d[cat] || 0,

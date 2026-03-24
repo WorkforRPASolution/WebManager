@@ -19,13 +19,14 @@ const MAX_VISIBLE = 25
 
 const { isDark } = useTheme()
 
-const CATEGORIES = ['audit', 'error', 'auth', 'batch', 'access']
+const CATEGORIES = ['audit', 'error', 'auth', 'batch', 'access', 'eqp-redis']
 const COLORS = {
   audit: '#3b82f6',
   error: '#ef4444',
   auth: '#22c55e',
   batch: '#a855f7',
-  access: '#f59e0b'
+  access: '#f59e0b',
+  'eqp-redis': '#f97316'
 }
 
 const option = computed(() => {

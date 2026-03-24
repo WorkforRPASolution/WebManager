@@ -558,6 +558,7 @@ describe('getFilterOptions', () => {
       .mockResolvedValueOnce(['create', 'update'])
       .mockResolvedValueOnce(['login', 'logout'])
       .mockResolvedValueOnce(['cron_completed'])
+      .mockResolvedValueOnce([])  // syncOperation
       .mockResolvedValueOnce(['/clients', '/users', '/'])
 
     const result = await getFilterOptions()
@@ -573,6 +574,7 @@ describe('getFilterOptions', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])  // syncOperation
       .mockResolvedValueOnce([])
 
     await getFilterOptions()
@@ -584,7 +586,7 @@ describe('getFilterOptions', () => {
       expect(call[1].timestamp.$gte).toBeInstanceOf(Date)
     }
     // pagePath distinct should also filter by category: 'access'
-    const pagePathCall = mockDistinct.mock.calls[4]
+    const pagePathCall = mockDistinct.mock.calls[5]
     expect(pagePathCall[0]).toBe('pagePath')
     expect(pagePathCall[1].category).toBe('access')
   })
@@ -595,13 +597,14 @@ describe('getFilterOptions', () => {
       .mockResolvedValueOnce(['create'])
       .mockResolvedValueOnce(['login'])
       .mockResolvedValueOnce(['cron_completed'])
+      .mockResolvedValueOnce([])  // syncOperation
       .mockResolvedValueOnce(['/clients'])
 
     const result1 = await getFilterOptions()
     const result2 = await getFilterOptions()
 
-    // Second call should use cache (only 5 distinct calls total, not 10)
-    expect(mockDistinct).toHaveBeenCalledTimes(5)
+    // Second call should use cache (only 6 distinct calls total, not 12)
+    expect(mockDistinct).toHaveBeenCalledTimes(6)
     expect(result2).toEqual(result1)
   })
 
@@ -612,10 +615,11 @@ describe('getFilterOptions', () => {
       .mockResolvedValueOnce(['create'])
       .mockResolvedValueOnce(['login'])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])  // syncOperation
       .mockResolvedValueOnce([])
 
     await getFilterOptions()
-    expect(mockDistinct).toHaveBeenCalledTimes(5)
+    expect(mockDistinct).toHaveBeenCalledTimes(6)
 
     // Second call: with category filter (should NOT use cache)
     mockDistinct
@@ -623,13 +627,14 @@ describe('getFilterOptions', () => {
       .mockResolvedValueOnce(['create'])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])  // syncOperation
       .mockResolvedValueOnce([])
 
     const result = await getFilterOptions({ category: 'audit' })
-    expect(mockDistinct).toHaveBeenCalledTimes(10) // 5 + 5 new calls
+    expect(mockDistinct).toHaveBeenCalledTimes(12) // 6 + 6 new calls
 
     // Should have category filter on userId/action distinct calls
-    const userIdCall = mockDistinct.mock.calls[5]
+    const userIdCall = mockDistinct.mock.calls[6]
     expect(userIdCall[1].category).toBe('audit')
   })
 
@@ -639,6 +644,7 @@ describe('getFilterOptions', () => {
       .mockResolvedValueOnce(['create'])       // action with category + userId filter
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])  // syncOperation
       .mockResolvedValueOnce([])
 
     await getFilterOptions({ category: 'audit', userId: 'admin' })
@@ -659,6 +665,7 @@ describe('getFilterOptions', () => {
       .mockResolvedValueOnce([null, 'create'])
       .mockResolvedValueOnce(['login', null])
       .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])  // syncOperation
       .mockResolvedValueOnce([null, '/clients'])
 
     const result = await getFilterOptions()
@@ -666,5 +673,79 @@ describe('getFilterOptions', () => {
     expect(result.userIds).toEqual(['admin', 'user1'])
     expect(result.actions).toEqual(['create', 'login'])
     expect(result.pagePaths).toEqual(['/clients'])
+  })
+})
+
+describe('eqp-redis category integration', () => {
+  it('buildFilter: syncEqpId/syncError/syncOperation in search $or', async () => {
+    mockFind.mockReturnValue({
+      sort: vi.fn().mockReturnValue({
+        skip: vi.fn().mockReturnValue({
+          limit: vi.fn().mockReturnValue({
+            lean: vi.fn().mockResolvedValue([])
+          })
+        })
+      })
+    })
+    mockCountDocuments.mockResolvedValue(0)
+
+    await queryLogs({ search: 'EQP001' })
+
+    const query = mockFind.mock.calls[0][0]
+    const searchOr = query.$and[0].$or
+    const fieldNames = searchOr.map(cond => Object.keys(cond)[0])
+    expect(fieldNames).toContain('syncEqpId')
+    expect(fieldNames).toContain('syncError')
+    expect(fieldNames).toContain('syncOperation')
+  })
+
+  it('getStatistics: eqp-redis in KPI', async () => {
+    const createChainableResult = (resolvedValue) => {
+      const chain = {}
+      chain.allowDiskUse = vi.fn().mockReturnValue(chain)
+      chain.then = (resolve) => Promise.resolve(resolvedValue).then(resolve)
+      chain.catch = (reject) => Promise.resolve(resolvedValue).catch(reject)
+      return chain
+    }
+
+    const mockKpi = [
+      { _id: 'audit', count: 10 },
+      { _id: 'error', count: 5 },
+      { _id: 'auth', count: 3 },
+      { _id: 'batch', count: 2 },
+      { _id: 'access', count: 20 },
+      { _id: 'eqp-redis', count: 7 }
+    ]
+
+    mockAggregate
+      .mockReturnValueOnce(createChainableResult(mockKpi))
+      .mockReturnValueOnce(createChainableResult([]))
+      .mockReturnValueOnce(createChainableResult([]))
+      .mockReturnValueOnce(createChainableResult([]))
+      .mockReturnValueOnce(createChainableResult([]))
+      .mockReturnValueOnce(createChainableResult([]))
+      .mockReturnValueOnce(createChainableResult([]))
+      .mockReturnValueOnce(createChainableResult([]))
+
+    const result = await getStatistics({ period: 'today' })
+
+    expect(result.kpi['eqp-redis']).toBe(7)
+    // total = 10+5+3+2+20+7 = 47
+    expect(result.kpi.total).toBe(47)
+  })
+
+  it('getFilterOptions: syncOperation included in actions', async () => {
+    mockDistinct
+      .mockResolvedValueOnce(['admin'])          // userId
+      .mockResolvedValueOnce(['create'])          // action
+      .mockResolvedValueOnce(['login'])           // authAction
+      .mockResolvedValueOnce(['cron_completed'])  // batchAction
+      .mockResolvedValueOnce(['sync_create', 'sync_delete'])  // syncOperation
+      .mockResolvedValueOnce(['/clients'])        // pagePath
+
+    const result = await getFilterOptions()
+
+    expect(result.actions).toContain('sync_create')
+    expect(result.actions).toContain('sync_delete')
   })
 })

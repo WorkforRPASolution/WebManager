@@ -7,6 +7,7 @@
  * - auth: 인증/권한 관련
  * - batch: Cron/Backfill 배치 실행 이력
  * - access: 페이지 접근 이력
+ * - eqp-redis: EQP_INFO Redis 동기화 실패 기록
  */
 
 const mongoose = require('mongoose')
@@ -24,7 +25,8 @@ const RETENTION_DAYS = {
   auth: parseInt(process.env.AUTH_RETENTION_DAYS, 10) || 365,
   error: parseInt(process.env.ERROR_RETENTION_DAYS, 10) || 90,
   batch: parseInt(process.env.BATCH_RETENTION_DAYS, 10) || 365,
-  access: parseInt(process.env.ACCESS_RETENTION_DAYS, 10) || 90
+  access: parseInt(process.env.ACCESS_RETENTION_DAYS, 10) || 90,
+  'eqp-redis': parseInt(process.env.EQP_REDIS_RETENTION_DAYS, 10) || 365
 }
 
 function getExpireAt(category) {
@@ -40,7 +42,7 @@ const webmanagerLogSchema = new mongoose.Schema({
   category: {
     type: String,
     required: true,
-    enum: ['audit', 'error', 'auth', 'batch', 'access'],
+    enum: ['audit', 'error', 'auth', 'batch', 'access', 'eqp-redis'],
     index: true
   },
   timestamp: {
@@ -138,6 +140,11 @@ const webmanagerLogSchema = new mongoose.Schema({
   details: {
     type: mongoose.Schema.Types.Mixed
   },
+
+  // eqp-redis 전용 필드
+  syncOperation: { type: String, enum: ['create', 'update', 'delete'] },
+  syncEqpId: { type: String, index: true },
+  syncError: { type: String },
 
   // access 전용 필드
   pagePath: {
@@ -416,7 +423,8 @@ async function createAuthLog({
   authAction,
   userId = 'system',
   ipAddress = null,
-  userAgent = null
+  userAgent = null,
+  details = null
 }) {
   authLog.info(`${authAction} user=${userId} ip=${ipAddress || '-'}`)
 
@@ -426,6 +434,7 @@ async function createAuthLog({
     userId,
     ipAddress,
     userAgent,
+    ...(details && { details }),
     timestamp: new Date(),
     expireAt: getExpireAt('auth')
   })
@@ -564,6 +573,25 @@ function makeAuditHelper(collectionName, options = {}) {
   }
 }
 
+// ============================================
+// EQP Redis Sync Log Functions
+// ============================================
+
+const eqpRedisLog = createLogger('eqp-redis')
+
+async function createEqpRedisSyncLog({ operation, eqpId, error, userId = 'system' }) {
+  eqpRedisLog.warn(`sync failed: ${operation} ${eqpId} — ${error}`)
+  return await new WebManagerLog({
+    category: 'eqp-redis',
+    syncOperation: operation,
+    syncEqpId: eqpId,
+    syncError: error,
+    userId,
+    timestamp: new Date(),
+    expireAt: getExpireAt('eqp-redis')
+  }).save()
+}
+
 module.exports = {
   WebManagerLog,
   // Audit functions
@@ -587,5 +615,7 @@ module.exports = {
   // 통합 조회
   getAllLogs,
   // TTL 유틸
-  getExpireAt
+  getExpireAt,
+  // EQP Redis Sync
+  createEqpRedisSyncLog
 }

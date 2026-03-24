@@ -30,7 +30,8 @@ const categories = [
   { value: 'error', label: 'error' },
   { value: 'auth', label: 'auth' },
   { value: 'batch', label: 'batch' },
-  { value: 'access', label: 'access' }
+  { value: 'access', label: 'access' },
+  { value: 'eqp-redis', label: 'eqp-redis' }
 ]
 
 const periods = [
