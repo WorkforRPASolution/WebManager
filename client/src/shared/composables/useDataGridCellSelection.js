@@ -22,6 +22,7 @@ export function useDataGridCellSelection(options) {
     onPasteCells,      // (cellUpdates: Array<{rowId, field, value, rowData}>) => void - 붙여넣기 셀 업데이트
     getRowId = (data) => data._id || data._tempId,  // rowId 추출 함수 (기본: _id || _tempId)
     valueTransformer,  // (field, value) => transformedValue - 값 변환 함수 (숫자 필드 등)
+    formatCopyValue,   // (field, value, rowData) => string - 복사 시 값 포맷 함수 (생략 시 String 변환)
   } = options
 
   // === State ===
@@ -406,6 +407,14 @@ export function useDataGridCellSelection(options) {
   }
 
   /**
+   * 셀 값을 복사용 문자열로 변환
+   */
+  const _formatValue = (field, value, rowData) => {
+    if (formatCopyValue) return formatCopyValue(field, value, rowData)
+    return value !== null && value !== undefined ? String(value) : ''
+  }
+
+  /**
    * 복사 핸들러 - gridContainer @copy에 연결
    */
   const handleCopy = (event) => {
@@ -427,8 +436,7 @@ export function useDataGridCellSelection(options) {
           const cells = []
           for (let colIdx = minColIndex; colIdx <= maxColIndex; colIdx++) {
             const colId = editableColumns[colIdx]
-            const value = rowNode.data[colId]
-            cells.push(value !== null && value !== undefined ? String(value) : '')
+            cells.push(_formatValue(colId, rowNode.data[colId], rowNode.data))
           }
           rows.push(cells.join('\t'))
         }
@@ -440,8 +448,8 @@ export function useDataGridCellSelection(options) {
       if (focusedCell) {
         const rowNode = gridApi.value.getDisplayedRowAtIndex(focusedCell.rowIndex)
         if (rowNode) {
-          const value = rowNode.data[focusedCell.column.colId]
-          copyData = value !== null && value !== undefined ? String(value) : ''
+          const colId = focusedCell.column.colId
+          copyData = _formatValue(colId, rowNode.data[colId], rowNode.data)
         }
       }
 
@@ -450,10 +458,7 @@ export function useDataGridCellSelection(options) {
         const selectedRows = gridApi.value.getSelectedRows()
         if (selectedRows.length > 0) {
           const rows = selectedRows.map(rowData => {
-            return editableColumns.map(colId => {
-              const value = rowData[colId]
-              return value !== null && value !== undefined ? String(value) : ''
-            }).join('\t')
+            return editableColumns.map(colId => _formatValue(colId, rowData[colId], rowData)).join('\t')
           })
           copyData = rows.join('\n')
         }

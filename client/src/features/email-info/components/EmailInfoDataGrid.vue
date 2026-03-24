@@ -154,6 +154,7 @@ const {
   handleCellEditingStopped: onCellEditingStopped,
   handleKeyDown,
   handleSortChanged: onSortChanged,
+  handleCopy,
   handlePaste: basePaste,
   getCellSelectionStyle,
   clearSelection,
@@ -168,6 +169,10 @@ const {
   onCellEdit: (rowId, field, value) => emit('cell-edit', rowId, field, value),
   onPasteCells: (updates) => emit('paste-cells', updates),
   valueTransformer: transformArrayValue,
+  formatCopyValue: (field, value, rowData) => {
+    if (Array.isArray(value)) return arrayToString(value)
+    return value !== null && value !== undefined ? String(value) : ''
+  },
 })
 
 // Admin용: 컬럼 폭 클립보드 복사
@@ -432,79 +437,6 @@ const onCellClicked = (params) => {
 
 // Column order for paste
 const pasteColumnOrder = ['project', 'category', 'account', 'departments']
-
-// Copy handler
-const handleCopy = (event) => {
-  if (!gridApi.value) return
-
-  let copyData = ''
-
-  // 1. 셀 범위가 선택되어 있으면 해당 범위 복사 (우선)
-  if (cellSelectionStart.value && cellSelectionEnd.value) {
-    const startRowIndex = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-    const endRowIndex = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-
-    const startColIndex = editableColumns.indexOf(cellSelectionStart.value.colId)
-    const endColIndex = editableColumns.indexOf(cellSelectionEnd.value.colId)
-    const minColIndex = Math.min(startColIndex, endColIndex)
-    const maxColIndex = Math.max(startColIndex, endColIndex)
-
-    const rows = []
-    for (let rowIdx = startRowIndex; rowIdx <= endRowIndex; rowIdx++) {
-      const rowNode = gridApi.value.getDisplayedRowAtIndex(rowIdx)
-      if (!rowNode) continue
-
-      const cells = []
-      for (let colIdx = minColIndex; colIdx <= maxColIndex; colIdx++) {
-        const colId = editableColumns[colIdx]
-        const value = rowNode.data[colId]
-        if (Array.isArray(value)) {
-          cells.push(arrayToString(value))
-        } else {
-          cells.push(value !== null && value !== undefined ? String(value) : '')
-        }
-      }
-      rows.push(cells.join('\t'))
-    }
-    copyData = rows.join('\n')
-  } else {
-    // 2. 포커스된 셀이 있으면 해당 셀 값 복사
-    const focusedCell = gridApi.value.getFocusedCell()
-    if (focusedCell) {
-      const rowNode = gridApi.value.getDisplayedRowAtIndex(focusedCell.rowIndex)
-      if (rowNode) {
-        const value = rowNode.data[focusedCell.column.colId]
-        if (Array.isArray(value)) {
-          copyData = arrayToString(value)
-        } else {
-          copyData = value !== null && value !== undefined ? String(value) : ''
-        }
-      }
-    }
-
-    // 3. 포커스된 셀도 없으면 체크박스로 선택된 행 복사 (fallback)
-    if (!copyData) {
-      const selectedRows = gridApi.value.getSelectedRows()
-      if (selectedRows.length > 0) {
-        const rows = selectedRows.map(rowData => {
-          return editableColumns.map(colId => {
-            const value = rowData[colId]
-            if (Array.isArray(value)) {
-              return arrayToString(value)
-            }
-            return value !== null && value !== undefined ? String(value) : ''
-          }).join('\t')
-        })
-        copyData = rows.join('\n')
-      }
-    }
-  }
-
-  if (copyData) {
-    event.preventDefault()
-    event.clipboardData.setData('text/plain', copyData)
-  }
-}
 
 // Paste handler
 const handlePaste = (event) => {
