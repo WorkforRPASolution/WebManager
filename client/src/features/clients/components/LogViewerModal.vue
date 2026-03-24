@@ -472,10 +472,11 @@ const activeFileTab = computed(() => {
   return props.logViewer.parseTabKey(tabId)
 })
 
-const handleReloadActiveTab = () => {
+const handleReloadActiveTab = async () => {
   if (!activeFileTab.value) return
   const { eqpId, filePath } = activeFileTab.value
-  props.logViewer.reloadFile(eqpId, filePath)
+  await props.logViewer.reloadFile(eqpId, filePath)
+  nextTick(() => scrollEditorToBottom())
 }
 
 // Tail-related computed properties
