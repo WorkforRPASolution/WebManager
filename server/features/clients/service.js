@@ -359,7 +359,7 @@ async function createClients(clientsData, context = {}) {
     await rules.executeHooks('afterCreate', insertedDocs.map(d => d.toObject()), context)
   }
 
-  return { created, errors }
+  return { created, errors, syncStatus: context.syncStatus || null }
 }
 
 /**
@@ -445,14 +445,12 @@ async function updateClients(clientsData, context = {}) {
 
   // 7. Execute afterUpdate hooks (with change tracking for audit logging)
   if (updatedDocs.length > 0) {
-    await rules.executeHooks('afterUpdate', updatedDocs, {
-      ...context,
-      previousData: previousDocs,
-      newData: updatedDocs
-    })
+    const hookContext = { ...context, previousData: previousDocs, newData: updatedDocs }
+    await rules.executeHooks('afterUpdate', updatedDocs, hookContext)
+    context.syncStatus = hookContext.syncStatus
   }
 
-  return { updated, errors }
+  return { updated, errors, syncStatus: context.syncStatus || null }
 }
 
 /**
@@ -475,13 +473,12 @@ async function deleteClients(ids, context = {}) {
 
   // 4. Execute afterDelete hooks (with deleted data for audit logging)
   if (result.deletedCount > 0) {
-    await rules.executeHooks('afterDelete', null, {
-      ...context,
-      deletedData: documentsToDelete
-    })
+    const hookContext = { ...context, deletedData: documentsToDelete }
+    await rules.executeHooks('afterDelete', null, hookContext)
+    context.syncStatus = hookContext.syncStatus
   }
 
-  return { deleted: result.deletedCount }
+  return { deleted: result.deletedCount, syncStatus: context.syncStatus || null }
 }
 
 /**

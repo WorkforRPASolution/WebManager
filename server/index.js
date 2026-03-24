@@ -2,7 +2,8 @@ require('dotenv').config();
 const { logger, createLogger } = require('./shared/logger');
 const app = require('./app');
 const { connectDB, closeConnections } = require('./shared/db/connection');
-const { connectRedis, closeRedis } = require('./shared/db/redisConnection');
+const { connectRedis, closeRedis, connectEqpRedis, closeEqpRedis } = require('./shared/db/redisConnection');
+const { registerEqpRedisHooks } = require('./features/clients/eqpInfoRedisSync');
 const { initializeDefaultPermissions } = require('./features/permissions/service');
 const { initializeRolePermissions } = require('./features/users/service');
 const { initializeOSVersions } = require('./features/os-version/service');
@@ -21,6 +22,7 @@ const startServer = async () => {
   try {
     await connectDB();
     await connectRedis();
+    await connectEqpRedis();
 
     // Sync permissions and initialize data
     serverLog.info('Syncing permissions...');
@@ -34,6 +36,8 @@ const startServer = async () => {
     await initializeUpdateSettings();
     await initializeRecoverySummary();
     serverLog.info('Permissions synced');
+
+    registerEqpRedisHooks();
 
     const server = app.listen(PORT, () => {
       serverLog.info(`Server running on http://localhost:${PORT}`);
@@ -75,6 +79,7 @@ const startServer = async () => {
         // 5. DB 연결 종료
         await closeConnections()
         await closeRedis()
+        await closeEqpRedis()
 
         process.exit(0)
       } catch (err) {

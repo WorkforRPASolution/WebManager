@@ -3,6 +3,7 @@ const { createLogger } = require('../logger')
 const log = createLogger('redis')
 
 let redisClient = null
+let eqpRedisClient = null  // DB 10 for EQP_INFO
 
 const COMMON_OPTS = {
   maxRetriesPerRequest: 3,
@@ -96,4 +97,55 @@ function _setClient(client) {
   redisClient = client
 }
 
-module.exports = { connectRedis, closeRedis, getRedisClient, isRedisAvailable, _setClient, parseRedisUrl }
+// ============================================
+// DB 10: EQP_INFO Redis
+// ============================================
+
+async function connectEqpRedis() {
+  const url = process.env.REDIS_URL
+  if (!url) { log.info('REDIS_URL not set, EQP Redis (DB 10) disabled'); return }
+  const parsed = parseRedisUrl(url)
+  if (!parsed) return
+
+  try {
+    if (parsed.mode === 'sentinel') {
+      const password = process.env.REDIS_PASSWORD || undefined
+      eqpRedisClient = new Redis({
+        sentinels: parsed.sentinels,
+        name: parsed.name,
+        password,
+        sentinelPassword: password,
+        db: 10,
+        ...COMMON_OPTS,
+      })
+      await eqpRedisClient.connect()
+      log.info('Redis EQP (DB 10) Sentinel Connected')
+    } else {
+      const baseUrl = parsed.url.replace(/\/\d+$/, '')
+      eqpRedisClient = new Redis(`${baseUrl}/10`, COMMON_OPTS)
+      await eqpRedisClient.connect()
+      log.info('Redis EQP (DB 10) Connected')
+    }
+  } catch (err) {
+    log.warn(`Redis EQP (DB 10) connection failed (non-fatal): ${err.message}`)
+    eqpRedisClient = null
+  }
+}
+
+async function closeEqpRedis() {
+  if (eqpRedisClient) {
+    await eqpRedisClient.quit()
+    eqpRedisClient = null
+  }
+}
+
+function getEqpRedisClient() { return eqpRedisClient }
+function isEqpRedisAvailable() { return eqpRedisClient !== null && eqpRedisClient.status === 'ready' }
+function _setEqpClient(client) { eqpRedisClient = client }
+
+module.exports = {
+  // DB 0 (기존)
+  connectRedis, closeRedis, getRedisClient, isRedisAvailable, _setClient, parseRedisUrl,
+  // DB 10 (EQP_INFO)
+  connectEqpRedis, closeEqpRedis, getEqpRedisClient, isEqpRedisAvailable, _setEqpClient,
+}
