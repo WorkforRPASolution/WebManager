@@ -19,7 +19,7 @@ vi.mock('../../shared/utils/businessRules', () => ({
 const {
   // Layer 1
   normalizeIpAddrL, buildHashField, buildHashValue, parseIndex,
-  buildModifyMessage, buildDeleteMessage,
+  buildModifyMessage, buildDeleteMessage, hasRedisFieldChanges,
   // Layer 2
   syncOneCreate, syncOneUpdate, syncOneDelete,
   // Layer 3
@@ -124,6 +124,52 @@ describe('Layer 1: Serialization', () => {
   describe('buildDeleteMessage', () => {
     it('should return eqpId only', () => {
       expect(buildDeleteMessage({ eqpId: 'EQP001' })).toBe('EQP001')
+    })
+  })
+
+  describe('hasRedisFieldChanges', () => {
+    const base = {
+      ipAddr: '1.1.1.1', ipAddrL: '2.2.2.2',
+      process: 'P1', eqpModel: 'M1', eqpId: 'E1',
+      line: 'L1', lineDesc: 'desc',
+      onoff: 1, osVer: 'Win10', category: 'CAT', webmanagerUse: 1
+    }
+
+    it('should return false when only non-Redis fields change', () => {
+      const updated = { ...base, onoff: 0, osVer: 'Win11', category: 'NEW', webmanagerUse: 0 }
+      expect(hasRedisFieldChanges(base, updated)).toBe(false)
+    })
+
+    it('should return true when ipAddr changes', () => {
+      expect(hasRedisFieldChanges(base, { ...base, ipAddr: '3.3.3.3' })).toBe(true)
+    })
+
+    it('should return true when ipAddrL changes', () => {
+      expect(hasRedisFieldChanges(base, { ...base, ipAddrL: '9.9.9.9' })).toBe(true)
+    })
+
+    it('should return true when process changes', () => {
+      expect(hasRedisFieldChanges(base, { ...base, process: 'P2' })).toBe(true)
+    })
+
+    it('should return true when eqpModel changes', () => {
+      expect(hasRedisFieldChanges(base, { ...base, eqpModel: 'M2' })).toBe(true)
+    })
+
+    it('should return true when eqpId changes', () => {
+      expect(hasRedisFieldChanges(base, { ...base, eqpId: 'E2' })).toBe(true)
+    })
+
+    it('should return true when line changes', () => {
+      expect(hasRedisFieldChanges(base, { ...base, line: 'L2' })).toBe(true)
+    })
+
+    it('should return true when lineDesc changes', () => {
+      expect(hasRedisFieldChanges(base, { ...base, lineDesc: 'new desc' })).toBe(true)
+    })
+
+    it('should return false when all fields identical', () => {
+      expect(hasRedisFieldChanges(base, { ...base })).toBe(false)
     })
   })
 })
@@ -232,6 +278,21 @@ describe('Layer 2: Single-doc Operations', () => {
     })
   })
 
+  describe('syncOneUpdate — skip when no Redis fields changed', () => {
+    it('should not call any Redis commands when only non-Redis fields change', async () => {
+      const prevDoc = { ...doc, onoff: 1, osVer: 'Win10' }
+      const newDoc = { ...doc, onoff: 0, osVer: 'Win11' }
+
+      const result = await syncOneUpdate(mockRedis, prevDoc, newDoc)
+
+      expect(result).toBe(false) // skipped
+      expect(mockRedis.hget).not.toHaveBeenCalled()
+      expect(mockRedis.hset).not.toHaveBeenCalled()
+      expect(mockRedis.hdel).not.toHaveBeenCalled()
+      expect(mockRedis.publish).not.toHaveBeenCalled()
+    })
+  })
+
   describe('syncOneDelete', () => {
     it('should HDEL x2 + PUBLISH in correct order', async () => {
       await syncOneDelete(mockRedis, doc)
@@ -329,7 +390,7 @@ describe('Layer 3: Batch Orchestration', () => {
       const context = { previousData: prev, newData: updated }
       await syncAfterUpdate(updated, context)
 
-      expect(context.syncStatus).toEqual({ synced: 2, failed: 0, failedEqpIds: [] })
+      expect(context.syncStatus).toEqual({ synced: 2, failed: 0, skipped: 0, failedEqpIds: [] })
       expect(mockRedis.hset).toHaveBeenCalledTimes(4) // 2 docs x (EQP_INFO + EQP_INFO_LINE)
     })
 
@@ -341,15 +402,52 @@ describe('Layer 3: Batch Orchestration', () => {
       expect(context.syncStatus.redisUnavailable).toBe(true)
     })
 
+    it('should count skipped (no Redis field changes) as synced=0, skipped in status', async () => {
+      // Only non-Redis field (onoff) changes
+      const prev = [{ ...docs[0], onoff: 1 }]
+      const updated = [{ ...docs[0], onoff: 0 }]
+
+      const context = { previousData: prev, newData: updated }
+      await syncAfterUpdate(updated, context)
+
+      expect(context.syncStatus).toEqual({ synced: 0, failed: 0, skipped: 1, failedEqpIds: [] })
+      expect(mockRedis.hget).not.toHaveBeenCalled()
+    })
+
+    it('should handle mix of skipped and synced', async () => {
+      const prev = [
+        { ...docs[0], onoff: 1 },           // only onoff changes → skip
+        { ...docs[1], lineDesc: 'old' },     // lineDesc changes → sync
+      ]
+      const updated = [
+        { ...docs[0], onoff: 0 },
+        { ...docs[1], lineDesc: 'new' },
+      ]
+      mockRedis.hget.mockResolvedValue('P1:M1:B:L1:old:1')
+
+      const context = { previousData: prev, newData: updated }
+      await syncAfterUpdate(updated, context)
+
+      expect(context.syncStatus.synced).toBe(1)
+      expect(context.syncStatus.skipped).toBe(1)
+      expect(context.syncStatus.failed).toBe(0)
+    })
+
     it('should handle partial update failures', async () => {
-      const prev = [docs[0], docs[1]]
-      const updated = [docs[0], docs[1]]
+      const prev = [
+        { ...docs[0], lineDesc: 'old1' },
+        { ...docs[1], lineDesc: 'old2' },
+      ]
+      const updated = [
+        { ...docs[0], lineDesc: 'new1' },
+        { ...docs[1], lineDesc: 'new2' },
+      ]
       let callIdx = 0
       mockRedis.hget.mockImplementation(() => {
         callIdx++
         // Fail on calls 2 and 3 (first attempt + retry for 2nd doc)
         if (callIdx >= 2 && callIdx <= 3) return Promise.reject(new Error('fail'))
-        return Promise.resolve('P1:M1:A:L1::1')
+        return Promise.resolve('P1:M1:A:L1:old1:1')
       })
 
       const context = { previousData: prev, newData: updated }

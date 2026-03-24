@@ -58,6 +58,20 @@ function buildDeleteMessage(doc) {
   return doc.eqpId
 }
 
+/** Redis에 저장되는 필드 목록 */
+const REDIS_FIELDS = ['ipAddr', 'ipAddrL', 'process', 'eqpModel', 'eqpId', 'line', 'lineDesc']
+
+/**
+ * Redis 관련 필드가 변경되었는지 확인
+ * @returns {boolean} Redis sync가 필요하면 true
+ */
+function hasRedisFieldChanges(prevDoc, newDoc) {
+  for (const field of REDIS_FIELDS) {
+    if ((prevDoc[field] || '') !== (newDoc[field] || '')) return true
+  }
+  return false
+}
+
 // ============================================
 // Layer 2: Single-doc Redis Operations
 // ============================================
@@ -72,6 +86,8 @@ async function syncOneCreate(redis, doc) {
 }
 
 async function syncOneUpdate(redis, prevDoc, newDoc) {
+  if (!hasRedisFieldChanges(prevDoc, newDoc)) return false
+
   const oldField = buildHashField(prevDoc)
   const newField = buildHashField(newDoc)
   const fieldChanged = oldField !== newField
@@ -168,14 +184,15 @@ async function syncAfterUpdate(data, context) {
     return
   }
   const redis = getClient()
-  let synced = 0, failed = 0
+  let synced = 0, failed = 0, skipped = 0
   const failedEqpIds = []
   for (let i = 0; i < newData.length; i++) {
     const prevDoc = previousData[i]
     const newDoc = newData[i]
     if (!prevDoc || !newDoc) continue
     try {
-      await withRetry(() => syncOneUpdate(redis, prevDoc, newDoc), `syncUpdate ${newDoc.eqpId}`)
+      const result = await withRetry(() => syncOneUpdate(redis, prevDoc, newDoc), `syncUpdate ${newDoc.eqpId}`)
+      if (result === false) { skipped++; continue }
       synced++
     } catch (err) {
       failed++
@@ -183,7 +200,7 @@ async function syncAfterUpdate(data, context) {
       await logSyncFailure('update', newDoc.eqpId, err.message, context).catch(() => {})
     }
   }
-  context.syncStatus = { synced, failed, failedEqpIds }
+  context.syncStatus = { synced, failed, skipped, failedEqpIds }
 }
 
 async function syncAfterDelete(_, context) {
@@ -251,7 +268,7 @@ function registerEqpRedisHooks() {
 module.exports = {
   // Layer 1 (테스트 + 재사용)
   normalizeIpAddrL, buildHashField, buildHashValue, parseIndex,
-  buildModifyMessage, buildDeleteMessage,
+  buildModifyMessage, buildDeleteMessage, hasRedisFieldChanges,
   // Layer 2 (테스트용)
   syncOneCreate, syncOneUpdate, syncOneDelete,
   // Layer 3 (테스트용)
