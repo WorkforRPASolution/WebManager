@@ -499,18 +499,7 @@ const emit = defineEmits(['update:modelValue', 'saved'])
 
 // Modal sizing
 const modalRef = ref(null)
-const { customWidth, customHeight, modalPos, isMaximized, startDrag, startResize, toggleMaximize } = useResizableModal(modalRef, { defaultWidth: 1024, defaultHeight: 650 })
-
-const modalStyle = computed(() => {
-  if (isMaximized.value) return { left: '2.5vw', top: '2.5vh', width: '95vw', height: '95vh' }
-  const w = customWidth.value
-  const h = customHeight.value
-  return {
-    left: modalPos.x !== null ? `${modalPos.x}px` : `calc(50vw - ${w / 2}px)`,
-    top: modalPos.y !== null ? `${modalPos.y}px` : `calc(50vh - ${h / 2}px)`,
-    width: `${w}px`, height: `${h}px`, maxWidth: '95vw', maxHeight: '95vh'
-  }
-})
+const { isMaximized, modalStyle, startDrag, startResize, toggleMaximize, center: centerModal } = useResizableModal(modalRef, { defaultWidth: 1024, defaultHeight: 650 })
 
 const loading = ref(false)
 const saving = ref(false)
@@ -524,7 +513,10 @@ let keyCounter = 0
 const selectedProfile = computed(() => profiles.value[selectedIndex.value] || null)
 
 watch(() => props.modelValue, async (v) => {
-  if (v && props.agentGroup) await loadData()
+  if (v) {
+    centerModal()
+    if (props.agentGroup) await loadData()
+  }
 })
 
 // Client-side defaults per source type (DB only stores active type fields)
@@ -836,7 +828,7 @@ function selectCurrentFolder(taskIndex) {
 }
 
 function handleClose() {
-  modalPos.x = null; modalPos.y = null; customWidth.value = null; customHeight.value = null; isMaximized.value = false
+  centerModal()
   emit('update:modelValue', false)
 }
 </script>
