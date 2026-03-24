@@ -9,7 +9,6 @@ const logSettingsService = require('./logSettingsService')
 const strategyRegistry = require('./strategies')
 const { listLogFiles, readLogFile, downloadLogFileToStream, deleteLogFile } = require('./ftpService')
 const path = require('path')
-const crypto = require('crypto')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('clients')
 
@@ -18,6 +17,21 @@ const LOG_TAIL_INTERVAL = parseInt(process.env.LOG_TAIL_INTERVAL) || 3000
 const LOG_TAIL_BATCH_LINES = parseInt(process.env.LOG_TAIL_BATCH_LINES) || 50
 const LOG_TAIL_RPC_TIMEOUT = parseInt(process.env.LOG_TAIL_RPC_TIMEOUT) || 10000
 const LOG_MAX_CONCURRENT_TAILS = parseInt(process.env.LOG_MAX_CONCURRENT_TAILS) || 5
+
+// 테스트 DI: 내부 의존성 교체
+let _AvroRpcClient = AvroRpcClient
+let _ClientModel = Client
+let _detectBasePath = detectBasePath
+let _strategyRegistry = strategyRegistry
+let _sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+function _setDeps(deps) {
+  if (deps.AvroRpcClient) _AvroRpcClient = deps.AvroRpcClient
+  if (deps.ClientModel) _ClientModel = deps.ClientModel
+  if (deps.detectBasePath) _detectBasePath = deps.detectBasePath
+  if (deps.strategyRegistry) _strategyRegistry = deps.strategyRegistry
+  if (deps.sleep) _sleep = deps.sleep
+}
 
 let activeTailCount = 0
 
@@ -107,6 +121,41 @@ async function downloadLogFile(eqpId, filePath, res) {
 }
 
 /**
+ * Extract only new lines by finding the overlap between previous and current tail results.
+ * Uses suffix-prefix matching: finds the longest suffix of previousLines that matches
+ * a prefix of currentLines, then returns the remaining (new) lines.
+ *
+ * Note: If a rotated log starts with lines identical to the old file's tail,
+ * this may falsely detect overlap. This is rare in practice.
+ *
+ * @param {string[]|null} previousLines - Lines from the previous poll cycle
+ * @param {string[]} currentLines - Lines from the current poll cycle
+ * @returns {string[]} Only the new lines not present in the previous result
+ */
+function extractNewLines(previousLines, currentLines) {
+  if (!previousLines || previousLines.length === 0) return currentLines
+  if (currentLines.length === 0) return []
+
+  const maxOverlap = Math.min(previousLines.length, currentLines.length)
+
+  for (let len = maxOverlap; len > 0; len--) {
+    let match = true
+    for (let i = 0; i < len; i++) {
+      if (previousLines[previousLines.length - len + i] !== currentLines[i]) {
+        match = false
+        break
+      }
+    }
+    if (match) {
+      return currentLines.slice(len)
+    }
+  }
+
+  // No overlap — file rotation or large gap
+  return currentLines
+}
+
+/**
  * Tail log stream via RPC polling
  * @param {Array<{eqpId, filePath, agentGroup}>} targets - Tail targets
  * @param {function} onData - Callback for new data
@@ -123,24 +172,22 @@ async function tailLogStream(targets, onData, signal) {
 
   activeTailCount += targets.length
 
-  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
-
   const tailOneTarget = async (target) => {
     const { eqpId, filePath, agentGroup } = target
-    const client = await Client.findOne({ eqpId }).select('ipAddr ipAddrL agentPorts basePath serviceType').lean()
+    const client = await _ClientModel.findOne({ eqpId }).select('ipAddr ipAddrL agentPorts basePath serviceType').lean()
     if (!client) {
       onData({ eqpId, filePath, error: `Client not found: ${eqpId}` })
       return
     }
 
-    let previousHash = null
+    let previousLines = null
     let currentBasePath = client.basePath || ''
     let basePathRetried = false
 
     // basePath 없으면 tail 시작 전 자동 감지 시도
     if (!currentBasePath) {
       try {
-        const detected = await detectBasePath(eqpId)
+        const detected = await _detectBasePath(eqpId)
         if (detected) {
           currentBasePath = detected
           onData({ eqpId, filePath, info: `basePath auto-detected: ${detected}` })
@@ -151,72 +198,90 @@ async function tailLogStream(targets, onData, signal) {
       }
     }
 
-    while (!signal.aborted) {
-      let rpcClient = null
-      try {
-        rpcClient = new AvroRpcClient(client.ipAddr, client.ipAddrL, client.agentPorts)
-        await rpcClient.connect()
+    // RPC connection reuse — create once, reconnect only on error
+    let rpcClient = null
 
-        const relPath = filePath.startsWith('/') ? filePath.substring(1) : filePath
-        const fullPath = currentBasePath ? `${currentBasePath}/${relPath}` : relPath
-        const strategy = client.serviceType
-          ? strategyRegistry.get(agentGroup, client.serviceType)
-          : strategyRegistry.getDefault(agentGroup)
-        
-        let commandLine, args
-        if (strategy && strategy.getTailCommand) {
-          const tailCmd = strategy.getTailCommand(fullPath, LOG_TAIL_BATCH_LINES, currentBasePath)
-          commandLine = tailCmd.commandLine
-          args = tailCmd.args
-        } else {
-          // fallback: Linux tail
-          commandLine = 'tail'
-          args = ['-n', String(LOG_TAIL_BATCH_LINES), fullPath]
-        }
-        const response = await rpcClient.runCommand(commandLine, args, LOG_TAIL_RPC_TIMEOUT)
+    const connectRpc = async () => {
+      rpcClient = new _AvroRpcClient(client.ipAddr, client.ipAddrL, client.agentPorts)
+      await rpcClient.connect()
+    }
 
-        if (response.success && response.output) {
-          basePathRetried = false // reset on success
-          const currentHash = crypto.createHash('md5').update(response.output).digest('hex')
+    const disconnectRpc = () => {
+      if (rpcClient) {
+        try { rpcClient.disconnect() } catch { /* ignore cleanup errors */ }
+        rpcClient = null
+      }
+    }
 
-          if (currentHash !== previousHash) {
-            previousHash = currentHash
-            const lines = response.output.split('\n').filter(l => l.length > 0)
-            onData({
-              eqpId,
-              filePath,
-              lines,
-              timestamp: new Date().toISOString()
-            })
+    try {
+      while (!signal.aborted) {
+        try {
+          if (!rpcClient) await connectRpc()
+
+          const relPath = filePath.startsWith('/') ? filePath.substring(1) : filePath
+          const fullPath = currentBasePath ? `${currentBasePath}/${relPath}` : relPath
+          const strategy = client.serviceType
+            ? _strategyRegistry.get(agentGroup, client.serviceType)
+            : _strategyRegistry.getDefault(agentGroup)
+
+          let commandLine, args
+          if (strategy && strategy.getTailCommand) {
+            const tailCmd = strategy.getTailCommand(fullPath, LOG_TAIL_BATCH_LINES, currentBasePath)
+            commandLine = tailCmd.commandLine
+            args = tailCmd.args
+          } else {
+            commandLine = 'tail'
+            args = ['-n', String(LOG_TAIL_BATCH_LINES), fullPath]
           }
-        } else if (!response.success) {
-          const errMsg = response.error || 'RPC tail failed'
-          // Auto-detect basePath on file-not-found errors (once per session)
-          if (!basePathRetried && /no such file|not found|exit value: 1/i.test(errMsg)) {
-            basePathRetried = true
-            try {
-              const newBasePath = await detectBasePath(eqpId)
-              if (newBasePath && newBasePath !== currentBasePath) {
-                currentBasePath = newBasePath
-                onData({ eqpId, filePath, info: `basePath updated to ${newBasePath}, retrying...` })
-                continue // retry immediately with new basePath
+
+          const response = await rpcClient.runCommand(commandLine, args, LOG_TAIL_RPC_TIMEOUT)
+
+          if (response.success) {
+            basePathRetried = false
+            if (response.output) {
+              const currentLines = response.output.split('\n').filter(l => l.length > 0)
+              const newLines = extractNewLines(previousLines, currentLines)
+              previousLines = currentLines
+              if (newLines.length > 0) {
+                onData({
+                  eqpId,
+                  filePath,
+                  lines: newLines,
+                  timestamp: new Date().toISOString()
+                })
               }
-            } catch (detectErr) {
-              log.warn(`tailLogStream: basePath detect failed for ${eqpId}: ${detectErr.message}`)
+            } else {
+              previousLines = null
             }
+          } else if (!response.success) {
+            const errMsg = response.error || 'RPC tail failed'
+            if (!basePathRetried && /no such file|not found|exit value: 1/i.test(errMsg)) {
+              basePathRetried = true
+              try {
+                const newBasePath = await _detectBasePath(eqpId)
+                if (newBasePath && newBasePath !== currentBasePath) {
+                  currentBasePath = newBasePath
+                  onData({ eqpId, filePath, info: `basePath updated to ${newBasePath}, retrying...` })
+                  continue
+                }
+              } catch (detectErr) {
+                log.warn(`tailLogStream: basePath detect failed for ${eqpId}: ${detectErr.message}`)
+              }
+            }
+            onData({ eqpId, filePath, error: errMsg })
           }
-          onData({ eqpId, filePath, error: errMsg })
+        } catch (err) {
+          disconnectRpc()  // connection broken, will reconnect next cycle
+          log.warn(`tailLogStream: RPC poll error for ${eqpId} (${filePath}): ${err.message}`)
+          onData({ eqpId, filePath, error: err.message })
         }
-      } catch (err) {
-        log.warn(`tailLogStream: RPC poll error for ${eqpId} (${filePath}): ${err.message}`)
-        onData({ eqpId, filePath, error: err.message })
-      } finally {
-        if (rpcClient) rpcClient.disconnect()
-      }
 
-      if (!signal.aborted) {
-        await sleep(LOG_TAIL_INTERVAL)
+        if (!signal.aborted) {
+          await _sleep(LOG_TAIL_INTERVAL)
+        }
       }
+    } finally {
+      disconnectRpc()
     }
   }
 
@@ -232,5 +297,7 @@ module.exports = {
   getLogFileContent,
   deleteLogFiles,
   downloadLogFile,
-  tailLogStream
+  tailLogStream,
+  extractNewLines,
+  _setDeps
 }
