@@ -31,11 +31,6 @@ export function useDataGridCellSelection(options) {
   const pendingBulkEditRange = ref(null)
   const bulkEditMode = ref(false)
 
-  // 더블클릭 감지용 상태
-  let lastClickTime = 0
-  let lastClickCell = null
-  const DOUBLE_CLICK_THRESHOLD = 300 // ms
-
   // Shift+헤더 클릭 시 정렬 복원을 위한 상태
   let shiftHeaderClickPending = false
   let savedSortState = null
@@ -43,18 +38,30 @@ export function useDataGridCellSelection(options) {
   // === Helpers ===
 
   /**
+   * AG Grid 화면 표시 순서 기준 편집 가능 컬럼 목록 반환
+   * editableColumns 배열 순서와 AG Grid 표시 순서가 다를 수 있으므로 위치 계산 시 항상 이 함수 사용
+   */
+  const _getVisualCols = () => {
+    if (!gridApi.value) return editableColumns
+    const allDisplayed = gridApi.value.getAllDisplayedColumns() || []
+    const displayed = allDisplayed.map(col => col.getColId()).filter(colId => editableColumns.includes(colId))
+    return displayed.length > 0 ? displayed : editableColumns
+  }
+
+  /**
    * 클릭한 셀이 현재 선택 범위 안에 있는지 확인
    */
   const isInsideSelection = (rowIndex, colId) => {
     if (!cellSelectionStart.value || !cellSelectionEnd.value) return false
 
+    const visualCols = _getVisualCols()
     const startRow = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
     const endRow = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-    const startColIdx = editableColumns.indexOf(cellSelectionStart.value.colId)
-    const endColIdx = editableColumns.indexOf(cellSelectionEnd.value.colId)
+    const startColIdx = visualCols.indexOf(cellSelectionStart.value.colId)
+    const endColIdx = visualCols.indexOf(cellSelectionEnd.value.colId)
     const minCol = Math.min(startColIdx, endColIdx)
     const maxCol = Math.max(startColIdx, endColIdx)
-    const clickedColIdx = editableColumns.indexOf(colId)
+    const clickedColIdx = visualCols.indexOf(colId)
 
     return rowIndex >= startRow && rowIndex <= endRow &&
            clickedColIdx >= minCol && clickedColIdx <= maxCol
@@ -66,11 +73,12 @@ export function useDataGridCellSelection(options) {
   const isInSelectionRange = (rowIndex, colId) => {
     if (!cellSelectionStart.value || !cellSelectionEnd.value) return false
 
+    const visualCols = _getVisualCols()
     const startRowIndex = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
     const endRowIndex = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-    const startColIndex = editableColumns.indexOf(cellSelectionStart.value.colId)
-    const endColIndex = editableColumns.indexOf(cellSelectionEnd.value.colId)
-    const colIndex = editableColumns.indexOf(colId)
+    const startColIndex = visualCols.indexOf(cellSelectionStart.value.colId)
+    const endColIndex = visualCols.indexOf(cellSelectionEnd.value.colId)
+    const colIndex = visualCols.indexOf(colId)
 
     if (startColIndex === -1 || endColIndex === -1 || colIndex === -1) return false
 
@@ -110,10 +118,11 @@ export function useDataGridCellSelection(options) {
     if (!cellSelectionStart.value || !cellSelectionEnd.value) return
     if (!gridApi.value) return
 
+    const visualCols = _getVisualCols()
     const startRow = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
     const endRow = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-    const startColIdx = editableColumns.indexOf(cellSelectionStart.value.colId)
-    const endColIdx = editableColumns.indexOf(cellSelectionEnd.value.colId)
+    const startColIdx = visualCols.indexOf(cellSelectionStart.value.colId)
+    const endColIdx = visualCols.indexOf(cellSelectionEnd.value.colId)
     const minCol = Math.min(startColIdx, endColIdx)
     const maxCol = Math.max(startColIdx, endColIdx)
 
@@ -123,7 +132,7 @@ export function useDataGridCellSelection(options) {
       const rowId = getRowId(rowNode.data)
 
       for (let colIdx = minCol; colIdx <= maxCol; colIdx++) {
-        const colId = editableColumns[colIdx]
+        const colId = visualCols[colIdx]
         onCellEdit?.(rowId, colId, '')
       }
     }
@@ -212,10 +221,11 @@ export function useDataGridCellSelection(options) {
     const newValue = params.newValue
 
     // 선택된 범위의 모든 셀에 값 적용 (편집한 셀 제외)
+    const visualCols = _getVisualCols()
     const startRow = Math.min(range.start.rowIndex, range.end.rowIndex)
     const endRow = Math.max(range.start.rowIndex, range.end.rowIndex)
-    const startColIdx = editableColumns.indexOf(range.start.colId)
-    const endColIdx = editableColumns.indexOf(range.end.colId)
+    const startColIdx = visualCols.indexOf(range.start.colId)
+    const endColIdx = visualCols.indexOf(range.end.colId)
     const minCol = Math.min(startColIdx, endColIdx)
     const maxCol = Math.max(startColIdx, endColIdx)
 
@@ -226,7 +236,7 @@ export function useDataGridCellSelection(options) {
       const rowId = getRowId(rowNode.data)
 
       for (let colIdx = minCol; colIdx <= maxCol; colIdx++) {
-        const colId = editableColumns[colIdx]
+        const colId = visualCols[colIdx]
         // 편집한 셀은 이미 업데이트됨
         if (rowIdx === params.rowIndex && colId === params.column.colId) continue
         cellUpdates.push({ rowId, field: colId, value: newValue })
@@ -266,6 +276,48 @@ export function useDataGridCellSelection(options) {
       // Ctrl/Cmd 조합키는 무시 (복사/붙여넣기 등)
       if (event.ctrlKey || event.metaKey) return
 
+      // Arrow keys: 선택 셀 이동 (Shift+Arrow: 범위 확장)
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+        event.preventDefault()
+        event.stopPropagation()
+
+        const active = cellSelectionEnd.value
+        let newRowIndex = active.rowIndex
+        let newColId = active.colId
+
+        if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+          const maxRow = (gridApi.value?.getDisplayedRowCount() || 1) - 1
+          if (event.key === 'ArrowUp') newRowIndex = Math.max(0, newRowIndex - 1)
+          else newRowIndex = Math.min(maxRow, newRowIndex + 1)
+        } else {
+          // ArrowLeft/Right: AG Grid 화면 표시 순서 기준으로 이동
+          const visualCols = _getVisualCols()
+          const currentIdx = visualCols.indexOf(active.colId)
+          if (currentIdx === -1) return
+
+          const nextIdx = event.key === 'ArrowLeft'
+            ? Math.max(0, currentIdx - 1)
+            : Math.min(visualCols.length - 1, currentIdx + 1)
+          newColId = visualCols[nextIdx]
+        }
+
+        if (event.shiftKey) {
+          // Shift+Arrow: 범위 확장
+          cellSelectionEnd.value = { rowIndex: newRowIndex, colId: newColId }
+        } else {
+          // Arrow: 단일 셀 이동
+          cellSelectionStart.value = { rowIndex: newRowIndex, colId: newColId }
+          cellSelectionEnd.value = { rowIndex: newRowIndex, colId: newColId }
+        }
+
+        // AG Grid 네이티브 포커스 제거 후 컨테이너에 포커스 유지 (후속 키 이벤트 캡처용)
+        gridApi.value?.clearFocusedCell()
+        gridContainer.value?.focus()
+        gridApi.value?.ensureIndexVisible(newRowIndex)
+        gridApi.value?.ensureColumnVisible(newColId)
+        return
+      }
+
       // Delete/Backspace: 선택된 셀들 비우기
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault()
@@ -277,13 +329,14 @@ export function useDataGridCellSelection(options) {
       if (event.key.length === 1) {
         event.preventDefault()
 
-        // 선택 범위의 첫 번째 셀 (왼쪽 상단)
+        // 선택 범위의 첫 번째 셀 (왼쪽 상단 - 화면 순서 기준)
+        const visualCols = _getVisualCols()
         const startRow = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
         const startColIdx = Math.min(
-          editableColumns.indexOf(cellSelectionStart.value.colId),
-          editableColumns.indexOf(cellSelectionEnd.value.colId)
+          visualCols.indexOf(cellSelectionStart.value.colId),
+          visualCols.indexOf(cellSelectionEnd.value.colId)
         )
-        const startColId = editableColumns[startColIdx]
+        const startColId = visualCols[startColIdx]
 
         // 키보드 입력의 경우, pendingBulkEditRange를 먼저 저장
         // (handleCellEditingStarted에서 bulkEditMode가 true면 null로 설정하기 때문)
@@ -393,10 +446,11 @@ export function useDataGridCellSelection(options) {
   const getSelectionRange = () => {
     if (!cellSelectionStart.value || !cellSelectionEnd.value) return null
 
+    const visualCols = _getVisualCols()
     const startRowIndex = Math.min(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
     const endRowIndex = Math.max(cellSelectionStart.value.rowIndex, cellSelectionEnd.value.rowIndex)
-    const startColIndex = editableColumns.indexOf(cellSelectionStart.value.colId)
-    const endColIndex = editableColumns.indexOf(cellSelectionEnd.value.colId)
+    const startColIndex = visualCols.indexOf(cellSelectionStart.value.colId)
+    const endColIndex = visualCols.indexOf(cellSelectionEnd.value.colId)
 
     if (startColIndex === -1 || endColIndex === -1) return null
 
@@ -426,6 +480,7 @@ export function useDataGridCellSelection(options) {
     if (cellSelectionStart.value && cellSelectionEnd.value) {
       const range = getSelectionRange()
       if (range) {
+        const visualCols = _getVisualCols()
         const { startRowIndex, endRowIndex, minColIndex, maxColIndex } = range
 
         const rows = []
@@ -435,7 +490,7 @@ export function useDataGridCellSelection(options) {
 
           const cells = []
           for (let colIdx = minColIndex; colIdx <= maxColIndex; colIdx++) {
-            const colId = editableColumns[colIdx]
+            const colId = visualCols[colIdx]
             cells.push(_formatValue(colId, rowNode.data[colId], rowNode.data))
           }
           rows.push(cells.join('\t'))
@@ -457,8 +512,9 @@ export function useDataGridCellSelection(options) {
       if (!copyData) {
         const selectedRows = gridApi.value.getSelectedRows()
         if (selectedRows.length > 0) {
+          const visualCols = _getVisualCols()
           const rows = selectedRows.map(rowData => {
-            return editableColumns.map(colId => _formatValue(colId, rowData[colId], rowData)).join('\t')
+            return visualCols.map(colId => _formatValue(colId, rowData[colId], rowData)).join('\t')
           })
           copyData = rows.join('\n')
         }
@@ -486,6 +542,8 @@ export function useDataGridCellSelection(options) {
     const pastedText = clipboardData.getData('text')
     if (!pastedText) return false
 
+    const visualCols = _getVisualCols()
+
     // 시작 위치 결정: 포커스된 셀 또는 선택 시작점
     const focusedCell = gridApi.value.getFocusedCell()
     let startRowIndex, startColId
@@ -500,7 +558,7 @@ export function useDataGridCellSelection(options) {
       return false // 선택된 셀 없음 - 그리드에서 추가 처리 가능
     }
 
-    const startColIndex = editableColumns.indexOf(startColId)
+    const startColIndex = visualCols.indexOf(startColId)
     if (startColIndex === -1) return false // 편집 불가능한 컬럼
 
     event.preventDefault()
@@ -543,7 +601,7 @@ export function useDataGridCellSelection(options) {
         const rowId = getRowId(rowNode.data)
 
         for (let colIdx = minColIndex; colIdx <= maxColIndex; colIdx++) {
-          const field = editableColumns[colIdx]
+          const field = visualCols[colIdx]
           let value = singleValue
 
           // 값 변환 (숫자 필드 등)
@@ -567,9 +625,9 @@ export function useDataGridCellSelection(options) {
 
         for (let colOffset = 0; colOffset < cells.length; colOffset++) {
           const targetColIndex = startColIndex + colOffset
-          if (targetColIndex >= editableColumns.length) break
+          if (targetColIndex >= visualCols.length) break
 
-          const field = editableColumns[targetColIndex]
+          const field = visualCols[targetColIndex]
           let value = cells[colOffset]?.trim() || ''
 
           // 값 변환 (숫자 필드 등)
