@@ -326,13 +326,11 @@ async function createClients(clientsData, context = {}) {
   // 3. Execute beforeCreate hooks
   await rules.executeHooks('beforeCreate', dataToValidate, context)
 
-  // 4. Get existing IDs and IP combinations for format/uniqueness validation
+  // 4. Get existing clients for format/uniqueness validation
   const existingClients = await Client.find({}, 'eqpId ipAddr ipAddrL').lean()
-  const existingIds = existingClients.map(c => c.eqpId?.toLowerCase?.() || '')
-  const existingIpCombos = existingClients.map(c => `${c.ipAddr || ''}|${c.ipAddrL || ''}`)
 
   // 5. Validate format and uniqueness
-  const { valid, errors: validationErrors } = validateBatchCreate(dataToValidate, existingIds, existingIpCombos)
+  const { valid, errors: validationErrors } = validateBatchCreate(dataToValidate, existingClients)
 
   // Adjust rowIndex for validation errors (account for removed items)
   const originalIndices = processedData
@@ -416,11 +414,9 @@ async function updateClients(clientsData, context = {}) {
 
     // 4. Get other clients (excluding current one) for uniqueness validation
     const otherClients = allClients.filter(c => c._id.toString() !== _id)
-    const existingIds = otherClients.map(c => c.eqpId?.toLowerCase?.() || '')
-    const existingIpCombos = otherClients.map(c => `${c.ipAddr || ''}|${c.ipAddrL || ''}`)
 
     // 5. Validate format and uniqueness
-    const validation = validateUpdate(processedData, existingIds, existingIpCombos)
+    const validation = validateUpdate(processedData, otherClients)
 
     if (!validation.valid) {
       for (const [field, message] of Object.entries(validation.errors)) {

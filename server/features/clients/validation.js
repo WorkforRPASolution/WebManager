@@ -123,38 +123,49 @@ function validateClientData(data, existingIds = [], existingIps = [], isUpdate =
  * @param {Array} existingIps - Existing IP addresses
  * @returns {Object} - { valid: [], errors: [] }
  */
-function validateBatchCreate(clients, existingIds, existingIpCombos) {
+function validateBatchCreate(clients, existingClients) {
   const valid = []
   const errors = []
-  const batchIds = []
-  const batchIpCombos = []
+  const batchEntries = []  // [{ eqpId, ipCombo }]
 
   for (let i = 0; i < clients.length; i++) {
     const clientData = clients[i]
     const ipCombo = `${clientData.ipAddr || ''}|${clientData.ipAddrL || ''}`
 
     // Check for duplicate eqpId within batch
-    if (clientData.eqpId && batchIds.includes(clientData.eqpId.toLowerCase())) {
-      errors.push({ rowIndex: i, field: 'eqpId', message: '중복된 Equipment ID' })
-      continue
+    if (clientData.eqpId) {
+      const batchConflict = batchEntries.find(e => e.eqpId === clientData.eqpId.toLowerCase())
+      if (batchConflict) {
+        errors.push({ rowIndex: i, field: 'eqpId', message: `중복된 Equipment ID (배치 내)` })
+        continue
+      }
     }
 
     // Check for duplicate IP combination within batch
-    if (clientData.ipAddr && batchIpCombos.includes(ipCombo)) {
-      errors.push({ rowIndex: i, field: 'ipAddr', message: '중복된 IP 조합' })
-      continue
+    if (clientData.ipAddr) {
+      const batchConflict = batchEntries.find(e => e.ipCombo === ipCombo)
+      if (batchConflict) {
+        errors.push({ rowIndex: i, field: 'ipAddr', message: `중복된 IP 조합 (배치 내)` })
+        continue
+      }
     }
 
     // Check for duplicate eqpId against existing data
-    if (clientData.eqpId && existingIds.includes(clientData.eqpId.toLowerCase())) {
-      errors.push({ rowIndex: i, field: 'eqpId', message: '이미 존재하는 Equipment ID' })
-      continue
+    if (clientData.eqpId) {
+      const conflict = existingClients.find(c => c.eqpId?.toLowerCase?.() === clientData.eqpId.toLowerCase())
+      if (conflict) {
+        errors.push({ rowIndex: i, field: 'eqpId', message: `이미 존재하는 Equipment ID (${conflict.eqpId})` })
+        continue
+      }
     }
 
     // Check for duplicate IP combination against existing data
-    if (clientData.ipAddr && existingIpCombos.includes(ipCombo)) {
-      errors.push({ rowIndex: i, field: 'ipAddr', message: '이미 존재하는 IP 조합' })
-      continue
+    if (clientData.ipAddr) {
+      const conflict = existingClients.find(c => `${c.ipAddr || ''}|${c.ipAddrL || ''}` === ipCombo)
+      if (conflict) {
+        errors.push({ rowIndex: i, field: 'ipAddr', message: `중복된 IP 조합 (${conflict.eqpId || conflict._id})` })
+        continue
+      }
     }
 
     const validationErrors = validateClientData(clientData, [], [], false)
@@ -164,12 +175,10 @@ function validateBatchCreate(clients, existingIds, existingIpCombos) {
         errors.push({ rowIndex: i, field, message })
       }
     } else {
-      if (clientData.eqpId) {
-        batchIds.push(clientData.eqpId.toLowerCase())
-      }
-      if (clientData.ipAddr) {
-        batchIpCombos.push(ipCombo)
-      }
+      batchEntries.push({
+        eqpId: clientData.eqpId?.toLowerCase?.() || '',
+        ipCombo
+      })
       valid.push(clientData)
     }
   }
@@ -184,16 +193,22 @@ function validateBatchCreate(clients, existingIds, existingIpCombos) {
  * @param {Array} existingIpCombos - Other clients' IP combinations (ipAddr|ipAddrL)
  * @returns {Object} - { valid: boolean, errors: Object|null }
  */
-function validateUpdate(data, existingIds, existingIpCombos) {
+function validateUpdate(data, otherClients) {
   const errors = {}
   const ipCombo = `${data.ipAddr || ''}|${data.ipAddrL || ''}`
 
-  // Check unique constraints against other clients
-  if (data.eqpId && existingIds.includes(data.eqpId.toLowerCase())) {
-    errors.eqpId = '이미 존재하는 Equipment ID'
+  // Check unique constraints against other clients (with conflict target info)
+  if (data.eqpId) {
+    const conflict = otherClients.find(c => c.eqpId?.toLowerCase?.() === data.eqpId.toLowerCase())
+    if (conflict) {
+      errors.eqpId = `이미 존재하는 Equipment ID (${conflict.eqpId})`
+    }
   }
-  if (data.ipAddr && existingIpCombos.includes(ipCombo)) {
-    errors.ipAddr = '이미 존재하는 IP 조합'
+  if (data.ipAddr) {
+    const conflict = otherClients.find(c => `${c.ipAddr || ''}|${c.ipAddrL || ''}` === ipCombo)
+    if (conflict) {
+      errors.ipAddr = `중복된 IP 조합 (${conflict.eqpId || conflict._id})`
+    }
   }
 
   if (Object.keys(errors).length > 0) {
