@@ -35,23 +35,27 @@ const isOpen = ref(false)
 const searchQuery = ref('')
 const containerRef = ref(null)
 
+// Helpers: support both string[] and [{value, count}] options
+const getOptionValue = (opt) => typeof opt === 'string' ? opt : opt.value
+const getOptionCount = (opt) => (typeof opt === 'object' && opt !== null && opt.count != null) ? opt.count : null
+
 // Filtered options based on search query (case-insensitive)
 const filteredOptions = computed(() => {
   if (!searchQuery.value) return props.options
   const query = searchQuery.value.toLowerCase()
-  return props.options.filter(opt => opt.toLowerCase().includes(query))
+  return props.options.filter(opt => getOptionValue(opt).toLowerCase().includes(query))
 })
 
 // Check if all filtered options are selected
 const allSelected = computed(() => {
   if (filteredOptions.value.length === 0) return false
-  return filteredOptions.value.every(opt => props.modelValue.includes(opt))
+  return filteredOptions.value.every(opt => props.modelValue.includes(getOptionValue(opt)))
 })
 
 // Check if some (but not all) are selected
 const someSelected = computed(() => {
   if (filteredOptions.value.length === 0) return false
-  const selectedCount = filteredOptions.value.filter(opt => props.modelValue.includes(opt)).length
+  const selectedCount = filteredOptions.value.filter(opt => props.modelValue.includes(getOptionValue(opt))).length
   return selectedCount > 0 && selectedCount < filteredOptions.value.length
 })
 
@@ -71,10 +75,11 @@ function toggleDropdown() {
 }
 
 function toggleOption(option) {
+  const value = getOptionValue(option)
   const newValue = [...props.modelValue]
-  const index = newValue.indexOf(option)
+  const index = newValue.indexOf(value)
   if (index === -1) {
-    newValue.push(option)
+    newValue.push(value)
   } else {
     newValue.splice(index, 1)
   }
@@ -82,19 +87,21 @@ function toggleOption(option) {
 }
 
 function toggleAll() {
+  const filteredValues = filteredOptions.value.map(getOptionValue)
   if (allSelected.value) {
     // Deselect all filtered options
-    const newValue = props.modelValue.filter(v => !filteredOptions.value.includes(v))
+    const newValue = props.modelValue.filter(v => !filteredValues.includes(v))
     emit('update:modelValue', newValue)
   } else {
     // Select all filtered options
-    const newValue = [...new Set([...props.modelValue, ...filteredOptions.value])]
+    const newValue = [...new Set([...props.modelValue, ...filteredValues])]
     emit('update:modelValue', newValue)
   }
 }
 
 function removeItem(option) {
-  const newValue = props.modelValue.filter(v => v !== option)
+  const value = getOptionValue(option)
+  const newValue = props.modelValue.filter(v => v !== value)
   emit('update:modelValue', newValue)
 }
 
@@ -198,19 +205,23 @@ onUnmounted(() => {
         <!-- Options -->
         <div
           v-for="option in filteredOptions"
-          :key="option"
+          :key="getOptionValue(option)"
           @click="toggleOption(option)"
           class="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 dark:hover:bg-dark-border cursor-pointer"
         >
           <div
-            class="w-4 h-4 rounded border flex items-center justify-center transition-colors"
-            :class="modelValue.includes(option)
+            class="w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0"
+            :class="modelValue.includes(getOptionValue(option))
               ? 'bg-primary-500 border-primary-500'
               : 'border-gray-300 dark:border-gray-600'"
           >
-            <AppIcon v-if="modelValue.includes(option)" name="check" size="3" class="text-white" />
+            <AppIcon v-if="modelValue.includes(getOptionValue(option))" name="check" size="3" class="text-white" />
           </div>
-          <span class="text-sm text-gray-700 dark:text-gray-300">{{ option }}</span>
+          <span class="text-sm text-gray-700 dark:text-gray-300 flex-1 truncate" :title="getOptionValue(option)">{{ getOptionValue(option) }}</span>
+          <span
+            v-if="getOptionCount(option) != null"
+            class="text-xs text-gray-400 dark:text-gray-500 tabular-nums whitespace-nowrap"
+          >({{ getOptionCount(option) }})</span>
         </div>
 
         <!-- No Results -->

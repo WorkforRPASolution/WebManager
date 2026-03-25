@@ -7,6 +7,7 @@ const { parsePaginationParams } = require('../../shared/utils/pagination')
 const { validateBatchCreate, validateUpdate } = require('./validation')
 const { createRulesContext } = require('../../shared/utils/businessRules')
 const strategyRegistry = require('./strategies')
+const { distinctWithCount } = require('../../shared/utils/aggregateHelpers')
 
 // EQP_INFO 컬렉션용 비즈니스 규칙 컨텍스트
 const rules = createRulesContext('EQP_INFO', { documentIdField: 'eqpId' })
@@ -154,8 +155,7 @@ function transformClientDetail(client, agentGroup) {
  * Get distinct process list
  */
 async function getProcesses() {
-  const processes = await Client.distinct('process')
-  return processes.sort()
+  return distinctWithCount(Client, 'process')
 }
 
 /**
@@ -172,8 +172,7 @@ async function getModels(processFilter, userProcesses) {
     // Process 선택 없이 조회 시 사용자 권한으로 필터링
     query.process = { $in: userProcesses }
   }
-  const models = await Client.distinct('eqpModel', query)
-  return models.sort()
+  return distinctWithCount(Client, 'eqpModel', query)
 }
 
 /**
@@ -185,8 +184,7 @@ async function getLines(processFilter) {
     const filter = parseCommaSeparated(processFilter)
     if (filter) query.process = filter
   }
-  const lines = await Client.distinct('line', query)
-  return lines.filter(l => l).sort()
+  return distinctWithCount(Client, 'line', query)
 }
 
 /**

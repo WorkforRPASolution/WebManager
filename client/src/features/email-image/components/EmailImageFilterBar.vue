@@ -261,31 +261,34 @@ const fetchSubcodesForFilters = async (processArray, modelArray, codeArray) => {
   }
 }
 
+// options: string[] 또는 [{value, count}] 양식 모두 지원
+const optionIncludes = (options, val) => options.some(opt => (typeof opt === 'string' ? opt : opt.value) === val)
+
 const handleProcessChange = async (newProcesses) => {
   await fetchModelsForProcesses(newProcesses)
 
   if (newProcesses.length > 0) {
-    selectedModels.value = selectedModels.value.filter(m => filteredModels.value.includes(m))
+    selectedModels.value = selectedModels.value.filter(m => optionIncludes(filteredModels.value, m))
   }
 
   await fetchCodesForFilters(newProcesses, selectedModels.value)
-  selectedCodes.value = selectedCodes.value.filter(c => filteredCodes.value.includes(c))
+  selectedCodes.value = selectedCodes.value.filter(c => optionIncludes(filteredCodes.value, c))
 
   await fetchSubcodesForFilters(newProcesses, selectedModels.value, selectedCodes.value)
-  selectedSubcodes.value = selectedSubcodes.value.filter(s => filteredSubcodes.value.includes(s))
+  selectedSubcodes.value = selectedSubcodes.value.filter(s => optionIncludes(filteredSubcodes.value, s))
 }
 
 const handleModelChange = async (newModels) => {
   await fetchCodesForFilters(selectedProcesses.value, newModels)
-  selectedCodes.value = selectedCodes.value.filter(c => filteredCodes.value.includes(c))
+  selectedCodes.value = selectedCodes.value.filter(c => optionIncludes(filteredCodes.value, c))
 
   await fetchSubcodesForFilters(selectedProcesses.value, newModels, selectedCodes.value)
-  selectedSubcodes.value = selectedSubcodes.value.filter(s => filteredSubcodes.value.includes(s))
+  selectedSubcodes.value = selectedSubcodes.value.filter(s => optionIncludes(filteredSubcodes.value, s))
 }
 
 const handleCodeChange = async (newCodes) => {
   await fetchSubcodesForFilters(selectedProcesses.value, selectedModels.value, newCodes)
-  selectedSubcodes.value = selectedSubcodes.value.filter(s => filteredSubcodes.value.includes(s))
+  selectedSubcodes.value = selectedSubcodes.value.filter(s => optionIncludes(filteredSubcodes.value, s))
 }
 
 const handleSearch = () => {

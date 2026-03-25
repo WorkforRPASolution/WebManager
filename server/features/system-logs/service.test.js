@@ -45,7 +45,7 @@ describe('queryLogs', () => {
     expect(result.pagination).toEqual({
       total: 2,
       page: 1,
-      pageSize: 25,
+      pageSize: 50,
       totalPages: 1,
       hasNextPage: false,
       hasPrevPage: false

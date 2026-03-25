@@ -70,16 +70,20 @@
             <div class="p-2">
               <label
                 v-for="p in processes"
-                :key="p"
+                :key="typeof p === 'string' ? p : p.value"
                 class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded"
               >
                 <input
                   type="checkbox"
-                  :value="p"
+                  :value="typeof p === 'string' ? p : p.value"
                   v-model="selectedProcesses"
                   class="rounded border-gray-300 dark:border-dark-border text-primary-500 focus:ring-primary-500"
                 />
-                <span class="text-sm text-gray-700 dark:text-gray-300">{{ p }}</span>
+                <span class="text-sm text-gray-700 dark:text-gray-300 flex-1">{{ typeof p === 'string' ? p : p.value }}</span>
+                <span
+                  v-if="typeof p === 'object' && p.count != null"
+                  class="text-xs text-gray-400 dark:text-gray-500 tabular-nums"
+                >({{ p.count }})</span>
               </label>
             </div>
           </div>

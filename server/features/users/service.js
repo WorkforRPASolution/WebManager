@@ -431,25 +431,28 @@ async function initializeRolePermissions() {
  * @param {string[]} userProcesses - User's process permissions (for filtering)
  */
 async function getProcesses(userProcesses) {
-  // process 필드(세미콜론 구분 문자열)에서 distinct 값 추출
+  // process 필드(세미콜론 구분 문자열)에서 distinct 값 추출 + 카운트
   const rawValues = await User.distinct('process')
-  const allProcesses = new Set()
+  const processMap = new Map()
   for (const val of rawValues) {
     if (!val) continue
     for (const p of val.split(';')) {
       const trimmed = p.trim()
-      if (trimmed) allProcesses.add(trimmed)
+      if (trimmed) processMap.set(trimmed, (processMap.get(trimmed) || 0) + 1)
     }
   }
-  let result = [...allProcesses]
+
+  let entries = Array.from(processMap.entries())
 
   // If userProcesses is provided, filter to only include processes the user has access to
   if (userProcesses && userProcesses.length > 0) {
     const userProcessUpper = userProcesses.map(p => p.toUpperCase())
-    result = result.filter(p => userProcessUpper.includes(p.toUpperCase()))
+    entries = entries.filter(([p]) => userProcessUpper.includes(p.toUpperCase()))
   }
 
-  return result.sort()
+  return entries
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => a.value.localeCompare(b.value))
 }
 
 /**

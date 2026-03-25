@@ -15,6 +15,7 @@
 
 const { createCrudService } = require('./createCrudService')
 const { parsePaginationParams } = require('./pagination')
+const { distinctWithCount } = require('./aggregateHelpers')
 
 function createTemplateService(Model, collectionName, options = {}) {
   const {
@@ -79,19 +80,19 @@ function createTemplateService(Model, collectionName, options = {}) {
   // ============================================
 
   async function getProcesses() {
-    return (await Model.distinct('process')).sort()
+    return distinctWithCount(Model, 'process')
   }
 
   async function getModels(process, userProcesses) {
     const query = buildProcessQuery(process, userProcesses)
-    return (await Model.distinct('model', query)).sort()
+    return distinctWithCount(Model, 'model', query)
   }
 
   async function getCodes(process, model, userProcesses) {
     const query = buildProcessQuery(process, userProcesses)
     const modelFilter = parseMultiFilter(model)
     if (modelFilter) query.model = modelFilter
-    return (await Model.distinct('code', query)).sort()
+    return distinctWithCount(Model, 'code', query)
   }
 
   async function getTemplates(filters = {}, paginationQuery = {}) {

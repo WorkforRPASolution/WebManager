@@ -89,7 +89,11 @@ export const useProcessFilterStore = defineStore('processFilter', () => {
 
     // DB에 실제 있는 프로세스 중 사용자 권한에 해당하는 것만 반환
     // 교집합이 비어있으면 빈 목록 반환 (사용자 process 목록 반환 금지)
-    return all.filter(p => userProcesses.includes(p))
+    // options: string[] 또는 [{value, count}] 양식 모두 지원
+    return all.filter(item => {
+      const value = typeof item === 'string' ? item : item.value
+      return userProcesses.includes(value)
+    })
   }
 
   /**

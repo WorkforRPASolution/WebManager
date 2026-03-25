@@ -71,6 +71,7 @@ async function loadFilterOptions() {
     const allProcesses = res.data || []
     processFilterStore.setProcesses('clients', allProcesses)
     processes.value = processFilterStore.getFilteredProcesses('clients')
+      .map(p => typeof p === 'string' ? p : p.value)
   } catch (err) {
     // silently fail
   }

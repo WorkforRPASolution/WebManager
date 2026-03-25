@@ -7,6 +7,7 @@ const { parsePaginationParams } = require('../../shared/utils/pagination')
 const { validateBatchCreate, validateUpdate } = require('./validation')
 const { makeAuditHelper, calculateChanges } = require('../../shared/models/webmanagerLogModel')
 
+const { distinctWithCount } = require('../../shared/utils/aggregateHelpers')
 const auditLog = makeAuditHelper('EMAILINFO')
 
 /**
@@ -115,8 +116,7 @@ function buildQuery(filters) {
  * Get distinct project list
  */
 async function getProjects() {
-  const projects = await EmailInfo.distinct('project')
-  return projects.sort()
+  return distinctWithCount(EmailInfo, 'project')
 }
 
 /**
@@ -128,8 +128,7 @@ async function getCategories(projectFilter) {
     const filter = parseCommaSeparated(projectFilter)
     if (filter) query.project = filter
   }
-  const categories = await EmailInfo.distinct('category', query)
-  return categories.sort()
+  return distinctWithCount(EmailInfo, 'category', query)
 }
 
 /**
@@ -146,7 +145,7 @@ async function getProcessesFromCategory(projectFilter, userProcesses) {
   }
 
   const categories = await EmailInfo.distinct('category', query)
-  const processSet = new Set()
+  const processMap = new Map()
 
   // Parse userProcesses for filtering (uppercase for comparison)
   const userProcessValues = (userProcesses && userProcesses.length > 0)
@@ -159,15 +158,17 @@ async function getProcessesFromCategory(projectFilter, userProcesses) {
       // If userProcesses is provided, only include processes the user has access to
       if (userProcessValues) {
         if (userProcessValues.includes(process.toUpperCase())) {
-          processSet.add(process)
+          processMap.set(process, (processMap.get(process) || 0) + 1)
         }
       } else {
-        processSet.add(process)
+        processMap.set(process, (processMap.get(process) || 0) + 1)
       }
     }
   }
 
-  return Array.from(processSet).sort()
+  return Array.from(processMap.entries())
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => a.value.localeCompare(b.value))
 }
 
 /**
@@ -185,7 +186,7 @@ async function getModelsFromCategory(projectFilter, processFilter, userProcesses
   }
 
   const categories = await EmailInfo.distinct('category', query)
-  const modelSet = new Set()
+  const modelMap = new Map()
 
   // Parse process filter for filtering
   const processValues = processFilter
@@ -203,20 +204,22 @@ async function getModelsFromCategory(projectFilter, processFilter, userProcesses
       // If process filter is provided, only include models from matching processes
       if (processValues && processValues.length > 0) {
         if (process && processValues.includes(process.toUpperCase())) {
-          modelSet.add(model)
+          modelMap.set(model, (modelMap.get(model) || 0) + 1)
         }
       } else if (userProcessValues && userProcessValues.length > 0) {
         // Process 선택 없이 조회 시 사용자 권한으로 필터링
         if (process && userProcessValues.includes(process.toUpperCase())) {
-          modelSet.add(model)
+          modelMap.set(model, (modelMap.get(model) || 0) + 1)
         }
       } else {
-        modelSet.add(model)
+        modelMap.set(model, (modelMap.get(model) || 0) + 1)
       }
     }
   }
 
-  return Array.from(modelSet).sort()
+  return Array.from(modelMap.entries())
+    .map(([value, count]) => ({ value, count }))
+    .sort((a, b) => a.value.localeCompare(b.value))
 }
 
 /**

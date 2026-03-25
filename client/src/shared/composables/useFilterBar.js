@@ -129,8 +129,13 @@ export function useFilterBar(config) {
     await fetchModelsForSelectedProcesses(newProcesses)
 
     // 선택된 Model 중 더 이상 유효하지 않은 것 제거
+    // options: string[] 또는 [{value, count}] 양식 모두 지원
     if (newProcesses.length > 0) {
-      selectedModels.value = selectedModels.value.filter(m => filteredModels.value.includes(m))
+      selectedModels.value = selectedModels.value.filter(m =>
+        filteredModels.value.some(opt =>
+          (typeof opt === 'string' ? opt : opt.value) === m
+        )
+      )
     }
   }
 

@@ -7,6 +7,7 @@ const { parsePaginationParams } = require('../../shared/utils/pagination')
 const { validateBatchCreate, validateUpdate } = require('./validation')
 const { makeAuditHelper, calculateChanges } = require('../../shared/models/webmanagerLogModel')
 
+const { distinctWithCount } = require('../../shared/utils/aggregateHelpers')
 const auditLog = makeAuditHelper('EMAIL_RECIPIENTS')
 
 /**
@@ -68,8 +69,7 @@ function buildQuery(filters) {
  * Get distinct app list
  */
 async function getApps() {
-  const apps = await EmailRecipients.distinct('app')
-  return apps.sort()
+  return distinctWithCount(EmailRecipients, 'app')
 }
 
 /**
@@ -81,8 +81,7 @@ async function getProcesses(appFilter) {
     const filter = parseCommaSeparated(appFilter)
     if (filter) query.app = filter
   }
-  const processes = await EmailRecipients.distinct('process', query)
-  return processes.sort()
+  return distinctWithCount(EmailRecipients, 'process', query)
 }
 
 /**
@@ -104,8 +103,7 @@ async function getModels(appFilter, processFilter, userProcesses) {
     // Process 선택 없이 조회 시 사용자 권한으로 필터링
     query.process = { $in: userProcesses }
   }
-  const models = await EmailRecipients.distinct('model', query)
-  return models.sort()
+  return distinctWithCount(EmailRecipients, 'model', query)
 }
 
 /**
@@ -132,8 +130,7 @@ async function getCodes(appFilter, processFilter, modelFilter, userProcesses) {
     const filter = parseCommaSeparated(modelFilter)
     if (filter) query.model = filter
   }
-  const codes = await EmailRecipients.distinct('code', query)
-  return codes.sort()
+  return distinctWithCount(EmailRecipients, 'code', query)
 }
 
 /**

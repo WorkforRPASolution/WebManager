@@ -212,22 +212,25 @@ const fetchCodesForFilters = async (processArray, modelArray) => {
   }
 }
 
+// options: string[] 또는 [{value, count}] 양식 모두 지원
+const optionIncludes = (options, val) => options.some(opt => (typeof opt === 'string' ? opt : opt.value) === val)
+
 const handleProcessChange = async (newProcesses) => {
   await fetchModelsForProcesses(newProcesses)
 
   // Filter out selected models that are no longer available
   if (newProcesses.length > 0) {
-    selectedModels.value = selectedModels.value.filter(m => filteredModels.value.includes(m))
+    selectedModels.value = selectedModels.value.filter(m => optionIncludes(filteredModels.value, m))
   }
 
   // Update codes based on new process/model selection
   await fetchCodesForFilters(newProcesses, selectedModels.value)
-  selectedCodes.value = selectedCodes.value.filter(c => filteredCodes.value.includes(c))
+  selectedCodes.value = selectedCodes.value.filter(c => optionIncludes(filteredCodes.value, c))
 }
 
 const handleModelChange = async (newModels) => {
   await fetchCodesForFilters(selectedProcesses.value, newModels)
-  selectedCodes.value = selectedCodes.value.filter(c => filteredCodes.value.includes(c))
+  selectedCodes.value = selectedCodes.value.filter(c => optionIncludes(filteredCodes.value, c))
 }
 
 const handleSearch = () => {

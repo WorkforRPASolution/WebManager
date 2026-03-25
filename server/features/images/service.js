@@ -3,6 +3,7 @@ const EmailImage = require('./model');
 const { parsePaginationParams } = require('../../shared/utils/pagination');
 const { createActionLog } = require('../../shared/models/webmanagerLogModel');
 const { createLogger } = require('../../shared/logger');
+const { distinctWithCount } = require('../../shared/utils/aggregateHelpers');
 const log = createLogger('images');
 
 // 모듈 레벨 상수 (매 함수 호출마다 읽지 않도록 최적화)
@@ -149,13 +150,17 @@ function _formatImageWithUrl(img, req) {
 async function getDistinctProcesses() {
   try {
     if (IS_MONGODB_STORAGE) {
-      const processes = await EmailImage.distinct('process', { process: { $ne: '' } });
-      return processes.sort();
+      return await distinctWithCount(EmailImage, 'process');
     }
-    // Local: in-memory distinct
+    // Local: in-memory counting
     const images = await storage.listImages();
-    const processes = [...new Set(images.map(img => img.process).filter(Boolean))];
-    return processes.sort();
+    const processMap = new Map();
+    for (const img of images) {
+      if (img.process) processMap.set(img.process, (processMap.get(img.process) || 0) + 1);
+    }
+    return Array.from(processMap.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => a.value.localeCompare(b.value));
   } catch (error) {
     log.error(`getDistinctProcesses error: ${error.message}`);
     return [];
@@ -168,21 +173,25 @@ async function getDistinctProcesses() {
 async function getDistinctModels(processFilter, userProcesses) {
   try {
     if (IS_MONGODB_STORAGE) {
-      const query = { model: { $ne: '' } };
+      const query = {};
       const filterProcesses = _parseCommaSeparated(processFilter);
       if (filterProcesses.length > 0) {
         query.process = { $in: filterProcesses };
       } else if (userProcesses && userProcesses.length > 0) {
         query.process = { $in: userProcesses };
       }
-      const models = await EmailImage.distinct('model', query);
-      return models.sort();
+      return await distinctWithCount(EmailImage, 'model', query);
     }
-    // Local: in-memory distinct
+    // Local: in-memory counting
     const images = await storage.listImages();
     const filtered = _filterImages(images, { process: processFilter, userProcesses });
-    const models = [...new Set(filtered.map(img => img.model).filter(Boolean))];
-    return models.sort();
+    const modelMap = new Map();
+    for (const img of filtered) {
+      if (img.model) modelMap.set(img.model, (modelMap.get(img.model) || 0) + 1);
+    }
+    return Array.from(modelMap.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => a.value.localeCompare(b.value));
   } catch (error) {
     log.error(`getDistinctModels error: ${error.message}`);
     return [];
@@ -195,7 +204,7 @@ async function getDistinctModels(processFilter, userProcesses) {
 async function getDistinctCodes(processFilter, modelFilter, userProcesses) {
   try {
     if (IS_MONGODB_STORAGE) {
-      const query = { code: { $ne: '' } };
+      const query = {};
       const filterProcesses = _parseCommaSeparated(processFilter);
       const filterModels = _parseCommaSeparated(modelFilter);
       if (filterProcesses.length > 0) {
@@ -206,14 +215,18 @@ async function getDistinctCodes(processFilter, modelFilter, userProcesses) {
       if (filterModels.length > 0) {
         query.model = { $in: filterModels };
       }
-      const codes = await EmailImage.distinct('code', query);
-      return codes.sort();
+      return await distinctWithCount(EmailImage, 'code', query);
     }
-    // Local: in-memory distinct
+    // Local: in-memory counting
     const images = await storage.listImages();
     const filtered = _filterImages(images, { process: processFilter, model: modelFilter, userProcesses });
-    const codes = [...new Set(filtered.map(img => img.code).filter(Boolean))];
-    return codes.sort();
+    const codeMap = new Map();
+    for (const img of filtered) {
+      if (img.code) codeMap.set(img.code, (codeMap.get(img.code) || 0) + 1);
+    }
+    return Array.from(codeMap.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => a.value.localeCompare(b.value));
   } catch (error) {
     log.error(`getDistinctCodes error: ${error.message}`);
     return [];
@@ -226,7 +239,7 @@ async function getDistinctCodes(processFilter, modelFilter, userProcesses) {
 async function getDistinctSubcodes(processFilter, modelFilter, codeFilter, userProcesses) {
   try {
     if (IS_MONGODB_STORAGE) {
-      const query = { subcode: { $ne: '' } };
+      const query = {};
       const filterProcesses = _parseCommaSeparated(processFilter);
       const filterModels = _parseCommaSeparated(modelFilter);
       const filterCodes = _parseCommaSeparated(codeFilter);
@@ -241,14 +254,18 @@ async function getDistinctSubcodes(processFilter, modelFilter, codeFilter, userP
       if (filterCodes.length > 0) {
         query.code = { $in: filterCodes };
       }
-      const subcodes = await EmailImage.distinct('subcode', query);
-      return subcodes.sort();
+      return await distinctWithCount(EmailImage, 'subcode', query);
     }
-    // Local: in-memory distinct
+    // Local: in-memory counting
     const images = await storage.listImages();
     const filtered = _filterImages(images, { process: processFilter, model: modelFilter, code: codeFilter, userProcesses });
-    const subcodes = [...new Set(filtered.map(img => img.subcode).filter(Boolean))];
-    return subcodes.sort();
+    const subcodeMap = new Map();
+    for (const img of filtered) {
+      if (img.subcode) subcodeMap.set(img.subcode, (subcodeMap.get(img.subcode) || 0) + 1);
+    }
+    return Array.from(subcodeMap.entries())
+      .map(([value, count]) => ({ value, count }))
+      .sort((a, b) => a.value.localeCompare(b.value));
   } catch (error) {
     log.error(`getDistinctSubcodes error: ${error.message}`);
     return [];
