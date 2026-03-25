@@ -239,6 +239,9 @@ async function tailLogStream(targets, onData, signal) {
           if (response.success) {
             basePathRetried = false
             if (response.output) {
+              // Windows CRLF(\r\n) 파일에서 부분 쓰기 시 \r 유무가 달라져
+              // extractNewLines가 같은 라인을 다른 것으로 인식 → 중복 전송됨.
+              // \r을 strip하여 LF/CRLF 모두 일관된 비교가 되도록 함. (제거 금지)
               const currentLines = response.output.split('\n').map(l => l.replace(/\r$/, '')).filter(l => l.length > 0)
               const newLines = extractNewLines(previousLines, currentLines)
               previousLines = currentLines
