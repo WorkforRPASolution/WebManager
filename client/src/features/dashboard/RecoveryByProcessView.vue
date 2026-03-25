@@ -140,7 +140,6 @@ onMounted(() => {
         <RecoveryFilterBar
           :processes="processes"
           :loading="loading"
-          :showLineFilter="false"
           @search="handleSearch"
         />
         <div class="flex items-center gap-2">

@@ -27,7 +27,6 @@ const loading = ref(false)
 const overviewData = ref(null)
 const lastAggregation = ref(null)
 const processes = ref([])
-const lines = ref([])
 const csvMenuOpen = ref(false)
 const currentFilters = ref({ period: 'today' })
 
@@ -106,7 +105,6 @@ onMounted(() => {
       <div class="flex flex-wrap items-end justify-between gap-4">
         <RecoveryFilterBar
           :processes="processes"
-          :lines="lines"
           :loading="loading"
           @search="handleSearch"
         />

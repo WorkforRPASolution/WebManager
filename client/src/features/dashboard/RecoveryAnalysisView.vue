@@ -147,7 +147,6 @@ function openHistory(item) {
           :processes="processes"
           :models="models"
           :loading="loading"
-          :showLineFilter="false"
           :showModelFilter="true"
           :singleSelectMode="true"
           :initialProcess="currentFilters.process || ''"

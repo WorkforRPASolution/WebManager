@@ -7,11 +7,9 @@ import { useRecoveryPeriod, localDateStr } from '../composables/useRecoveryPerio
 const props = defineProps({
   processes: { type: Array, default: () => [] },
   models: { type: Array, default: () => [] },
-  lines: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
   showProcessFilter: { type: Boolean, default: true },
   showModelFilter: { type: Boolean, default: false },
-  showLineFilter: { type: Boolean, default: true },
   singleSelectMode: { type: Boolean, default: false },
   initialProcess: { type: String, default: '' },
   initialModel: { type: String, default: '' }
@@ -32,8 +30,6 @@ selectedPeriod.value = 'today'
 
 const selectedProcesses = ref([])
 const selectedModels = ref([])
-const selectedLines = ref([])
-
 // 단일 선택 모드용 state
 const singleProcess = ref(props.initialProcess)
 const singleModel = ref(props.initialModel)
@@ -168,9 +164,6 @@ function handleSearch() {
     } else if (selectedModels.value.length > 0) {
       filters.model = selectedModels.value.join(',')
     }
-  }
-  if (props.showLineFilter && selectedLines.value.length > 0) {
-    filters.line = selectedLines.value.join(',')
   }
   // 프리셋이 이동된 경우 또는 커스텀: custom + 날짜 전송
   if (isCustom.value || (!isCustom.value && !isLatestPeriod.value)) {
@@ -322,16 +315,6 @@ function handleSearch() {
         width="200px"
       />
     </template>
-
-    <!-- Line MultiSelect -->
-    <MultiSelect
-      v-if="showLineFilter"
-      v-model="selectedLines"
-      :options="lines"
-      label="Line"
-      placeholder="전체 Line"
-      width="200px"
-    />
 
     <!-- Model Filter -->
     <template v-if="showModelFilter">
