@@ -2,15 +2,10 @@
  * EmailInfo validation rules and helpers
  */
 
+const { allowedWithDash, korean, email } = require('../../shared/utils/validationPatterns')
+
 // Validation patterns
-const patterns = {
-  // Allowed characters: alphanumeric, dot, underscore, dash
-  allowedWithDash: /^[A-Za-z0-9._-]*$/,
-  // Korean character detection
-  korean: /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/,
-  // Email pattern
-  email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-}
+const patterns = { allowedWithDash, korean, email }
 
 // Required fields for email info data
 const requiredFields = ['project', 'category']

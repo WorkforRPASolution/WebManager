@@ -20,8 +20,10 @@ function parsePaginationParams(query, options = {}) {
     minPageSize = MIN_PAGE_SIZE
   } = options
 
-  let page = parseInt(query.page, 10) || DEFAULT_PAGE
-  let pageSize = parseInt(query.pageSize, 10) || defaultPageSize
+  const rawPage = Number(query.page)
+  const rawPageSize = Number(query.pageSize)
+  let page = Number.isFinite(rawPage) ? Math.trunc(rawPage) : DEFAULT_PAGE
+  let pageSize = Number.isFinite(rawPageSize) ? Math.trunc(rawPageSize) : defaultPageSize
 
   // Ensure page is at least 1
   page = Math.max(DEFAULT_PAGE, page)

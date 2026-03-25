@@ -6,9 +6,9 @@ let deps = {}
 function _setDeps(d) { deps = d }
 function getModel() { return deps.WebManagerLog || WebManagerLog }
 
-// H3: Filter options cache (60s TTL)
-let filterCache = { data: null, expireAt: 0 }
-function _resetFilterCache() { filterCache = { data: null, expireAt: 0 } }
+// H3: Filter options cache (60s TTL) with promise locking to prevent concurrent duplicate queries
+let filterCache = { data: null, expireAt: 0, promise: null }
+function _resetFilterCache() { filterCache = { data: null, expireAt: 0, promise: null } }
 const CACHE_TTL = 60000
 
 /**
@@ -140,10 +140,11 @@ function getGranularity(period, { startDate, endDate } = {}) {
 }
 
 /**
- * Weekly rollup for trend data (category-keyed _id)
- * Groups daily entries into Monday-based weeks, summing counts
+ * Generic weekly rollup: groups daily entries into Monday-based weeks, summing counts.
+ * @param {Array} dailyData - daily aggregation results with _id.date and _id[groupField]
+ * @param {string} groupField - the _id sub-field to group by (e.g. 'category', 'authAction')
  */
-function rollupWeeklyTrend(dailyData) {
+function rollupWeekly(dailyData, groupField) {
   const buckets = {}
   for (const item of dailyData) {
     const id = item._id || {}
@@ -154,41 +155,15 @@ function rollupWeeklyTrend(dailyData) {
     monday.setUTCDate(monday.getUTCDate() + mondayOffset)
     const weekKey = monday.toISOString().slice(0, 10)
 
-    const cat = id.category
-    const key = `${weekKey}|${cat}`
-    if (!buckets[key]) buckets[key] = { _id: { date: weekKey, category: cat }, count: 0 }
+    const groupVal = id[groupField]
+    const key = `${weekKey}|${groupVal}`
+    if (!buckets[key]) buckets[key] = { _id: { date: weekKey, [groupField]: groupVal }, count: 0 }
     buckets[key].count += item.count
   }
 
   return Object.values(buckets).sort((a, b) => {
     const dc = a._id.date.localeCompare(b._id.date)
-    return dc !== 0 ? dc : a._id.category.localeCompare(b._id.category)
-  })
-}
-
-/**
- * Weekly rollup for security trend data (authAction-keyed _id)
- */
-function rollupWeeklySecurityTrend(dailyData) {
-  const buckets = {}
-  for (const item of dailyData) {
-    const id = item._id || {}
-    const d = new Date(id.date + 'T00:00:00+09:00')
-    const day = d.getUTCDay()
-    const mondayOffset = day === 0 ? -6 : 1 - day
-    const monday = new Date(d)
-    monday.setUTCDate(monday.getUTCDate() + mondayOffset)
-    const weekKey = monday.toISOString().slice(0, 10)
-
-    const action = id.authAction
-    const key = `${weekKey}|${action}`
-    if (!buckets[key]) buckets[key] = { _id: { date: weekKey, authAction: action }, count: 0 }
-    buckets[key].count += item.count
-  }
-
-  return Object.values(buckets).sort((a, b) => {
-    const dc = a._id.date.localeCompare(b._id.date)
-    return dc !== 0 ? dc : (a._id.authAction || '').localeCompare(b._id.authAction || '')
+    return dc !== 0 ? dc : (a._id[groupField] || '').localeCompare(b._id[groupField] || '')
   })
 }
 
@@ -240,14 +215,14 @@ async function getStatistics({ period = 'today', startDate, endDate }) {
     Model.aggregate([
       matchStage,
       { $group: { _id: '$category', count: { $sum: 1 } } }
-    ]).allowDiskUse(true),
+    ]).allowDiskUse(true).maxTimeMS(30000),
 
     // 2. Trend by category (granularity-aware)
     Model.aggregate([
       matchStage,
       { $group: { _id: trendGroupId, count: { $sum: 1 } } },
       { $sort: trendSort }
-    ]).allowDiskUse(true),
+    ]).allowDiskUse(true).maxTimeMS(30000),
 
     // 3. Top N errors by errorType
     Model.aggregate([
@@ -261,28 +236,28 @@ async function getStatistics({ period = 'today', startDate, endDate }) {
       },
       { $sort: { count: -1 } },
       { $limit: 10 }
-    ]).allowDiskUse(true),
+    ]).allowDiskUse(true).maxTimeMS(30000),
 
     // 4. Security trend (login_failed + permission_denied)
     Model.aggregate([
       { $match: { ...matchStage.$match, category: 'auth', authAction: { $in: ['login_failed', 'permission_denied'] } } },
       { $group: { _id: securityGroupId, count: { $sum: 1 } } },
       { $sort: trendSort }
-    ]).allowDiskUse(true),
+    ]).allowDiskUse(true).maxTimeMS(30000),
 
     // 5. Auth breakdown by authAction
     Model.aggregate([
       { $match: { ...matchStage.$match, category: 'auth' } },
       { $group: { _id: '$authAction', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
-    ]).allowDiskUse(true),
+    ]).allowDiskUse(true).maxTimeMS(30000),
 
     // 6. Batch breakdown by batchAction
     Model.aggregate([
       { $match: { ...matchStage.$match, category: 'batch' } },
       { $group: { _id: '$batchAction', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
-    ]).allowDiskUse(true),
+    ]).allowDiskUse(true).maxTimeMS(30000),
 
     // 7. Top users (exclude access category)
     Model.aggregate([
@@ -290,7 +265,7 @@ async function getStatistics({ period = 'today', startDate, endDate }) {
       { $group: { _id: '$userId', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 10 }
-    ]).allowDiskUse(true),
+    ]).allowDiskUse(true).maxTimeMS(30000),
 
     // 8. Recent audit entries (latest 20)
     Model.aggregate([
@@ -298,12 +273,12 @@ async function getStatistics({ period = 'today', startDate, endDate }) {
       { $sort: { timestamp: -1 } },
       { $limit: 20 },
       { $project: { timestamp: 1, userId: 1, action: 1, collectionName: 1, targetType: 1, documentId: 1 } }
-    ]).allowDiskUse(true)
+    ]).allowDiskUse(true).maxTimeMS(30000)
   ])
 
   // Weekly rollup if needed
-  const trend = granularity === 'weekly' ? rollupWeeklyTrend(trendRaw) : trendRaw
-  const securityTrend = granularity === 'weekly' ? rollupWeeklySecurityTrend(securityTrendRaw) : securityTrendRaw
+  const trend = granularity === 'weekly' ? rollupWeekly(trendRaw, 'category') : trendRaw
+  const securityTrend = granularity === 'weekly' ? rollupWeekly(securityTrendRaw, 'authAction') : securityTrendRaw
 
   // Transform KPI to object with derived fields
   const kpi = { audit: 0, error: 0, auth: 0, batch: 0, access: 0, 'eqp-redis': 0 }
@@ -343,13 +318,37 @@ async function getStatistics({ period = 'today', startDate, endDate }) {
  * Cache only for unfiltered (initial) request
  */
 async function getFilterOptions({ category, userId, startDate, endDate } = {}) {
-  const Model = getModel()
   const hasFilters = category || userId || startDate || endDate
 
-  // Use cache only for unfiltered requests
-  if (!hasFilters && filterCache.data && Date.now() < filterCache.expireAt) {
-    return filterCache.data
+  // For unfiltered requests: return pending promise or cached data
+  if (!hasFilters) {
+    if (filterCache.promise) return filterCache.promise
+    if (filterCache.data && Date.now() < filterCache.expireAt) return filterCache.data
   }
+
+  // Execute distinct queries
+  const queryPromise = _executeFilterQueries({ category, userId, startDate, endDate })
+
+  // For unfiltered requests: store promise to prevent concurrent duplicate queries
+  if (!hasFilters) {
+    filterCache.promise = queryPromise
+    return queryPromise.then(result => {
+      filterCache = { data: result, expireAt: Date.now() + CACHE_TTL, promise: null }
+      return result
+    }).catch(err => {
+      filterCache.promise = null
+      throw err
+    })
+  }
+
+  return queryPromise
+}
+
+/**
+ * Internal: execute 6 distinct queries for filter options
+ */
+async function _executeFilterQueries({ category, userId, startDate, endDate }) {
+  const Model = getModel()
 
   // Base time filter: use provided dates or default 90 days
   const baseFilter = {}
@@ -387,18 +386,11 @@ async function getFilterOptions({ category, userId, startDate, endDate } = {}) {
     ...actions, ...authActions, ...batchActions, ...syncOperations
   ])].filter(Boolean).sort()
 
-  const result = {
+  return {
     userIds: userIds.filter(Boolean).sort(),
     actions: allActions,
     pagePaths: pagePaths.filter(Boolean).sort()
   }
-
-  // Cache unfiltered requests only
-  if (!hasFilters) {
-    filterCache = { data: result, expireAt: Date.now() + CACHE_TTL }
-  }
-
-  return result
 }
 
 module.exports = {
@@ -406,6 +398,7 @@ module.exports = {
   getLogById,
   getStatistics,
   getFilterOptions,
+  rollupWeekly,
   _setDeps,
   _resetFilterCache
 }

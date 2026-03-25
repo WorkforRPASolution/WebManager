@@ -26,7 +26,7 @@ function validateUser(userData, isUpdate = false) {
       errors.push({ field: 'singleid', message: 'User ID is required' })
     } else if (userData.singleid.length > 50) {
       errors.push({ field: 'singleid', message: 'User ID must be at most 50 characters' })
-    } else if (!/^[A-Za-z0-9._-]+$/.test(userData.singleid)) {
+    } else if (!require('../../shared/utils/validationPatterns').allowedWithDash.test(userData.singleid)) {
       errors.push({ field: 'singleid', message: 'User ID can only contain letters, numbers, dots, underscores, and hyphens' })
     }
   }

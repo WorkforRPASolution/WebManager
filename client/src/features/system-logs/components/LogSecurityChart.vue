@@ -5,7 +5,8 @@ import { use } from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import { TooltipComponent, GridComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { useTheme } from '@/shared/composables/useTheme'
+import { useChartTheme } from '@/shared/composables/useChartTheme'
+import { formatChartTimeLabel } from '@/shared/utils/chartFormatters'
 
 use([LineChart, TooltipComponent, GridComponent, LegendComponent, CanvasRenderer])
 
@@ -14,7 +15,7 @@ const props = defineProps({
   granularity: { type: String, default: 'hourly' }
 })
 
-const { isDark } = useTheme()
+const { isDark, tooltipStyle, legendStyle, categoryAxisLabelStyle, axisLineStyle, splitLineStyle, axisLabelStyle } = useChartTheme()
 
 const option = computed(() => {
   const dark = isDark.value
@@ -49,37 +50,30 @@ const option = computed(() => {
   return {
     tooltip: {
       trigger: 'axis',
-      backgroundColor: dark ? '#1f2937' : '#fff',
-      borderColor: dark ? '#374151' : '#e5e7eb',
-      textStyle: { color: dark ? '#e5e7eb' : '#111827' }
+      ...tooltipStyle(dark)
     },
     legend: {
       top: 0,
-      textStyle: { color: dark ? '#9ca3af' : '#6b7280' }
+      textStyle: legendStyle(dark)
     },
     grid: { left: 50, right: 20, top: 40, bottom: 30 },
     xAxis: {
       type: 'category',
       data: timeLabels,
       axisLabel: {
-        color: dark ? '#d1d5db' : '#374151',
+        ...categoryAxisLabelStyle(dark),
         fontSize: 11,
         rotate: timeLabels.length > 12 ? 35 : 0,
-        formatter: (val) => {
-          if (isWeekly && val.length === 10) return val.slice(5) + '~'
-          if (!isHourly && val.length === 10) return val.slice(5)
-          if (isHourly && val.length > 10) return val.slice(11)
-          return val
-        }
+        formatter: (val) => formatChartTimeLabel(val, { isHourly, isWeekly })
       },
-      axisLine: { lineStyle: { color: dark ? '#374151' : '#e5e7eb' } },
+      axisLine: axisLineStyle(dark),
       axisTick: { show: false }
     },
     yAxis: {
       type: 'value',
       minInterval: 1,
-      splitLine: { lineStyle: { color: dark ? '#374151' : '#e5e7eb' } },
-      axisLabel: { color: dark ? '#9ca3af' : '#6b7280' }
+      splitLine: splitLineStyle(dark),
+      axisLabel: axisLabelStyle(dark)
     },
     series: [
       {

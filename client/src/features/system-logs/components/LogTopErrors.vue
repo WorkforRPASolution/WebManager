@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import { downloadCsv } from '@/features/dashboard/utils/csvExport'
 
 const props = defineProps({
   data: { type: Array, default: () => [] }
@@ -22,25 +23,15 @@ function getPercent(count) {
 }
 
 function exportCsv() {
-  const csvRows = [['Rank', 'Error Type', 'Count', 'Percent', 'Last Occurrence']]
-  for (let i = 0; i < rows.value.length; i++) {
-    const row = rows.value[i]
-    csvRows.push([
-      i + 1,
-      row._id || '',
-      row.count || 0,
-      getPercent(row.count) + '%',
-      row.lastOccurrence ? new Date(row.lastOccurrence).toISOString() : ''
-    ])
-  }
-  const csv = csvRows.map(r => r.map(c => `"${c}"`).join(',')).join('\n')
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'top_errors.csv'
-  a.click()
-  URL.revokeObjectURL(url)
+  const headers = ['Rank', 'Error Type', 'Count', 'Percent', 'Last Occurrence']
+  const csvRows = rows.value.map((row, i) => [
+    i + 1,
+    row._id || '',
+    row.count || 0,
+    getPercent(row.count) + '%',
+    row.lastOccurrence ? new Date(row.lastOccurrence).toISOString() : ''
+  ])
+  downloadCsv('top_errors.csv', headers, csvRows)
 }
 </script>
 

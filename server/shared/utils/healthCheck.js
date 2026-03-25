@@ -1,5 +1,7 @@
 const { earsConnection, webManagerConnection } = require('../db/connection')
 const { isRedisAvailable, getRedisClient, isEqpRedisAvailable, getEqpRedisClient } = require('../db/redisConnection')
+const { createLogger } = require('../logger')
+const log = createLogger('eqp-redis')
 
 let deps = {}
 function _setDeps(d) { deps = d }
@@ -53,8 +55,9 @@ async function getHealthStatus() {
         redis_db10_eqp.eqpInfoCount = eqpInfoCount
         redis_db10_eqp.eqpInfoLineCount = eqpInfoLineCount
         redis_db10_eqp.lastnum = lastnumStr ? parseInt(lastnumStr, 10) : 0
-      } catch {
-        // Stats fetch failed, keep status as-is
+      } catch (err) {
+        (deps.log || log).warn(`EQP Redis stats fetch failed: ${err.message}`)
+        redis_db10_eqp.statsError = err.message
       }
     }
   }

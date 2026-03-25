@@ -44,8 +44,6 @@ const trendTitle = computed(() => {
   return `Category Trend (${GRAN_LABELS[gran] || '일별'})`
 })
 
-const granLabel = computed(() => GRAN_LABELS[stats.value?.granularity] || '')
-
 async function fetchStats(params = {}) {
   loading.value = true
   try {
@@ -119,7 +117,6 @@ onMounted(() => fetchStats({ period: '7d' }))
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
           <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">
             Security Events
-            <span v-if="granLabel" class="text-xs font-normal text-gray-400 dark:text-gray-500 ml-1">({{ granLabel }})</span>
           </h3>
           <LogSecurityChart :data="stats.securityTrend || []" :granularity="stats.granularity || 'hourly'" />
         </div>

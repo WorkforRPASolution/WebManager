@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { createRequire } from 'module'
 
 // Mock webmanagerLogModel before import
 vi.mock('../../shared/models/webmanagerLogModel', () => ({
@@ -29,6 +30,12 @@ const {
   // DI
   _setDeps,
 } = await import('./eqpInfoRedisSync.js')
+
+// Spy on winston parent logger (CJS module — vi.mock cannot intercept CJS require)
+const require_ = createRequire(import.meta.url)
+const loggerMod = require_('../../shared/logger')
+const logWarnSpy = vi.spyOn(loggerMod.logger, 'warn')
+const logErrorSpy = vi.spyOn(loggerMod.logger, 'error')
 
 // createEqpRedisSyncLog is injected via _setDeps (mockCreateSyncLog)
 
@@ -554,5 +561,72 @@ describe('registerHooks', () => {
     for (const call of mockRulesCtx.registerRule.mock.calls) {
       expect(call[1].priority).toBe(500)
     }
+  })
+})
+
+// ============================================
+// F. withRetry — actual retry path (3 tests)
+// ============================================
+
+describe('withRetry — actual retry path', () => {
+  const doc = {
+    ipAddr: '192.168.1.1', ipAddrL: '10.0.0.1',
+    process: 'ETCH', eqpModel: 'M1', eqpId: 'EQP001',
+    line: 'L1', lineDesc: 'Line One'
+  }
+
+  it('첫 번째 호출 실패 → 두 번째 성공 → 정상 완료', async () => {
+    // hset: 첫 번째 호출 reject, 두 번째부터 resolve
+    mockRedis.hset
+      .mockRejectedValueOnce(new Error('transient'))
+      .mockResolvedValue(1)
+    mockRedis.incr.mockResolvedValue(10)
+
+    const context = {}
+    await syncAfterCreate([doc], context)
+
+    // syncOneCreate 내부에서 hset('EQP_INFO', ...) 가 첫 시도에 실패하면
+    // withRetry가 fn 전체를 재실행하므로 incr + hset + hset + publish 가 두 번 수행됨
+    expect(context.syncStatus).toEqual({ synced: 1, failed: 0, failedEqpIds: [] })
+    // incr 2번 (첫 시도 1번 + 재시도 1번)
+    expect(mockRedis.incr).toHaveBeenCalledTimes(2)
+  })
+
+  it('모든 재시도 실패 → log.warn + log.error 호출 + 에러 전파 안 함 (Layer 3 catch)', async () => {
+    mockRedis.incr.mockRejectedValue(new Error('persistent failure'))
+
+    const context = { user: { singleid: 'tester' } }
+    await syncAfterCreate([doc], context)
+
+    // withRetry: 첫 시도 실패 → log.warn, 재시도 실패 → log.error, throw
+    // Layer 3 syncAfterCreate catch가 에러를 잡으므로 함수 자체는 throw하지 않음
+    expect(context.syncStatus).toEqual({ synced: 0, failed: 1, failedEqpIds: ['EQP001'] })
+    expect(logWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('first attempt failed')
+    )
+    expect(logErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('retry also failed')
+    )
+  })
+
+  it('재시도 횟수가 maxRetries를 초과하지 않음 (initial 1회 + retry 1회 = 총 2회)', async () => {
+    // incr를 항상 실패하도록 설정
+    const incrFail = vi.fn().mockRejectedValue(new Error('always fail'))
+    const localRedis = {
+      ...mockRedis,
+      incr: incrFail,
+    }
+    _setDeps({
+      redisClient: localRedis,
+      isEqpRedisAvailable: () => true,
+      createEqpRedisSyncLog: mockCreateSyncLog,
+    })
+
+    const context = { user: { id: 'sys' } }
+    await syncAfterCreate([doc], context)
+
+    // withRetry는 fn을 최대 2번만 호출 (initial + 1 retry)
+    expect(incrFail).toHaveBeenCalledTimes(2)
+    expect(context.syncStatus.failed).toBe(1)
   })
 })

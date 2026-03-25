@@ -5,7 +5,8 @@ import { use } from 'echarts/core'
 import { PieChart } from 'echarts/charts'
 import { TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { useTheme } from '@/shared/composables/useTheme'
+import { useChartTheme } from '@/shared/composables/useChartTheme'
+import { BATCH_HEALTH_COLORS } from '../constants'
 
 use([PieChart, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -13,7 +14,7 @@ const props = defineProps({
   data: { type: Array, default: () => [] }
 })
 
-const { isDark } = useTheme()
+const { isDark, tooltipStyle, legendStyle } = useChartTheme()
 
 const SUCCESS_ACTIONS = ['cron_completed', 'backfill_completed', 'auto_backfill_completed']
 const FAILED_ACTIONS = ['cron_failed', 'backfill_failed']
@@ -33,25 +34,23 @@ const option = computed(() => {
   }
 
   const seriesData = [
-    { name: 'Success', value: success, itemStyle: { color: '#10b981' } },
-    { name: 'Failed', value: failed, itemStyle: { color: '#ef4444' } },
-    { name: 'Skipped', value: skipped, itemStyle: { color: '#9ca3af' } },
-    { name: 'Other', value: other, itemStyle: { color: '#f59e0b' } }
+    { name: 'Success', value: success, itemStyle: { color: BATCH_HEALTH_COLORS.success } },
+    { name: 'Failed', value: failed, itemStyle: { color: BATCH_HEALTH_COLORS.failed } },
+    { name: 'Skipped', value: skipped, itemStyle: { color: BATCH_HEALTH_COLORS.skipped } },
+    { name: 'Other', value: other, itemStyle: { color: BATCH_HEALTH_COLORS.other } }
   ].filter(d => d.value > 0)
 
   return {
     tooltip: {
       trigger: 'item',
-      backgroundColor: dark ? '#1f2937' : '#fff',
-      borderColor: dark ? '#374151' : '#e5e7eb',
-      textStyle: { color: dark ? '#e5e7eb' : '#111827' },
+      ...tooltipStyle(dark),
       formatter: (p) => `${p.marker} ${p.name}: <b>${p.value.toLocaleString()}</b> (${p.percent}%)`
     },
     legend: {
       orient: 'vertical',
       right: 10,
       top: 'center',
-      textStyle: { color: dark ? '#9ca3af' : '#6b7280', fontSize: 12 }
+      textStyle: { ...legendStyle(dark), fontSize: 12 }
     },
     series: [{
       type: 'pie',

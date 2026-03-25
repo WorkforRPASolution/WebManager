@@ -3,18 +3,12 @@
  */
 
 const strategyRegistry = require('./strategies')
-// Validation patterns
+const sharedPatterns = require('../../shared/utils/validationPatterns')
+
+// Validation patterns (ip is client-specific, rest from shared)
 const patterns = {
   ip: /^(\d{1,3}\.){3}\d{1,3}$/,
-  // Strict IPv4 with octet range check (0-255)
-  ipStrict: /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/,
-  // Korean character detection (Hangul syllables, Jamo, compatibility Jamo)
-  korean: /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/,
-  // Allowed characters: alphanumeric, dot, underscore only
-  allowedBasic: /^[A-Za-z0-9._]*$/,
-  // Allowed characters: alphanumeric, dot, underscore, dash (for line, emailcategory)
-  allowedWithDash: /^[A-Za-z0-9._-]*$/,
-  date: /^\d{4}-\d{2}-\d{2}$/
+  ...sharedPatterns
 }
 
 // Fields that allow dash character

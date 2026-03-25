@@ -5,7 +5,8 @@ import { use } from 'echarts/core'
 import { PieChart } from 'echarts/charts'
 import { TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { useTheme } from '@/shared/composables/useTheme'
+import { useChartTheme } from '@/shared/composables/useChartTheme'
+import { CATEGORY_COLORS, CATEGORY_LABELS } from '../constants'
 
 use([PieChart, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -13,25 +14,7 @@ const props = defineProps({
   data: { type: Object, default: () => ({}) }
 })
 
-const { isDark } = useTheme()
-
-const COLORS = {
-  audit: '#3b82f6',
-  error: '#ef4444',
-  auth: '#22c55e',
-  batch: '#a855f7',
-  access: '#f59e0b',
-  'eqp-redis': '#f97316'
-}
-
-const LABELS = {
-  audit: 'Audit',
-  error: 'Error',
-  auth: 'Auth',
-  batch: 'Batch',
-  access: 'Access',
-  'eqp-redis': 'EQP Redis'
-}
+const { isDark, tooltipStyle, legendStyle } = useChartTheme()
 
 const hasData = computed(() => {
   const d = props.data
@@ -44,25 +27,23 @@ const option = computed(() => {
 
   const seriesData = ['audit', 'error', 'auth', 'batch', 'access', 'eqp-redis']
     .map(cat => ({
-      name: LABELS[cat],
+      name: CATEGORY_LABELS[cat],
       value: d[cat] || 0,
-      itemStyle: { color: COLORS[cat] }
+      itemStyle: { color: CATEGORY_COLORS[cat] }
     }))
     .filter(item => item.value > 0)
 
   return {
     tooltip: {
       trigger: 'item',
-      backgroundColor: dark ? '#1f2937' : '#fff',
-      borderColor: dark ? '#374151' : '#e5e7eb',
-      textStyle: { color: dark ? '#e5e7eb' : '#111827' },
+      ...tooltipStyle(dark),
       formatter: (p) => `${p.marker} ${p.name}: <b>${p.value.toLocaleString()}</b> (${p.percent}%)`
     },
     legend: {
       orient: 'vertical',
       right: 10,
       top: 'center',
-      textStyle: { color: dark ? '#9ca3af' : '#6b7280', fontSize: 12 }
+      textStyle: { ...legendStyle(dark), fontSize: 12 }
     },
     series: [{
       type: 'pie',

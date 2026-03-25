@@ -5,7 +5,8 @@ import { use } from 'echarts/core'
 import { BarChart } from 'echarts/charts'
 import { TooltipComponent, GridComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { useTheme } from '@/shared/composables/useTheme'
+import { useChartTheme } from '@/shared/composables/useChartTheme'
+import { downloadCsv } from '@/features/dashboard/utils/csvExport'
 
 use([BarChart, TooltipComponent, GridComponent, CanvasRenderer])
 
@@ -15,7 +16,7 @@ const props = defineProps({
 
 const emit = defineEmits(['export-csv'])
 
-const { isDark } = useTheme()
+const { isDark, tooltipStyle, categoryAxisLabelStyle, axisLineStyle, splitLineStyle, axisLabelStyle } = useChartTheme()
 
 const option = computed(() => {
   const dark = isDark.value
@@ -28,26 +29,24 @@ const option = computed(() => {
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
-      backgroundColor: dark ? '#1f2937' : '#fff',
-      borderColor: dark ? '#374151' : '#e5e7eb',
-      textStyle: { color: dark ? '#e5e7eb' : '#111827' }
+      ...tooltipStyle(dark)
     },
     grid: { left: 20, right: 20, top: 20, bottom: 50, containLabel: true },
     xAxis: {
       type: 'category',
       data: users,
       axisLabel: {
-        color: dark ? '#d1d5db' : '#374151',
+        ...categoryAxisLabelStyle(dark),
         fontSize: 11,
         rotate: users.length > 6 ? 35 : 0
       },
-      axisLine: { lineStyle: { color: dark ? '#374151' : '#e5e7eb' } },
+      axisLine: axisLineStyle(dark),
       axisTick: { show: false }
     },
     yAxis: {
       type: 'value',
-      splitLine: { lineStyle: { color: dark ? '#374151' : '#e5e7eb' } },
-      axisLabel: { color: dark ? '#9ca3af' : '#6b7280' }
+      splitLine: splitLineStyle(dark),
+      axisLabel: axisLabelStyle(dark)
     },
     series: [{
       type: 'bar',
@@ -67,7 +66,7 @@ const option = computed(() => {
       label: {
         show: true,
         position: 'top',
-        color: dark ? '#d1d5db' : '#374151',
+        ...categoryAxisLabelStyle(dark),
         fontSize: 11
       }
     }],
@@ -76,18 +75,9 @@ const option = computed(() => {
 })
 
 function exportCsv() {
-  const rows = [['User', 'Count']]
-  for (const item of props.data) {
-    rows.push([item._id || '', item.count || 0])
-  }
-  const csv = rows.map(r => r.join(',')).join('\n')
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'top_active_users.csv'
-  a.click()
-  URL.revokeObjectURL(url)
+  const headers = ['User', 'Count']
+  const rows = props.data.map(item => [item._id || '', item.count || 0])
+  downloadCsv('top_active_users.csv', headers, rows)
 }
 </script>
 

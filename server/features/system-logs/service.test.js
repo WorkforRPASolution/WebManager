@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { queryLogs, getLogById, getStatistics, getFilterOptions, _setDeps, _resetFilterCache } from './service.js'
+import { queryLogs, getLogById, getStatistics, getFilterOptions, rollupWeekly, _setDeps, _resetFilterCache } from './service.js'
 
 // Mock WebManagerLog model
 const mockFind = vi.fn()
@@ -273,10 +273,11 @@ describe('getLogById', () => {
 
 describe('getStatistics', () => {
   function mockAggregateChain() {
-    // Make aggregate chainable with allowDiskUse
+    // Make aggregate chainable with allowDiskUse + maxTimeMS
     const createChainableResult = (resolvedValue) => {
       const chain = {}
       chain.allowDiskUse = vi.fn().mockReturnValue(chain)
+      chain.maxTimeMS = vi.fn().mockReturnValue(chain)
       // Make it thenable (Promise-like)
       chain.then = (resolve) => Promise.resolve(resolvedValue).then(resolve)
       chain.catch = (reject) => Promise.resolve(resolvedValue).catch(reject)
@@ -454,8 +455,9 @@ describe('getStatistics', () => {
   it('M5: calls allowDiskUse(true) on all 8 aggregations', async () => {
     const chains = []
     const createChain = () => {
-      const chain = { allowDiskUse: vi.fn() }
+      const chain = { allowDiskUse: vi.fn(), maxTimeMS: vi.fn() }
       chain.allowDiskUse.mockReturnValue(chain)
+      chain.maxTimeMS.mockReturnValue(chain)
       chain.then = (resolve) => Promise.resolve([]).then(resolve)
       chain.catch = (reject) => Promise.resolve([]).catch(reject)
       chains.push(chain)
@@ -472,6 +474,30 @@ describe('getStatistics', () => {
     expect(chains).toHaveLength(8)
     for (const chain of chains) {
       expect(chain.allowDiskUse).toHaveBeenCalledWith(true)
+    }
+  })
+
+  it('calls maxTimeMS(30000) on all 8 aggregations', async () => {
+    const chains = []
+    const createChain = () => {
+      const chain = { allowDiskUse: vi.fn(), maxTimeMS: vi.fn() }
+      chain.allowDiskUse.mockReturnValue(chain)
+      chain.maxTimeMS.mockReturnValue(chain)
+      chain.then = (resolve) => Promise.resolve([]).then(resolve)
+      chain.catch = (reject) => Promise.resolve([]).catch(reject)
+      chains.push(chain)
+      return chain
+    }
+
+    for (let i = 0; i < 8; i++) {
+      mockAggregate.mockReturnValueOnce(createChain())
+    }
+
+    await getStatistics({ period: 'today' })
+
+    expect(chains).toHaveLength(8)
+    for (const chain of chains) {
+      expect(chain.maxTimeMS).toHaveBeenCalledWith(30000)
     }
   })
 
@@ -703,6 +729,7 @@ describe('eqp-redis category integration', () => {
     const createChainableResult = (resolvedValue) => {
       const chain = {}
       chain.allowDiskUse = vi.fn().mockReturnValue(chain)
+      chain.maxTimeMS = vi.fn().mockReturnValue(chain)
       chain.then = (resolve) => Promise.resolve(resolvedValue).then(resolve)
       chain.catch = (reject) => Promise.resolve(resolvedValue).catch(reject)
       return chain
@@ -747,5 +774,202 @@ describe('eqp-redis category integration', () => {
 
     expect(result.actions).toContain('sync_create')
     expect(result.actions).toContain('sync_delete')
+  })
+})
+
+describe('getFilterOptions — cache behavior', () => {
+  it('첫 호출 → distinct 6회 실행', async () => {
+    mockDistinct
+      .mockResolvedValueOnce(['admin'])          // userId
+      .mockResolvedValueOnce(['create'])          // action
+      .mockResolvedValueOnce(['login'])           // authAction
+      .mockResolvedValueOnce(['cron_completed'])  // batchAction
+      .mockResolvedValueOnce(['sync_create'])     // syncOperation
+      .mockResolvedValueOnce(['/clients'])        // pagePath
+
+    await getFilterOptions()
+
+    expect(mockDistinct).toHaveBeenCalledTimes(6)
+  })
+
+  it('캐시 유효 시 즉시 반환 → distinct 0회', async () => {
+    mockDistinct
+      .mockResolvedValueOnce(['admin'])
+      .mockResolvedValueOnce(['create'])
+      .mockResolvedValueOnce(['login'])
+      .mockResolvedValueOnce(['cron_completed'])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(['/clients'])
+
+    const result1 = await getFilterOptions()
+
+    // Clear call counts after first call
+    mockDistinct.mockClear()
+
+    const result2 = await getFilterOptions()
+
+    // Second call should NOT trigger any distinct calls
+    expect(mockDistinct).toHaveBeenCalledTimes(0)
+    expect(result2).toEqual(result1)
+  })
+
+  it('필터 있는 호출은 캐시 무시', async () => {
+    // First: unfiltered → populates cache
+    mockDistinct
+      .mockResolvedValueOnce(['admin', 'user1'])
+      .mockResolvedValueOnce(['create'])
+      .mockResolvedValueOnce(['login'])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(['/clients'])
+
+    await getFilterOptions()
+    expect(mockDistinct).toHaveBeenCalledTimes(6)
+
+    // Second: with filter → should bypass cache and call distinct again
+    mockDistinct
+      .mockResolvedValueOnce(['admin'])
+      .mockResolvedValueOnce(['create'])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+
+    await getFilterOptions({ category: 'auth' })
+
+    expect(mockDistinct).toHaveBeenCalledTimes(12) // 6 + 6
+  })
+
+  it('캐시 만료 후 재실행', async () => {
+    vi.useFakeTimers()
+
+    try {
+      mockDistinct
+        .mockResolvedValueOnce(['admin'])
+        .mockResolvedValueOnce(['create'])
+        .mockResolvedValueOnce(['login'])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(['/clients'])
+
+      await getFilterOptions()
+      expect(mockDistinct).toHaveBeenCalledTimes(6)
+
+      // Advance time past CACHE_TTL (60000ms)
+      vi.advanceTimersByTime(60001)
+
+      mockDistinct
+        .mockResolvedValueOnce(['admin', 'user2'])
+        .mockResolvedValueOnce(['create', 'delete'])
+        .mockResolvedValueOnce(['login', 'logout'])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce(['/clients', '/users'])
+
+      await getFilterOptions()
+
+      // Should have called distinct again after cache expiry
+      expect(mockDistinct).toHaveBeenCalledTimes(12) // 6 + 6
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('getFilterOptions — promise locking', () => {
+  it('동시 2회 호출 시 distinct 6회만 실행', async () => {
+    mockDistinct.mockResolvedValue(['admin'])
+
+    const [result1, result2] = await Promise.all([
+      getFilterOptions(),
+      getFilterOptions()
+    ])
+
+    // Both calls share the same promise → only 6 distinct calls total (not 12)
+    expect(mockDistinct).toHaveBeenCalledTimes(6)
+    expect(result1).toEqual(result2)
+  })
+
+  it('promise 실패 시 후속 호출은 재실행', async () => {
+    // First call: all distincts reject
+    mockDistinct.mockRejectedValue(new Error('DB error'))
+
+    await expect(getFilterOptions()).rejects.toThrow('DB error')
+
+    // Promise should be cleared after failure
+    mockDistinct.mockClear()
+    mockDistinct.mockResolvedValue(['admin'])
+
+    const result = await getFilterOptions()
+
+    // Second call should succeed and trigger new distinct calls
+    expect(mockDistinct).toHaveBeenCalledTimes(6)
+    expect(result.userIds).toEqual(['admin'])
+  })
+})
+
+describe('rollupWeekly equivalence', () => {
+  it('category 필드로 주간 롤업 — 같은 주 항목 합산', () => {
+    // KST 기준: 2026-03-17(Tue, Mon key=03-16), 2026-03-18(Wed, Mon key=03-16), 2026-03-24(Mon, Mon key=03-23)
+    const dailyData = [
+      { _id: { date: '2026-03-17', category: 'audit' }, count: 10 },
+      { _id: { date: '2026-03-18', category: 'audit' }, count: 20 },
+      { _id: { date: '2026-03-24', category: 'audit' }, count: 15 }
+    ]
+
+    const result = rollupWeekly(dailyData, 'category')
+
+    expect(result).toHaveLength(2)
+    // First week: Mon 2026-03-16 → 10 + 20 = 30
+    expect(result[0]).toEqual({ _id: { date: '2026-03-16', category: 'audit' }, count: 30 })
+    // Second week: Mon 2026-03-23 → 15
+    expect(result[1]).toEqual({ _id: { date: '2026-03-23', category: 'audit' }, count: 15 })
+  })
+
+  it('authAction 필드로 주간 롤업 — 같은 주 항목 합산', () => {
+    // KST 기준: 2026-03-17(Tue), 2026-03-18(Wed) 모두 Mon key=03-16
+    const dailyData = [
+      { _id: { date: '2026-03-17', authAction: 'login_failed' }, count: 3 },
+      { _id: { date: '2026-03-18', authAction: 'login_failed' }, count: 2 },
+      { _id: { date: '2026-03-17', authAction: 'permission_denied' }, count: 1 }
+    ]
+
+    const result = rollupWeekly(dailyData, 'authAction')
+
+    expect(result).toHaveLength(2)
+    // Sorted by date then authAction
+    expect(result[0]).toEqual({ _id: { date: '2026-03-16', authAction: 'login_failed' }, count: 5 })
+    expect(result[1]).toEqual({ _id: { date: '2026-03-16', authAction: 'permission_denied' }, count: 1 })
+  })
+
+  it('빈 배열 입력 시 빈 배열 반환', () => {
+    expect(rollupWeekly([], 'category')).toEqual([])
+  })
+
+  it('null groupField 값도 정상 처리', () => {
+    const dailyData = [
+      { _id: { date: '2026-03-16', authAction: null }, count: 5 }
+    ]
+
+    const result = rollupWeekly(dailyData, 'authAction')
+
+    expect(result).toHaveLength(1)
+    expect(result[0]._id.authAction).toBeNull()
+    expect(result[0].count).toBe(5)
+  })
+
+  it('일요일 데이터가 이전 주 월요일로 그룹핑', () => {
+    // KST 기준: 2026-03-23(Mon) 00:00 KST = 2026-03-22 15:00 UTC = UTC Sunday
+    // → mondayOffset for Sunday(0) = -6, so Monday key = 2026-03-16
+    const dailyData = [
+      { _id: { date: '2026-03-23', category: 'error' }, count: 7 }
+    ]
+
+    const result = rollupWeekly(dailyData, 'category')
+
+    // UTC Sunday → belongs to previous week starting Mon 2026-03-16
+    expect(result).toHaveLength(1)
+    expect(result[0]._id.date).toBe('2026-03-16')
+    expect(result[0].count).toBe(7)
   })
 })

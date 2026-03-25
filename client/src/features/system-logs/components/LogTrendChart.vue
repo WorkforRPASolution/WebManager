@@ -5,7 +5,9 @@ import { use } from 'echarts/core'
 import { BarChart } from 'echarts/charts'
 import { TooltipComponent, GridComponent, LegendComponent, DataZoomComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { useTheme } from '@/shared/composables/useTheme'
+import { useChartTheme } from '@/shared/composables/useChartTheme'
+import { formatChartTimeLabel } from '@/shared/utils/chartFormatters'
+import { CATEGORY_COLORS, CATEGORY_KEYS } from '../constants'
 
 use([BarChart, TooltipComponent, GridComponent, LegendComponent, DataZoomComponent, CanvasRenderer])
 
@@ -17,17 +19,7 @@ const props = defineProps({
 
 const MAX_VISIBLE = 25
 
-const { isDark } = useTheme()
-
-const CATEGORIES = ['audit', 'error', 'auth', 'batch', 'access', 'eqp-redis']
-const COLORS = {
-  audit: '#3b82f6',
-  error: '#ef4444',
-  auth: '#22c55e',
-  batch: '#a855f7',
-  access: '#f59e0b',
-  'eqp-redis': '#f97316'
-}
+const { isDark, tooltipStyle, legendStyle, categoryAxisLabelStyle, axisLineStyle, splitLineStyle, axisLabelStyle } = useChartTheme()
 
 const option = computed(() => {
   const dark = isDark.value
@@ -56,12 +48,12 @@ const option = computed(() => {
     lookup[label][id.category] = (lookup[label][id.category] || 0) + item.count
   }
 
-  const series = CATEGORIES.map(cat => ({
+  const series = CATEGORY_KEYS.map(cat => ({
     name: cat,
     type: 'bar',
     stack: 'total',
     data: timeLabels.map(t => (lookup[t] && lookup[t][cat]) || 0),
-    itemStyle: { color: COLORS[cat] },
+    itemStyle: { color: CATEGORY_COLORS[cat] },
     barMaxWidth: 40,
     emphasis: { itemStyle: { shadowBlur: 6, shadowColor: 'rgba(0,0,0,0.15)' } }
   }))
@@ -75,9 +67,7 @@ const option = computed(() => {
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
-      backgroundColor: dark ? '#1f2937' : '#fff',
-      borderColor: dark ? '#374151' : '#e5e7eb',
-      textStyle: { color: dark ? '#e5e7eb' : '#111827' },
+      ...tooltipStyle(dark),
       formatter: (params) => {
         const title = params[0]?.axisValueLabel || ''
         const items = params
@@ -89,7 +79,7 @@ const option = computed(() => {
     },
     legend: {
       top: 0,
-      textStyle: { color: dark ? '#9ca3af' : '#6b7280' }
+      textStyle: legendStyle(dark)
     },
     grid: {
       left: 50,
@@ -112,26 +102,18 @@ const option = computed(() => {
       type: 'category',
       data: timeLabels,
       axisLabel: {
-        color: dark ? '#d1d5db' : '#374151',
+        ...categoryAxisLabelStyle(dark),
         fontSize: 11,
         rotate: timeLabels.length > 12 ? 35 : 0,
-        formatter: (val) => {
-          // For weekly, show "MM-DD~"
-          if (isWeekly && val.length === 10) return val.slice(5) + '~'
-          // For daily, show shorter date format
-          if (!isHourly && val.length === 10) return val.slice(5)
-          // For hourly, show HH:00 only (date in tooltip)
-          if (isHourly && val.length > 10) return val.slice(11)
-          return val
-        }
+        formatter: (val) => formatChartTimeLabel(val, { isHourly, isWeekly })
       },
-      axisLine: { lineStyle: { color: dark ? '#374151' : '#e5e7eb' } },
+      axisLine: axisLineStyle(dark),
       axisTick: { show: false }
     },
     yAxis: {
       type: 'value',
-      splitLine: { lineStyle: { color: dark ? '#374151' : '#e5e7eb' } },
-      axisLabel: { color: dark ? '#9ca3af' : '#6b7280' }
+      splitLine: splitLineStyle(dark),
+      axisLabel: axisLabelStyle(dark)
     },
     animationEasing: 'elasticOut',
     animationDuration: 800,

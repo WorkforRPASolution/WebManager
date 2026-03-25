@@ -83,6 +83,24 @@ describe('getHealthStatus', () => {
     expect(result.components.redis_db10_eqp.lastnum).toBe(15300)
   })
 
+  it('EQP stats fetch error → log.warn + statsError field + status ok', async () => {
+    const mockLog = { warn: vi.fn() }
+    mockDeps.log = mockLog
+    mockDeps.getEqpRedisClient = () => ({
+      hlen: vi.fn().mockRejectedValue(new Error('READONLY')),
+      get: vi.fn().mockRejectedValue(new Error('READONLY'))
+    })
+
+    const result = await getHealthStatus()
+
+    expect(result.status).toBe('ok')
+    expect(result.components.redis_db10_eqp.status).toBe('ok')
+    expect(result.components.redis_db10_eqp.statsError).toBe('READONLY')
+    expect(result.components.redis_db10_eqp.eqpInfoCount).toBeUndefined()
+    expect(mockLog.warn).toHaveBeenCalledOnce()
+    expect(mockLog.warn.mock.calls[0][0]).toContain('EQP Redis stats fetch failed')
+  })
+
   it('Redis disabled → disabled status', async () => {
     mockDeps.isRedisAvailable = () => false
     mockDeps.isEqpRedisAvailable = () => false

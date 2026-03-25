@@ -2,13 +2,10 @@
  * EmailRecipients validation rules and helpers
  */
 
+const { allowedWithDash, korean } = require('../../shared/utils/validationPatterns')
+
 // Validation patterns
-const patterns = {
-  // Allowed characters: alphanumeric, dot, underscore, dash
-  allowedWithDash: /^[A-Za-z0-9._-]*$/,
-  // Korean character detection
-  korean: /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/
-}
+const patterns = { allowedWithDash, korean }
 
 // Required fields for email recipients data
 const requiredFields = ['app', 'line', 'process', 'model', 'code', 'emailCategory']
