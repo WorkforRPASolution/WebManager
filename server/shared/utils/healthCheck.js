@@ -1,11 +1,15 @@
-const mongoose = require('mongoose')
+const { earsConnection, webManagerConnection } = require('../db/connection')
 const { isRedisAvailable, getRedisClient, isEqpRedisAvailable, getEqpRedisClient } = require('../db/redisConnection')
 
 let deps = {}
 function _setDeps(d) { deps = d }
 
 async function getHealthStatus() {
-  const mongoReady = (deps.mongooseReadyState || (() => mongoose.connection.readyState))() === 1
+  // createConnection() 사용 시 mongoose.connection(기본)은 항상 readyState=0
+  // 실제 연결 객체(earsConnection, webManagerConnection)를 확인해야 함
+  const earsReady = (deps.earsReadyState || (() => earsConnection.readyState))() === 1
+  const wmReady = (deps.wmReadyState || (() => webManagerConnection.readyState))() === 1
+  const mongoReady = earsReady && wmReady
   const redisDb0Available = (deps.isRedisAvailable || isRedisAvailable)()
   const eqpRedisAvailable = (deps.isEqpRedisAvailable || isEqpRedisAvailable)()
 
@@ -17,7 +21,11 @@ async function getHealthStatus() {
     ? deps.eqpRedisClientExists()
     : getEqpRedisClient() !== null
 
-  const mongodb = { status: mongoReady ? 'ok' : 'down' }
+  const mongodb = {
+    status: mongoReady ? 'ok' : 'down',
+    ears: earsReady ? 'ok' : 'down',
+    webManager: wmReady ? 'ok' : 'down'
+  }
 
   let redisDb0Status
   if (redisDb0Available) redisDb0Status = 'ok'

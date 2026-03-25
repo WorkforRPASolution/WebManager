@@ -6,7 +6,8 @@ describe('getHealthStatus', () => {
 
   beforeEach(() => {
     mockDeps = {
-      mongooseReadyState: () => 1,  // 1 = connected
+      earsReadyState: () => 1,      // 1 = connected
+      wmReadyState: () => 1,        // 1 = connected
       isRedisAvailable: () => true,
       isEqpRedisAvailable: () => true,
       getEqpRedisClient: () => ({
@@ -52,13 +53,26 @@ describe('getHealthStatus', () => {
     expect(result.components.redis_db10_eqp.status).toBe('down')
   })
 
-  it('MongoDB down → status down', async () => {
-    mockDeps.mongooseReadyState = () => 0
+  it('MongoDB down → status down (EARS down)', async () => {
+    mockDeps.earsReadyState = () => 0
 
     const result = await getHealthStatus()
 
     expect(result.status).toBe('down')
     expect(result.components.mongodb.status).toBe('down')
+    expect(result.components.mongodb.ears).toBe('down')
+    expect(result.components.mongodb.webManager).toBe('ok')
+  })
+
+  it('MongoDB down → status down (WEB_MANAGER down)', async () => {
+    mockDeps.wmReadyState = () => 0
+
+    const result = await getHealthStatus()
+
+    expect(result.status).toBe('down')
+    expect(result.components.mongodb.status).toBe('down')
+    expect(result.components.mongodb.ears).toBe('ok')
+    expect(result.components.mongodb.webManager).toBe('down')
   })
 
   it('includes EQP key counts when DB 10 available', async () => {
