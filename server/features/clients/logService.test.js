@@ -61,6 +61,107 @@ describe('extractNewLines', () => {
   })
 })
 
+describe('tailLogStream — Windows CRLF handling', () => {
+  let pollCount
+  let mockRpcInstance
+  let abortController
+  const tailOutputs = []
+
+  beforeEach(() => {
+    pollCount = 0
+    tailOutputs.length = 0
+    abortController = new AbortController()
+
+    mockRpcInstance = {
+      connect: vi.fn(),
+      runCommand: vi.fn(async () => {
+        const output = tailOutputs[pollCount] ?? { success: true, output: '' }
+        pollCount++
+        if (pollCount >= tailOutputs.length) {
+          abortController.abort()
+        }
+        return output
+      }),
+      disconnect: vi.fn()
+    }
+
+    _setDeps({
+      AvroRpcClient: vi.fn().mockImplementation(function () { return mockRpcInstance }),
+      ClientModel: {
+        findOne: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            lean: vi.fn().mockResolvedValue({
+              ipAddr: '127.0.0.1',
+              agentPorts: { rpc: 7180 },
+              basePath: '/app',
+              serviceType: 'win_sc'
+            })
+          })
+        })
+      },
+      detectBasePath: vi.fn(),
+      strategyRegistry: {
+        get: vi.fn().mockReturnValue({
+          getTailCommand: () => ({ commandLine: 'tail', args: ['-n', '50', '/log.txt'] })
+        }),
+        getDefault: vi.fn()
+      },
+      sleep: vi.fn()
+    })
+  })
+
+  it('strips \\r from CRLF output — no duplicate on partial write', async () => {
+    // Poll 1: partial write (no trailing \r\n yet)
+    tailOutputs.push({ success: true, output: 'A\r\nB\r\nC' })
+    // Poll 2: write completed (\r\n added), same content
+    tailOutputs.push({ success: true, output: 'A\r\nB\r\nC\r\n' })
+
+    const batches = []
+    await tailLogStream(
+      [{ eqpId: 'EQ1', filePath: '/log.txt', agentGroup: 'ars_agent' }],
+      (data) => { if (data.lines) batches.push([...data.lines]) },
+      abortController.signal
+    )
+
+    // First poll: all 3 lines
+    expect(batches[0]).toEqual(['A', 'B', 'C'])
+    // Second poll: no change — should NOT send duplicates
+    expect(batches).toHaveLength(1)
+  })
+
+  it('strips \\r from lines — clean output without CR', async () => {
+    tailOutputs.push({ success: true, output: 'line1\r\nline2\r\nline3\r\n' })
+
+    const received = []
+    await tailLogStream(
+      [{ eqpId: 'EQ1', filePath: '/log.txt', agentGroup: 'ars_agent' }],
+      (data) => { if (data.lines) received.push(...data.lines) },
+      abortController.signal
+    )
+
+    // Lines should not contain \r
+    expect(received).toEqual(['line1', 'line2', 'line3'])
+    expect(received.every(l => !l.includes('\r'))).toBe(true)
+  })
+
+  it('CRLF + new lines correctly detected', async () => {
+    tailOutputs.push(
+      { success: true, output: 'A\r\nB\r\nC\r\n' },
+      { success: true, output: 'B\r\nC\r\nD\r\n' }
+    )
+
+    const batches = []
+    await tailLogStream(
+      [{ eqpId: 'EQ1', filePath: '/log.txt', agentGroup: 'ars_agent' }],
+      (data) => { if (data.lines) batches.push([...data.lines]) },
+      abortController.signal
+    )
+
+    expect(batches[0]).toEqual(['A', 'B', 'C'])
+    expect(batches[1]).toEqual(['D'])
+  })
+})
+
 describe('tailLogStream — line-diff integration', () => {
   let pollCount
   let mockRpcInstance

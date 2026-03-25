@@ -239,7 +239,7 @@ async function tailLogStream(targets, onData, signal) {
           if (response.success) {
             basePathRetried = false
             if (response.output) {
-              const currentLines = response.output.split('\n').filter(l => l.length > 0)
+              const currentLines = response.output.split('\n').map(l => l.replace(/\r$/, '')).filter(l => l.length > 0)
               const newLines = extractNewLines(previousLines, currentLines)
               previousLines = currentLines
               if (newLines.length > 0) {
