@@ -8,7 +8,7 @@
  *   - start/stop: net 명령 사용 (동기 — 실제 상태 변경까지 대기)
  *   - status: sc query 사용
  *
- * [Log Tail] getTailCommand(filePath, lines, basePath)
+ * [Log Tail] getTailCommand(filePath, lines, basePath, offset)
  *   - logService.js에서 호출 — 런타임 인자(파일경로, 줄 수)가 필요하여 별도 메서드
  */
 
@@ -113,9 +113,12 @@ module.exports = {
   },
 
   // --- Log Tail (logService.js) ---
-  getTailCommand(filePath, lines, basePath) {
+  getTailCommand(filePath, lines, basePath, offset) {
     const tailBin = basePath ? `${basePath}/utils/tail` : 'tail'
-    return { commandLine: tailBin, args: ['-n', String(lines), filePath], timeout: 10000 }
+    if (offset != null) {  // != null: 0 is a valid offset
+      return { commandLine: tailBin, args: ['--from-offset', String(offset), '--report-offset', filePath], timeout: 10000 }
+    }
+    return { commandLine: tailBin, args: ['-n', String(lines), '--report-offset', filePath], timeout: 10000 }
   },
 
   // --- List Files (configTestController.js) ---

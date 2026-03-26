@@ -33,6 +33,23 @@ function _setDeps(deps) {
   if (deps.sleep) _sleep = deps.sleep
 }
 
+const OFFSET_HEADER = '@WINTAIL:'
+
+function parseOffsetHeader(output) {
+  if (!output || !output.startsWith(OFFSET_HEADER)) return null
+  const nlIdx = output.indexOf('\n')
+  const sizeStr = nlIdx === -1
+    ? output.substring(OFFSET_HEADER.length)
+    : output.substring(OFFSET_HEADER.length, nlIdx)
+  const offset = parseInt(sizeStr, 10)
+  if (isNaN(offset)) return null
+  return { offset, content: nlIdx === -1 ? '' : output.substring(nlIdx + 1) }
+}
+
+function isRotationSignal(response) {
+  return !response.success && /exit value:\s*2/i.test(response.error || '')
+}
+
 let activeTailCount = 0
 
 /**
@@ -183,6 +200,9 @@ async function tailLogStream(targets, onData, signal) {
     let previousLines = null
     let currentBasePath = client.basePath || ''
     let basePathRetried = false
+    let offset = null           // offset mode: file byte position
+    let pendingPartial = ''     // offset mode: incomplete line buffer
+    let useOffsetMode = null    // null=unknown, true/false=detected on first response
 
     // basePath 없으면 tail 시작 전 자동 감지 시도
     if (!currentBasePath) {
@@ -226,7 +246,7 @@ async function tailLogStream(targets, onData, signal) {
 
           let commandLine, args
           if (strategy && strategy.getTailCommand) {
-            const tailCmd = strategy.getTailCommand(fullPath, LOG_TAIL_BATCH_LINES, currentBasePath)
+            const tailCmd = strategy.getTailCommand(fullPath, LOG_TAIL_BATCH_LINES, currentBasePath, offset)
             commandLine = tailCmd.commandLine
             args = tailCmd.args
           } else {
@@ -236,25 +256,64 @@ async function tailLogStream(targets, onData, signal) {
 
           const response = await rpcClient.runCommand(commandLine, args, LOG_TAIL_RPC_TIMEOUT)
 
+          // Rotation check (exit code 2) — BEFORE success check since rotation returns success=false
+          if (isRotationSignal(response)) {
+            offset = null
+            pendingPartial = ''
+            previousLines = null
+            onData({ eqpId, filePath, info: 'File rotation detected, resetting...' })
+            continue  // skip to next poll cycle, no sleep needed for reset
+          }
+
           if (response.success) {
             basePathRetried = false
             if (response.output) {
-              // Windows CRLF(\r\n) 파일에서 부분 쓰기 시 \r 유무가 달라져
-              // extractNewLines가 같은 라인을 다른 것으로 인식 → 중복 전송됨.
-              // \r을 strip하여 LF/CRLF 모두 일관된 비교가 되도록 함. (제거 금지)
-              const currentLines = response.output.split('\n').map(l => l.replace(/\r$/, '')).filter(l => l.length > 0)
-              const newLines = extractNewLines(previousLines, currentLines)
-              previousLines = currentLines
-              if (newLines.length > 0) {
-                onData({
-                  eqpId,
-                  filePath,
-                  lines: newLines,
-                  timestamp: new Date().toISOString()
-                })
+              const parsed = parseOffsetHeader(response.output)
+
+              // Detect mode on first successful response
+              if (useOffsetMode === null) {
+                useOffsetMode = parsed !== null
+              }
+
+              if (useOffsetMode && parsed) {
+                // === OFFSET MODE: no extractNewLines needed ===
+                const full = pendingPartial + parsed.content
+                if (full.length > 0) {
+                  const parts = full.split('\n')
+                  // If content doesn't end with \n, last part is incomplete
+                  if (!full.endsWith('\n')) {
+                    pendingPartial = parts.pop()
+                  } else {
+                    pendingPartial = ''
+                  }
+                  const lines = parts.map(l => l.replace(/\r$/, '')).filter(l => l.length > 0)
+                  if (lines.length > 0) {
+                    onData({ eqpId, filePath, lines, timestamp: new Date().toISOString() })
+                  }
+                } else {
+                  pendingPartial = ''  // no content, clear any pending
+                }
+                offset = parsed.offset
+              } else {
+                // === LEGACY MODE: existing extractNewLines logic ===
+                const allLines = response.output.split('\n').map(l => l.replace(/\r$/, '')).filter(l => l.length > 0)
+                const lastLineComplete = response.output.endsWith('\n') || response.output.endsWith('\r')
+                const currentLines = (!lastLineComplete && allLines.length > 0)
+                  ? allLines.slice(0, -1)
+                  : allLines
+                const newLines = extractNewLines(previousLines, currentLines)
+                previousLines = currentLines
+                if (newLines.length > 0) {
+                  onData({
+                    eqpId,
+                    filePath,
+                    lines: newLines,
+                    timestamp: new Date().toISOString()
+                  })
+                }
               }
             } else {
-              previousLines = null
+              if (useOffsetMode !== true) previousLines = null
             }
           } else if (!response.success) {
             const errMsg = response.error || 'RPC tail failed'
@@ -302,5 +361,7 @@ module.exports = {
   downloadLogFile,
   tailLogStream,
   extractNewLines,
+  parseOffsetHeader,
+  isRotationSignal,
   _setDeps
 }
