@@ -190,7 +190,7 @@
                   :selectedIndex="selectedPatternIdx[`${ti}_${si}`] ?? -1"
                   @select="onPatternSelect(ti, si, $event)"
                 />
-                <p class="text-xs text-gray-400 mt-1">팁: &lt;&lt;변수명&gt;&gt; 문법으로 로그에서 값을 추출합니다. 예: .*value: (&lt;&lt;val&gt;[\d.]+)</p>
+                <p class="text-xs text-gray-400 mt-1">팁: &lt;&lt;변수명&gt;&gt; 문법으로 로그에서 값을 추출합니다. 예: .*value: (&lt;&lt;val&gt;[\d.]+)<br/>파라미터 조건(params)을 설정하려면 입력된 패턴 태그를 클릭하세요.</p>
 
                 <!-- Params Editor (선택된 패턴) -->
                 <div v-if="getSelectedPatternItem(ti, si)" class="mt-2 p-3 border border-amber-200 dark:border-amber-800/50 rounded-lg bg-amber-50/30 dark:bg-amber-900/10">

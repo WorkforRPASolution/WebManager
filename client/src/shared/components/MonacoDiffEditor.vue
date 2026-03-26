@@ -37,6 +37,7 @@ const props = defineProps({
 
 const containerRef = ref(null)
 const diffEditor = shallowRef(null)
+let isUpdatingFromProps = false
 
 onMounted(() => {
   if (!containerRef.value) return
@@ -63,7 +64,9 @@ onMounted(() => {
 
   const modifiedEditor = diffEditor.value.getModifiedEditor()
   modifiedEditor.onDidChangeModelContent(() => {
-    emit('update:modelValue', modifiedEditor.getValue())
+    if (!isUpdatingFromProps) {
+      emit('update:modelValue', modifiedEditor.getValue())
+    }
   })
 
   monaco.editor.setTheme(props.theme)
@@ -72,7 +75,7 @@ onMounted(() => {
 watch(() => props.original, (newVal) => {
   if (!diffEditor.value) return
   const model = diffEditor.value.getModel()
-  if (model?.original) {
+  if (model?.original && model.original.getValue() !== (newVal || '')) {
     model.original.setValue(newVal || '')
   }
 })
@@ -80,8 +83,10 @@ watch(() => props.original, (newVal) => {
 watch(() => props.modified, (newVal) => {
   if (!diffEditor.value) return
   const model = diffEditor.value.getModel()
-  if (model?.modified) {
+  if (model?.modified && model.modified.getValue() !== (newVal || '')) {
+    isUpdatingFromProps = true
     model.modified.setValue(newVal || '')
+    isUpdatingFromProps = false
   }
 })
 
