@@ -524,6 +524,26 @@ const routes = [
       }
     }
   },
+  // User Manual
+  {
+    path: '/help',
+    name: 'UserManual',
+    component: () => import('../features/help/HelpView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      menu: {
+        mainMenu: 'help',
+        mainMenuLabel: 'Help',
+        mainMenuIcon: 'help_circle',
+        mainMenuOrder: 5,
+        subMenu: 'user-manual',
+        subMenuLabel: 'User Manual',
+        subMenuIcon: 'book_open',
+        subMenuOrder: 1
+      }
+    }
+  },
   // Unauthorized
   {
     path: '/unauthorized',

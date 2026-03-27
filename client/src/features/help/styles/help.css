@@ -1,0 +1,106 @@
+/* Help Manual Prose Styles */
+
+.help-prose {
+  @apply text-gray-700 dark:text-gray-300 leading-relaxed;
+}
+
+.help-prose h2 {
+  @apply text-2xl font-bold text-gray-900 dark:text-white mt-0 mb-4 pb-2 border-b border-gray-200 dark:border-dark-border;
+}
+
+.help-prose h3 {
+  @apply text-lg font-semibold text-gray-800 dark:text-gray-100 mt-8 mb-3;
+}
+
+.help-prose h4 {
+  @apply text-base font-semibold text-gray-700 dark:text-gray-200 mt-6 mb-2;
+}
+
+.help-prose h5 {
+  @apply text-sm font-semibold text-gray-600 dark:text-gray-300 mt-4 mb-1;
+}
+
+.help-prose pre {
+  @apply overflow-x-auto bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4 text-xs;
+}
+
+.help-prose p {
+  @apply mb-4 text-sm;
+}
+
+.help-prose ul {
+  @apply list-disc list-inside mb-4 space-y-1 text-sm;
+}
+
+.help-prose ol {
+  @apply list-decimal list-inside mb-4 space-y-2 text-sm;
+}
+
+.help-prose li {
+  @apply text-gray-600 dark:text-gray-400;
+}
+
+.help-prose code {
+  @apply px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-primary-600 dark:text-primary-400 rounded text-xs font-mono;
+}
+
+.help-prose table {
+  @apply w-full text-sm mb-4 border-collapse;
+}
+
+.help-prose thead th {
+  @apply text-left px-3 py-2 bg-gray-50 dark:bg-dark-card border-b border-gray-200 dark:border-dark-border font-medium text-gray-700 dark:text-gray-300;
+}
+
+.help-prose tbody td {
+  @apply px-3 py-2 border-b border-gray-100 dark:border-dark-border text-gray-600 dark:text-gray-400;
+}
+
+.help-prose .callout-warning {
+  @apply bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-400 dark:border-yellow-600 p-4 my-4 rounded-r;
+}
+
+.help-prose .callout-warning .callout-title {
+  @apply font-semibold text-yellow-800 dark:text-yellow-200 text-sm mb-1;
+}
+
+.help-prose .callout-warning p {
+  @apply text-yellow-700 dark:text-yellow-300 text-sm mb-0;
+}
+
+.help-prose .callout-info {
+  @apply bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 dark:border-blue-600 p-4 my-4 rounded-r;
+}
+
+.help-prose .callout-info .callout-title {
+  @apply font-semibold text-blue-800 dark:text-blue-200 text-sm mb-1;
+}
+
+.help-prose .callout-info p {
+  @apply text-blue-700 dark:text-blue-300 text-sm mb-0;
+}
+
+.help-prose .callout-danger {
+  @apply bg-red-50 dark:bg-red-900/20 border-l-4 border-red-400 dark:border-red-600 p-4 my-4 rounded-r;
+}
+
+.help-prose .callout-danger .callout-title {
+  @apply font-semibold text-red-800 dark:text-red-200 text-sm mb-1;
+}
+
+.help-prose .callout-danger p {
+  @apply text-red-700 dark:text-red-300 text-sm mb-0;
+}
+
+/* Step-by-step numbered guide */
+.help-prose .step-list {
+  @apply space-y-4 mb-6;
+}
+
+.help-prose .step-list li {
+  @apply flex gap-3 text-gray-600 dark:text-gray-400;
+}
+
+.help-prose .step-number {
+  @apply flex-shrink-0 w-6 h-6 bg-primary-500 text-white rounded-full flex items-center justify-center text-xs font-bold;
+}
