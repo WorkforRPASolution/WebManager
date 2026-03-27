@@ -1,11 +1,11 @@
 /**
  * EARS-based password reset — tests (TDD)
  *
- * Tests for searchEarsUsers, sendVerificationCode, verifyCodeAndResetPassword
+ * Tests for searchEarsUsers, sendVerificationCode, verifyCodeAndResetPassword, setNewPassword
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { searchEarsUsers, sendVerificationCode, verifyCodeAndResetPassword, _setDeps } from './service.js'
+import { searchEarsUsers, sendVerificationCode, verifyCodeAndResetPassword, setNewPassword, _setDeps } from './service.js'
 
 // --- Mock dependencies ---
 const mockFindOne = vi.fn()
@@ -135,12 +135,13 @@ describe('verifyCodeAndResetPassword', () => {
     expect(mockFindOne).toHaveBeenCalledWith({ singleid: 'testuser' })
     expect(mockUpdateOne).toHaveBeenCalledWith(
       { _id: 'user123' },
-      { $set: expect.objectContaining({ passwordStatus: 'normal', passwordResetRequestedAt: null }) }
+      { $set: expect.objectContaining({ passwordStatus: 'normal', passwordResetRequestedAt: null, accountStatus: 'active' }) }
     )
     // password should be a bcrypt hash, not the original
     const setArg = mockUpdateOne.mock.calls[0][1].$set
     expect(setArg.password).toBeDefined()
     expect(setArg.password).not.toBe('$2a$12$existinghash')
+    expect(setArg.accountStatus).toBe('active')
     // 임시 비밀번호 이메일 발송 없음
     expect(mockBuildTempPasswordEmail).not.toHaveBeenCalled()
     expect(mockSendEmailTo).not.toHaveBeenCalled()
@@ -183,5 +184,45 @@ describe('verifyCodeAndResetPassword', () => {
     await verifyCodeAndResetPassword('john.doe@company.com', '123456', 'NewPass123')
 
     expect(mockFindOne).toHaveBeenCalledWith({ singleid: 'john.doe' })
+  })
+})
+
+// --- setNewPassword ---
+const mockFindById = vi.fn()
+_setDeps({ User: { findOne: mockFindOne, findById: mockFindById, updateOne: mockUpdateOne } })
+
+describe('setNewPassword', () => {
+  it('비밀번호 설정 완료 시 accountStatus를 active로 변경', async () => {
+    mockFindById.mockResolvedValue({
+      _id: 'user123',
+      passwordStatus: 'must_change'
+    })
+
+    const result = await setNewPassword('user123', 'NewPass123')
+
+    expect(result.success).toBe(true)
+    const setArg = mockUpdateOne.mock.calls[0][1].$set
+    expect(setArg.accountStatus).toBe('active')
+    expect(setArg.passwordStatus).toBe('normal')
+  })
+
+  it('passwordStatus가 must_change가 아니면 에러', async () => {
+    mockFindById.mockResolvedValue({
+      _id: 'user123',
+      passwordStatus: 'normal'
+    })
+
+    const result = await setNewPassword('user123', 'NewPass123')
+
+    expect(result.error).toContain('비밀번호 변경이 필요하지 않습니다')
+    expect(mockUpdateOne).not.toHaveBeenCalled()
+  })
+
+  it('사용자 미존재 → 에러', async () => {
+    mockFindById.mockResolvedValue(null)
+
+    const result = await setNewPassword('nonexistent', 'NewPass123')
+
+    expect(result.error).toBe('User not found')
   })
 })

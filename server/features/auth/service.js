@@ -400,11 +400,11 @@ async function verifyCodeAndResetPassword(mail, code, newPassword) {
     return { success: false, error: '등록된 사용자를 찾을 수 없습니다.' }
   }
 
-  // 사용자 입력 비밀번호로 직접 저장
+  // 사용자 입력 비밀번호로 직접 저장, 계정 활성화 (기존 Akka 사용자 accountStatus undefined → active)
   const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS)
   await _User.updateOne(
     { _id: user._id },
-    { $set: { password: hashedPassword, passwordStatus: 'normal', passwordResetRequestedAt: null } }
+    { $set: { password: hashedPassword, passwordStatus: 'normal', passwordResetRequestedAt: null, accountStatus: 'active' } }
   )
 
   return { success: true, message: '비밀번호가 변경되었습니다.' }
@@ -452,7 +452,7 @@ async function changePassword(userId, currentPassword, newPassword) {
  * @returns {Object} - Result
  */
 async function setNewPassword(userId, newPassword) {
-  const user = await User.findById(userId)
+  const user = await _User.findById(userId)
 
   if (!user) {
     return { error: 'User not found' }
@@ -465,10 +465,10 @@ async function setNewPassword(userId, newPassword) {
   // Hash new password
   const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS)
 
-  // Update password and reset status
-  await User.updateOne(
+  // Update password and reset status, activate account (기존 Akka 사용자 accountStatus undefined → active)
+  await _User.updateOne(
     { _id: user._id },
-    { $set: { password: hashedPassword, passwordStatus: 'normal', passwordResetRequestedAt: null } }
+    { $set: { password: hashedPassword, passwordStatus: 'normal', passwordResetRequestedAt: null, accountStatus: 'active' } }
   )
 
   return {
