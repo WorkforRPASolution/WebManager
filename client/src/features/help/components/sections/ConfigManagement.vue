@@ -64,19 +64,19 @@ import HelpImage from '../HelpImage.vue'
       <tbody>
         <tr>
           <td><strong>ARSAgent</strong></td>
-          <td>ARSAgent 핵심 설정 (서버 연결, 프로세스 정보 등)</td>
+          <td>ARSAgent 핵심 설정 (서버 연결, CronTab, 트리거/소스 활성화 등) — 상세: <strong>Config: ARSAgent 폼</strong> 섹션</td>
         </tr>
         <tr>
           <td><strong>Monitor</strong></td>
-          <td>모니터링 에이전트 설정</td>
+          <td>ResourceAgent 시스템 모니터링 Collector 설정 — 상세: <strong>Config: Monitor 폼</strong> 섹션</td>
         </tr>
         <tr>
           <td><strong>AccessLog</strong></td>
-          <td>접근 로그 수집 설정</td>
+          <td>로그 수집 소스 정의 + 5가지 테스트 — 상세: <strong>Config: AccessLog 폼 / 테스트</strong> 섹션</td>
         </tr>
         <tr>
           <td><strong>Trigger</strong></td>
-          <td>트리거 이벤트 설정</td>
+          <td>로그 패턴 기반 이벤트 감지 규칙 + 패턴 매칭 테스트 — 상세: <strong>Config: Trigger 폼 / 테스트</strong> 섹션</td>
         </tr>
       </tbody>
     </table>

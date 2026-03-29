@@ -107,6 +107,34 @@ export const TOC = [
         keywords: ['Config', '설정', '횡전개', '배포', '비교', 'config', 'deploy']
       },
       {
+        id: 'config-arsagent',
+        label: 'Config: ARSAgent 폼',
+        component: () => import('./components/sections/ConfigARSAgent.vue'),
+        searchText: 'ARSAgent 에이전트 설정 ErrorTrigger AccessLogLists CronTab 크론탭 예약작업 VirtualAddressList AliveSignalInterval 서버연결 스냅샷 CPU메모리 마우스 라우터 선택항목',
+        keywords: ['ARSAgent', 'CronTab', '에이전트', '설정', '폼']
+      },
+      {
+        id: 'config-accesslog',
+        label: 'Config: AccessLog 폼 / 테스트',
+        component: () => import('./components/sections/ConfigAccessLog.vue'),
+        searchText: 'AccessLog 로그수집 소스 파일패턴 prefix suffix wildcard log_type 3축 날짜 멀티라인 추출삽입 경로매칭 시간필터 라인그룹 테스트 trigger upload',
+        keywords: ['AccessLog', '로그', '소스', '테스트', '패턴']
+      },
+      {
+        id: 'config-trigger',
+        label: 'Config: Trigger 폼 / 테스트',
+        component: () => import('./components/sections/ConfigTrigger.vue'),
+        searchText: 'Trigger 트리거 레시피 스텝 정규식 regex 패턴매칭 변수추출 params 조건 duration times limitation recovery script notify popup suspend resume 테스트 시뮬레이션 MULTI',
+        keywords: ['Trigger', '트리거', '패턴', '레시피', '테스트']
+      },
+      {
+        id: 'config-monitor',
+        label: 'Config: Monitor 폼',
+        component: () => import('./components/sections/ConfigMonitor.vue'),
+        searchText: 'Monitor 모니터 Collector CPU Memory Disk Network Temperature Fan GPU Voltage MotherboardTemp StorageSmart CPUProcess MemoryProcess ProcessWatch Uptime ResourceAgent 수집주기',
+        keywords: ['Monitor', 'Collector', 'ResourceAgent', '모니터']
+      },
+      {
         id: 'log-viewer',
         label: 'Log Viewer / Tailing',
         component: () => import('./components/sections/LogViewer.vue'),
