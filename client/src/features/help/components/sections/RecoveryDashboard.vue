@@ -160,12 +160,6 @@ import HelpImage from '../HelpImage.vue'
       필터 바 우측의 CSV 버튼으로 KPI 및 트렌드 데이터를 CSV 파일로 내보낼 수 있습니다.
     </p>
 
-    <div class="callout-info">
-      <div class="callout-title">권한</div>
-      <p>
-        Recovery Overview 페이지에 접근하려면 <code>dashboardRecoveryOverview</code> 권한이 필요합니다.
-      </p>
-    </div>
 
     <!-- ====== Recovery by Process ====== -->
     <h3>Recovery by Process</h3>
@@ -212,12 +206,6 @@ import HelpImage from '../HelpImage.vue'
       아래에 펼쳐집니다. 다시 클릭하면 닫힙니다.
     </p>
 
-    <div class="callout-info">
-      <div class="callout-title">권한</div>
-      <p>
-        Recovery by Process 페이지에 접근하려면 <code>dashboardRecoveryByProcess</code> 권한이 필요합니다.
-      </p>
-    </div>
 
     <!-- ====== Recovery Analysis ====== -->
     <h3>Recovery Analysis</h3>
@@ -307,12 +295,6 @@ import HelpImage from '../HelpImage.vue'
       </p>
     </div>
 
-    <div class="callout-info">
-      <div class="callout-title">권한</div>
-      <p>
-        Recovery Analysis 페이지에 접근하려면 <code>dashboardRecoveryAnalysis</code> 권한이 필요합니다.
-      </p>
-    </div>
 
     <!-- ====== 공통 참고사항 ====== -->
     <h3>공통 참고사항</h3>

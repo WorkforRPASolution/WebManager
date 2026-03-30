@@ -60,9 +60,9 @@ describe('decomposeLogType', () => {
 })
 
 describe('composeLogType', () => {
-  it('roundtrip: all 10 registry entries decompose and recompose correctly', () => {
+  it('roundtrip: all 10 registry entries decompose and recompose correctly (with new version)', () => {
     for (const entry of LOG_TYPE_REGISTRY) {
-      expect(composeLogType(decomposeLogType(entry.canonical))).toBe(entry.canonical)
+      expect(composeLogType(decomposeLogType(entry.canonical), { version: '20.0.0.0' })).toBe(entry.canonical)
     }
   })
 
@@ -90,17 +90,17 @@ describe('composeLogType', () => {
   })
 
   it('returns canonical name when version is new and oldName exists', () => {
-    expect(composeLogType({ dateAxis: 'normal', lineAxis: 'single', postProc: 'extract_append' }, { version: '7.0.0.0' }))
+    expect(composeLogType({ dateAxis: 'normal', lineAxis: 'single', postProc: 'extract_append' }, { version: '20.0.0.0' }))
       .toBe('normal_single_extract_append')
-    expect(composeLogType({ dateAxis: 'date_prefix', lineAxis: 'single', postProc: 'none' }, { version: '7.1.0.0' }))
+    expect(composeLogType({ dateAxis: 'date_prefix', lineAxis: 'single', postProc: 'none' }, { version: '20.1.0.0' }))
       .toBe('date_prefix_single')
   })
 
-  it('returns canonical name when version is not provided', () => {
+  it('returns oldName when version is not provided (safe default)', () => {
     expect(composeLogType({ dateAxis: 'normal', lineAxis: 'single', postProc: 'extract_append' }))
-      .toBe('normal_single_extract_append')
+      .toBe('extract_append')
     expect(composeLogType({ dateAxis: 'date_prefix', lineAxis: 'single', postProc: 'none' }))
-      .toBe('date_prefix_single')
+      .toBe('date_prefix_normal_single')
   })
 
   it('returns canonical name when entry has no oldName', () => {

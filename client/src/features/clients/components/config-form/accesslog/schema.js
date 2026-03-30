@@ -64,8 +64,8 @@ export function decomposeLogType(logType) {
 export function composeLogType({ dateAxis = 'normal', lineAxis = 'single', postProc = 'none' } = {}, { version } = {}) {
   const entry = LOG_TYPE_AXIS_MAP.get(`${dateAxis}|${lineAxis}|${postProc}`)
   if (!entry) return 'normal_single'
-  if (version && entry.oldName) {
-    return isNewLogTypeVersion(version) ? entry.canonical : entry.oldName
+  if (entry.oldName) {
+    return (version && isNewLogTypeVersion(version)) ? entry.canonical : entry.oldName
   }
   return entry.canonical
 }

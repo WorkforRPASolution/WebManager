@@ -324,12 +324,5 @@ import HelpImage from '../HelpImage.vue'
       </p>
     </div>
 
-    <div class="callout-info">
-      <div class="callout-title">권한</div>
-      <p>
-        User Activity 대시보드에 접근하려면 <code>dashboardUserActivity</code> 권한이 필요합니다.
-        이 권한은 모든 역할에 기본적으로 활성화되어 있습니다.
-      </p>
-    </div>
   </div>
 </template>

@@ -129,12 +129,12 @@ import HelpImage from '../HelpImage.vue'
         <tr>
           <td><strong>Name</strong></td>
           <td>필수</td>
-          <td>실명 (2자 이상). Integrated 모드에서는 EARS 검색으로 선택</td>
+          <td>실명 (2자 이상). Integrated 모드에서는 검색으로 선택</td>
         </tr>
         <tr>
           <td><strong>User ID</strong></td>
           <td>필수</td>
-          <td>로그인용 ID (3자 이상, 영문/숫자/특수문자 <code>._-</code> 허용). 중복확인 필수</td>
+          <td>SingleID. 중복확인 필수</td>
         </tr>
         <tr>
           <td><strong>Password</strong></td>
@@ -149,7 +149,7 @@ import HelpImage from '../HelpImage.vue'
         <tr>
           <td><strong>Department</strong></td>
           <td>선택</td>
-          <td>소속 부서. Integrated 모드에서는 EARS 정보로 자동 입력</td>
+          <td>소속 부서. Integrated 모드에서는 검색 정보로 자동 입력</td>
         </tr>
       </tbody>
     </table>
@@ -230,9 +230,9 @@ import HelpImage from '../HelpImage.vue'
       </tbody>
     </table>
 
-    <h4>2-3. Integrated 모드: EARS 사용자 검색</h4>
+    <h4>2-3. Integrated 모드: 사용자 검색</h4>
     <p>
-      시스템이 <strong>Integrated 모드</strong>로 운영되는 경우, 이름 입력 필드에서 EARS 시스템에 등록된 사용자를 검색하여
+      시스템이 <strong>Integrated 모드</strong>로 운영되는 경우, 이름 입력 필드에서 사용자를 검색하여
       자동으로 정보를 채울 수 있습니다.
     </p>
     <ol>
@@ -240,9 +240,9 @@ import HelpImage from '../HelpImage.vue'
       <li>검색 결과 테이블에 이름, 부서, 이메일이 표시됩니다.</li>
       <li>본인에 해당하는 행을 클릭하면 다음 필드가 자동으로 채워집니다:
         <ul>
-          <li><strong>Name</strong> &mdash; EARS에 등록된 이름</li>
+          <li><strong>Name</strong> &mdash; 검색된 이름</li>
           <li><strong>User ID</strong> &mdash; 이메일 주소의 <code>@</code> 앞부분 (자동 중복확인)</li>
-          <li><strong>Department</strong> &mdash; EARS의 부서 정보</li>
+          <li><strong>Department</strong> &mdash; 검색된 부서 정보</li>
         </ul>
       </li>
       <li>자동 입력된 User ID와 Department 필드는 <strong>읽기 전용</strong>이 됩니다.</li>
@@ -252,8 +252,8 @@ import HelpImage from '../HelpImage.vue'
     <div class="callout-info">
       <div class="callout-title">Integrated 모드 필수 사항</div>
       <p>
-        Integrated 모드에서는 EARS 사용자 선택이 필수입니다.
-        EARS 사용자를 선택하지 않으면 Sign Up 버튼이 활성화되지 않습니다.
+        Integrated 모드에서는 사용자 검색이 필수입니다.
+        사용자 검색 후 선택하지 않으면 Sign Up 버튼이 활성화되지 않습니다.
       </p>
     </div>
 
@@ -269,6 +269,7 @@ import HelpImage from '../HelpImage.vue'
         신규 계정은 생성 즉시 사용할 수 없습니다.
         관리자가 계정을 승인(활성 상태로 변경)한 후에야 로그인이 가능합니다.
         승인 전까지는 승인 대기 상태로 유지됩니다.
+        또한 관리자의 판단에 따라 가입 시 요청한 역할 및 권한이 변경될 수 있습니다.
       </p>
     </div>
 
@@ -305,14 +306,14 @@ import HelpImage from '../HelpImage.vue'
 
     <h4>3-2. Integrated 모드: 4단계 위저드</h4>
     <p>
-      Integrated 모드에서는 EARS 시스템과 연동하여 관리자 승인 없이 직접 비밀번호를 재설정할 수 있습니다.
+      Integrated 모드에서는 시스템과 연동하여 관리자 승인 없이 직접 비밀번호를 재설정할 수 있습니다.
       5단계 스텝 인디케이터가 상단에 표시되며, 현재 진행 상태를 확인할 수 있습니다.
     </p>
 
     <h4>Step 1: 이름 검색</h4>
-    <HelpImage name="password-reset-step1" alt="Step 1: 이름 검색" caption="Step 1 — EARS 사용자 이름 검색 결과 (이름, 부서, 이메일 표시)" />
+    <HelpImage name="password-reset-step1" alt="Step 1: 이름 검색" caption="Step 1 — 사용자 이름 검색 결과 (이름, 부서, 이메일 표시)" />
     <ol>
-      <li>EARS 사용자 검색 컴포넌트에서 본인의 이름을 검색합니다.</li>
+      <li>사용자 검색 컴포넌트에서 본인의 이름을 검색합니다.</li>
       <li>검색 결과에서 본인을 선택합니다.</li>
     </ol>
 
@@ -465,7 +466,7 @@ import HelpImage from '../HelpImage.vue'
       <tbody>
         <tr>
           <td>Sign Up 버튼이 비활성화</td>
-          <td>ID 중복확인 미완료, 필수 필드 미입력, 또는 Integrated 모드에서 EARS 사용자 미선택</td>
+          <td>ID 중복확인 미완료, 필수 필드 미입력, 또는 Integrated 모드에서 검색 후 사용자 미선택</td>
           <td>중복확인 버튼 클릭, 모든 필수(<span style="color: red">*</span>) 필드 확인</td>
         </tr>
         <tr>

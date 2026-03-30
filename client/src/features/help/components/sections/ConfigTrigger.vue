@@ -137,11 +137,6 @@ import HelpImage from '../HelpImage.vue'
       </thead>
       <tbody>
         <tr>
-          <td><code>&lt;&lt;변수명&gt;&gt;</code></td>
-          <td>자동 추출 — 공백이 아닌 문자열을 캡처</td>
-          <td><code>temp=&lt;&lt;value&gt;&gt;</code> &rarr; "temp=95.5"에서 value=95.5 추출</td>
-        </tr>
-        <tr>
           <td><code>(&lt;&lt;변수명&gt;&gt;패턴)</code></td>
           <td>커스텀 추출 — 지정된 패턴으로 캡처</td>
           <td><code>(&lt;&lt;code&gt;&gt;[A-Z]{3})</code> &rarr; 대문자 3자 추출</td>

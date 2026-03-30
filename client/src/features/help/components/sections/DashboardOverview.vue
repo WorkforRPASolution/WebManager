@@ -92,14 +92,6 @@ import HelpImage from '../HelpImage.vue'
       <li><strong>빨간색 아래 화살표</strong>: 음의 변동 (Errors 카드에서는 오류 감소를 의미하므로 긍정적)</li>
     </ul>
 
-    <div class="callout-info">
-      <div class="callout-title">참고</div>
-      <p>
-        Dashboard Overview에 접근하려면 <code>dashboardOverview</code> 권한이 필요합니다.
-        권한이 없는 경우 해당 메뉴가 사이드바에 표시되지 않습니다.
-        권한 설정은 System > Permissions 페이지에서 관리할 수 있습니다.
-      </p>
-    </div>
 
     <div class="callout-warning">
       <div class="callout-title">수치가 실제와 다르게 보일 때</div>

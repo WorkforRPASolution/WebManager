@@ -23,8 +23,7 @@ export function compareVersions(a, b) {
   return 0
 }
 
-// TODO: 실제 임계 버전 확정 (ARSAgent 팀과 협의 필요)
-const NEW_LOG_TYPE_THRESHOLD = '7.0.0.0'
+const NEW_LOG_TYPE_THRESHOLD = import.meta.env.VITE_NEW_LOG_TYPE_THRESHOLD || '20.0.0.0'
 
 /**
  * Check if the given version supports new canonical log_type names.

@@ -92,12 +92,6 @@ import HelpImage from '../HelpImage.vue'
       <li><strong>상세</strong>: 개별 Agent 단위 (eqpId, process, eqpModel, 상태 포함)</li>
     </ul>
 
-    <div class="callout-info">
-      <div class="callout-title">권한</div>
-      <p>
-        이 페이지에 접근하려면 <code>dashboardArsMonitor</code> 권한이 필요합니다.
-      </p>
-    </div>
 
     <!-- ====== ARSAgent Version ====== -->
     <h3>ARSAgent Version</h3>
@@ -134,12 +128,6 @@ import HelpImage from '../HelpImage.vue'
       <li><strong>상세</strong>: 개별 Agent 단위 버전 정보</li>
     </ul>
 
-    <div class="callout-info">
-      <div class="callout-title">권한</div>
-      <p>
-        이 페이지에 접근하려면 <code>dashboardArsVersion</code> 권한이 필요합니다.
-      </p>
-    </div>
 
     <!-- ====== ResourceAgent Status ====== -->
     <h3>ResourceAgent Status</h3>
@@ -214,12 +202,6 @@ import HelpImage from '../HelpImage.vue'
       ARSAgent Status와 동일한 Process/Model 필터, 정렬 기능, CSV 내보내기(요약/상세)를 지원합니다.
     </p>
 
-    <div class="callout-info">
-      <div class="callout-title">권한</div>
-      <p>
-        이 페이지에 접근하려면 <code>dashboardResStatus</code> 권한이 필요합니다.
-      </p>
-    </div>
 
     <!-- ====== ResourceAgent Version ====== -->
     <h3>ResourceAgent Version</h3>
@@ -243,12 +225,6 @@ import HelpImage from '../HelpImage.vue'
       <li>Process/Model 필터, 정렬, CSV 내보내기(요약/상세)</li>
     </ul>
 
-    <div class="callout-info">
-      <div class="callout-title">권한</div>
-      <p>
-        이 페이지에 접근하려면 <code>dashboardResVersion</code> 권한이 필요합니다.
-      </p>
-    </div>
 
     <!-- ====== 공통 안내 ====== -->
     <h3>공통 참고사항</h3>

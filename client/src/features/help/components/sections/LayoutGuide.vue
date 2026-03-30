@@ -15,25 +15,30 @@ import HelpImage from '../HelpImage.vue'
     <h3>전체 화면 구성</h3>
     <HelpImage name="layout-full" alt="WebManager 전체 레이아웃" caption="전체 화면 구성 — 상단 헤더 + 좌측 사이드바 + 메인 콘텐츠 + 하단 탭 바" />
     <p>
-      WebManager에 로그인하면 아래와 같은 구조의 화면이 표시됩니다.
+      WebManager에 로그인하면 4개 영역으로 구성된 메인 화면이 표시됩니다.
     </p>
 
-    <pre><code>┌──────────────────────────────────────────────────┐
-│                  상단 헤더 (h-14)                  │
-│  [로고]  [Dashboard] [Clients] [기준정보] [System] │  ... [테마] [알림] [?] [사용자]
-├──────────┬───────────────────────────────────────┤
-│          │                                       │
-│  사이드바  │            메인 콘텐츠 영역             │
-│  (w-64)  │         (선택한 페이지 표시)              │
-│          │                                       │
-│  - 메뉴1  │                                       │
-│  - 메뉴2  │                                       │
-│  - 메뉴3  │                                       │
-│          │                                       │
-├──────────┴───────────────────────────────────────┤
-│              하단 탭 바 (h-10)                     │
-│  [ Overview ] [ Client List ] [ Equipment Info ]  │
-└──────────────────────────────────────────────────┘</code></pre>
+    <div class="layout-diagram">
+      <div class="ld-header">
+        <span>상단 헤더</span>
+        <span class="ld-hint">[로고] [Dashboard] [Clients] [기준정보] [System] &nbsp;···&nbsp; [테마] [알림] [?] [사용자]</span>
+      </div>
+      <div class="ld-body">
+        <div class="ld-sidebar">
+          <strong>사이드바</strong>
+          <div class="ld-menu-items">
+            <span>- 메뉴 1</span>
+            <span>- 메뉴 2</span>
+            <span>- 메뉴 3</span>
+          </div>
+        </div>
+        <div class="ld-content">메인 콘텐츠 영역<br /><span class="ld-hint">(선택한 페이지 표시)</span></div>
+      </div>
+      <div class="ld-tabbar">
+        <span>하단 탭 바</span>
+        <span class="ld-hint">[ Overview ] [ Client List ] [ Equipment Info ]</span>
+      </div>
+    </div>
 
     <table>
       <thead>
@@ -319,3 +324,62 @@ import HelpImage from '../HelpImage.vue'
     </div>
   </div>
 </template>
+
+<style scoped>
+.layout-diagram {
+  border: 2px solid var(--color-border, #d1d5db);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 1rem 0 1.5rem;
+  font-size: 0.85rem;
+}
+.ld-header, .ld-tabbar {
+  background: var(--color-primary, #3b82f6);
+  color: #fff;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ld-tabbar {
+  background: var(--color-bg-secondary, #f3f4f6);
+  color: var(--color-text, #374151);
+  border-top: 1px solid var(--color-border, #d1d5db);
+}
+.ld-body {
+  display: flex;
+  min-height: 120px;
+}
+.ld-sidebar {
+  width: 120px;
+  flex-shrink: 0;
+  background: var(--color-bg-secondary, #f3f4f6);
+  border-right: 1px solid var(--color-border, #d1d5db);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--color-text, #374151);
+}
+.ld-menu-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  opacity: 0.7;
+  font-size: 0.8rem;
+}
+.ld-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 16px;
+  color: var(--color-text-secondary, #6b7280);
+}
+.ld-hint {
+  opacity: 0.75;
+  font-size: 0.8rem;
+}
+</style>

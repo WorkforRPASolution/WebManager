@@ -25,9 +25,10 @@ import HelpImage from '../HelpImage.vue'
       <ul>
         <li><strong>Agent (에이전트)</strong>: 각 장비에 설치되어 자동화 작업을 수행하는 소프트웨어. ARSAgent(자동 복구)와 ResourceAgent(리소스 모니터링) 두 종류가 있습니다.</li>
         <li><strong>EARS</strong>: Equipment Automation &amp; Recovery System의 약자. WebManager가 연결하는 전체 자동화 시스템의 이름입니다.</li>
-        <li><strong>Process (공정)</strong>: 반도체 제조 공정 단위 (예: CVD, ETCH, PHOTO). 장비와 사용자는 공정별로 그룹화됩니다.</li>
+        <li><strong>Process (공정)</strong>: 공정 단위 (예: CVD, PHOTO). 장비와 사용자는 공정별로 그룹화됩니다.</li>
+        <li><strong>Model (장비 모델)</strong>: 공정 내에서 장비 유형을 구분하는 단위. 동일 모델의 장비들은 대체적으로 같은 UI, Agent Config 설정을 공유하며, 횡전개 시 배포 범위의 기준이 됩니다.</li>
         <li><strong>Config (설정 파일)</strong>: Agent의 동작을 제어하는 JSON 형식 설정 파일.</li>
-        <li><strong>Recovery (자동 복구)</strong>: 장비에 문제가 발생했을 때 미리 정의된 시나리오에 따라 자동으로 복구하는 기능.</li>
+        <li><strong>Recovery (자동 조작)</strong>: 장비에 자동 조작 트리거가 발생했을 때 미리 정의된 시나리오에 따라 자동으로 장비를 조작하는 기능.</li>
         <li><strong>횡전개 (Deploy)</strong>: 하나의 장비 설정을 동일 모델의 다른 장비들에 일괄 배포하는 것.</li>
       </ul>
     </div>
@@ -51,7 +52,7 @@ import HelpImage from '../HelpImage.vue'
         </tr>
         <tr>
           <td><strong>기준정보 관리</strong></td>
-          <td>장비 정보, Email/Popup 템플릿, 이메일 수신자, 사용자 관리</td>
+          <td>장비 정보, Email/Popup 템플릿, 이메일 수신자, 사용자 관리 등</td>
         </tr>
         <tr>
           <td><strong>System</strong></td>
@@ -60,36 +61,11 @@ import HelpImage from '../HelpImage.vue'
       </tbody>
     </table>
 
-    <h4>역할별 읽기 가이드</h4>
+    <h4>사용자 역할</h4>
     <p>
-      사용자 역할에 따라 접근 가능한 메뉴가 다릅니다. 아래 표를 참고하여 본인에게 해당하는 섹션을 우선적으로 읽어보세요.
+      WebManager에는 <strong>Admin</strong>, <strong>Conductor</strong>, <strong>Manager</strong>, <strong>User</strong> 4개의 역할이 존재하며,
+      역할에 따른 메뉴 접근 권한은 관리자가 설정합니다.
     </p>
-    <table>
-      <thead>
-        <tr>
-          <th>역할</th>
-          <th>권장 읽기 순서</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><strong>Admin</strong><br /><span class="text-muted">시스템 전체 관리자</span></td>
-          <td>모든 섹션 — 특히 <em>System</em>(권한 설정, 시스템 설정), <em>기준정보 관리</em>(사용자 관리), <em>Dashboard</em>(Recovery/User Activity) 중점</td>
-        </tr>
-        <tr>
-          <td><strong>Conductor</strong><br /><span class="text-muted">공정 기술 담당자</span></td>
-          <td>Dashboard, Clients(설정 파일 변경, 소프트웨어 배포, 로그 확인), 기준정보 관리 중심</td>
-        </tr>
-        <tr>
-          <td><strong>Manager</strong><br /><span class="text-muted">설비 관리 담당자</span></td>
-          <td>Dashboard, Clients(장비 상태 모니터링, 로그 확인) 중심</td>
-        </tr>
-        <tr>
-          <td><strong>User</strong><br /><span class="text-muted">현장 엔지니어/운영자</span></td>
-          <td>Dashboard(Overview/Agent 상태 조회), Clients(목록 조회, Recovery 현황 확인) 중심</td>
-        </tr>
-      </tbody>
-    </table>
 
     <div class="callout-info">
       <div class="callout-title">역할별 메뉴 접근</div>
@@ -129,10 +105,10 @@ import HelpImage from '../HelpImage.vue'
           <td>Chromium 기반, Chrome과 동일 수준 지원</td>
         </tr>
         <tr>
-          <td>Safari</td>
-          <td>15+</td>
+          <td>Mozilla Firefox</td>
+          <td>90+</td>
           <td>최신 버전</td>
-          <td>macOS 환경에서 사용 가능</td>
+          <td>대부분의 기능 지원</td>
         </tr>
       </tbody>
     </table>
