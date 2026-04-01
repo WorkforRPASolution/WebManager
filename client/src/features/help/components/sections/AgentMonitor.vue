@@ -58,7 +58,7 @@ import HelpImage from '../HelpImage.vue'
           <td><strong>NeverStarted</strong></td>
           <td>회색</td>
           <td>한 번도 가동한 적 없음</td>
-          <td>한 번도 실행된 적 없는 장비입니다 (설치 필요)</td>
+          <td>한 번도 실행된 적 없거나 설치 안된 장비입니다</td>
         </tr>
       </tbody>
     </table>
