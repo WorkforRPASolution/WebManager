@@ -30,6 +30,7 @@
  * | audit          | shared/models/webmanagerLogModel   | DB audit log bridge              |
  * | batch          | shared/models/webmanagerLogModel   | DB batch log bridge              |
  * | user-activity  | features/user-activity/            | Tool usage statistics            |
+ * | cache          | shared/utils/apiCache.js           | Cache hit/miss/error             |
  * | eqp-redis      | features/clients/eqpInfoRedisSync  | EQP_INFO Redis sync              |
  */
 

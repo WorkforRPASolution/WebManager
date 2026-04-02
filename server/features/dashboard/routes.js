@@ -1,39 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const Client = require('../clients/model');
 const { asyncHandler } = require('../../shared/middleware/errorHandler');
 const { authenticate, requireMenuPermission } = require('../../shared/middleware/authMiddleware');
 const controller = require('./controller');
 
 // GET /api/dashboard/summary - Get dashboard KPI summary (requires 'dashboardOverview' permission)
-router.get('/summary', authenticate, requireMenuPermission('dashboardOverview'), asyncHandler(async (req, res) => {
-  const [totalClients, activeClients, processCounts] = await Promise.all([
-    Client.countDocuments(),
-    Client.countDocuments({ onoff: 1 }),
-    Client.aggregate([
-      { $group: { _id: '$process', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ])
-  ]);
-  const inactiveClients = totalClients - activeClients;
-
-  // Mock data for uptime and network (will be from Akka server in Phase 3)
-  const summary = {
-    activeClients,
-    totalClients,
-    inactiveClients,
-    activeRate: totalClients > 0 ? ((activeClients / totalClients) * 100).toFixed(1) : 0,
-    uptime: '99.9%',
-    errors: Math.floor(Math.random() * 5),
-    networkTraffic: `${(Math.random() * 100).toFixed(1)} MB/s`,
-    processCounts: processCounts.map(p => ({
-      process: p._id,
-      count: p.count
-    }))
-  };
-
-  res.json(summary);
-}));
+router.get('/summary', authenticate, requireMenuPermission('dashboardOverview'), asyncHandler(controller.getSummary));
 
 // GET /api/dashboard/agent-status - 프로세스별 ARSAgent 수량 및 Running 상태 조회
 router.get('/agent-status', authenticate, requireMenuPermission('dashboardArsMonitor'), asyncHandler(controller.getAgentStatus));

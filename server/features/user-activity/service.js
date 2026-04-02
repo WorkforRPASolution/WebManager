@@ -15,6 +15,8 @@
  */
 
 const { earsConnection } = require('../../shared/db/connection')
+const { getRedisClient } = require('../../shared/db/redisConnection')
+const { getWithCache, buildCacheKey } = require('../../shared/utils/apiCache')
 const { formatKST } = require('../recovery/dateUtils')
 
 // ── Dependency Injection (for testing) ──
@@ -26,6 +28,10 @@ function _setDeps(overrides) {
 
 function getEarsDb() {
   return deps.earsDb || earsConnection.db
+}
+
+function getRedis() {
+  return deps.redisClient !== undefined ? deps.redisClient : getRedisClient()
 }
 
 // ── Period helpers ──
@@ -96,7 +102,16 @@ function buildActiveCondition(periodStart) {
 
 // ── Main API ──
 
-async function getToolUsage({ period = 'all', process, startDate, includeAdmin = false, noLimit = false }) {
+async function getToolUsage(params = {}) {
+  const redis = getRedis()
+  const cacheKey = buildCacheKey('user-activity:tool-usage', {
+    period: params.period, process: params.process, startDate: params.startDate,
+    includeAdmin: params.includeAdmin, noLimit: params.noLimit
+  })
+  return getWithCache(redis, cacheKey, () => _getToolUsageCore(params), 60)
+}
+
+async function _getToolUsageCore({ period = 'all', process, startDate, includeAdmin = false, noLimit = false }) {
   const db = getEarsDb()
   const coll = db.collection('ARS_USER_INFO')
 

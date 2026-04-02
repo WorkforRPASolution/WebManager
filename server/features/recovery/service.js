@@ -6,6 +6,8 @@
  */
 
 const { earsConnection } = require('../../shared/db/connection')
+const { getRedisClient } = require('../../shared/db/redisConnection')
+const { getWithCache, buildCacheKey } = require('../../shared/utils/apiCache')
 const { parsePeriod } = require('./validation')
 
 // ── Dependency Injection (for testing) ──
@@ -16,6 +18,10 @@ function _setDeps(d) { deps = d }
 
 function getEarsDb() {
   return deps.earsDb || earsConnection.db
+}
+
+function getRedis() {
+  return deps.redisClient !== undefined ? deps.redisClient : getRedisClient()
 }
 
 // ── Collection & Tab Config ──
@@ -263,6 +269,15 @@ function extractKpi(aggResult) {
  * GET /api/recovery/overview
  */
 async function getOverview(filters = {}) {
+  const redis = getRedis()
+  const cacheKey = buildCacheKey('recovery:overview', {
+    period: filters.period, process: filters.process, line: filters.line,
+    startDate: filters.startDate, endDate: filters.endDate
+  })
+  return getWithCache(redis, cacheKey, () => _getOverviewCore(filters), 60)
+}
+
+async function _getOverviewCore(filters = {}) {
   const { period = 'today', process, line, startDate, endDate } = filters
   const db = getEarsDb()
   const dimFilters = { process, line, startDate, endDate }
@@ -379,6 +394,15 @@ async function getOverview(filters = {}) {
  * GET /api/recovery/by-process
  */
 async function getByProcess(filters = {}) {
+  const redis = getRedis()
+  const cacheKey = buildCacheKey('recovery:by-process', {
+    period: filters.period, process: filters.process, line: filters.line,
+    startDate: filters.startDate, endDate: filters.endDate
+  })
+  return getWithCache(redis, cacheKey, () => _getByProcessCore(filters), 60)
+}
+
+async function _getByProcessCore(filters = {}) {
   const { period = 'today', process, line, startDate, endDate } = filters
   const db = getEarsDb()
   const dimFilters = { process, line, startDate, endDate }

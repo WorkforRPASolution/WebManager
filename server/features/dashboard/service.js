@@ -3,6 +3,7 @@ const { getRedisClient, isRedisAvailable } = require('../../shared/db/redisConne
 const { buildAgentRunningKey, parseAliveValue } = require('../clients/agentAliveService')
 const { buildAgentMetaInfoKey, buildResourceAgentMetaInfoKey, parseAgentMetaInfoVersion } = require('../clients/agentVersionService')
 const { buildAgentHealthKey, parseAliveValue: parseHealthValue } = require('../clients/agentAliveService')
+const { getWithCache, buildCacheKey } = require('../../shared/utils/apiCache')
 
 // Test DI
 let deps = {}
@@ -14,9 +15,22 @@ function isAvailable() { return deps.isRedisAvailable !== undefined ? deps.isRed
 
 async function getAgentStatus(options = {}) {
   const { process, eqpModel, groupByModel, includeDetails = false } = options
+
+  if (includeDetails) {
+    const result = await _getAgentStatusCore(options)
+    return { ...result, redisAvailable: isAvailable() }
+  }
+
+  const redis = getClient()
+  const cacheKey = buildCacheKey('dashboard:agent-status', { process, eqpModel, groupByModel })
+  const cached = await getWithCache(redis, cacheKey, () => _getAgentStatusCore(options), 15)
+  return { ...cached, redisAvailable: isAvailable() }
+}
+
+async function _getAgentStatusCore(options = {}) {
+  const { process, eqpModel, groupByModel, includeDetails = false } = options
   const ClientModel = getModel()
 
-  // 1. MongoDB 쿼리 빌드 (쉼표 구분 다중 값 지원)
   const query = {}
   if (process) {
     const arr = process.split(',').map(s => s.trim()).filter(Boolean)
@@ -32,7 +46,7 @@ async function getAgentStatus(options = {}) {
     .lean()
 
   if (clients.length === 0) {
-    return { data: [], details: includeDetails ? [] : undefined, redisAvailable: isAvailable() }
+    return { data: [], details: includeDetails ? [] : undefined }
   }
 
   // 2. 그룹핑 + Redis 키 생성
@@ -140,7 +154,7 @@ async function getAgentStatus(options = {}) {
       })
     : undefined
 
-  return { data, details, redisAvailable: redisUp }
+  return { data, details }
 }
 
 /**
@@ -163,6 +177,20 @@ function sortVersionsDesc(versions) {
 
 async function getAgentVersionDistribution(options = {}) {
   const { process, eqpModel, groupByModel, runningOnly, includeDetails = false } = options
+
+  if (includeDetails) {
+    const result = await _getAgentVersionDistributionCore(options)
+    return { ...result, redisAvailable: isAvailable() }
+  }
+
+  const redis = getClient()
+  const cacheKey = buildCacheKey('dashboard:agent-version', { process, eqpModel, groupByModel, runningOnly })
+  const cached = await getWithCache(redis, cacheKey, () => _getAgentVersionDistributionCore(options), 30)
+  return { ...cached, redisAvailable: isAvailable() }
+}
+
+async function _getAgentVersionDistributionCore(options = {}) {
+  const { process, eqpModel, groupByModel, runningOnly, includeDetails = false } = options
   const ClientModel = getModel()
 
   // 1. MongoDB 쿼리 빌드
@@ -181,7 +209,7 @@ async function getAgentVersionDistribution(options = {}) {
     .lean()
 
   if (clients.length === 0) {
-    return { data: [], allVersions: [], details: includeDetails ? [] : undefined, redisAvailable: isAvailable() }
+    return { data: [], allVersions: [], details: includeDetails ? [] : undefined }
   }
 
   const redisUp = isAvailable()
@@ -190,7 +218,6 @@ async function getAgentVersionDistribution(options = {}) {
   let targetClients = clients
   if (runningOnly) {
     if (!redisUp) {
-      // Redis 미연결 → running 판단 불가
       const groupMap = {}
       for (const c of clients) {
         const groupKey = groupByModel ? `${c.process}\0${c.eqpModel}` : c.process
@@ -201,7 +228,7 @@ async function getAgentVersionDistribution(options = {}) {
         }
       }
       const data = Object.values(groupMap).sort((a, b) => a.process.localeCompare(b.process))
-      return { data, allVersions: [], details: includeDetails ? [] : undefined, redisAvailable: false }
+      return { data, allVersions: [], details: includeDetails ? [] : undefined }
     }
 
     const redis = getClient()
@@ -303,13 +330,27 @@ async function getAgentVersionDistribution(options = {}) {
       })
     : undefined
 
-  return { data, allVersions, details, redisAvailable: redisUp }
+  return { data, allVersions, details }
 }
 
 // ===================================================
 // ResourceAgent Status (5상태: OK/WARN/SHUTDOWN/Stopped/NeverStarted)
 // ===================================================
 async function getResourceAgentStatus(options = {}) {
+  const { process, eqpModel, groupByModel, includeDetails = false } = options
+
+  if (includeDetails) {
+    const result = await _getResourceAgentStatusCore(options)
+    return { ...result, redisAvailable: isAvailable() }
+  }
+
+  const redis = getClient()
+  const cacheKey = buildCacheKey('dashboard:resource-agent-status', { process, eqpModel, groupByModel })
+  const cached = await getWithCache(redis, cacheKey, () => _getResourceAgentStatusCore(options), 15)
+  return { ...cached, redisAvailable: isAvailable() }
+}
+
+async function _getResourceAgentStatusCore(options = {}) {
   const { process, eqpModel, groupByModel, includeDetails = false } = options
   const ClientModel = getModel()
 
@@ -328,7 +369,7 @@ async function getResourceAgentStatus(options = {}) {
     .lean()
 
   if (clients.length === 0) {
-    return { data: [], details: includeDetails ? [] : undefined, redisAvailable: isAvailable() }
+    return { data: [], details: includeDetails ? [] : undefined }
   }
 
   // 그룹핑 + AgentHealth:resource_agent 키 생성
@@ -438,13 +479,27 @@ async function getResourceAgentStatus(options = {}) {
       })
     : undefined
 
-  return { data, details, redisAvailable: redisUp }
+  return { data, details }
 }
 
 // ===================================================
 // ResourceAgent Version Distribution
 // ===================================================
 async function getResourceAgentVersionDistribution(options = {}) {
+  const { process, eqpModel, groupByModel, runningOnly, includeDetails = false } = options
+
+  if (includeDetails) {
+    const result = await _getResourceAgentVersionDistributionCore(options)
+    return { ...result, redisAvailable: isAvailable() }
+  }
+
+  const redis = getClient()
+  const cacheKey = buildCacheKey('dashboard:resource-agent-version', { process, eqpModel, groupByModel, runningOnly })
+  const cached = await getWithCache(redis, cacheKey, () => _getResourceAgentVersionDistributionCore(options), 30)
+  return { ...cached, redisAvailable: isAvailable() }
+}
+
+async function _getResourceAgentVersionDistributionCore(options = {}) {
   const { process, eqpModel, groupByModel, runningOnly, includeDetails = false } = options
   const ClientModel = getModel()
 
@@ -463,7 +518,7 @@ async function getResourceAgentVersionDistribution(options = {}) {
     .lean()
 
   if (clients.length === 0) {
-    return { data: [], allVersions: [], details: includeDetails ? [] : undefined, redisAvailable: isAvailable() }
+    return { data: [], allVersions: [], details: includeDetails ? [] : undefined }
   }
 
   const redisUp = isAvailable()
@@ -482,7 +537,7 @@ async function getResourceAgentVersionDistribution(options = {}) {
         }
       }
       const data = Object.values(groupMap).sort((a, b) => a.process.localeCompare(b.process))
-      return { data, allVersions: [], details: includeDetails ? [] : undefined, redisAvailable: false }
+      return { data, allVersions: [], details: includeDetails ? [] : undefined }
     }
 
     const redis = getClient()
@@ -580,10 +635,44 @@ async function getResourceAgentVersionDistribution(options = {}) {
       })
     : undefined
 
-  return { data, allVersions, details, redisAvailable: redisUp }
+  return { data, allVersions, details }
+}
+
+async function getDashboardSummary() {
+  const redis = getClient()
+  const cacheKey = buildCacheKey('dashboard:summary')
+
+  return getWithCache(redis, cacheKey, async () => {
+    const ClientModel = getModel()
+    const [totalClients, activeClients, processCounts] = await Promise.all([
+      ClientModel.countDocuments(),
+      ClientModel.countDocuments({ onoff: 1 }),
+      ClientModel.aggregate([
+        { $group: { _id: '$process', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ])
+    ])
+    const inactiveClients = totalClients - activeClients
+
+    return {
+      activeClients,
+      totalClients,
+      inactiveClients,
+      activeRate: totalClients > 0 ? ((activeClients / totalClients) * 100).toFixed(1) : 0,
+      // TODO: Phase 3 — Akka 서버에서 실제 데이터 조회
+      uptime: '99.9%',
+      errors: Math.floor(Math.random() * 5),
+      networkTraffic: `${(Math.random() * 100).toFixed(1)} MB/s`,
+      processCounts: processCounts.map(p => ({
+        process: p._id,
+        count: p.count
+      }))
+    }
+  }, 15)
 }
 
 module.exports = {
+  getDashboardSummary,
   getAgentStatus,
   getAgentVersionDistribution,
   getResourceAgentStatus,

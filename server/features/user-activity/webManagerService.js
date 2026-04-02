@@ -12,6 +12,8 @@
  */
 
 const { earsConnection, webManagerConnection } = require('../../shared/db/connection')
+const { getRedisClient } = require('../../shared/db/redisConnection')
+const { getWithCache, buildCacheKey } = require('../../shared/utils/apiCache')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('user-activity')
 
@@ -28,6 +30,10 @@ function getWebManagerDb() {
 
 function getEarsDb() {
   return deps.earsDb || earsConnection.db
+}
+
+function getRedis() {
+  return deps.redisClient !== undefined ? deps.redisClient : getRedisClient()
 }
 
 // ── Constants ──
@@ -270,7 +276,16 @@ const PATH_NORMALIZATION_STAGE = {
 
 // ── Main API ──
 
-async function getWebManagerStats({
+async function getWebManagerStats(params = {}) {
+  const redis = getRedis()
+  const cacheKey = buildCacheKey('user-activity:webmanager-stats', {
+    period: params.period, startDate: params.startDate, endDate: params.endDate,
+    includeAdmin: params.includeAdmin, noLimit: params.noLimit, recentMode: params.recentMode
+  })
+  return getWithCache(redis, cacheKey, () => _getWebManagerStatsCore(params), 60)
+}
+
+async function _getWebManagerStatsCore({
   period = '30d',
   startDate,
   endDate,

@@ -1,5 +1,10 @@
 const service = require('./service')
 
+async function getSummary(req, res) {
+  const result = await service.getDashboardSummary()
+  res.json(result)
+}
+
 async function getAgentStatus(req, res) {
   const { process, eqpModel, groupByModel, includeDetails } = req.query
   const result = await service.getAgentStatus({
@@ -46,4 +51,4 @@ async function getResourceAgentVersionDistribution(req, res) {
   res.json(result)
 }
 
-module.exports = { getAgentStatus, getAgentVersionDistribution, getResourceAgentStatus, getResourceAgentVersionDistribution }
+module.exports = { getSummary, getAgentStatus, getAgentVersionDistribution, getResourceAgentStatus, getResourceAgentVersionDistribution }

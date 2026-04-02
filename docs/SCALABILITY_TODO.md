@@ -58,68 +58,51 @@
 
 ---
 
-## Tier 2 — Dashboard Redis 캐시 (목표: 100명, 핵심)
+## Tier 2 — Dashboard Redis 캐시 (목표: 100명, 핵심) ✅ 완료
 
-작업량: ~2일. 100명 도달의 가장 중요한 단계.
+작업량: ~2일. 2026-04-02 완료.
 
-### T2-1. 캐시 유틸리티 구현
+### T2-1. 캐시 유틸리티 구현 ✅
 
-- [ ] `server/shared/utils/apiCache.js` 생성
-  - Redis 기반 응답 캐시 (`SET key JSON EX ttl`)
-  - Cache stampede 방지 (뮤텍스 패턴)
-  - 필터 조합별 캐시 키 해싱
+- [x] `server/shared/utils/apiCache.js` 생성
+  - `getWithCache(redis, key, computeFn, ttlSec)` — Redis 기반 응답 캐시
+  - Stampede 방지: NX EX 10초 뮤텍스 + 지수 백오프 6회 (50~1600ms)
+  - `buildCacheKey(prefix, params)` — 필터 조합별 MD5 해싱 (쉼표 값 정렬)
+  - Graceful degradation: Redis 미사용 시 computeFn 직접 호출
+  - 15개 TDD 테스트 (apiCache.test.js)
 
-```js
-// 핵심 패턴
-async function getWithCache(redis, key, computeFn, ttlSec) {
-  const cached = await redis.get(key)
-  if (cached) return JSON.parse(cached)
+### T2-2. 엔드포인트별 캐시 적용 (Service 레이어) ✅
 
-  // 뮤텍스: 동시 miss 시 1개만 계산
-  const lockKey = `lock:${key}`
-  const acquired = await redis.set(lockKey, '1', 'NX', 'EX', 5)
-  if (!acquired) {
-    await sleep(100)
-    const retry = await redis.get(key)
-    if (retry) return JSON.parse(retry)
-    // fallback: 직접 계산
-  }
+- [x] `GET /api/dashboard/summary` — TTL **15초** (routes.js 인라인 → service.js 추출)
+- [x] `GET /api/dashboard/agent-status` — TTL **15초**
+- [x] `GET /api/dashboard/agent-version` — TTL **30초**
+- [x] `GET /api/dashboard/resource-agent-status` — TTL **15초**
+- [x] `GET /api/dashboard/resource-agent-version` — TTL **30초**
+- [x] `GET /api/recovery/overview` — TTL **60초** (배치 집계 기반, hourly 갱신)
+- [x] `GET /api/recovery/by-process` — TTL **60초**
+- [x] `GET /api/user-activity/tool-usage` — TTL **60초** (스냅샷 데이터)
+- [x] `GET /api/user-activity/webmanager-stats` — TTL **60초** (11개 aggregation, 성능 전문가 Critical 지적 반영)
 
-  try {
-    const result = await computeFn()
-    await redis.set(key, JSON.stringify(result), 'EX', ttlSec)
-    return result
-  } finally {
-    await redis.del(lockKey)
-  }
-}
-```
+> 캐시는 Controller가 아닌 Service 레이어에 배치 (레이어 위반 방지, 기존 DI 활용)
+> `includeDetails=true` (CSV export) 시 캐시 bypass
+> `redisAvailable`은 캐시에서 제외, 라이브 값 별도 주입
 
-### T2-2. Dashboard 엔드포인트별 캐시 적용
-
-- [ ] `GET /api/dashboard/summary` — TTL **15초**
-- [ ] `GET /api/dashboard/agent-status` — TTL **15초**
-- [ ] `GET /api/dashboard/agent-version` — TTL **30초**
-- [ ] `GET /api/dashboard/resource-agent-status` — TTL **15초**
-- [ ] `GET /api/dashboard/resource-agent-version` — TTL **30초**
-- [ ] `GET /api/recovery/overview` — TTL **60초** (배치 집계 기반, hourly 갱신)
-- [ ] `GET /api/recovery/by-process` — TTL **60초**
-- [ ] `GET /api/user-activity/tool-usage` — TTL **60초** (스냅샷 데이터)
-
-> 참고: Agent Redis TTL 자체가 수십 초이므로 15초 캐시는 데이터 신선도에 영향 없음
-
-### T2-3. 캐시 키 설계
+### T2-3. 캐시 키 설계 ✅
 
 ```
-dashboard:summary                              → TTL 15s
-dashboard:agent-status:{processFilter}:{modelFilter}  → TTL 15s
-dashboard:agent-version:{runningOnly}:{filters}        → TTL 30s
-recovery:overview:{period}:{startDate}:{endDate}       → TTL 60s
-user-activity:tool-usage:{period}:{process}:{flags}    → TTL 60s
+wm:cache:dashboard:summary                            → TTL 15s
+wm:cache:dashboard:agent-status:{md5}                 → TTL 15s
+wm:cache:dashboard:agent-version:{md5}                → TTL 30s
+wm:cache:dashboard:resource-agent-status:{md5}        → TTL 15s
+wm:cache:dashboard:resource-agent-version:{md5}       → TTL 30s
+wm:cache:recovery:overview:{md5}                      → TTL 60s
+wm:cache:recovery:by-process:{md5}                    → TTL 60s
+wm:cache:user-activity:tool-usage:{md5}               → TTL 60s
+wm:cache:user-activity:webmanager-stats:{md5}         → TTL 60s
 ```
 
 - 필터 조합이 동일하면 캐시 공유 (사용자 무관)
-- `JSON.stringify(filters)` → `crypto.createHash('md5').update(...).digest('hex')` 로 키 생성
+- 쉼표 구분 값 정렬 후 `crypto.createHash('md5')` 해싱
 
 ---
 
