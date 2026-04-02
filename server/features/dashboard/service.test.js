@@ -216,7 +216,7 @@ describe('dashboard service - getAgentStatus', () => {
     )
     _setDeps({ ClientModel: mockModel, redisClient: mockRedis, isRedisAvailable: true })
 
-    const result = await getAgentStatus({})
+    const result = await getAgentStatus({ includeDetails: true })
 
     expect(result.details).toBeDefined()
     expect(result.details).toHaveLength(3)
@@ -234,7 +234,7 @@ describe('dashboard service - getAgentStatus', () => {
     const mockModel = createMockClientModel(clients)
     _setDeps({ ClientModel: mockModel, redisClient: null, isRedisAvailable: false })
 
-    const result = await getAgentStatus({})
+    const result = await getAgentStatus({ includeDetails: true })
 
     expect(result.details).toEqual([
       { process: 'CVD', eqpModel: 'M1', eqpId: 'EQP-001', status: 'Unknown' },
@@ -254,10 +254,24 @@ describe('dashboard service - getAgentStatus', () => {
     )
     _setDeps({ ClientModel: mockModel, redisClient: mockRedis, isRedisAvailable: true })
 
-    const result = await getAgentStatus({})
+    const result = await getAgentStatus({ includeDetails: true })
 
     expect(result.details[0].eqpId).toBe('CVD-M1-001')
     expect(result.details[1].eqpId).toBe('CVD-M2-001')
     expect(result.details[2].eqpId).toBe('ETCH-E1-002')
+  })
+
+  it('14. includeDetails 미전달 시 details는 undefined', async () => {
+    const clients = [
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'EQP-001' },
+    ]
+    const mockModel = createMockClientModel(clients)
+    const mockRedis = createMockRedis(['3600'], [])
+    _setDeps({ ClientModel: mockModel, redisClient: mockRedis, isRedisAvailable: true })
+
+    const result = await getAgentStatus({})
+
+    expect(result.details).toBeUndefined()
+    expect(result.data).toBeDefined()
   })
 })

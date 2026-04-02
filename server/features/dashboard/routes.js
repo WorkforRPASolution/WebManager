@@ -7,15 +7,15 @@ const controller = require('./controller');
 
 // GET /api/dashboard/summary - Get dashboard KPI summary (requires 'dashboardOverview' permission)
 router.get('/summary', authenticate, requireMenuPermission('dashboardOverview'), asyncHandler(async (req, res) => {
-  const totalClients = await Client.countDocuments();
-  const activeClients = await Client.countDocuments({ onoff: 1 });
-  const inactiveClients = totalClients - activeClients;
-
-  // Get clients by process for breakdown
-  const processCounts = await Client.aggregate([
-    { $group: { _id: '$process', count: { $sum: 1 } } },
-    { $sort: { count: -1 } }
+  const [totalClients, activeClients, processCounts] = await Promise.all([
+    Client.countDocuments(),
+    Client.countDocuments({ onoff: 1 }),
+    Client.aggregate([
+      { $group: { _id: '$process', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ])
   ]);
+  const inactiveClients = totalClients - activeClients;
 
   // Mock data for uptime and network (will be from Akka server in Phase 3)
   const summary = {

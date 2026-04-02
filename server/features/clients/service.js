@@ -195,6 +195,7 @@ async function getClients(filters) {
   const clients = await Client.find(query)
     .select('eqpId eqpModel process ipAddr onoff osVer category line')
     .sort({ eqpId: 1 })
+    .lean()
 
   return clients.map(transformClient)
 }

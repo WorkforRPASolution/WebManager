@@ -130,7 +130,7 @@ describe('dashboard service - getResourceAgentStatus', () => {
     const result = await getResourceAgentStatus({})
 
     expect(result.data).toEqual([])
-    expect(result.details).toEqual([])
+    expect(result.details).toBeUndefined()
   })
 
   it('6. details 배열 → 설비별 5상태 포함', async () => {
@@ -148,7 +148,7 @@ describe('dashboard service - getResourceAgentStatus', () => {
     )
     _setDeps({ ClientModel: mockModel, redisClient: mockRedis, isRedisAvailable: true })
 
-    const result = await getResourceAgentStatus({})
+    const result = await getResourceAgentStatus({ includeDetails: true })
 
     expect(result.details).toHaveLength(5)
     expect(result.details).toEqual(expect.arrayContaining([
@@ -167,7 +167,7 @@ describe('dashboard service - getResourceAgentStatus', () => {
     const mockModel = createMockClientModel(clients)
     _setDeps({ ClientModel: mockModel, redisClient: null, isRedisAvailable: false })
 
-    const result = await getResourceAgentStatus({})
+    const result = await getResourceAgentStatus({ includeDetails: true })
 
     expect(result.details).toEqual([
       { process: 'CVD', eqpModel: 'M1', eqpId: 'EQP-001', status: 'Unknown' },
@@ -187,7 +187,7 @@ describe('dashboard service - getResourceAgentStatus', () => {
     )
     _setDeps({ ClientModel: mockModel, redisClient: mockRedis, isRedisAvailable: true })
 
-    const result = await getResourceAgentStatus({})
+    const result = await getResourceAgentStatus({ includeDetails: true })
 
     expect(result.details[0].eqpId).toBe('CVD-M1-001')
     expect(result.details[1].eqpId).toBe('CVD-M2-001')
@@ -324,7 +324,7 @@ describe('dashboard service - getResourceAgentVersionDistribution', () => {
     const mockRedis = createMockRedis([], [['1.1.0:7180']])
     _setDeps({ ClientModel: mockModel, redisClient: mockRedis, isRedisAvailable: true })
 
-    const result = await getResourceAgentVersionDistribution({})
+    const result = await getResourceAgentVersionDistribution({ includeDetails: true })
 
     expect(result.details).toHaveLength(2)
     expect(result.details).toEqual(expect.arrayContaining([

@@ -193,7 +193,7 @@ describe('dashboard service - getAgentVersionDistribution', () => {
     const mockRedis = createMockRedis([], [['6.8.5.24:7180']])
     _setDeps({ ClientModel: mockModel, redisClient: mockRedis, isRedisAvailable: true })
 
-    const result = await getAgentVersionDistribution({})
+    const result = await getAgentVersionDistribution({ includeDetails: true })
 
     expect(result.details).toBeDefined()
     expect(result.details).toHaveLength(2)
@@ -213,7 +213,7 @@ describe('dashboard service - getAgentVersionDistribution', () => {
     )
     _setDeps({ ClientModel: mockModel, redisClient: mockRedis, isRedisAvailable: true })
 
-    const result = await getAgentVersionDistribution({ runningOnly: true })
+    const result = await getAgentVersionDistribution({ runningOnly: true, includeDetails: true })
 
     expect(result.details).toHaveLength(3)
     const eqpIds = result.details.map(d => d.eqpId).sort()
@@ -229,10 +229,23 @@ describe('dashboard service - getAgentVersionDistribution', () => {
     const mockModel = createMockClientModel(clients)
     _setDeps({ ClientModel: mockModel, redisClient: null, isRedisAvailable: false })
 
-    const result = await getAgentVersionDistribution({})
+    const result = await getAgentVersionDistribution({ includeDetails: true })
 
     expect(result.details[0].eqpId).toBe('CVD-M1-001')
     expect(result.details[1].eqpId).toBe('CVD-M2-001')
     expect(result.details[2].eqpId).toBe('ETCH-E1-001')
+  })
+
+  it('13. includeDetails 미전달 시 details는 undefined', async () => {
+    const clients = [
+      { process: 'CVD', eqpModel: 'M1', eqpId: 'E1', agentVersion: { arsAgent: '7.0.0.0' } },
+    ]
+    const mockModel = createMockClientModel(clients)
+    _setDeps({ ClientModel: mockModel, redisClient: null, isRedisAvailable: false })
+
+    const result = await getAgentVersionDistribution({})
+
+    expect(result.details).toBeUndefined()
+    expect(result.data).toBeDefined()
   })
 })
