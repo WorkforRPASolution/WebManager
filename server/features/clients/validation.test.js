@@ -84,7 +84,9 @@ describe('validateBatchCreate', () => {
       makeValidClient({ eqpId: 'EQP001', ipAddr: '10.0.0.2' })  // duplicate eqpId
     ]
 
-    const result = validateBatchCreate(clients, [])
+    const emptyEqpIds = new Set()
+    emptyEqpIds._originals = new Map()
+    const result = validateBatchCreate(clients, emptyEqpIds, new Map())
 
     expect(result.errors.length).toBeGreaterThan(0)
     const eqpIdError = result.errors.find(e => e.field === 'eqpId')
@@ -96,11 +98,11 @@ describe('validateBatchCreate', () => {
     const clients = [
       makeValidClient({ eqpId: 'EQP_NEW', ipAddr: '10.0.0.5' })
     ]
-    const existingClients = [
-      { eqpId: 'EQP_NEW', ipAddr: '10.0.0.99', ipAddrL: '' }
-    ]
+    const existingEqpIds = new Set(['eqp_new'])
+    existingEqpIds._originals = new Map([['eqp_new', 'EQP_NEW']])
+    const existingIpCombos = new Map([['10.0.0.99|', 'EQP_NEW']])
 
-    const result = validateBatchCreate(clients, existingClients)
+    const result = validateBatchCreate(clients, existingEqpIds, existingIpCombos)
 
     expect(result.errors.length).toBeGreaterThan(0)
     const eqpIdError = result.errors.find(e => e.field === 'eqpId')
@@ -115,7 +117,9 @@ describe('validateBatchCreate', () => {
       makeValidClient({ eqpId: 'EQP003', ipAddr: '10.0.0.3' })
     ]
 
-    const result = validateBatchCreate(clients, [])
+    const emptyEqpIds = new Set()
+    emptyEqpIds._originals = new Map()
+    const result = validateBatchCreate(clients, emptyEqpIds, new Map())
 
     expect(result.errors).toHaveLength(0)
     expect(result.valid).toHaveLength(3)

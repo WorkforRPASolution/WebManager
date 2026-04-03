@@ -325,11 +325,14 @@ async function createClients(clientsData, context = {}) {
   // 3. Execute beforeCreate hooks
   await rules.executeHooks('beforeCreate', dataToValidate, context)
 
-  // 4. Get existing clients for format/uniqueness validation
+  // 4. Build uniqueness lookup structures (Set/Map for O(1) checks)
   const existingClients = await Client.find({}, 'eqpId ipAddr ipAddrL').lean()
+  const existingEqpIds = new Set(existingClients.map(c => c.eqpId?.toLowerCase()).filter(Boolean))
+  existingEqpIds._originals = new Map(existingClients.filter(c => c.eqpId).map(c => [c.eqpId.toLowerCase(), c.eqpId]))
+  const existingIpCombos = new Map(existingClients.map(c => [`${c.ipAddr || ''}|${c.ipAddrL || ''}`, c.eqpId || String(c._id)]))
 
   // 5. Validate format and uniqueness
-  const { valid, errors: validationErrors } = validateBatchCreate(dataToValidate, existingClients)
+  const { valid, errors: validationErrors } = validateBatchCreate(dataToValidate, existingEqpIds, existingIpCombos)
 
   // Adjust rowIndex for validation errors (account for removed items)
   const originalIndices = processedData
@@ -370,9 +373,21 @@ async function updateClients(clientsData, context = {}) {
   const updatedDocs = []
   const previousDocs = []
 
-  // Get all clients' data (for change tracking and validation)
-  const allClients = await Client.find({}).lean()
-  const clientsById = new Map(allClients.map(c => [c._id.toString(), c]))
+  // Split queries: fetch only target docs + lightweight uniqueness data
+  const updateIds = clientsData.map(d => d._id).filter(Boolean)
+  const [targetDocs, uniquenessData] = await Promise.all([
+    Client.find({ _id: { $in: updateIds } }).lean(),
+    Client.find({}, 'eqpId ipAddr ipAddrL').lean()
+  ])
+  const clientsById = new Map(targetDocs.map(c => [c._id.toString(), c]))
+
+  // Build Set/Map for O(1) uniqueness lookups
+  const allEqpIds = new Set(uniquenessData.map(c => c.eqpId?.toLowerCase()).filter(Boolean))
+  allEqpIds._originals = new Map(uniquenessData.filter(c => c.eqpId).map(c => [c.eqpId.toLowerCase(), c.eqpId]))
+  const allIpCombos = new Map(uniquenessData.map(c => [`${c.ipAddr || ''}|${c.ipAddrL || ''}`, c.eqpId || String(c._id)]))
+
+  const updatedIdsList = []
+  const previousDocsList = []
 
   for (let i = 0; i < clientsData.length; i++) {
     const clientData = clientsData[i]
@@ -411,11 +426,19 @@ async function updateClients(clientsData, context = {}) {
       previousData: existingDoc
     })
 
-    // 4. Get other clients (excluding current one) for uniqueness validation
-    const otherClients = allClients.filter(c => c._id.toString() !== _id)
+    // 4. Exclude self from uniqueness sets for per-item validation
+    const selfEqpIdLower = existingDoc.eqpId?.toLowerCase()
+    const selfIpCombo = `${existingDoc.ipAddr || ''}|${existingDoc.ipAddrL || ''}`
+
+    const otherEqpIds = new Set(allEqpIds)
+    if (selfEqpIdLower) otherEqpIds.delete(selfEqpIdLower)
+    otherEqpIds._originals = allEqpIds._originals
+
+    const otherIpCombos = new Map(allIpCombos)
+    otherIpCombos.delete(selfIpCombo)
 
     // 5. Validate format and uniqueness
-    const validation = validateUpdate(processedData, otherClients)
+    const validation = validateUpdate(processedData, otherEqpIds, otherIpCombos)
 
     if (!validation.valid) {
       for (const [field, message] of Object.entries(validation.errors)) {
@@ -428,12 +451,24 @@ async function updateClients(clientsData, context = {}) {
     const result = await Client.updateOne({ _id }, { $set: processedData })
     if (result.modifiedCount > 0) {
       updated++
+      updatedIdsList.push(_id)
+      previousDocsList.push(existingDoc)
+    }
+  }
 
-      // Get updated document for audit logging
-      const updatedDoc = await Client.findById(_id).lean()
-      if (updatedDoc) {
-        previousDocs.push(existingDoc)
-        updatedDocs.push(updatedDoc)
+  // Batch fetch all updated docs for audit logging
+  if (updatedIdsList.length > 0) {
+    const updatedDocsMap = new Map()
+    const fetchedDocs = await Client.find({ _id: { $in: updatedIdsList } }).lean()
+    for (const doc of fetchedDocs) updatedDocsMap.set(doc._id.toString(), doc)
+
+    // Maintain parallel array order
+    for (let i = 0; i < updatedIdsList.length; i++) {
+      const id = updatedIdsList[i]
+      const doc = updatedDocsMap.get(id.toString ? id.toString() : id)
+      if (doc) {
+        previousDocs.push(previousDocsList[i])
+        updatedDocs.push(doc)
       }
     }
   }

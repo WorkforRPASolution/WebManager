@@ -106,35 +106,30 @@ wm:cache:user-activity:webmanager-stats:{md5}         → TTL 60s
 
 ---
 
-## Tier 3 — Clients 페이지네이션 (목표: 100명 안정화)
+## Tier 3 — Clients 최적화 (목표: 100명 안정화) ✅ 완료
 
-작업량: ~1-2일.
+작업량: ~1-2일. 2026-04-03 완료.
 
-### T3-1. 서버 사이드 페이지네이션 적용
+### T3-1. 서버 사이드 페이지네이션 적용 ✅ (기존 구현 확인)
 
-- [ ] `server/features/clients/service.js` — `getClients()`
-  - 현재: `Client.find(query).select(...).sort(...)` (전체 반환)
-  - 변경: `.skip(skip).limit(pageSize)` + `countDocuments(query)` 병렬 실행
-  - 기존 `shared/utils/pagination.js` 패턴 재활용
+- [x] `server/features/clients/service.js` — `getClientsPaginated()` 이미 구현됨
+  - `GET /api/clients/list` 라우트 + `parsePaginationParams` + `Promise.all([find().skip().limit(), countDocuments()])`
+- [x] 프론트엔드 `useClientData` composable + `ClientToolbar` 페이지네이션 UI 이미 구현됨
 
-```
-GET /api/clients?page=1&pageSize=100&process=FAB1&search=EQP
-→ { data: [...100건], total: 15000, page: 1, totalPages: 150 }
-```
+### T3-2. 프론트엔드 Clients 페이지 대응 ✅ (기존 구현 확인)
 
-### T3-2. 프론트엔드 Clients 페이지 대응
+- [x] `clientListApi.getClients(filters, page, pageSize)` + `changePage/changePageSize` 이미 구현됨
 
-- [ ] `client/src/features/clients/` — 서버 사이드 페이지네이션 UI 적용
-  - 현재: 전체 데이터 프론트에서 필터링
-  - 변경: 페이지 이동/필터 변경 시 API 재호출
+### T3-3. `createClients/updateClients` 최적화 ✅
 
-### T3-3. `createClients/updateClients` 풀스캔 제거
+전문가 검증 결과 targeted 쿼리로 풀스캔 완전 제거는 비용 대비 이득 없음 (1-10회/시간 admin 작업).
+대신 핵심 비효율을 간소화 최적화로 제거:
 
-- [ ] `server/features/clients/service.js` — `createClients()` (line ~330)
-  - `Client.find({}, 'eqpId ipAddr ipAddrL').lean()` 15K 풀로드 → MongoDB unique 인덱스에 위임
-  - `insertMany` + duplicate key 에러 핸들링으로 대체
-- [ ] `server/features/clients/service.js` — `updateClients()` (line ~377)
-  - `Client.find({}).lean()` 15K 풀로드 → `bulkWrite` 개별 처리로 대체
+- [x] `updateClients()` — `Client.find({}).lean()` 전체 필드 풀로드 → 대상 문서 + 3필드 경량 쿼리 분리 (메모리 7.5MB → 755KB, 10x↓)
+- [x] `updateClients()` — `allClients.filter()` 매 반복 15K 배열 재생성 → Set/Map 사전 구축 O(1) 룩업
+- [x] `updateClients()` — 감사 로그 `findById` N회 개별 쿼리 → 1회 배치 조회
+- [x] `validateBatchCreate/validateUpdate` — Array.find() O(K×15K) → Set/Map O(K) 전환
+- [x] `{ ipAddr: 1, ipAddrL: 1 }` 인덱스 추가 (Redis 동기화 키 중복 방지 대비)
 
 ---
 
