@@ -133,7 +133,7 @@ export const ACCESS_LOG_SCHEMA = {
         { value: '__custom__', label: '직접 입력' }
       ]
     },
-    access_interval: {
+    accces_interval: {
       type: 'text', label: '접근 주기',
       description: '로그 파일을 확인하는 주기입니다. 예: "10 seconds", "1 minutes". 짧을수록 실시간에 가깝지만 부하가 증가합니다.',
       placeholder: '10 seconds'
@@ -236,7 +236,7 @@ export const ACCESS_LOG_SCHEMA = {
     log_type: 'normal_single',
     date_subdir_format: '',
     reopen: true,
-    access_interval: '10 seconds',
+    accces_interval: '10 seconds',
     exclude_suffix: [],
     charset: '',
     back: null,
@@ -291,7 +291,7 @@ export function buildAccessLogOutput(source, { version } = {}) {
     result.charset = s.charset
   }
 
-  result.access_interval = s.access_interval || '10 seconds'
+  result.accces_interval = s.accces_interval || '10 seconds'
   result.reopen = s.reopen !== undefined ? s.reopen : true
 
   // back/end: only when not _omit

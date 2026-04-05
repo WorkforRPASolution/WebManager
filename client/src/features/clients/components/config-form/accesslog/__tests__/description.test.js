@@ -15,7 +15,7 @@ describe('describeAccessLog', () => {
       log_type: 'date_single',
       date_subdir_format: 'yyyyMMdd',
       charset: 'EUC-KR',
-      access_interval: '10 seconds',
+      accces_interval: '10 seconds',
       batch_count: 5000,
       back: true,
       end: true,
@@ -184,27 +184,27 @@ describe('describeAccessLog', () => {
   // --- Interval parsing ---
   describe('interval parsing', () => {
     it('"10 seconds" → "10초"', () => {
-      const result = describeAccessLog({ directory: '/d', access_interval: '10 seconds' })
+      const result = describeAccessLog({ directory: '/d', accces_interval: '10 seconds' })
       expect(result).toContain('10초 간격')
     })
 
     it('"1 minutes" → "1분"', () => {
-      const result = describeAccessLog({ directory: '/d', access_interval: '1 minutes' })
+      const result = describeAccessLog({ directory: '/d', accces_interval: '1 minutes' })
       expect(result).toContain('1분 간격')
     })
 
     it('"2 hours" → "2시간"', () => {
-      const result = describeAccessLog({ directory: '/d', access_interval: '2 hours' })
+      const result = describeAccessLog({ directory: '/d', accces_interval: '2 hours' })
       expect(result).toContain('2시간 간격')
     })
 
     it('singular unit "1 second" → "1초"', () => {
-      const result = describeAccessLog({ directory: '/d', access_interval: '1 second' })
+      const result = describeAccessLog({ directory: '/d', accces_interval: '1 second' })
       expect(result).toContain('1초 간격')
     })
 
     it('unparseable string passes through as-is', () => {
-      const result = describeAccessLog({ directory: '/d', access_interval: 'fast' })
+      const result = describeAccessLog({ directory: '/d', accces_interval: 'fast' })
       expect(result).toContain('fast 간격')
     })
 
@@ -400,7 +400,7 @@ describe('describeAccessLog', () => {
       const result = describeAccessLog({
         directory: '/d',
         charset: 'UTF-8',
-        access_interval: '15 seconds',
+        accces_interval: '15 seconds',
         reopen: true,
       })
       expect(result).toContain('읽기: UTF-8 | 15초 간격 | 파일 재열기')

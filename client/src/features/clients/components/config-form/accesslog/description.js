@@ -98,9 +98,9 @@ function describeAccessLog(source) {
   // --- Line 3: 읽기 설정 — compact pipe-separated ---
   const readParts = []
   if (source.charset) readParts.push(source.charset)
-  const interval = parseDuration(source.access_interval)
+  const interval = parseDuration(source.accces_interval)
   if (interval) readParts.push(interval + ' 간격')
-  else if (source.access_interval) readParts.push(source.access_interval + ' 간격')
+  else if (source.accces_interval) readParts.push(source.accces_interval + ' 간격')
   if (source.reopen) readParts.push('파일 재열기')
   // batch_count/batch_timeout: upload purpose only
   const isUpload = source.purpose === 'upload' || (source.name && !/^__.+__$/.test(source.name))

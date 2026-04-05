@@ -190,8 +190,8 @@
               <input v-if="source.charset === '__custom__' && !source._omit_charset" type="text" :value="source._customCharset || ''" @input="updateField(idx, '_customCharset', $event.target.value)" :disabled="readOnly" placeholder="직접 입력 (예: Shift_JIS)" class="form-input text-xs" />
             </div>
           </FormField>
-          <FormField :schema="schema.fields.access_interval">
-            <input type="text" :value="source.access_interval" @input="updateField(idx, 'access_interval', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.access_interval.placeholder" class="form-input" />
+          <FormField :schema="schema.fields.accces_interval">
+            <input type="text" :value="source.accces_interval" @input="updateField(idx, 'accces_interval', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.accces_interval.placeholder" class="form-input" />
           </FormField>
           <FormField :schema="schema.fields.batch_timeout" v-if="source.purpose === 'upload'">
             <input type="text" :value="source.batch_timeout" @input="updateField(idx, 'batch_timeout', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.batch_timeout.placeholder" class="form-input" />

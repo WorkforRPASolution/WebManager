@@ -248,7 +248,7 @@ describe('buildAccessLogOutput', () => {
       prefix: 'app',
       suffix: '.log',
       log_type: 'normal_single',
-      access_interval: '10 seconds',
+      accces_interval: '10 seconds',
       reopen: true
     }
     const out = buildAccessLogOutput(source)
