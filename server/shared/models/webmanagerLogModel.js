@@ -116,6 +116,9 @@ const webmanagerLogSchema = new mongoose.Schema({
   batchResult: {
     type: mongoose.Schema.Types.Mixed
   },
+  podId: {
+    type: String
+  },
 
   // auth 전용 필드
   authAction: {
@@ -477,9 +480,10 @@ async function createBatchLog({
   batchPeriod = null,
   batchParams = null,
   batchResult = null,
-  userId = 'system'
+  userId = 'system',
+  podId = null
 }) {
-  batchLog.info(`${batchAction} period=${batchPeriod || '-'}`)
+  batchLog.info(`${batchAction} period=${batchPeriod || '-'} pod=${podId || '-'}`)
 
   const log = new WebManagerLog({
     category: 'batch',
@@ -488,6 +492,7 @@ async function createBatchLog({
     batchParams,
     batchResult,
     userId,
+    podId: podId || undefined,
     timestamp: new Date(),
     expireAt: getExpireAt('batch')
   })

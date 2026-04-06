@@ -165,7 +165,8 @@ async function runBatch(period) {
       deps.createBatchLog({
         batchAction: 'cron_skipped',
         batchPeriod: period,
-        batchParams: { period, reason: 'indexNotReady' }
+        batchParams: { period, reason: 'indexNotReady' },
+        podId: getPod()
       }).catch(e => log.error(`[BatchLog] cron_skipped log failed: ${e?.message || e}`))
       return
     }
@@ -183,7 +184,8 @@ async function runBatch(period) {
     deps.createBatchLog({
       batchAction: 'cron_skipped',
       batchPeriod: period,
-      batchParams: { period, reason: 'distributedLock' }
+      batchParams: { period, reason: 'distributedLock' },
+      podId: pod
     }).catch(e => log.error(`[BatchLog] cron_skipped log failed: ${e?.message || e}`))
     return
   }
@@ -194,7 +196,8 @@ async function runBatch(period) {
     deps.createBatchLog({
       batchAction: 'cron_skipped',
       batchPeriod: period,
-      batchParams: { period, reason: 'isRunning' }
+      batchParams: { period, reason: 'isRunning' },
+      podId: pod
     }).catch(e => log.error(`[BatchLog] cron_skipped log failed: ${e?.message || e}`))
     return
   }
@@ -220,14 +223,16 @@ async function runBatch(period) {
       batchAction: 'cron_completed',
       batchPeriod: period,
       batchParams: { period, bucket: bucketStart.toISOString() },
-      batchResult: { status: result.status, pipelineResults: result.pipelineResults }
+      batchResult: { status: result.status, pipelineResults: result.pipelineResults },
+      podId: pod
     }).catch(e => log.error(`[BatchLog] cron_completed log failed: ${e?.message || e}`))
   } catch (err) {
     log.error(`[RecoverySummary] ${period} batch fatal error: ${err?.message || err}`)
     deps.createBatchLog({
       batchAction: 'cron_failed',
       batchPeriod: period,
-      batchParams: { period, error: err?.message || String(err) }
+      batchParams: { period, error: err?.message || String(err) },
+      podId: pod
     }).catch(e => log.error(`[BatchLog] cron_failed log failed: ${e?.message || e}`))
   } finally {
     await releaseLock(redis, lockKey, pod)
@@ -297,7 +302,8 @@ async function runBackfillCheck(period) {
     deps.createBatchLog({
       batchAction: 'auto_backfill_completed',
       batchPeriod: period,
-      batchParams: { period, gapsFound: gaps.length, processed: toProcess.length }
+      batchParams: { period, gapsFound: gaps.length, processed: toProcess.length },
+      podId: getPod()
     }).catch(e => log.error(`[BatchLog] auto_backfill_completed log failed: ${e.message}`))
   } catch (err) {
     log.error(`[RecoverySummary] Auto-backfill error: ${err.message}`)

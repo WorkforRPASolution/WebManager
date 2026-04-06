@@ -43,6 +43,13 @@ function getActionBadge(action) {
   return ACTION_LABELS[action] || { label: action, bg: 'bg-gray-100', text: 'text-gray-600' }
 }
 
+// ── skip reason 한글 매핑 ──
+const SKIP_REASONS = {
+  indexNotReady: '인덱스 미확인',
+  distributedLock: '다른 Pod에서 실행 중',
+  isRunning: '이전 실행 진행 중'
+}
+
 // ── 상세 축약 ──
 function formatDetail(log) {
   const p = log.batchParams || {}
@@ -51,7 +58,7 @@ function formatDetail(log) {
     case 'cron_completed':
       return `status: ${r.status || '-'}, bucket: ${p.bucket ? new Date(p.bucket).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}`
     case 'cron_skipped':
-      return `reason: ${p.reason || '-'}`
+      return SKIP_REASONS[p.reason] || p.reason || '-'
     case 'backfill_started':
       return `${p.startDate?.slice(0, 10) || ''}~${p.endDate?.slice(0, 10) || ''}, throttle ${p.throttleMs ?? '-'}ms`
     case 'backfill_completed':
@@ -254,6 +261,7 @@ const periodLabel = computed(() => {
                   <th class="py-2.5 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400">시각</th>
                   <th class="py-2.5 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400">유형</th>
                   <th class="py-2.5 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400">주기</th>
+                  <th class="py-2.5 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400">Pod</th>
                   <th class="py-2.5 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400">실행자</th>
                   <th class="py-2.5 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400">상세</th>
                 </tr>
@@ -276,6 +284,12 @@ const periodLabel = computed(() => {
                   <td class="py-2 px-2">
                     <span v-if="log.batchPeriod" class="px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
                       {{ log.batchPeriod }}
+                    </span>
+                    <span v-else class="text-gray-400">—</span>
+                  </td>
+                  <td class="py-2 px-2">
+                    <span v-if="log.podId" class="px-1.5 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-mono">
+                      {{ log.podId }}
                     </span>
                     <span v-else class="text-gray-400">—</span>
                   </td>

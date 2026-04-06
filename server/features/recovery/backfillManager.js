@@ -201,7 +201,8 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
         skipped: backfillState.skipped,
         errorCount: backfillState.errors.length,
         durationMs
-      }
+      },
+      podId: getPod()
     }).catch(e => log.error(`[BatchLog] backfill_completed log failed: ${e?.message || e}`))
   } catch (err) {
     backfillState.status = 'error'

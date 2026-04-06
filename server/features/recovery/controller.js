@@ -8,6 +8,7 @@ const { validatePeriodRange, validateBackfillRange } = require('./validation')
 const { parsePaginationParams, createPaginatedResponse } = require('../../shared/utils/pagination')
 const { createBatchLog } = require('../../shared/models/webmanagerLogModel')
 const batchLogsService = require('./batchLogsService')
+const { getPodId } = require('../../shared/utils/podIdentity')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('recovery')
 
@@ -242,7 +243,8 @@ async function startBackfill(req, res) {
         throttleMs: clampedThrottle,
         retryPartial: !!retryPartial
       },
-      userId: req.user?.singleid || 'system'
+      userId: req.user?.singleid || 'system',
+      podId: getPodId()
     }).catch(e => log.error(`[BatchLog] backfill_started log failed: ${e.message}`))
 
     res.status(202).json({ message: 'Backfill started' })
@@ -281,7 +283,8 @@ async function handleCancelBackfill(req, res) {
   createBatchLog({
     batchAction: 'backfill_cancelled',
     batchParams: {},
-    userId: req.user?.singleid || 'system'
+    userId: req.user?.singleid || 'system',
+    podId: getPodId()
   }).catch(e => log.error(`[BatchLog] backfill_cancelled log failed: ${e.message}`))
 
   res.json({ message: 'Backfill cancel requested' })
