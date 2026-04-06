@@ -183,7 +183,11 @@ async function runRemoteTest() {
       exclude_suffix: props.source.exclude_suffix,
       date_subdir_format: props.source.date_subdir_format
     }, props.agentGroup)
-    remoteResult.value = res.data
+    if (res.data.error) {
+      remoteError.value = res.data.error
+    } else {
+      remoteResult.value = res.data
+    }
   } catch (err) {
     remoteError.value = err.response?.data?.error || err.message || '원격 확인 실패'
   } finally {

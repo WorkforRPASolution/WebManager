@@ -75,9 +75,12 @@
       <!-- File Tab -->
       <div v-if="activeTab === 'file'" class="space-y-3">
         <div
-          class="border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg p-4 text-center cursor-pointer hover:border-primary-400 transition"
+          class="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition"
+          :class="isDragging ? 'border-primary-400 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-500' : 'border-gray-300 dark:border-dark-border hover:border-primary-400'"
           @click="$refs.fileInput.click()"
+          @dragenter.prevent="isDragging = true"
           @dragover.prevent
+          @dragleave.prevent="isDragging = false"
           @drop.prevent="handleFileDrop"
         >
           <input ref="fileInput" type="file" multiple accept=".log,.txt,.csv" class="hidden" @change="handleFileSelect" />
@@ -319,6 +322,7 @@ const testResult = ref(null)
 const testError = ref(null)
 const uploadedFiles = ref([])
 const fileProcessing = ref(false)
+const isDragging = ref(false)
 const fileSummary = ref(null)
 
 const timestampFormat = computed(() => {
@@ -374,6 +378,7 @@ function handleFileSelect(event) {
 }
 
 function handleFileDrop(event) {
+  isDragging.value = false
   addFiles(Array.from(event.dataTransfer.files))
 }
 

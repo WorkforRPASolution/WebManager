@@ -6,6 +6,20 @@ const controlService = require('./controlService')
 const Client = require('./model')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 
+// Joda DateTime 토큰 → 현재 날짜 값으로 치환 (프론트엔드 testEngine.resolveJodaTokens와 동일)
+const JODA_MAP = { yyyy: 'FullYear', MM: 'Month', dd: 'Date', HH: 'Hours', mm: 'Minutes', ss: 'Seconds' }
+function resolveJodaTokens(str) {
+  if (!str) return str
+  const now = new Date()
+  let result = str
+  for (const [token, getter] of Object.entries(JODA_MAP)) {
+    if (!result.includes(token)) continue
+    let val = getter === 'Month' ? now.getMonth() + 1 : now[`get${getter}`]()
+    result = result.replace(new RegExp(token, 'g'), String(val).padStart(token.length, '0'))
+  }
+  return result
+}
+
 /**
  * POST /api/clients/:id/test-accesslog
  * Test if files matching an AccessLog source pattern exist on a client
@@ -40,16 +54,17 @@ async function testAccessLog(req, res) {
 
     // Handle directory-not-found (graceful error from strategy)
     if (rpcResult.error) {
-      return res.json({ files: [], total: 0, matched: 0, error: rpcResult.error })
+      return res.json({ files: [], total: 0, matched: 0, error: `${rpcResult.error} (경로: ${resolvedDir})` })
     }
 
     const allFiles = rpcResult.files || []
     const total = allFiles.length
 
-    // Apply pattern filtering
+    // Apply pattern filtering (Joda 토큰을 현재 날짜로 치환)
     const config = {
-      prefix: prefix || '',
-      suffix: suffix || '',
+      prefix: resolveJodaTokens(prefix || ''),
+      suffix: resolveJodaTokens(suffix || ''),
+      wildcard: resolveJodaTokens(wildcard || ''),
       exclude_suffix: exclude_suffix || []
     }
     const matched = filterByPattern(allFiles, config)
@@ -96,15 +111,16 @@ async function testAccessLog(req, res) {
 }
 
 /**
- * Filter files by prefix, suffix, and exclude_suffix pattern
+ * Filter files by prefix, suffix, wildcard, and exclude_suffix pattern
  * @param {Array<{name: string}>} files - file list
- * @param {Object} config - { prefix, suffix, exclude_suffix }
+ * @param {Object} config - { prefix, suffix, wildcard, exclude_suffix }
  * @returns {Array} filtered files
  */
 function filterByPattern(files, config) {
   return files.filter(f => {
     if (config.prefix && !f.name.startsWith(config.prefix)) return false
     if (config.suffix && !f.name.endsWith(config.suffix)) return false
+    if (config.wildcard && !f.name.includes(config.wildcard)) return false
     if (config.exclude_suffix && config.exclude_suffix.length > 0) {
       if (config.exclude_suffix.some(es => f.name.endsWith(es))) return false
     }
@@ -127,5 +143,6 @@ function isAbsolutePath(p) {
 module.exports = {
   testAccessLog,
   filterByPattern,
-  isAbsolutePath
+  isAbsolutePath,
+  resolveJodaTokens
 }
