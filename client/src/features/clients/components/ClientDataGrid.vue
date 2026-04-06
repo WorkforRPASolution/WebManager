@@ -199,9 +199,9 @@ const versionCellRenderer = (params) => {
   return `<span class="text-xs font-mono">${version}</span>`
 }
 
-// Clickable EqpId Cell Renderer
+// TODO: Client Detail 페이지 구현 후 클릭 스타일 복원
 const eqpIdCellRenderer = (params) => {
-  return `<span class="text-primary-600 dark:text-primary-400 hover:underline cursor-pointer font-medium">${params.value || ''}</span>`
+  return `<span class="font-medium">${params.value || ''}</span>`
 }
 
 const columnDefs = ref([
@@ -311,10 +311,11 @@ const onCellClicked = (params) => {
     return
   }
 
-  if (colId === 'eqpId') {
-    emit('row-click', params.data)
-    return
-  }
+  // TODO: Client Detail 페이지 구현 후 활성화
+  // if (colId === 'eqpId') {
+  //   emit('row-click', params.data)
+  //   return
+  // }
 }
 
 watch(() => props.rowData, () => {
