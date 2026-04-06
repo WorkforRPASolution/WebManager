@@ -209,8 +209,8 @@ async function startBackfill(req, res) {
   const { floorToKSTBucket } = getDateUtils()
 
   // Check if already running
-  const currentState = summaryService.getBackfillState()
-  if (currentState.status === 'running') {
+  const currentState = await summaryService.getBackfillState()
+  if (currentState.status === 'running' || currentState.status === 'running_on_other_pod') {
     return res.status(409).json({
       error: '이미 실행 중입니다',
       state: currentState
@@ -253,8 +253,9 @@ async function startBackfill(req, res) {
 
 async function getBackfillStatus(req, res) {
   const summaryService = getSummaryService()
+  const state = await summaryService.getBackfillState()
   res.json({
-    ...summaryService.getBackfillState(),
+    ...state,
     indexReady: summaryService.isIndexReady()
   })
 }
@@ -275,7 +276,7 @@ async function getCronRunDistribution(req, res) {
 
 async function handleCancelBackfill(req, res) {
   const summaryService = getSummaryService()
-  summaryService.cancelBackfill()
+  await summaryService.cancelBackfill()
 
   createBatchLog({
     batchAction: 'backfill_cancelled',

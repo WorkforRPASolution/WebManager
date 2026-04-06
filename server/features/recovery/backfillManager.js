@@ -6,10 +6,14 @@ const {
   computeBoundariesForBucket,
   generateExpectedBuckets
 } = require('./dateUtils')
-const { getDeps, getCronRunLog } = require('./recoveryDeps')
+const { getDeps, getCronRunLog, getRedis, getPod } = require('./recoveryDeps')
 const { runPipelinesForBucket } = require('./batchRunner')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('recovery')
+
+const BACKFILL_OWNER_KEY = 'wm:backfill:owner'
+const BACKFILL_CANCEL_KEY = 'wm:backfill:cancel'
+const BACKFILL_OWNER_TTL = 300 // 5분, 5초마다 갱신
 
 // ── Manual Backfill State ──
 
@@ -63,6 +67,21 @@ async function runManualBackfill(startDate, endDate, options = {}) {
     throw new Error('Backfill already in progress')
   }
 
+  // 교차 Pod 중복 방지: Redis owner key 확인
+  const redis = getRedis()
+  if (redis) {
+    try {
+      const existingOwner = await redis.get(BACKFILL_OWNER_KEY)
+      if (existingOwner) {
+        throw new Error(`Backfill already running on pod ${existingOwner}`)
+      }
+      await redis.set(BACKFILL_OWNER_KEY, getPod(), 'NX', 'EX', BACKFILL_OWNER_TTL)
+    } catch (err) {
+      if (err.message.startsWith('Backfill already running')) throw err
+      log.warn(`[Backfill] Redis owner check failed: ${err?.message || err}`)
+    }
+  }
+
   const { skipHourly = false, skipDaily = false, throttleMs = deps.defaultThrottleMs, retryPartial = false } = options
 
   const maxEnd = new Date(Date.now() - deps.settlingHours * 60 * 60 * 1000)
@@ -90,6 +109,7 @@ async function runManualBackfill(startDate, endDate, options = {}) {
 
 async function processBackfill(periods, startDate, endDate, throttleMs, { retryPartial = false } = {}) {
   const deps = getDeps()
+  const redis = getRedis()
   try {
     let allBuckets = []
     for (const period of periods) {
@@ -118,9 +138,29 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
 
     backfillState.total = allBuckets.length + backfillState.skipped
 
+    let lastRefreshTime = Date.now()
+
     for (let i = 0; i < allBuckets.length; i++) {
+      // 로컬 취소 확인
       if (backfillState.status === 'cancelled') {
         return
+      }
+
+      // 교차 Pod 취소 확인 + owner TTL 갱신 (5초 간격)
+      if (redis && Date.now() - lastRefreshTime > 5000) {
+        try {
+          const cancelFlag = await redis.get(BACKFILL_CANCEL_KEY)
+          if (cancelFlag) {
+            log.info('[Backfill] Cancel requested from another pod')
+            backfillState.status = 'cancelled'
+            await redis.del(BACKFILL_CANCEL_KEY)
+            return
+          }
+          await redis.expire(BACKFILL_OWNER_KEY, BACKFILL_OWNER_TTL)
+        } catch (err) {
+          log.warn(`[Backfill] Redis refresh error: ${err?.message || err}`)
+        }
+        lastRefreshTime = Date.now()
       }
 
       const { period, bucket } = allBuckets[i]
@@ -162,23 +202,61 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
         errorCount: backfillState.errors.length,
         durationMs
       }
-    }).catch(e => log.error(`[BatchLog] backfill_completed log failed: ${e.message}`))
+    }).catch(e => log.error(`[BatchLog] backfill_completed log failed: ${e?.message || e}`))
   } catch (err) {
     backfillState.status = 'error'
     backfillState.completedAt = new Date()
     if (backfillState.errors.length < 100) {
-      backfillState.errors.push({ error: err.message })
+      backfillState.errors.push({ error: err?.message || String(err) })
+    }
+  } finally {
+    // owner key 정리
+    if (redis) {
+      redis.del(BACKFILL_OWNER_KEY).catch(e => log.warn(`[Backfill] Owner key cleanup failed: ${e?.message || e}`))
+      redis.del(BACKFILL_CANCEL_KEY).catch(() => {})
     }
   }
 }
 
-function getBackfillState() {
+async function getBackfillState() {
+  // 이 Pod에서 실행 중이면 로컬 상태 반환
+  if (backfillPromise) {
+    return { ...backfillState }
+  }
+  // 다른 Pod에서 실행 중인지 Redis 확인
+  const redis = getRedis()
+  if (redis) {
+    try {
+      const owner = await redis.get(BACKFILL_OWNER_KEY)
+      if (owner) {
+        return { status: 'running_on_other_pod', ownerPod: owner }
+      }
+    } catch (err) {
+      log.warn(`[Backfill] Redis state check failed: ${err?.message || err}`)
+    }
+  }
   return { ...backfillState }
 }
 
-function cancelBackfill() {
+async function cancelBackfill() {
+  // 이 Pod에서 실행 중이면 로컬 취소
   if (backfillState.status === 'running') {
     backfillState.status = 'cancelled'
+    return
+  }
+  // 다른 Pod에서 실행 중이면 Redis cancel key 설정
+  const redis = getRedis()
+  if (redis) {
+    try {
+      const owner = await redis.get(BACKFILL_OWNER_KEY)
+      if (owner) {
+        await redis.set(BACKFILL_CANCEL_KEY, '1', 'EX', BACKFILL_OWNER_TTL)
+        log.info(`[Backfill] Cancel requested for pod ${owner}`)
+        return
+      }
+    } catch (err) {
+      log.warn(`[Backfill] Redis cancel failed: ${err?.message || err}`)
+    }
   }
 }
 
