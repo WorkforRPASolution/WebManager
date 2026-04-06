@@ -199,6 +199,7 @@ async function runBatch(period) {
       batchParams: { period, reason: 'isRunning' },
       podId: pod
     }).catch(e => log.error(`[BatchLog] cron_skipped log failed: ${e?.message || e}`))
+    await releaseLock(redis, lockKey, pod)
     return
   }
 

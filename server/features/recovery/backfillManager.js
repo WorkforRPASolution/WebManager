@@ -211,6 +211,7 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
       backfillState.errors.push({ error: err?.message || String(err) })
     }
   } finally {
+    backfillPromise = null
     // owner key 정리
     if (redis) {
       redis.del(BACKFILL_OWNER_KEY).catch(e => log.warn(`[Backfill] Owner key cleanup failed: ${e?.message || e}`))
