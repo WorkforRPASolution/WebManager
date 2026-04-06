@@ -13,7 +13,7 @@ const log = createLogger('recovery')
 
 const BACKFILL_OWNER_KEY = 'wm:backfill:owner'
 const BACKFILL_CANCEL_KEY = 'wm:backfill:cancel'
-const BACKFILL_OWNER_TTL = 300 // 5분, 5초마다 갱신
+const BACKFILL_OWNER_TTL = 600 // 10분, 5초마다 갱신 (aggregate maxTimeMS 55초 대응)
 
 // ── Manual Backfill State ──
 
@@ -71,11 +71,11 @@ async function runManualBackfill(startDate, endDate, options = {}) {
   const redis = getRedis()
   if (redis) {
     try {
-      const existingOwner = await redis.get(BACKFILL_OWNER_KEY)
-      if (existingOwner) {
-        throw new Error(`Backfill already running on pod ${existingOwner}`)
+      const setResult = await redis.set(BACKFILL_OWNER_KEY, getPod(), 'NX', 'EX', BACKFILL_OWNER_TTL)
+      if (setResult !== 'OK') {
+        const owner = await redis.get(BACKFILL_OWNER_KEY)
+        throw new Error(`Backfill already running on pod ${owner ?? 'unknown'}`)
       }
-      await redis.set(BACKFILL_OWNER_KEY, getPod(), 'NX', 'EX', BACKFILL_OWNER_TTL)
     } catch (err) {
       if (err.message.startsWith('Backfill already running')) throw err
       log.warn(`[Backfill] Redis owner check failed: ${err?.message || err}`)

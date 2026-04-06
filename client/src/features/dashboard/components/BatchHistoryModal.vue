@@ -33,6 +33,7 @@ const {
 const ACTION_LABELS = {
   cron_completed: { label: 'Cron 완료', bg: 'bg-green-100 dark:bg-green-900/40', text: 'text-green-700 dark:text-green-300' },
   cron_skipped: { label: 'Cron Skip', bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300' },
+  cron_failed: { label: 'Cron 실패', bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300' },
   backfill_started: { label: 'Backfill 시작', bg: 'bg-indigo-100 dark:bg-indigo-900/40', text: 'text-indigo-700 dark:text-indigo-300' },
   backfill_completed: { label: 'Backfill 완료', bg: 'bg-blue-100 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300' },
   backfill_cancelled: { label: 'Backfill 취소', bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-600 dark:text-gray-300' },
@@ -59,6 +60,8 @@ function formatDetail(log) {
       return `status: ${r.status || '-'}, bucket: ${p.bucket ? new Date(p.bucket).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}`
     case 'cron_skipped':
       return SKIP_REASONS[p.reason] || p.reason || '-'
+    case 'cron_failed':
+      return p.error || '-'
     case 'backfill_started':
       return `${p.startDate?.slice(0, 10) || ''}~${p.endDate?.slice(0, 10) || ''}, throttle ${p.throttleMs ?? '-'}ms`
     case 'backfill_completed':
@@ -206,6 +209,7 @@ const periodLabel = computed(() => {
                 <option value="">전체</option>
                 <option value="cron_completed">Cron 완료</option>
                 <option value="cron_skipped">Cron Skip</option>
+                <option value="cron_failed">Cron 실패</option>
                 <option value="backfill_started">Backfill 시작</option>
                 <option value="backfill_completed">Backfill 완료</option>
                 <option value="backfill_cancelled">Backfill 취소</option>
