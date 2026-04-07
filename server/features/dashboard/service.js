@@ -654,7 +654,8 @@ async function getDashboardSummary() {
     ...cached,
     uptime: '99.9%',
     errors: Math.floor(Math.random() * 5),
-    networkTraffic: `${(Math.random() * 100).toFixed(1)} MB/s`
+    networkTraffic: `${(Math.random() * 100).toFixed(1)} MB/s`,
+    redisAvailable: isAvailable()
   }
 }
 

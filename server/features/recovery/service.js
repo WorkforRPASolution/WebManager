@@ -274,7 +274,8 @@ async function getOverview(filters = {}) {
     period: filters.period, process: filters.process, line: filters.line,
     startDate: filters.startDate, endDate: filters.endDate
   })
-  return getWithCache(redis, cacheKey, () => _getOverviewCore(filters), 60)
+  // I-NEW-1: recovery aggregate maxTimeMS=55s 대응 — lock TTL을 90s로 연장하여 stampede 보호
+  return getWithCache(redis, cacheKey, () => _getOverviewCore(filters), 60, { lockTtlSec: 90 })
 }
 
 async function _getOverviewCore(filters = {}) {
@@ -399,7 +400,8 @@ async function getByProcess(filters = {}) {
     period: filters.period, process: filters.process, line: filters.line,
     startDate: filters.startDate, endDate: filters.endDate
   })
-  return getWithCache(redis, cacheKey, () => _getByProcessCore(filters), 60)
+  // I-NEW-1: recovery aggregate maxTimeMS=55s 대응 — lock TTL 90s
+  return getWithCache(redis, cacheKey, () => _getByProcessCore(filters), 60, { lockTtlSec: 90 })
 }
 
 async function _getByProcessCore(filters = {}) {

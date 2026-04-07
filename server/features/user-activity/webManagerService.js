@@ -302,38 +302,34 @@ async function _getWebManagerStatsCore({
 
   const { periodStart, periodEnd } = computePeriodRange(period, startDate, endDate)
 
-  const baseMatch = {
-    category: 'access',
-    timestamp: { $gte: periodStart, $lte: periodEnd }
-  }
-
-  // Admin 필터링: ARS_USER_INFO에서 authorityManager=1 인 userId 사전 조회
-  if (!includeAdmin) {
-    const earsDb = getEarsDb()
-    const userColl = earsDb.collection('ARS_USER_INFO')
-    const admins = await userColl.aggregate([
-      { $match: { authorityManager: 1 } },
-      { $project: { _id: 0, singleid: 1 } }
-    ]).toArray()
-
-    if (admins.length > 0) {
-      baseMatch.userId = { $nin: admins.map(a => a.singleid) }
-    }
-  }
-
   const aggOpts = { allowDiskUse: true, maxTimeMS: 55000 }
 
-  // noLimit=true: CSV 내보내기 전용 — recentVisits + 이름 조회 후 early return
+  // M3: noLimit=true (CSV export) 경로 — admin/name 통합 1회 조회로 ARS_USER_INFO 이중 쿼리 제거
   if (noLimit) {
     const earsDbNl = getEarsDb()
-    const [recentResult, nameList] = await Promise.all([
-      wmColl.aggregate(buildRecentVisitsPipeline(baseMatch, true, recentMode), aggOpts).toArray(),
-      earsDbNl.collection('ARS_USER_INFO').aggregate([
-        { $project: { _id: 0, singleid: 1, name: 1 } }
-      ]).toArray()
-    ])
+    const allUsers = await earsDbNl.collection('ARS_USER_INFO').aggregate([
+      { $project: { _id: 0, singleid: 1, name: 1, authorityManager: 1 } }
+    ]).toArray()
     const nlNameMap = {}
-    for (const u of nameList) { if (u.name) nlNameMap[u.singleid] = u.name }
+    const nlAdminIds = []
+    for (const u of allUsers) {
+      if (u.name) nlNameMap[u.singleid] = u.name
+      if (u.authorityManager === 1) nlAdminIds.push(u.singleid)
+    }
+
+    const baseMatchNl = {
+      category: 'access',
+      timestamp: { $gte: periodStart, $lte: periodEnd }
+    }
+    if (!includeAdmin && nlAdminIds.length > 0) {
+      baseMatchNl.userId = { $nin: nlAdminIds }
+    }
+
+    const recentResult = await wmColl.aggregate(
+      buildRecentVisitsPipeline(baseMatchNl, true, recentMode),
+      aggOpts
+    ).toArray()
+
     const recentVisits = recentResult.map(r => {
       const normalized = normalizePath(r.pagePath || '')
       const mapped = PAGE_MAP[normalized]
@@ -352,6 +348,25 @@ async function _getWebManagerStatsCore({
       pageTrend: [], groupTrend: [], concurrent: { peak: 0, avg: 0, trend: [] },
       processTrend: [], processActiveUsers: [], durationTrend: [],
       granularity: 'daily', topUsers: [], recentVisits
+    }
+  }
+
+  // 일반 경로: baseMatch 구성 + admin 필터링
+  const baseMatch = {
+    category: 'access',
+    timestamp: { $gte: periodStart, $lte: periodEnd }
+  }
+
+  if (!includeAdmin) {
+    const earsDb = getEarsDb()
+    const userColl = earsDb.collection('ARS_USER_INFO')
+    const admins = await userColl.aggregate([
+      { $match: { authorityManager: 1 } },
+      { $project: { _id: 0, singleid: 1 } }
+    ]).toArray()
+
+    if (admins.length > 0) {
+      baseMatch.userId = { $nin: admins.map(a => a.singleid) }
     }
   }
 

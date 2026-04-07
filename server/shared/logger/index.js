@@ -31,6 +31,7 @@
  * | batch          | shared/models/webmanagerLogModel   | DB batch log bridge              |
  * | user-activity  | features/user-activity/            | Tool usage statistics            |
  * | cache          | shared/utils/apiCache.js           | Cache hit/miss/error             |
+ * | lock           | shared/utils/redisLock.js          | Distributed lock acquire/release |
  * | eqp-redis      | features/clients/eqpInfoRedisSync  | EQP_INFO Redis sync              |
  */
 

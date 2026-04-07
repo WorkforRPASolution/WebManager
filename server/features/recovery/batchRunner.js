@@ -241,12 +241,9 @@ async function runBatch(period) {
   }
 
   // 4. Auto backfill (락 밖 — idempotent, 중복 실행 무해)
+  // runBackfillCheck는 내부 try/catch로 모든 에러를 흡수하므로 외부 catch 불필요
   if (result && (result.status === 'success' || result.status === 'partial')) {
-    try {
-      await runBackfillCheck(period)
-    } catch (err) {
-      log.error(`[RecoverySummary] Auto-backfill error: ${err?.message || err}`)
-    }
+    await runBackfillCheck(period)
   }
 }
 

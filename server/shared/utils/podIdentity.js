@@ -2,11 +2,14 @@ const os = require('os')
 
 /**
  * Returns the pod/instance identifier.
- * In Kubernetes: POD_NAME env var (set via Downward API).
- * In development: os.hostname().
+ * Priority:
+ * 1. POD_NAME env var (Kubernetes Downward API — guaranteed unique per pod)
+ * 2. os.hostname() + pid suffix (development fallback — avoids collision when multiple
+ *    Node processes run on the same host with identical hostname, e.g., docker-compose scale)
  */
 function getPodId() {
-  return process.env.POD_NAME || os.hostname()
+  if (process.env.POD_NAME) return process.env.POD_NAME
+  return `${os.hostname()}-${process.pid}`
 }
 
 module.exports = { getPodId }

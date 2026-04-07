@@ -11,16 +11,18 @@ const emit = defineEmits(['select-date'])
 
 const heatmapData = ref([])
 const loading = ref(false)
+const fetchError = ref(null)
 const selectedDate = ref(null)
 const { isDark } = useTheme()
 
 async function fetchData() {
   loading.value = true
+  fetchError.value = null
   try {
     const res = await recoveryApi.getBatchHeatmap({ days: props.days })
     heatmapData.value = res.data.data || []
   } catch (err) {
-    console.error('Heatmap fetch error:', err)
+    fetchError.value = err?.response?.data?.error || err?.message || '히트맵 조회 실패'
     heatmapData.value = []
   } finally {
     loading.value = false
@@ -133,6 +135,16 @@ onMounted(fetchData)
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
       </svg>
+    </div>
+
+    <!-- Error -->
+    <div v-else-if="fetchError" class="flex items-center justify-between gap-2 py-3 px-3 rounded text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+      <span>히트맵 로드 실패: {{ fetchError }}</span>
+      <button
+        type="button"
+        class="px-2 py-0.5 rounded border border-red-300 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/40"
+        @click="fetchData"
+      >다시 시도</button>
     </div>
 
     <div v-else>

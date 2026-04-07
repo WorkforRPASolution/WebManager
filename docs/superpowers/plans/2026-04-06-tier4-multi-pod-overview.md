@@ -11,16 +11,18 @@ Tier 1~3 완료로 단일 Pod 100-150명 달성. 멀티 Pod(2+)로 수평 확장
 
 | 전문가 | 주요 발견 |
 |--------|----------|
-| 분산 시스템/Redis | Cron 락 TTL 120s < 실제 최대 ~1162s (auto-backfill 포함). **락 범위를 파이프라인 실행만으로 축소 + TTL 300s**. Backfill owner TTL 5분+5초 갱신 |
+| 분산 시스템/Redis | Cron 락 TTL 120s < 실제 최대 ~1162s (auto-backfill 포함). **락 범위를 파이프라인 실행만으로 축소 + TTL 600s** (구현 시 aggregate maxTimeMS 55s × 3 파이프라인 × 4x headroom 반영, 초기 plan 300s에서 상향). Backfill owner TTL 10분+5초 갱신 |
 | Kubernetes/인프라 | Ingress v1 API K8s 1.17 미지원 → v1beta1. `fetchSSEStream`에 `credentials:'include'` 필수. PDB/리소스 제한/preStop hook 추가 |
 | 아키텍처/테스트 | Backfill Hash 동기화 = 과도한 복잡성 → **owner key + cancel key만으로 간소화** (~15줄). 로거 `recovery` 재사용 |
 
 ## 항목별 독립 작업 목록
 
 ### T4-1. Cron 분산 락 (batchRunner.js)
-- Redis `SET NX EX 300` 분산 락, 락 범위를 파이프라인 실행만으로 한정
+- Redis `SET NX EX 600` 분산 락 (전문가 검토 후 300→600s 상향, MongoDB 부하 시 165s 초과 가능 → 4x headroom)
+- 락 범위를 파이프라인 실행만으로 한정
 - auto-backfill은 락 밖 (idempotent)
 - Lua 스크립트 원자적 compare-and-delete 릴리스
+- graceful shutdown hook에서 자기 소유 락 즉시 release (다른 Pod 600s 대기 회피)
 - 선행: T4-5 (podIdentity), T4-6 (recoveryDeps Redis DI)
 
 ### T4-2. Backfill 교차 Pod 가시성

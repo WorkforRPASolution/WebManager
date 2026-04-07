@@ -80,6 +80,8 @@ async function runManualBackfill(startDate, endDate, options = {}) {
         const owner = await redis.get(BACKFILL_OWNER_KEY)
         throw new Error(`Backfill already running on pod ${owner ?? 'unknown'}`)
       }
+      // M8: 진입 시 stale cancel key 정리 (이전 backfill의 잔존 신호 false-positive 방지)
+      try { await redis.del(BACKFILL_CANCEL_KEY) } catch (_) { /* ignore */ }
     } catch (err) {
       if (err.message.startsWith('Backfill already running')) throw err
       log.warn(`[Backfill] Redis owner check failed: ${err?.message || err}`)
@@ -222,12 +224,18 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
       backfillState.errors.push({ error: err?.message || String(err) })
     }
   } finally {
-    backfillPromise = null
-    // owner key 정리 — Lua compare-and-delete로 자기 소유일 때만 삭제
+    // owner key 정리를 backfillPromise null 처리 *전*에 수행 → getBackfillState race window 축소
+    // CANCEL_KEY는 의도적으로 건드리지 않음:
+    // - 자연 만료 (TTL 600s) 또는 line 160의 감지 시 del로 처리
+    // - finally에서 무조건 del하면 cross-pod에서 새로운 cancel 신호를 race로 파괴할 수 있음
     if (redis) {
-      releaseLock(redis, BACKFILL_OWNER_KEY, getPod()).catch(e => log.warn(`[Backfill] Owner key cleanup failed: ${e?.message || e}`))
-      redis.del(BACKFILL_CANCEL_KEY).catch(() => {})
+      try {
+        await releaseLock(redis, BACKFILL_OWNER_KEY, getPod())
+      } catch (e) {
+        log.warn(`[Backfill] Owner key cleanup failed: ${e?.message || e}`)
+      }
     }
+    backfillPromise = null
   }
 }
 
@@ -241,7 +249,8 @@ async function getBackfillState() {
   if (redis) {
     try {
       const owner = await redis.get(BACKFILL_OWNER_KEY)
-      if (owner) {
+      // 자기 자신이 owner인 경우는 로컬 상태 반환 (finally에서 release 직전 race window 보호)
+      if (owner && owner !== getPod()) {
         return { status: 'running_on_other_pod', ownerPod: owner }
       }
     } catch (err) {
@@ -255,6 +264,11 @@ async function cancelBackfill() {
   // 이 Pod에서 실행 중이면 로컬 취소
   if (backfillState.status === 'running') {
     backfillState.status = 'cancelled'
+    // M7: stale cancel key 정리 (다른 사용자가 이전 cancel 요청을 남겼을 수 있음)
+    const redis = getRedis()
+    if (redis) {
+      try { await redis.del(BACKFILL_CANCEL_KEY) } catch (_) { /* ignore */ }
+    }
     return
   }
   // 다른 Pod에서 실행 중이면 Redis cancel key 설정
@@ -262,7 +276,7 @@ async function cancelBackfill() {
   if (redis) {
     try {
       const owner = await redis.get(BACKFILL_OWNER_KEY)
-      if (owner) {
+      if (owner && owner !== getPod()) {
         await redis.set(BACKFILL_CANCEL_KEY, '1', 'EX', BACKFILL_OWNER_TTL)
         log.info(`[Backfill] Cancel requested for pod ${owner}`)
         return

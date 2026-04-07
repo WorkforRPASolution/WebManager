@@ -13,6 +13,9 @@ const { initializeConfigSettings } = require('./features/clients/configSettingsS
 const { initializeLogSettings } = require('./features/clients/logSettingsService')
 const { initializeUpdateSettings } = require('./features/clients/updateSettingsService')
 const { initializeRecoverySummary, startCronJobs, stopCronJobs } = require('./features/recovery/recoverySummaryService')
+const { releaseLock } = require('./shared/utils/redisLock')
+const { getRedisClient } = require('./shared/db/redisConnection')
+const { getPodId } = require('./shared/utils/podIdentity')
 
 const serverLog = createLogger('server');
 const PORT = process.env.PORT || 3000;
@@ -75,6 +78,23 @@ const startServer = async () => {
 
         // 4. Cron 중지
         stopCronJobs()
+
+        // M1: 분산 락 즉시 해제 — 다른 Pod의 다음 cron/backfill 지연 방지 (TTL 600s 대기 회피)
+        // releaseLock은 Lua compare-and-delete: 자기 소유 락만 삭제하므로 안전
+        try {
+          const redis = getRedisClient()
+          if (redis) {
+            const pod = getPodId()
+            await Promise.all([
+              releaseLock(redis, 'wm:cron:lock:hourly', pod),
+              releaseLock(redis, 'wm:cron:lock:daily', pod),
+              releaseLock(redis, 'wm:backfill:owner', pod)
+            ])
+            serverLog.info('Distributed locks released')
+          }
+        } catch (err) {
+          serverLog.warn(`Distributed lock cleanup error: ${err?.message || err}`)
+        }
 
         // 5. DB 연결 종료
         await closeConnections()

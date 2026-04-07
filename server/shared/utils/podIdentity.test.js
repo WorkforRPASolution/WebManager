@@ -8,13 +8,13 @@ describe('podIdentity', () => {
     vi.resetModules()
   })
 
-  it('POD_NAME 미설정 시 os.hostname() 반환', async () => {
+  it('POD_NAME 미설정 시 hostname + pid 조합 (개발 환경 충돌 방지)', async () => {
     delete process.env.POD_NAME
     const { getPodId } = await import('./podIdentity.js')
-    expect(getPodId()).toBe(os.hostname())
+    expect(getPodId()).toBe(`${os.hostname()}-${process.pid}`)
   })
 
-  it('POD_NAME 설정 시 우선 사용', async () => {
+  it('POD_NAME 설정 시 우선 사용 (그대로)', async () => {
     process.env.POD_NAME = 'webmanager-abc123'
     const { getPodId } = await import('./podIdentity.js')
     expect(getPodId()).toBe('webmanager-abc123')

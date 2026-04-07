@@ -734,10 +734,11 @@ describe('webManagerService', () => {
       const wmColl = createMockCollection()
       const userColl = createMockCollection()
 
-      // Admin query + nameList query
-      userColl._toArrayFn
-        .mockResolvedValueOnce([{ singleid: 'admin1' }])  // admin filter
-        .mockResolvedValueOnce([])                          // nameList
+      // M3: admin/name 통합 1회 조회 — singleid + name + authorityManager
+      userColl._toArrayFn.mockResolvedValueOnce([
+        { singleid: 'admin1', name: 'Admin', authorityManager: 1 },
+        { singleid: 'user1', name: 'User1' }
+      ])
 
       wmColl._toArrayFn.mockResolvedValueOnce([])
 
@@ -748,8 +749,8 @@ describe('webManagerService', () => {
 
       await service.getWebManagerStats({ period: '30d', noLimit: true, includeAdmin: false })
 
-      // Admin filter + nameList query
-      expect(userColl.aggregate).toHaveBeenCalledTimes(2)
+      // M3: admin filter + nameList가 1번의 통합 쿼리로 합쳐짐 (이중 쿼리 제거)
+      expect(userColl.aggregate).toHaveBeenCalledTimes(1)
       // Only 1 aggregate call for recent
       expect(wmColl.aggregate).toHaveBeenCalledTimes(1)
       const recentPipeline = wmColl.aggregate.mock.calls[0][0]

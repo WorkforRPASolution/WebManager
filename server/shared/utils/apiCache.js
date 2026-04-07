@@ -11,7 +11,8 @@ function sleep(ms) {
 
 /**
  * Deterministic cache key from prefix + filter params.
- * - Filters out null/undefined values
+ * - Filters out null/undefined values (so `{a:null}` and `{}` produce the same key)
+ * - `false`/`0`/`''` are kept as-is (so `{flag:false}` ≠ `{}`)
  * - Sorts object keys alphabetically
  * - Sorts comma-separated string values (e.g., 'B,A' → 'A,B', 'A,,B' → 'A,B')
  * - MD5 hashes the normalized JSON
@@ -33,12 +34,16 @@ function buildCacheKey(prefix, params = {}) {
   return `wm:cache:${prefix}:${hash}`
 }
 
+// 기본 lock TTL (compute가 가벼운 dashboard mget류 워크로드에 맞춤)
+// 무거운 compute(예: recovery aggregate maxTimeMS=55s)는 옵션으로 lockTtlSec 명시
+const DEFAULT_LOCK_TTL_SEC = 30
+
 /**
  * Cache-or-compute with stampede prevention (UUID-tagged owner lock + Lua release).
  *
  * - If redis is null, calls computeFn directly (graceful degradation).
  * - On cache HIT, returns parsed cached value.
- * - On cache MISS, acquires NX lock with UUID owner (EX 30s) and computes.
+ * - On cache MISS, acquires NX lock with UUID owner and computes.
  * - Non-lock-holders retry with exponential backoff (50-1600ms, 6 attempts) — total ~3s wait.
  * - After backoff exhaustion: re-check cache once, then attempt to acquire lock again before falling back to direct compute.
  * - Lock release uses Lua compare-and-delete to prevent deleting another holder's lock if our TTL expired.
@@ -49,10 +54,14 @@ function buildCacheKey(prefix, params = {}) {
  * @param {string} key - Cache key (from buildCacheKey)
  * @param {Function} computeFn - Async function to compute the result
  * @param {number} ttlSec - Cache TTL in seconds
+ * @param {Object} [options]
+ * @param {number} [options.lockTtlSec=30] - Lock TTL in seconds. Heavy compute (e.g., recovery aggregate ~55s) should pass a value > expected compute time to avoid stampede on lock expiry.
  * @returns {Promise<*>} Cached or computed result
  */
-async function getWithCache(redis, key, computeFn, ttlSec) {
+async function getWithCache(redis, key, computeFn, ttlSec, options = {}) {
   if (!redis) return computeFn()
+
+  const lockTtlSec = options.lockTtlSec ?? DEFAULT_LOCK_TTL_SEC
 
   // 1. Cache HIT check
   try {
@@ -73,9 +82,12 @@ async function getWithCache(redis, key, computeFn, ttlSec) {
   const lockOwner = crypto.randomUUID()
   let acquired = false
   try {
-    const setResult = await redis.set(lockKey, lockOwner, 'NX', 'EX', 30)
+    const setResult = await redis.set(lockKey, lockOwner, 'NX', 'EX', lockTtlSec)
     acquired = (setResult === 'OK')
-  } catch { /* lock failure → direct compute path */ }
+  } catch (err) {
+    // M11: lock 실패 가시성 — 운영자가 stampede 발생 인지 가능
+    log.warn(`Cache lock acquire error: ${err.message}`)
+  }
 
   if (!acquired) {
     // Wait for holder to finish (50→1600ms, 6 attempts ≈ 3s total)
@@ -88,7 +100,7 @@ async function getWithCache(redis, key, computeFn, ttlSec) {
     }
     // Last-chance: try acquire lock one more time before fallback
     try {
-      const setResult = await redis.set(lockKey, lockOwner, 'NX', 'EX', 30)
+      const setResult = await redis.set(lockKey, lockOwner, 'NX', 'EX', lockTtlSec)
       acquired = (setResult === 'OK')
     } catch { /* still no lock → fall through to direct compute */ }
   }
@@ -108,7 +120,12 @@ async function getWithCache(redis, key, computeFn, ttlSec) {
   } finally {
     if (acquired) {
       // Lua compare-and-delete: only delete if WE still own the lock
-      try { await redis.eval(RELEASE_LUA, 1, lockKey, lockOwner) } catch (_) { /* lock cleanup failure ignored */ }
+      try {
+        await redis.eval(RELEASE_LUA, 1, lockKey, lockOwner)
+      } catch (err) {
+        // M11: release 실패도 가시화
+        log.warn(`Cache lock release error: ${err.message}`)
+      }
     }
   }
 }
