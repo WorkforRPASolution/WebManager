@@ -103,10 +103,14 @@ function buildActiveCondition(periodStart) {
 // ── Main API ──
 
 async function getToolUsage(params = {}) {
+  // CSV export 경로 (noLimit=true)는 캐시 우회 — 대용량 raw 데이터, 단발성 요청
+  if (params.noLimit) {
+    return _getToolUsageCore(params)
+  }
   const redis = getRedis()
   const cacheKey = buildCacheKey('user-activity:tool-usage', {
     period: params.period, process: params.process, startDate: params.startDate,
-    includeAdmin: params.includeAdmin, noLimit: params.noLimit
+    includeAdmin: params.includeAdmin
   })
   return getWithCache(redis, cacheKey, () => _getToolUsageCore(params), 60)
 }

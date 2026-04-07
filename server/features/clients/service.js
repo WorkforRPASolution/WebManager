@@ -400,6 +400,7 @@ async function updateClients(clientsData, context = {}) {
 
   const updatedIdsList = []
   const previousDocsList = []
+  const bulkOps = []
 
   for (let i = 0; i < clientsData.length; i++) {
     const clientData = clientsData[i]
@@ -483,13 +484,21 @@ async function updateClients(clientsData, context = {}) {
       continue
     }
 
-    // 6. Perform update
-    const result = await Client.updateOne({ _id }, { $set: processedData })
-    if (result.modifiedCount > 0) {
-      updated++
-      updatedIdsList.push(_id)
-      previousDocsList.push(existingDoc)
-    }
+    // 6. Queue update operation (will be batched via bulkWrite)
+    bulkOps.push({
+      updateOne: {
+        filter: { _id },
+        update: { $set: processedData }
+      }
+    })
+    updatedIdsList.push(_id)
+    previousDocsList.push(existingDoc)
+  }
+
+  // Execute all updates in a single bulkWrite (N round-trips → 1)
+  if (bulkOps.length > 0) {
+    const bulkResult = await Client.bulkWrite(bulkOps, { ordered: false })
+    updated = bulkResult.modifiedCount || 0
   }
 
   // Batch fetch all updated docs for audit logging

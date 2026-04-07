@@ -218,17 +218,8 @@ async function _getAgentVersionDistributionCore(options = {}) {
   let targetClients = clients
   if (runningOnly) {
     if (!redisUp) {
-      const groupMap = {}
-      for (const c of clients) {
-        const groupKey = groupByModel ? `${c.process}\0${c.eqpModel}` : c.process
-        if (!groupMap[groupKey]) {
-          const entry = { process: c.process, agentCount: 0, versionCounts: {} }
-          if (groupByModel) entry.eqpModel = c.eqpModel
-          groupMap[groupKey] = entry
-        }
-      }
-      const data = Object.values(groupMap).sort((a, b) => a.process.localeCompare(b.process))
-      return { data, allVersions: [], details: includeDetails ? [] : undefined }
+      // Redis 미연결 상태에서 runningOnly 필터를 적용할 수 없음 → 빈 결과 명시
+      return { data: [], allVersions: [], details: includeDetails ? [] : undefined }
     }
 
     const redis = getClient()
@@ -527,17 +518,8 @@ async function _getResourceAgentVersionDistributionCore(options = {}) {
   let targetClients = clients
   if (runningOnly) {
     if (!redisUp) {
-      const groupMap = {}
-      for (const c of clients) {
-        const groupKey = groupByModel ? `${c.process}\0${c.eqpModel}` : c.process
-        if (!groupMap[groupKey]) {
-          const entry = { process: c.process, agentCount: 0, versionCounts: {} }
-          if (groupByModel) entry.eqpModel = c.eqpModel
-          groupMap[groupKey] = entry
-        }
-      }
-      const data = Object.values(groupMap).sort((a, b) => a.process.localeCompare(b.process))
-      return { data, allVersions: [], details: includeDetails ? [] : undefined }
+      // Redis 미연결 상태에서 runningOnly 필터를 적용할 수 없음 → 빈 결과 명시
+      return { data: [], allVersions: [], details: includeDetails ? [] : undefined }
     }
 
     const redis = getClient()
@@ -642,7 +624,8 @@ async function getDashboardSummary() {
   const redis = getClient()
   const cacheKey = buildCacheKey('dashboard:summary')
 
-  return getWithCache(redis, cacheKey, async () => {
+  // 캐시 가능한 부분: 실제 DB 쿼리 결과만
+  const cached = await getWithCache(redis, cacheKey, async () => {
     const ClientModel = getModel()
     const [totalClients, activeClients, processCounts] = await Promise.all([
       ClientModel.countDocuments(),
@@ -659,16 +642,20 @@ async function getDashboardSummary() {
       totalClients,
       inactiveClients,
       activeRate: totalClients > 0 ? ((activeClients / totalClients) * 100).toFixed(1) : 0,
-      // TODO: Phase 3 — Akka 서버에서 실제 데이터 조회
-      uptime: '99.9%',
-      errors: Math.floor(Math.random() * 5),
-      networkTraffic: `${(Math.random() * 100).toFixed(1)} MB/s`,
       processCounts: processCounts.map(p => ({
         process: p._id,
         count: p.count
       }))
     }
   }, 15)
+
+  // 캐시 밖: mock 값은 매 요청마다 새로 생성 (TODO: Phase 3 Akka 연동)
+  return {
+    ...cached,
+    uptime: '99.9%',
+    errors: Math.floor(Math.random() * 5),
+    networkTraffic: `${(Math.random() * 100).toFixed(1)} MB/s`
+  }
 }
 
 module.exports = {

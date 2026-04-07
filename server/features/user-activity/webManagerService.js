@@ -277,10 +277,14 @@ const PATH_NORMALIZATION_STAGE = {
 // ── Main API ──
 
 async function getWebManagerStats(params = {}) {
+  // CSV export 경로 (noLimit=true)는 캐시 우회 — 대용량 raw 데이터, 단발성 요청
+  if (params.noLimit) {
+    return _getWebManagerStatsCore(params)
+  }
   const redis = getRedis()
   const cacheKey = buildCacheKey('user-activity:webmanager-stats', {
     period: params.period, startDate: params.startDate, endDate: params.endDate,
-    includeAdmin: params.includeAdmin, noLimit: params.noLimit, recentMode: params.recentMode
+    includeAdmin: params.includeAdmin, recentMode: params.recentMode
   })
   return getWithCache(redis, cacheKey, () => _getWebManagerStatsCore(params), 60)
 }

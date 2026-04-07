@@ -11,10 +11,31 @@ const log = createLogger('db');
 
 // Connection pool sizing — Pod별 풀, 멀티 Pod 환경에서 전체 부하 예측 가능하게 함
 // 산출 근거: 운영 측정 nodejs 연결 ~20개 (EARS+WM 합산), 2~3배 헤드룸 적용
-const EARS_MAX_POOL = parseInt(process.env.EARS_MAX_POOL_SIZE || '30', 10);
-const EARS_MIN_POOL = parseInt(process.env.EARS_MIN_POOL_SIZE || '5', 10);
-const WM_MAX_POOL = parseInt(process.env.WEBMANAGER_MAX_POOL_SIZE || '15', 10);
-const WM_MIN_POOL = parseInt(process.env.WEBMANAGER_MIN_POOL_SIZE || '2', 10);
+function parsePoolSize(envName, defaultValue) {
+  const raw = process.env[envName];
+  if (raw === undefined || raw === null || raw === '') return defaultValue;
+  const parsed = parseInt(raw, 10);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    log.warn(`Invalid ${envName}=${JSON.stringify(raw)}, using default ${defaultValue}`);
+    return defaultValue;
+  }
+  return parsed;
+}
+
+let EARS_MAX_POOL = parsePoolSize('EARS_MAX_POOL_SIZE', 30);
+let EARS_MIN_POOL = parsePoolSize('EARS_MIN_POOL_SIZE', 5);
+let WM_MAX_POOL = parsePoolSize('WEBMANAGER_MAX_POOL_SIZE', 15);
+let WM_MIN_POOL = parsePoolSize('WEBMANAGER_MIN_POOL_SIZE', 2);
+
+// min > max 클램핑 (잘못된 환경변수 조합 방어)
+if (EARS_MIN_POOL > EARS_MAX_POOL) {
+  log.warn(`EARS_MIN_POOL_SIZE(${EARS_MIN_POOL}) > MAX(${EARS_MAX_POOL}), clamping min to max`);
+  EARS_MIN_POOL = EARS_MAX_POOL;
+}
+if (WM_MIN_POOL > WM_MAX_POOL) {
+  log.warn(`WEBMANAGER_MIN_POOL_SIZE(${WM_MIN_POOL}) > MAX(${WM_MAX_POOL}), clamping min to max`);
+  WM_MIN_POOL = WM_MAX_POOL;
+}
 
 // Create separate connections for each database
 const earsConnection = mongoose.createConnection();

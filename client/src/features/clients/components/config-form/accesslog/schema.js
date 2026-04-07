@@ -347,12 +347,20 @@ export function parseAccessLogInput(key, config) {
   const { baseName, purpose } = parseSourceName(key)
   const axes = decomposeLogType(config?.log_type)
 
+  // 레거시 typo 필드 마이그레이션: accces_interval → access_interval
+  // (과거 WebManager가 typo 필드명으로 저장한 경우 사용자 값 보존)
+  const normalizedConfig = config ? { ...config } : {}
+  if (normalizedConfig.accces_interval !== undefined && normalizedConfig.access_interval === undefined) {
+    normalizedConfig.access_interval = normalizedConfig.accces_interval
+  }
+  delete normalizedConfig.accces_interval
+
   return {
     name: key,
     baseName,
     purpose,
     ...ACCESS_LOG_SCHEMA.defaults,
-    ...config,
+    ...normalizedConfig,
     _originalLogType: config?.log_type || null,
     _omit_charset: !config?.charset,
     _omit_back: config?.back === undefined || config?.back === null,
