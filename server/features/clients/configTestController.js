@@ -23,7 +23,18 @@ const { formatJoda, resolveJodaTokens } = require('../../shared/utils/jodaFormat
  */
 async function testAccessLog(req, res) {
   const { id: eqpId } = req.params
-  const { directory, prefix, wildcard, suffix, exclude_suffix, date_subdir_format, agentGroup } = req.body
+  const body = req.body || {}
+  // Trim string inputs to defend against accidental trailing whitespace
+  const trimStr = (v) => (typeof v === 'string' ? v.trim() : v)
+  const directory = trimStr(body.directory)
+  const prefix = trimStr(body.prefix)
+  const wildcard = trimStr(body.wildcard)
+  const suffix = trimStr(body.suffix)
+  const date_subdir_format = trimStr(body.date_subdir_format)
+  const agentGroup = trimStr(body.agentGroup)
+  const exclude_suffix = Array.isArray(body.exclude_suffix)
+    ? body.exclude_suffix.map(s => trimStr(s)).filter(Boolean)
+    : []
 
   if (!directory) {
     return res.status(400).json({ error: '디렉토리 경로는 필수입니다' })
@@ -101,10 +112,14 @@ async function testAccessLog(req, res) {
     const allFiles = rpcResult.files || []
     const total = allFiles.length
 
+    // 처음 5개 파일명 샘플 (디버깅용 — suffix 패턴이 실제 파일과 매칭되는지 확인)
+    const sampleNames = allFiles.slice(0, 5).map(f => f.name).join(', ')
     steps.push({
       label: '디렉토리 listing',
-      passed: true,
-      detail: `총 ${total}개 파일 (경로: ${listDir})`
+      passed: total > 0,
+      detail: total > 0
+        ? `총 ${total}개 파일 (경로: ${listDir}) — 샘플: ${sampleNames}${total > 5 ? ' …' : ''}`
+        : `파일 없음 (경로: ${listDir}) — 디렉토리 경로 또는 separator를 확인하세요`
     })
 
     // 4. Validate at least one filename filter
@@ -132,7 +147,9 @@ async function testAccessLog(req, res) {
       steps.push({
         label: 'Prefix',
         passed: pool.length > 0,
-        detail: `"${resolvedPrefix}"${isResolved ? ` (원본: "${prefix}")` : ''} → ${pool.length}/${before}개 매칭`
+        detail: isResolved
+          ? `원본: "${prefix}" → 변환: "${resolvedPrefix}" → ${pool.length}/${before}개 매칭`
+          : `"${prefix}" → ${pool.length}/${before}개 매칭`
       })
     }
 
@@ -144,7 +161,9 @@ async function testAccessLog(req, res) {
       steps.push({
         label: 'Suffix',
         passed: pool.length > 0,
-        detail: `"${resolvedSuffix}"${isResolved ? ` (원본: "${suffix}")` : ''} → ${pool.length}/${before}개 매칭`
+        detail: isResolved
+          ? `원본: "${suffix}" → 변환: "${resolvedSuffix}" → ${pool.length}/${before}개 매칭`
+          : `"${suffix}" → ${pool.length}/${before}개 매칭`
       })
     }
 
@@ -156,7 +175,9 @@ async function testAccessLog(req, res) {
       steps.push({
         label: 'Wildcard',
         passed: pool.length > 0,
-        detail: `"${resolvedWildcard}"${isResolved ? ` (원본: "${wildcard}")` : ''} → ${pool.length}/${before}개 매칭`
+        detail: isResolved
+          ? `원본: "${wildcard}" → 변환: "${resolvedWildcard}" → ${pool.length}/${before}개 매칭`
+          : `"${wildcard}" → ${pool.length}/${before}개 매칭`
       })
     }
 

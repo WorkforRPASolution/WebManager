@@ -70,6 +70,36 @@ describe('resolveJodaTokens', () => {
     expect(resolveJodaTokens('')).toBe('')
     expect(resolveJodaTokens(null)).toBe(null)
   })
+
+  // 사용자 보고: suffix에 jodaTokens 있을 때 안 변환된다는 케이스 직접 검증
+  it('suffix 패턴 _yyyyMMdd.log 정상 변환', () => {
+    const now = new Date()
+    const y = now.getFullYear().toString()
+    const m = (now.getMonth() + 1).toString().padStart(2, '0')
+    const d = now.getDate().toString().padStart(2, '0')
+    expect(resolveJodaTokens('_yyyyMMdd.log')).toBe(`_${y}${m}${d}.log`)
+  })
+
+  it('suffix 패턴 .yyyyMMdd 정상 변환', () => {
+    const now = new Date()
+    const y = now.getFullYear().toString()
+    const m = (now.getMonth() + 1).toString().padStart(2, '0')
+    const d = now.getDate().toString().padStart(2, '0')
+    expect(resolveJodaTokens('.yyyyMMdd')).toBe(`.${y}${m}${d}`)
+  })
+
+  it('suffix와 prefix 변환이 동일하게 동작', () => {
+    const prefixIn = 'access_yyyyMMdd_'
+    const suffixIn = '_yyyyMMdd.log'
+    const prefixOut = resolveJodaTokens(prefixIn)
+    const suffixOut = resolveJodaTokens(suffixIn)
+    // 둘 다 yyyyMMdd 부분이 동일하게 치환되어야 함
+    const dateMatch = prefixOut.match(/\d{8}/)
+    const suffixMatch = suffixOut.match(/\d{8}/)
+    expect(dateMatch).not.toBeNull()
+    expect(suffixMatch).not.toBeNull()
+    expect(dateMatch[0]).toBe(suffixMatch[0])
+  })
 })
 
 describe('isAbsolutePath', () => {
