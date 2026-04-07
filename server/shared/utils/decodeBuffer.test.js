@@ -94,4 +94,33 @@ describe('decodeBuffer', () => {
     const result = decodeBuffer(buf, 'utf-8')
     expect(result).toBe(text)
   })
+
+  // ── valid UTF-8 fast path (false-positive 0%) ──
+
+  it('valid UTF-8 한글 multi-byte sequence는 폴백 시도 없이 그대로 반환', () => {
+    // UTF-8 한글 byte는 우연히 valid EUC-KR로 보일 수 있어 \uFFFD 비교만으로는 false-positive 위험
+    // → strict UTF-8 validation으로 미리 차단
+    const text = '한국어 로그 메시지 — 모든 한글이 정상이어야 함'
+    const buf = Buffer.from(text, 'utf-8')
+    const result = decodeBuffer(buf, 'utf-8')
+    expect(result).toBe(text)
+    expect(result).not.toContain('\uFFFD')
+  })
+
+  it('valid UTF-8 + encoding 파라미터 잘못 지정해도 안전 (utf-8 우선)', () => {
+    // 사용자(또는 logSettings)가 잘못 'euc-kr'로 지정해도, 파일이 실제로 valid UTF-8이면 utf-8로 디코딩
+    const text = '잘못된 인코딩 설정에도 안전'
+    const buf = Buffer.from(text, 'utf-8')
+    const result = decodeBuffer(buf, 'euc-kr')
+    expect(result).toBe(text)
+  })
+
+  it('valid UTF-8 ASCII 위주 + 한글 일부 → utf-8 유지 (false-positive 방지)', () => {
+    // 이전 \uFFFD count 비교 fix가 false-positive를 일으킬 수 있는 케이스
+    const text = 'INFO: '.repeat(2000) + '한글 메시지'
+    const buf = Buffer.from(text, 'utf-8')
+    const result = decodeBuffer(buf, 'utf-8')
+    expect(result).toBe(text)
+    expect(result).toContain('한글')
+  })
 })

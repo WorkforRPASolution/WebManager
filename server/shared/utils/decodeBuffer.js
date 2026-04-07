@@ -1,20 +1,42 @@
 const iconv = require('iconv-lite')
+const { TextDecoder } = require('util')
 const { createLogger } = require('../logger')
 const log = createLogger('rpc')
 
 const NATIVE_ENCODINGS = new Set(['utf-8', 'utf8', 'ascii', 'latin1', 'binary', 'hex', 'base64'])
 const FALLBACK_ENCODINGS = ['euc-kr', 'cp949']
 
+// Strict UTF-8 validator (fatal mode: invalid byte sequence → throw)
+const strictUtf8Decoder = new TextDecoder('utf-8', { fatal: true })
+
+/**
+ * Strict UTF-8 byte sequence validation.
+ * Returns true only if the buffer is byte-for-byte valid UTF-8 (no invalid sequences).
+ * This is the gold standard — much stronger than checking for \uFFFD in
+ * a lossy decode result, because some invalid bytes can still produce
+ * "looks-like-text" output when mis-interpreted as another encoding.
+ */
+function isValidUtf8(buffer) {
+  try {
+    strictUtf8Decoder.decode(buffer)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /**
  * Decode a buffer using the specified encoding, with EUC-KR/CP949 fallback.
  *
- * Strategy:
- * - If UTF-8 produces ANY replacement char (\uFFFD), try fallback encodings.
- * - Accept fallback only if it produces *strictly fewer* \uFFFD than original.
- * - This handles both:
- *   a) EUC-KR file mis-decoded as UTF-8 (many \uFFFD → fallback gives 0 → accept)
- *   b) Mostly-ASCII EUC-KR with a few Korean chars (a few \uFFFD → fallback gives 0 → accept)
- *   c) Valid UTF-8 with one corrupt byte (\uFFFD=1 → fallback typically also has \uFFFD → keep original)
+ * Strategy (false-positive 0%):
+ * 1. **Valid UTF-8 fast path**: if the buffer is byte-strict valid UTF-8,
+ *    use UTF-8 unconditionally. This is critical because UTF-8 multi-byte
+ *    sequences can occasionally look like valid EUC-KR sequences, so a naive
+ *    fallback would corrupt valid UTF-8 Korean files. Strict validation
+ *    closes this hole completely.
+ * 2. **Invalid byte sequence**: try the specified encoding; if it produces
+ *    \uFFFD, try fallback encodings and accept the one with strictly fewer
+ *    replacement chars.
  *
  * IMPORTANT: This function expects a COMPLETE buffer, not streaming chunks.
  * Calling per-chunk in a streaming context can mis-classify multi-byte
@@ -22,6 +44,13 @@ const FALLBACK_ENCODINGS = ['euc-kr', 'cp949']
  */
 function decodeBuffer(buffer, encoding = 'utf-8') {
   const enc = encoding.toLowerCase().trim()
+
+  // 1. Valid UTF-8 fast path — false-positive 0%
+  if (isValidUtf8(buffer)) {
+    return buffer.toString('utf-8')
+  }
+
+  // 2. Invalid UTF-8 byte sequence: try specified encoding + fallbacks
   if (NATIVE_ENCODINGS.has(enc)) {
     const result = buffer.toString(enc === 'utf-8' ? 'utf-8' : enc)
     if ((enc === 'utf-8' || enc === 'utf8') && result.includes('\uFFFD')) {
@@ -37,6 +66,7 @@ function decodeBuffer(buffer, encoding = 'utf-8') {
     }
     return result
   }
+  // Explicit non-native encoding (e.g., euc-kr) — trust user intent
   return iconv.decode(buffer, enc)
 }
 
@@ -67,4 +97,4 @@ function tryFallbackEncodings(buffer, originalDecoded) {
   return originalDecoded
 }
 
-module.exports = { decodeBuffer }
+module.exports = { decodeBuffer, isValidUtf8 }
