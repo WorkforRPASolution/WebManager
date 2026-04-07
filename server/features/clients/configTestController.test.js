@@ -85,3 +85,38 @@ describe('isAbsolutePath', () => {
     expect(isAbsolutePath('TestLog')).toBe(false)
   })
 })
+
+// ── jodaFormat (server-side mirror of client formatUtils.jodaSubdirFormat) ──
+describe('formatJoda', () => {
+  const { formatJoda } = require('../../shared/utils/jodaFormat')
+  const FIXED_DATE = new Date(2026, 3, 14, 15, 30, 45) // 2026-04-14 15:30:45 (local)
+
+  it('yyyy/MM/dd 포맷', () => {
+    expect(formatJoda('yyyy/MM/dd', FIXED_DATE)).toBe('2026/04/14')
+  })
+
+  it('yyyy-MM-dd 포맷 (literal -)', () => {
+    expect(formatJoda('yyyy-MM-dd', FIXED_DATE)).toBe('2026-04-14')
+  })
+
+  it('yyyyMMdd (no separator)', () => {
+    expect(formatJoda('yyyyMMdd', FIXED_DATE)).toBe('20260414')
+  })
+
+  it('quoted literal', () => {
+    expect(formatJoda("yyyy'-'MM'-'dd", FIXED_DATE)).toBe('2026-04-14')
+  })
+
+  it('HH/mm/ss 시간 토큰', () => {
+    expect(formatJoda('HH:mm:ss', FIXED_DATE)).toBe('15:30:45')
+  })
+
+  it('mm 분이 MM 월과 충돌하지 않음 (case-sensitive)', () => {
+    expect(formatJoda('yyyyMMdd_HHmmss', FIXED_DATE)).toBe('20260414_153045')
+  })
+
+  it('빈 문자열/null', () => {
+    expect(formatJoda('')).toBe('')
+    expect(formatJoda(null)).toBe('')
+  })
+})

@@ -80,9 +80,35 @@
 
         <!-- Remote Result -->
         <div v-if="remoteResult" class="space-y-2">
-          <div class="text-xs text-gray-500 dark:text-gray-400">
-            전체 {{ remoteResult.total }}개 파일 중 {{ remoteResult.matched }}개 매칭
+          <!-- Steps (로컬 결과와 동일한 형식) -->
+          <div
+            v-if="remoteResult.steps && remoteResult.steps.length > 0"
+            class="rounded-lg p-3 text-sm"
+            :class="remoteResult.matched > 0
+              ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50'
+              : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50'"
+          >
+            <div
+              class="font-medium mb-2"
+              :class="remoteResult.matched > 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'"
+            >
+              {{ remoteResult.matched > 0
+                ? `✅ 전체 ${remoteResult.total}개 중 ${remoteResult.matched}개 매칭`
+                : `❌ 매칭되는 파일이 없습니다 (전체 ${remoteResult.total}개)` }}
+            </div>
+            <div class="space-y-1">
+              <div v-for="(step, i) in remoteResult.steps" :key="i" class="flex items-start gap-1.5 text-xs">
+                <span :class="step.passed ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
+                  {{ step.passed ? '✓' : '✗' }}
+                </span>
+                <span class="text-gray-600 dark:text-gray-400">
+                  <span class="font-medium">{{ step.label }}:</span> {{ step.detail }}
+                </span>
+              </div>
+            </div>
           </div>
+
+          <!-- File list (매칭된 파일이 있을 때만) -->
           <div v-if="remoteResult.files.length > 0" class="max-h-48 overflow-y-auto border border-gray-200 dark:border-dark-border rounded-lg">
             <table class="w-full text-xs">
               <thead class="bg-gray-50 dark:bg-dark-bg sticky top-0">
@@ -102,9 +128,6 @@
                 </tr>
               </tbody>
             </table>
-          </div>
-          <div v-else class="text-xs text-gray-400 dark:text-gray-500 text-center py-2">
-            매칭되는 파일이 없습니다.
           </div>
         </div>
       </div>

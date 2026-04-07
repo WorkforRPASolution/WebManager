@@ -123,9 +123,11 @@ module.exports = {
 
   // --- List Files (configTestController.js) ---
   getListFilesCommand(directory) {
+    // Windows cmd /c dir requires backslash separators ('/' is parsed as option flag)
+    const winPath = (directory || '').replace(/\//g, '\\')
     return {
       commandLine: 'cmd',
-      args: ['/c', 'dir', '/A-D', '/B', directory],
+      args: ['/c', 'dir', '/A-D', '/B', winPath],
       timeout: 15000
     }
   },

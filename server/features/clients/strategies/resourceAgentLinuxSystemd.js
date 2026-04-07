@@ -85,9 +85,11 @@ module.exports = {
 
   // --- List Files (configTestController.js) ---
   getListFilesCommand(directory) {
+    // Linux find requires forward-slash separators (\\ is not a valid path separator)
+    const linuxPath = (directory || '').replace(/\\/g, '/')
     return {
       commandLine: 'find',
-      args: [directory, '-maxdepth', '1', '-type', 'f', '-printf', '%f\\t%s\\t%T@\\n'],
+      args: [linuxPath, '-maxdepth', '1', '-type', 'f', '-printf', '%f\\t%s\\t%T@\\n'],
       timeout: 15000
     }
   },

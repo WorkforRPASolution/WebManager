@@ -180,3 +180,35 @@ describe('resourceAgentLinuxSystemd — same interface as arsAgentLinuxSystemd',
     expect(cmd.args).toContain('/opt/logs')
   })
 })
+
+// ── Path separator normalization (사용자 보고: '/' 입력 시 동작 안 함) ──
+
+describe('Windows strategies normalize forward-slash to backslash', () => {
+  it('arsAgentWinSc: D:/Testlog → D:\\Testlog', () => {
+    const cmd = arsWinSc.getListFilesCommand('D:/Testlog')
+    expect(cmd.args).toContain('D:\\Testlog')
+    expect(cmd.args).not.toContain('D:/Testlog')
+  })
+
+  it('arsAgentWinSc: mixed separators 정규화', () => {
+    const cmd = arsWinSc.getListFilesCommand('D:/Testlog/sub/2026')
+    expect(cmd.args).toContain('D:\\Testlog\\sub\\2026')
+  })
+
+  it('resourceAgentWinSc: forward slash 정규화', () => {
+    const cmd = resWinSc.getListFilesCommand('C:/Logs/access')
+    expect(cmd.args).toContain('C:\\Logs\\access')
+  })
+})
+
+describe('Linux strategies normalize backslash to forward-slash', () => {
+  it('arsAgentLinuxSystemd: backslash → forward', () => {
+    const cmd = arsLinux.getListFilesCommand('/var/log\\ars')
+    expect(cmd.args).toContain('/var/log/ars')
+  })
+
+  it('resourceAgentLinuxSystemd: backslash → forward', () => {
+    const cmd = resLinux.getListFilesCommand('/opt\\logs')
+    expect(cmd.args).toContain('/opt/logs')
+  })
+})

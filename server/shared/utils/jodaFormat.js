@@ -1,0 +1,92 @@
+/**
+ * Joda DateTime format utilities (CommonJS, server-side)
+ *
+ * Mirrors client/src/features/clients/components/config-form/shared/formatUtils.js
+ * jodaSubdirFormat for the path-matching test feature.
+ */
+
+const TOKENS = [
+  { token: 'yyyy', fmt: (d) => String(d.getFullYear()) },
+  { token: 'MM', fmt: (d) => String(d.getMonth() + 1).padStart(2, '0') },
+  { token: 'dd', fmt: (d) => String(d.getDate()).padStart(2, '0') },
+  { token: 'HH', fmt: (d) => String(d.getHours()).padStart(2, '0') },
+  { token: 'mm', fmt: (d) => String(d.getMinutes()).padStart(2, '0') },
+  { token: 'ss', fmt: (d) => String(d.getSeconds()).padStart(2, '0') }
+]
+
+/**
+ * Format a Joda DateTime format string to a concrete value for the given date.
+ * Handles single-quote literal escaping per Joda rules:
+ *   - 'literal' → literal text
+ *   - '' inside literal → single quote
+ *   - Tokens outside quotes: yyyy, MM, dd, HH, mm, ss
+ *
+ * @param {string} format - Joda format (e.g. "'\\'yyyy'\\'MM'\\'dd")
+ * @param {Date} date - Date to format
+ * @returns {string}
+ */
+function formatJoda(format, date = new Date()) {
+  if (!format) return ''
+
+  let result = ''
+  let i = 0
+
+  while (i < format.length) {
+    // Quoted literal
+    if (format[i] === "'") {
+      i++ // skip opening quote
+      while (i < format.length) {
+        if (format[i] === "'" && i + 1 < format.length && format[i + 1] === "'") {
+          result += "'"
+          i += 2
+        } else if (format[i] === "'") {
+          i++ // skip closing quote
+          break
+        } else {
+          result += format[i]
+          i++
+        }
+      }
+      continue
+    }
+
+    // Try tokens
+    let matched = false
+    for (const t of TOKENS) {
+      if (format.substring(i, i + t.token.length) === t.token) {
+        result += t.fmt(date)
+        i += t.token.length
+        matched = true
+        break
+      }
+    }
+    if (!matched) {
+      result += format[i]
+      i++
+    }
+  }
+
+  return result
+}
+
+/**
+ * Resolve any embedded Joda tokens in a string to concrete values.
+ * Used for prefix/suffix/wildcard with date placeholders.
+ * Note: this is the same as formatJoda since tokens are simply substituted.
+ *
+ * @param {string} str
+ * @param {Date} date
+ * @returns {string}
+ */
+function resolveJodaTokens(str, date = new Date()) {
+  if (!str) return str
+  // If no tokens at all, return as-is (avoids quote-escape side effects)
+  const hasTokens = TOKENS.some(t => str.includes(t.token))
+  if (!hasTokens) return str
+  return formatJoda(str, date)
+}
+
+module.exports = {
+  formatJoda,
+  resolveJodaTokens
+}
