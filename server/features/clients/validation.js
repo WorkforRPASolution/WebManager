@@ -118,10 +118,20 @@ function validateClientData(data, existingIds = [], existingIps = [], isUpdate =
  * @returns {Object} - { valid: [], errors: [] }
  */
 /**
+ * Pick the first eqpId from a Set (for error messages).
+ * Sets keep insertion order so this is deterministic per build.
+ */
+function firstEqpIdFromSet(set) {
+  if (!set) return null
+  for (const id of set) return id
+  return null
+}
+
+/**
  * Validate batch create data
  * @param {Array} clients - Array of client data to create
- * @param {Set<string>} existingEqpIds - Set of existing eqpId values (lowercase)
- * @param {Map<string, string>} existingIpCombos - Map of "ipAddr|ipAddrL" → eqpId
+ * @param {Set<string>} existingEqpIds - Set of existing eqpId values (lowercase), may have _originals Map
+ * @param {Map<string, Set<string>>} existingIpCombos - Map of "ipAddr|ipAddrL" → Set of eqpIds (handles duplicate combos)
  * @returns {Object} - { valid: [], errors: [] }
  */
 function validateBatchCreate(clients, existingEqpIds, existingIpCombos) {
@@ -156,8 +166,10 @@ function validateBatchCreate(clients, existingEqpIds, existingIpCombos) {
 
     // Check for duplicate IP combination against existing data
     if (clientData.ipAddr && existingIpCombos.has(ipCombo)) {
-      const conflictEqpId = existingIpCombos.get(ipCombo)
-      errors.push({ rowIndex: i, field: 'ipAddr', message: `중복된 IP 조합 (${conflictEqpId})` })
+      const conflictSet = existingIpCombos.get(ipCombo)
+      const conflictEqpId = firstEqpIdFromSet(conflictSet) || 'unknown'
+      const extra = conflictSet && conflictSet.size > 1 ? ` 외 ${conflictSet.size - 1}건` : ''
+      errors.push({ rowIndex: i, field: 'ipAddr', message: `중복된 IP 조합 (${conflictEqpId}${extra})` })
       continue
     }
 
@@ -181,7 +193,7 @@ function validateBatchCreate(clients, existingEqpIds, existingIpCombos) {
  * Validate client data for update
  * @param {Object} data - Client data to update
  * @param {Set<string>} existingEqpIds - Set of other clients' eqpId values (lowercase), with _originals Map
- * @param {Map<string, string>} existingIpCombos - Map of other clients' "ipAddr|ipAddrL" → eqpId
+ * @param {Map<string, Set<string>>} existingIpCombos - Map of other clients' "ipAddr|ipAddrL" → Set of eqpIds
  * @returns {Object} - { valid: boolean, errors: Object|null }
  */
 function validateUpdate(data, existingEqpIds, existingIpCombos) {
@@ -196,8 +208,10 @@ function validateUpdate(data, existingEqpIds, existingIpCombos) {
     }
   }
   if (data.ipAddr && existingIpCombos.has(ipCombo)) {
-    const conflictEqpId = existingIpCombos.get(ipCombo)
-    errors.ipAddr = `중복된 IP 조합 (${conflictEqpId})`
+    const conflictSet = existingIpCombos.get(ipCombo)
+    const conflictEqpId = firstEqpIdFromSet(conflictSet) || 'unknown'
+    const extra = conflictSet && conflictSet.size > 1 ? ` 외 ${conflictSet.size - 1}건` : ''
+    errors.ipAddr = `중복된 IP 조합 (${conflictEqpId}${extra})`
   }
 
   if (Object.keys(errors).length > 0) {

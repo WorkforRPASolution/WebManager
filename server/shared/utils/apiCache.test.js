@@ -18,7 +18,8 @@ function createMockRedis(getResult = null) {
   return {
     get: vi.fn().mockResolvedValue(getResult),
     set: vi.fn().mockResolvedValue('OK'),
-    del: vi.fn().mockResolvedValue(1)
+    del: vi.fn().mockResolvedValue(1),
+    eval: vi.fn().mockResolvedValue(1)
   }
 }
 
@@ -48,20 +49,28 @@ describe('apiCache', () => {
 
       expect(result).toEqual(computed)
       expect(computeFn).toHaveBeenCalledOnce()
-      expect(redis.set).toHaveBeenCalledWith('wm:lock:test:key', '1', 'NX', 'EX', 10)
-      expect(redis.set).toHaveBeenCalledWith('test:key', JSON.stringify(computed), 'EX', 15)
+      // lock acquire (UUID owner, TTL 30s)
+      expect(redis.set).toHaveBeenCalledWith('wm:lock:test:key', expect.any(String), 'NX', 'EX', 30)
+      // cache write with NX (don't overwrite holder's value)
+      expect(redis.set).toHaveBeenCalledWith('test:key', JSON.stringify(computed), 'EX', 15, 'NX')
     })
 
-    it('뮤텍스 획득 성공 — lock NX → compute → SET → DEL lock', async () => {
+    it('뮤텍스 획득 성공 — lock NX → compute → SET → eval release lock', async () => {
       const redis = createMockRedis(null)
       redis.set.mockResolvedValueOnce('OK') // lock acquired
       const computeFn = vi.fn().mockResolvedValue({ ok: true })
 
       await getWithCache(redis, 'k', computeFn, 30)
 
-      expect(redis.set).toHaveBeenCalledWith('wm:lock:k', '1', 'NX', 'EX', 10)
-      expect(redis.set).toHaveBeenCalledWith('k', JSON.stringify({ ok: true }), 'EX', 30)
-      expect(redis.del).toHaveBeenCalledWith('wm:lock:k')
+      expect(redis.set).toHaveBeenCalledWith('wm:lock:k', expect.any(String), 'NX', 'EX', 30)
+      expect(redis.set).toHaveBeenCalledWith('k', JSON.stringify({ ok: true }), 'EX', 30, 'NX')
+      // Lua compare-and-delete via eval (not raw del)
+      expect(redis.eval).toHaveBeenCalledWith(
+        expect.stringContaining("redis.call('del'"),
+        1,
+        'wm:lock:k',
+        expect.any(String) // UUID owner
+      )
     })
 
     it('뮤텍스 미획득 + 백오프 재시도 성공 — 대기 후 캐시 HIT', async () => {
@@ -82,8 +91,10 @@ describe('apiCache', () => {
 
     it('뮤텍스 미획득 + 모든 재시도 실패 — fallback 직접 계산', async () => {
       const redis = createMockRedis(null)
-      redis.set.mockResolvedValueOnce(null) // lock fails
-      redis.get.mockResolvedValue(null) // all retries miss
+      redis.set
+        .mockResolvedValueOnce(null)  // initial lock fails
+        .mockResolvedValueOnce(null)  // last-chance retry also fails
+      redis.get.mockResolvedValue(null) // all backoff retries miss
 
       const computed = { fallback: true }
       const computeFn = vi.fn().mockResolvedValue(computed)
@@ -140,20 +151,20 @@ describe('apiCache', () => {
       expect(computeFn).toHaveBeenCalledOnce()
     })
 
-    it('lock NX EX 10초 설정 확인 (홀더 크래시 대비)', async () => {
+    it('lock NX EX 30초 설정 확인 (compute 시간 대응)', async () => {
       const redis = createMockRedis(null)
       redis.set.mockResolvedValueOnce('OK')
       const computeFn = vi.fn().mockResolvedValue({})
 
       await getWithCache(redis, 'k', computeFn, 15)
 
-      expect(redis.set).toHaveBeenCalledWith('wm:lock:k', '1', 'NX', 'EX', 10)
+      expect(redis.set).toHaveBeenCalledWith('wm:lock:k', expect.any(String), 'NX', 'EX', 30)
     })
 
-    it('finally DEL 에러 — 원본 computeFn 에러 마스킹되지 않음', async () => {
+    it('finally eval 에러 — 원본 computeFn 에러 마스킹되지 않음', async () => {
       const redis = createMockRedis(null)
       redis.set.mockResolvedValueOnce('OK') // lock acquired
-      redis.del.mockRejectedValueOnce(new Error('DEL failed'))
+      redis.eval.mockRejectedValueOnce(new Error('eval failed'))
       const computeFn = vi.fn().mockRejectedValue(new Error('compute failed'))
 
       await expect(getWithCache(redis, 'k', computeFn, 15)).rejects.toThrow('compute failed')

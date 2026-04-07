@@ -90,7 +90,8 @@ function getCellColor(cell) {
   const d = cell.data
   if (!d) return isDark.value ? 'bg-gray-700' : 'bg-gray-200'
 
-  // 우선순위: skip > backfill > cron
+  // 우선순위: fail > skip > backfill > cron
+  if (d.fail > 0) return 'bg-red-400 dark:bg-red-600'
   if (d.skip > 0) return 'bg-yellow-300 dark:bg-yellow-600'
   if (d.backfill > 0) return 'bg-blue-400 dark:bg-blue-600'
 
@@ -108,6 +109,7 @@ function getTooltip(cell) {
   if (!d) return `${cell.date}: 이벤트 없음`
   const parts = [`${cell.date}: 총 ${d.total}건`]
   if (d.cron) parts.push(`cron ${d.cron}`)
+  if (d.fail) parts.push(`fail ${d.fail}`)
   if (d.skip) parts.push(`skip ${d.skip}`)
   if (d.backfill) parts.push(`backfill ${d.backfill}`)
   return parts.join(' | ')
@@ -174,8 +176,9 @@ onMounted(fetchData)
         </div>
         <span>많음</span>
         <span class="mx-1">|</span>
-        <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-blue-400 dark:bg-blue-600" />backfill</div>
+        <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-red-400 dark:bg-red-600" />fail</div>
         <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-yellow-300 dark:bg-yellow-600" />skip</div>
+        <div class="flex items-center gap-1"><div class="w-2.5 h-2.5 rounded-sm bg-blue-400 dark:bg-blue-600" />backfill</div>
       </div>
 
       <p class="text-[11px] text-gray-400 mt-1">셀을 클릭하면 해당 날짜로 필터링됩니다</p>

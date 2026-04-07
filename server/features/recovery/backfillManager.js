@@ -8,12 +8,16 @@ const {
 } = require('./dateUtils')
 const { getDeps, getCronRunLog, getRedis, getPod } = require('./recoveryDeps')
 const { runPipelinesForBucket } = require('./batchRunner')
+const { releaseLock } = require('../../shared/utils/redisLock')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('recovery')
 
 const BACKFILL_OWNER_KEY = 'wm:backfill:owner'
 const BACKFILL_CANCEL_KEY = 'wm:backfill:cancel'
 const BACKFILL_OWNER_TTL = 600 // 10분, 5초마다 갱신 (aggregate maxTimeMS 55초 대응)
+
+// Lua compare-and-expire: 자기 소유 락만 TTL 갱신 (다른 Pod의 락 TTL 연장 방지)
+const EXPIRE_IF_OWNER_LUA = "if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('expire',KEYS[1],ARGV[2]) else return 0 end"
 
 // ── Manual Backfill State ──
 
@@ -156,7 +160,14 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
             await redis.del(BACKFILL_CANCEL_KEY)
             return
           }
-          await redis.expire(BACKFILL_OWNER_KEY, BACKFILL_OWNER_TTL)
+          // Lua compare-and-expire: 자기 소유일 때만 TTL 갱신
+          const extended = await redis.eval(EXPIRE_IF_OWNER_LUA, 1, BACKFILL_OWNER_KEY, getPod(), BACKFILL_OWNER_TTL)
+          if (extended === 0) {
+            // 락 잃음 (TTL 만료 → 다른 Pod이 잡음) — 즉시 중단
+            log.warn('[Backfill] Lost ownership of backfill lock, aborting')
+            backfillState.status = 'cancelled'
+            return
+          }
         } catch (err) {
           log.warn(`[Backfill] Redis refresh error: ${err?.message || err}`)
         }
@@ -212,9 +223,9 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
     }
   } finally {
     backfillPromise = null
-    // owner key 정리
+    // owner key 정리 — Lua compare-and-delete로 자기 소유일 때만 삭제
     if (redis) {
-      redis.del(BACKFILL_OWNER_KEY).catch(e => log.warn(`[Backfill] Owner key cleanup failed: ${e?.message || e}`))
+      releaseLock(redis, BACKFILL_OWNER_KEY, getPod()).catch(e => log.warn(`[Backfill] Owner key cleanup failed: ${e?.message || e}`))
       redis.del(BACKFILL_CANCEL_KEY).catch(() => {})
     }
   }

@@ -326,10 +326,16 @@ async function createClients(clientsData, context = {}) {
   await rules.executeHooks('beforeCreate', dataToValidate, context)
 
   // 4. Build uniqueness lookup structures (Set/Map for O(1) checks)
+  // existingIpCombos: Map<combo, Set<eqpId>> — IP unique 인덱스가 없으므로 같은 조합이 여러 행에 존재 가능
   const existingClients = await Client.find({}, 'eqpId ipAddr ipAddrL').lean()
   const existingEqpIds = new Set(existingClients.map(c => c.eqpId?.toLowerCase()).filter(Boolean))
   existingEqpIds._originals = new Map(existingClients.filter(c => c.eqpId).map(c => [c.eqpId.toLowerCase(), c.eqpId]))
-  const existingIpCombos = new Map(existingClients.map(c => [`${c.ipAddr || ''}|${c.ipAddrL || ''}`, c.eqpId || String(c._id)]))
+  const existingIpCombos = new Map()
+  for (const c of existingClients) {
+    const combo = `${c.ipAddr || ''}|${c.ipAddrL || ''}`
+    if (!existingIpCombos.has(combo)) existingIpCombos.set(combo, new Set())
+    existingIpCombos.get(combo).add(c.eqpId || String(c._id))
+  }
 
   // 5. Validate format and uniqueness
   const { valid, errors: validationErrors } = validateBatchCreate(dataToValidate, existingEqpIds, existingIpCombos)
@@ -382,9 +388,15 @@ async function updateClients(clientsData, context = {}) {
   const clientsById = new Map(targetDocs.map(c => [c._id.toString(), c]))
 
   // Build Set/Map for O(1) uniqueness lookups
+  // allIpCombos: Map<combo, Set<eqpId>> — 동일 IP 조합 중복 보존
   const allEqpIds = new Set(uniquenessData.map(c => c.eqpId?.toLowerCase()).filter(Boolean))
   allEqpIds._originals = new Map(uniquenessData.filter(c => c.eqpId).map(c => [c.eqpId.toLowerCase(), c.eqpId]))
-  const allIpCombos = new Map(uniquenessData.map(c => [`${c.ipAddr || ''}|${c.ipAddrL || ''}`, c.eqpId || String(c._id)]))
+  const allIpCombos = new Map()
+  for (const c of uniquenessData) {
+    const combo = `${c.ipAddr || ''}|${c.ipAddrL || ''}`
+    if (!allIpCombos.has(combo)) allIpCombos.set(combo, new Set())
+    allIpCombos.get(combo).add(c.eqpId || String(c._id))
+  }
 
   const updatedIdsList = []
   const previousDocsList = []
@@ -426,19 +438,43 @@ async function updateClients(clientsData, context = {}) {
       previousData: existingDoc
     })
 
-    // 4. Exclude self from uniqueness sets for per-item validation
+    // 4. Temporarily remove self from uniqueness structures for per-item validation
+    // (in-place 변경 후 finally에서 복원 — 매 iteration 클론 회피로 메모리 절감)
     const selfEqpIdLower = existingDoc.eqpId?.toLowerCase()
+    const selfEqpIdOriginal = existingDoc.eqpId
     const selfIpCombo = `${existingDoc.ipAddr || ''}|${existingDoc.ipAddrL || ''}`
+    const selfIpComboKey = existingDoc.eqpId || String(existingDoc._id)
 
-    const otherEqpIds = new Set(allEqpIds)
-    if (selfEqpIdLower) otherEqpIds.delete(selfEqpIdLower)
-    otherEqpIds._originals = allEqpIds._originals
+    let removedEqpId = false
+    if (selfEqpIdLower && allEqpIds.has(selfEqpIdLower)) {
+      allEqpIds.delete(selfEqpIdLower)
+      removedEqpId = true
+    }
 
-    const otherIpCombos = new Map(allIpCombos)
-    otherIpCombos.delete(selfIpCombo)
+    let removedFromIpSet = false
+    let ipSetBecameEmpty = false
+    const ipConflictSet = allIpCombos.get(selfIpCombo)
+    if (ipConflictSet && ipConflictSet.has(selfIpComboKey)) {
+      ipConflictSet.delete(selfIpComboKey)
+      removedFromIpSet = true
+      if (ipConflictSet.size === 0) {
+        allIpCombos.delete(selfIpCombo)
+        ipSetBecameEmpty = true
+      }
+    }
 
-    // 5. Validate format and uniqueness
-    const validation = validateUpdate(processedData, otherEqpIds, otherIpCombos)
+    let validation
+    try {
+      // 5. Validate format and uniqueness
+      validation = validateUpdate(processedData, allEqpIds, allIpCombos)
+    } finally {
+      // Restore self into structures for next iteration
+      if (removedEqpId) allEqpIds.add(selfEqpIdLower)
+      if (removedFromIpSet) {
+        if (ipSetBecameEmpty) allIpCombos.set(selfIpCombo, new Set())
+        allIpCombos.get(selfIpCombo).add(selfIpComboKey)
+      }
+    }
 
     if (!validation.valid) {
       for (const [field, message] of Object.entries(validation.errors)) {

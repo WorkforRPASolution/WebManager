@@ -76,6 +76,7 @@ async function queryBatchHeatmap(days) {
     total: row.total,
     cron: row.actions.cron_completed || 0,
     skip: row.actions.cron_skipped || 0,
+    fail: row.actions.cron_failed || 0,
     backfill: Object.entries(row.actions).filter(([k]) => BACKFILL_ACTIONS.has(k)).reduce((sum, [, v]) => sum + v, 0)
   }))
 }
