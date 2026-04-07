@@ -9,6 +9,7 @@ const path = require('path')
 const { Readable } = require('stream')
 const { createBufferCollector } = require('../../shared/utils/streamCollector')
 const { isFtpNotFoundError } = require('../../shared/utils/ftpErrors')
+const { decodeBuffer } = require('../../shared/utils/decodeBuffer')
 
 const DEFAULT_MAX_BACKUPS = 5
 
@@ -96,7 +97,8 @@ async function backupConfigFile(ftpClient, configPath, maxBackups = DEFAULT_MAX_
   try {
     const collector = createBufferCollector()
     await ftpClient.downloadTo(collector.writable, configPath)
-    currentContent = collector.toString()
+    // EUC-KR/CP949 자동 폴백 (한글 깨짐 방지)
+    currentContent = decodeBuffer(collector.toBuffer(), 'utf-8')
   } catch (err) {
     // File doesn't exist yet — nothing to backup
     if (isFtpNotFoundError(err)) {
@@ -182,7 +184,8 @@ async function readBackup(ftpClient, configPath, backupName) {
   const backupPath = path.posix.join(backupDir, backupName)
   const collector = createBufferCollector()
   await ftpClient.downloadTo(collector.writable, backupPath)
-  return collector.toString()
+  // EUC-KR/CP949 자동 폴백 (한글 깨짐 방지)
+  return decodeBuffer(collector.toBuffer(), 'utf-8')
 }
 
 /**

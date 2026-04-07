@@ -126,7 +126,8 @@ async function readConfigFile(eqpId, remotePath) {
   return withFtp(eqpId, async (ftpClient) => {
     const collector = createBufferCollector()
     await ftpClient.downloadTo(collector.writable, remotePath)
-    return collector.toString()
+    // EUC-KR/CP949 자동 폴백 (한글 깨짐 방지)
+    return decodeBuffer(collector.toBuffer(), 'utf-8')
   })
 }
 
@@ -144,7 +145,8 @@ async function readAllConfigs(eqpId, agentGroup) {
       try {
         const collector = createBufferCollector()
         await ftpClient.downloadTo(collector.writable, config.path)
-        const content = collector.toString()
+        // EUC-KR/CP949 자동 폴백 (한글 깨짐 방지)
+        const content = decodeBuffer(collector.toBuffer(), 'utf-8')
 
         results.push({
           fileId: config.fileId,
@@ -240,7 +242,8 @@ async function deployConfigSelective(sourceConfig, selectedKeys, targetEqpIds, r
       // Read target's current config via shared connection
       const collector = createBufferCollector()
       await ftpClient.downloadTo(collector.writable, remotePath)
-      const currentContent = collector.toString()
+      // EUC-KR/CP949 자동 폴백 (한글 깨짐 방지)
+      const currentContent = decodeBuffer(collector.toBuffer(), 'utf-8')
       const currentConfig = JSON.parse(currentContent)
 
       // Merge selected keys from source into target

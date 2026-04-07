@@ -5,13 +5,16 @@ const log = createLogger('rpc')
 const NATIVE_ENCODINGS = new Set(['utf-8', 'utf8', 'ascii', 'latin1', 'binary', 'hex', 'base64'])
 const FALLBACK_ENCODINGS = ['euc-kr', 'cp949']
 
-// 폴백 임계치: UTF-8 decode 결과에 replacement char가 이 비율 이상이면 EUC-KR 폴백 시도
-// 1개라도 깨지면 폴백하는 기존 방식은 false-positive (정상 UTF-8 파일에 우연히 1바이트 깨진 경우 전체가 EUC-KR로 오해석) 위험
-const FALLBACK_THRESHOLD = 0.01 // 1%
-
 /**
- * Decode a buffer using the specified encoding, with EUC-KR/CP949 fallback
- * for UTF-8 decoding that produces replacement characters above threshold.
+ * Decode a buffer using the specified encoding, with EUC-KR/CP949 fallback.
+ *
+ * Strategy:
+ * - If UTF-8 produces ANY replacement char (\uFFFD), try fallback encodings.
+ * - Accept fallback only if it produces *strictly fewer* \uFFFD than original.
+ * - This handles both:
+ *   a) EUC-KR file mis-decoded as UTF-8 (many \uFFFD → fallback gives 0 → accept)
+ *   b) Mostly-ASCII EUC-KR with a few Korean chars (a few \uFFFD → fallback gives 0 → accept)
+ *   c) Valid UTF-8 with one corrupt byte (\uFFFD=1 → fallback typically also has \uFFFD → keep original)
  *
  * IMPORTANT: This function expects a COMPLETE buffer, not streaming chunks.
  * Calling per-chunk in a streaming context can mis-classify multi-byte
@@ -21,7 +24,7 @@ function decodeBuffer(buffer, encoding = 'utf-8') {
   const enc = encoding.toLowerCase().trim()
   if (NATIVE_ENCODINGS.has(enc)) {
     const result = buffer.toString(enc === 'utf-8' ? 'utf-8' : enc)
-    if ((enc === 'utf-8' || enc === 'utf8') && shouldFallback(result)) {
+    if ((enc === 'utf-8' || enc === 'utf8') && result.includes('\uFFFD')) {
       return tryFallbackEncodings(buffer, result)
     }
     return result
@@ -29,7 +32,7 @@ function decodeBuffer(buffer, encoding = 'utf-8') {
   if (!iconv.encodingExists(enc)) {
     log.warn(`Unknown encoding "${enc}", falling back to utf-8`)
     const result = buffer.toString('utf-8')
-    if (shouldFallback(result)) {
+    if (result.includes('\uFFFD')) {
       return tryFallbackEncodings(buffer, result)
     }
     return result
@@ -37,28 +40,30 @@ function decodeBuffer(buffer, encoding = 'utf-8') {
   return iconv.decode(buffer, enc)
 }
 
-/**
- * 폴백 여부 결정: replacement char (\uFFFD) 비율이 임계치 이상이면 true
- */
-function shouldFallback(decoded) {
-  if (!decoded.includes('\uFFFD')) return false
-  if (decoded.length === 0) return false
+function countReplacementChars(s) {
   let count = 0
-  for (let i = 0; i < decoded.length; i++) {
-    if (decoded.charCodeAt(i) === 0xFFFD) count++
+  for (let i = 0; i < s.length; i++) {
+    if (s.charCodeAt(i) === 0xFFFD) count++
   }
-  return (count / decoded.length) >= FALLBACK_THRESHOLD
+  return count
 }
 
+/**
+ * 폴백 시도: \uFFFD 개수가 strictly less한 결과를 채택.
+ * 모든 폴백이 원본보다 같거나 더 많은 \uFFFD를 가지면 원본 유지.
+ */
 function tryFallbackEncodings(buffer, originalDecoded) {
+  const originalCount = countReplacementChars(originalDecoded)
+
   for (const fallback of FALLBACK_ENCODINGS) {
     const decoded = iconv.decode(buffer, fallback)
-    if (!decoded.includes('\uFFFD')) {
-      log.info(`UTF-8 decoding had replacement chars (>${FALLBACK_THRESHOLD * 100}%), auto-detected as ${fallback}`)
+    const count = countReplacementChars(decoded)
+    if (count < originalCount) {
+      log.info(`Auto-detected encoding: ${fallback} (replacement chars: ${originalCount} → ${count})`)
       return decoded
     }
   }
-  // 모든 폴백 실패 — 원본 UTF-8 결과 유지 (replacement chars 표시)
+  // 모든 폴백이 원본보다 나쁘거나 같음 → 원본 유지 (false-positive 방지)
   return originalDecoded
 }
 

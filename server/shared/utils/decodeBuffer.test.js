@@ -65,4 +65,33 @@ describe('decodeBuffer', () => {
     expect(result).toContain('자기소개')
     expect(result).not.toContain('\uFFFD')
   })
+
+  // ── 회귀 케이스 (1% threshold 회귀) ──
+
+  it('대용량 ASCII + 일부 EUC-KR 한글 (한글 비율 < 1%)도 복원된다', () => {
+    // 깨짐 비율 < 1% 시나리오: 이전 1% threshold에서는 폴백 안 되어 회귀했음
+    const ascii = 'INFO: '.repeat(2000) // ~12000 chars
+    const mixed = ascii + '한글' // EUC-KR로 인코딩 시 한글 부분만 multi-byte
+    const buf = iconv.encode(mixed, 'euc-kr')
+    const result = decodeBuffer(buf, 'utf-8')
+    expect(result).toContain('한글')
+    expect(result).not.toContain('\uFFFD')
+  })
+
+  it('정상 UTF-8 + 1바이트 깨짐: 폴백이 더 나쁘면 원본 유지 (false-positive 방지)', () => {
+    // 정상 UTF-8 텍스트에 invalid byte 1개 삽입
+    const utf8 = Buffer.from('hello world line one\nhello world line two', 'utf-8')
+    const corrupt = Buffer.concat([utf8, Buffer.from([0xC0]), Buffer.from('\nmore', 'utf-8')])
+    // EUC-KR/CP949로 디코딩해도 더 좋아질 가능성 낮음 → 원본 유지
+    const result = decodeBuffer(corrupt, 'utf-8')
+    expect(result).toContain('hello world')
+    expect(result).toContain('more')
+  })
+
+  it('UTF-8 100% 정상 → 폴백 시도조차 안 함', () => {
+    const text = '정상 UTF-8 한글 텍스트입니다'
+    const buf = Buffer.from(text, 'utf-8')
+    const result = decodeBuffer(buf, 'utf-8')
+    expect(result).toBe(text)
+  })
 })
