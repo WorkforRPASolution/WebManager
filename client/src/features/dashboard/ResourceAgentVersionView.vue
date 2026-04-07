@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { clientsApi, dashboardApi } from '../../shared/api'
 import { useProcessFilterStore } from '../../shared/stores/processFilter'
 import { useProcessPermission } from '../../shared/composables/useProcessPermission'
+import { useToast } from '../../shared/composables/useToast'
 import AgentMonitorFilterBar from './components/AgentMonitorFilterBar.vue'
 import VersionDonutChart from './components/VersionDonutChart.vue'
 import VersionBarChart from './components/VersionBarChart.vue'
@@ -11,11 +12,12 @@ import { exportResourceAgentVersionCsv, exportResourceAgentVersionDetailCsv } fr
 
 const processFilterStore = useProcessFilterStore()
 const { buildUserProcessFilter } = useProcessPermission()
+const { showError } = useToast()
 
 const data = ref([])
-const details = ref([])
 const allVersions = ref([])
 const loading = ref(false)
+const csvExporting = ref(false)
 const redisAvailable = ref(true)
 const groupByModel = ref(false)
 const runningOnly = ref(false)
@@ -81,14 +83,12 @@ async function fetchData(params = {}) {
 
     const res = await dashboardApi.getResourceAgentVersionDistribution(queryParams)
     data.value = res.data.data || []
-    details.value = res.data.details || []
     allVersions.value = res.data.allVersions || []
     redisAvailable.value = res.data.redisAvailable
     groupByModel.value = !!params.groupByModel
   } catch (err) {
     console.error('Failed to fetch resource agent version distribution:', err)
     data.value = []
-    details.value = []
     allVersions.value = []
   } finally {
     loading.value = false
@@ -112,12 +112,30 @@ function handleRunningOnlyToggle() {
   fetchData(lastSearchParams)
 }
 
-function handleCsvExport(type) {
+async function handleCsvExport(type) {
   csvMenuOpen.value = false
   if (type === 'summary') {
     exportResourceAgentVersionCsv(sortedData.value, allVersions.value, groupByModel.value)
   } else {
-    exportResourceAgentVersionDetailCsv(details.value)
+    csvExporting.value = true
+    try {
+      const queryParams = {}
+      if (lastSearchParams.process) queryParams.process = lastSearchParams.process
+      else {
+        const userProcesses = buildUserProcessFilter()
+        if (userProcesses) queryParams.process = userProcesses.join(',')
+      }
+      if (lastSearchParams.groupByModel) queryParams.groupByModel = 'true'
+      if (lastSearchParams.eqpModel) queryParams.eqpModel = lastSearchParams.eqpModel
+      if (runningOnly.value) queryParams.runningOnly = 'true'
+      queryParams.includeDetails = 'true'
+      const res = await dashboardApi.getResourceAgentVersionDistribution(queryParams)
+      exportResourceAgentVersionDetailCsv(res.data.details || [])
+    } catch (err) {
+      showError('CSV 내보내기에 실패했습니다')
+    } finally {
+      csvExporting.value = false
+    }
   }
 }
 
@@ -230,9 +248,10 @@ onUnmounted(() => {
             </button>
             <button
               @click="handleCsvExport('detail')"
-              class="w-full px-4 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border rounded-b-lg"
+              :disabled="csvExporting"
+              class="w-full px-4 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border rounded-b-lg disabled:opacity-50 disabled:cursor-wait"
             >
-              상세
+              {{ csvExporting ? '내보내는 중...' : '상세' }}
             </button>
           </div>
         </div>

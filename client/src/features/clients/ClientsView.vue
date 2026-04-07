@@ -161,10 +161,10 @@ const handleSelectionChange = (ids) => {
   setSelectedIds(ids)
 }
 
-// Row click handler - navigate to detail page
-const handleRowClick = (client) => {
-  router.push(`/clients/${client.eqpId || client.id}`)
-}
+// TODO: Client Detail 페이지 구현 후 활성화
+// const handleRowClick = (client) => {
+//   router.push(`/clients/${client.eqpId || client.id}`)
+// }
 
 // Page change handler
 const handlePageChange = async (page) => {
@@ -539,7 +539,6 @@ const handleExportColumnWidths = () => {
         :row-data="clientsWithStatus"
         :loading="loading"
         @selection-change="handleSelectionChange"
-        @row-click="handleRowClick"
         class="h-full bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border"
       />
     </div>

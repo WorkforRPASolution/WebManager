@@ -18,6 +18,8 @@
           @keydown.enter.prevent="commitEdit"
           @keydown.escape.prevent="cancelEdit"
           @blur="commitEdit"
+          @click.stop
+          @mousedown.stop
         />
         <!-- Display mode -->
         <span

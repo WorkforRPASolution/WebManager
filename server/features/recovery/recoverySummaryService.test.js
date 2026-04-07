@@ -654,7 +654,7 @@ describe('recoverySummaryService', () => {
         sleep: vi.fn().mockResolvedValue(undefined)
       })
 
-      expect(getBackfillState().status).toBe('idle')
+      expect((await getBackfillState()).status).toBe('idle')
 
       await runManualBackfill(
         new Date('2026-03-15T00:00:00.000Z'),
@@ -665,7 +665,7 @@ describe('recoverySummaryService', () => {
       // Wait for background processing
       await _getBackfillPromise()
 
-      const state = getBackfillState()
+      const state = await getBackfillState()
       expect(state.status).toBe('completed')
       expect(state.total).toBe(3) // 3 hourly buckets
     })
@@ -697,7 +697,7 @@ describe('recoverySummaryService', () => {
 
       await _getBackfillPromise()
 
-      const state = getBackfillState()
+      const state = await getBackfillState()
       expect(state.skipped).toBe(1)
       // 2 actually processed via pipeline (3 total - 1 skipped)
       expect(mockCronRunLog.findOneAndUpdate).toHaveBeenCalledTimes(2)
@@ -712,7 +712,7 @@ describe('recoverySummaryService', () => {
         callCount++
         if (callCount === 1) {
           // Cancel after first bucket processing
-          cancelBackfill()
+          await cancelBackfill()
         }
       })
 
@@ -731,7 +731,7 @@ describe('recoverySummaryService', () => {
 
       await _getBackfillPromise()
 
-      const state = getBackfillState()
+      const state = await getBackfillState()
       expect(state.status).toBe('cancelled')
       // Should have processed fewer than 5 buckets
       expect(mockCronRunLog.findOneAndUpdate.mock.calls.length).toBeLessThan(5)
@@ -770,7 +770,7 @@ describe('recoverySummaryService', () => {
 
       await _getBackfillPromise()
 
-      const state = getBackfillState()
+      const state = await getBackfillState()
       expect(state.status).toBe('completed')
       // All 3 buckets processed (even the failed one)
       expect(mockCronRunLog.findOneAndUpdate).toHaveBeenCalledTimes(3)
@@ -807,7 +807,7 @@ describe('recoverySummaryService', () => {
       await runManualBackfill(start, end, { skipDaily: true, throttleMs: 0 })
       await _getBackfillPromise()
 
-      const state = getBackfillState()
+      const state = await getBackfillState()
       expect(state.errors.length).toBeLessThanOrEqual(100)
     })
 
@@ -837,7 +837,7 @@ describe('recoverySummaryService', () => {
       )).rejects.toThrow('Backfill already in progress')
 
       // Clean up
-      cancelBackfill()
+      await cancelBackfill()
       await _getBackfillPromise()
     })
 
@@ -883,7 +883,7 @@ describe('recoverySummaryService', () => {
 
       await _getBackfillPromise()
 
-      const state = getBackfillState()
+      const state = await getBackfillState()
       expect(state.status).toBe('completed')
       expect(state.total).toBe(3)
       expect(state.skipped).toBe(2)
@@ -1307,7 +1307,7 @@ describe('recoverySummaryService', () => {
         )
         await _getBackfillPromise()
 
-        const state = getBackfillState()
+        const state = await getBackfillState()
         expect(state.skipped).toBe(2)  // 00:00 and 01:00 skipped
         // Only 02:00 and 03:00 processed
         expect(mockCronRunLog.findOneAndUpdate).toHaveBeenCalledTimes(2)
@@ -1780,7 +1780,7 @@ describe('recoverySummaryService', () => {
         await runManualBackfill(base, new Date(base.getTime() + 5 * hour), { skipDaily: true, throttleMs: 0 })
         await _getBackfillPromise()
 
-        const state = getBackfillState()
+        const state = await getBackfillState()
         expect(state.skipped).toBe(3)  // 3개 skip
         expect(state.total).toBe(5)    // 총 5개
 
@@ -1835,7 +1835,7 @@ describe('recoverySummaryService', () => {
         await runManualBackfill(base, new Date(base.getTime() + 3 * hour), { skipDaily: true, throttleMs: 0 })
         await _getBackfillPromise()
 
-        const state = getBackfillState()
+        const state = await getBackfillState()
         // b0 = success → skipped
         // b1 = failed → NOT in completed set → processed
         // b2 = missing → processed

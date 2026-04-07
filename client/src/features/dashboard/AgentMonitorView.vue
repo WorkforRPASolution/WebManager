@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { clientsApi, dashboardApi } from '../../shared/api'
 import { useProcessFilterStore } from '../../shared/stores/processFilter'
 import { useProcessPermission } from '../../shared/composables/useProcessPermission'
+import { useToast } from '../../shared/composables/useToast'
 import AgentMonitorFilterBar from './components/AgentMonitorFilterBar.vue'
 import AgentStatusDonutChart from './components/AgentStatusDonutChart.vue'
 import AgentStatusBarChart from './components/AgentStatusBarChart.vue'
@@ -11,10 +12,11 @@ import { exportMonitorCsv, exportMonitorDetailCsv } from './utils/csvExport'
 
 const processFilterStore = useProcessFilterStore()
 const { buildUserProcessFilter } = useProcessPermission()
+const { showError } = useToast()
 
 const data = ref([])
-const details = ref([])
 const loading = ref(false)
+const csvExporting = ref(false)
 const redisAvailable = ref(true)
 const groupByModel = ref(false)
 const csvMenuOpen = ref(false)
@@ -83,7 +85,6 @@ async function fetchData(params = {}) {
 
     const res = await dashboardApi.getAgentStatus(queryParams)
     data.value = res.data.data || []
-    details.value = res.data.details || []
     redisAvailable.value = res.data.redisAvailable
     groupByModel.value = !!params.groupByModel
 
@@ -93,7 +94,6 @@ async function fetchData(params = {}) {
   } catch (err) {
     console.error('Failed to fetch agent status:', err)
     data.value = []
-    details.value = []
   } finally {
     loading.value = false
   }
@@ -105,16 +105,36 @@ function handleProcessChange(processes) {
   loadModels(param)
 }
 
+let lastSearchParams = {}
+
 function handleSearch(params) {
+  lastSearchParams = params
   fetchData(params)
 }
 
-function handleCsvExport(type) {
+async function handleCsvExport(type) {
   csvMenuOpen.value = false
   if (type === 'summary') {
     exportMonitorCsv(sortedData.value, groupByModel.value)
   } else {
-    exportMonitorDetailCsv(details.value)
+    csvExporting.value = true
+    try {
+      const queryParams = {}
+      if (lastSearchParams.process) queryParams.process = lastSearchParams.process
+      else {
+        const userProcesses = buildUserProcessFilter()
+        if (userProcesses) queryParams.process = userProcesses.join(',')
+      }
+      if (lastSearchParams.groupByModel) queryParams.groupByModel = 'true'
+      if (lastSearchParams.eqpModel) queryParams.eqpModel = lastSearchParams.eqpModel
+      queryParams.includeDetails = 'true'
+      const res = await dashboardApi.getAgentStatus(queryParams)
+      exportMonitorDetailCsv(res.data.details || [])
+    } catch (err) {
+      showError('CSV 내보내기에 실패했습니다')
+    } finally {
+      csvExporting.value = false
+    }
   }
 }
 
@@ -209,9 +229,10 @@ onUnmounted(() => {
             </button>
             <button
               @click="handleCsvExport('detail')"
-              class="w-full px-4 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border rounded-b-lg"
+              :disabled="csvExporting"
+              class="w-full px-4 py-2 text-sm text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border rounded-b-lg disabled:opacity-50 disabled:cursor-wait"
             >
-              상세
+              {{ csvExporting ? '내보내는 중...' : '상세' }}
             </button>
           </div>
         </div>

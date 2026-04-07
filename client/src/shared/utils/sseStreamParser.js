@@ -25,6 +25,7 @@ export async function fetchSSEStream(url, body, { onMessage, onDone, signal } = 
 
   const response = await fetch(fullUrl, {
     method: 'POST',
+    credentials: 'include', // sticky session 쿠키 전송 (멀티 Pod Ingress 대비)
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {})

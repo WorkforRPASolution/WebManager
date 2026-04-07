@@ -1,4 +1,5 @@
 const express = require('express');
+const compression = require('compression');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
@@ -33,6 +34,14 @@ app.use(httpLogger);
 
 // Body parser
 app.use(express.json({ limit: '10mb' }));
+
+// Response compression (SSE excluded via filter)
+app.use(compression({
+  filter: (req, res) => {
+    if (res.getHeader('Content-Type')?.includes('text/event-stream')) return false;
+    return compression.filter(req, res);
+  }
+}));
 
 // Routes
 const { asyncHandler } = require('./shared/middleware/errorHandler');

@@ -1,5 +1,6 @@
 const { earsConnection, webManagerConnection } = require('../db/connection')
 const { isRedisAvailable, getRedisClient, isEqpRedisAvailable, getEqpRedisClient } = require('../db/redisConnection')
+const { getPodId } = require('./podIdentity')
 const { createLogger } = require('../logger')
 const log = createLogger('eqp-redis')
 
@@ -71,6 +72,7 @@ async function getHealthStatus() {
 
   return {
     status,
+    podId: getPodId(),
     timestamp: new Date().toISOString(),
     components: { mongodb, redis_db0, redis_db10_eqp }
   }

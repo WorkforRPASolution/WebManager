@@ -3,6 +3,8 @@
  */
 
 const { earsConnection } = require('../../shared/db/connection')
+const { getRedisClient, isRedisAvailable } = require('../../shared/db/redisConnection')
+const { getPodId } = require('../../shared/utils/podIdentity')
 const CronRunLogModel = require('./cronRunLogModel')
 const { createBatchLog } = require('../../shared/models/webmanagerLogModel')
 
@@ -17,7 +19,10 @@ let deps = {
   settlingHours: SETTLING_HOURS,
   autoBackfillLimit: AUTO_BACKFILL_LIMIT,
   defaultThrottleMs: DEFAULT_THROTTLE_MS,
-  sleep: (ms) => new Promise(resolve => setTimeout(resolve, ms))
+  sleep: (ms) => new Promise(resolve => setTimeout(resolve, ms)),
+  getRedisClient,
+  isRedisAvailable,
+  getPodId
 }
 
 function _setDeps(overrides) {
@@ -27,5 +32,8 @@ function _setDeps(overrides) {
 function getDeps() { return deps }
 function getEarsDb() { return deps.earsDb || earsConnection.db }
 function getCronRunLog() { return deps.CronRunLog }
+function getRedis() { return deps.getRedisClient ? deps.getRedisClient() : null }
+function isRedisUp() { return deps.isRedisAvailable ? deps.isRedisAvailable() : false }
+function getPod() { return deps.getPodId ? deps.getPodId() : 'unknown' }
 
-module.exports = { _setDeps, getDeps, getEarsDb, getCronRunLog }
+module.exports = { _setDeps, getDeps, getEarsDb, getCronRunLog, getRedis, isRedisUp, getPod }

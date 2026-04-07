@@ -47,6 +47,8 @@ const clientSchema = new Schema({
 clientSchema.index({ process: 1 });
 clientSchema.index({ process: 1, eqpModel: 1 });
 clientSchema.index({ eqpId: 1 }, { unique: true });
+clientSchema.index({ onoff: 1 });
+clientSchema.index({ ipAddr: 1, ipAddrL: 1 });
 
 const Client = earsConnection.model('Client', clientSchema);
 

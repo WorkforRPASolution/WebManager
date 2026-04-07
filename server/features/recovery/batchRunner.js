@@ -10,7 +10,8 @@ const {
   generateExpectedBuckets,
   floorToKSTBucket
 } = require('./dateUtils')
-const { getDeps, getEarsDb, getCronRunLog } = require('./recoveryDeps')
+const { getDeps, getEarsDb, getCronRunLog, getRedis, getPod } = require('./recoveryDeps')
+const { tryAcquireLock, releaseLock } = require('../../shared/utils/redisLock')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('recovery')
 
@@ -156,6 +157,7 @@ async function runBatch(period) {
   const deps = getDeps()
   const indexManager = require('./indexManager')
 
+  // 1. Index 확인
   if (!indexManager.isIndexReady()) {
     const rechecked = await indexManager.checkEarIndexes()
     if (!rechecked) {
@@ -163,24 +165,46 @@ async function runBatch(period) {
       deps.createBatchLog({
         batchAction: 'cron_skipped',
         batchPeriod: period,
-        batchParams: { period, reason: 'indexNotReady' }
-      }).catch(e => log.error(`[BatchLog] cron_skipped log failed: ${e.message}`))
+        batchParams: { period, reason: 'indexNotReady' },
+        podId: getPod()
+      }).catch(e => log.error(`[BatchLog] cron_skipped log failed: ${e?.message || e}`))
       return
     }
     log.info(`[RecoverySummary] create_date index now available — resuming ${period} batch`)
   }
 
+  // 2. 분산 락 시도 (멀티 Pod 중복 실행 방지)
+  const redis = getRedis()
+  const pod = getPod()
+  const lockKey = `wm:cron:lock:${period}`
+  const lockResult = await tryAcquireLock(redis, lockKey, pod, 600)
+
+  if (lockResult === false) {
+    log.info(`[CronLock] ${period} lock held by another pod — skipping`)
+    deps.createBatchLog({
+      batchAction: 'cron_skipped',
+      batchPeriod: period,
+      batchParams: { period, reason: 'distributedLock' },
+      podId: pod
+    }).catch(e => log.error(`[BatchLog] cron_skipped log failed: ${e?.message || e}`))
+    return
+  }
+
+  // 3. 인메모리 가드 (Redis 미사용 폴백 + 이중 안전)
   if (isRunning) {
     log.info(`[RecoverySummary] Skipping ${period} batch — previous run still in progress`)
     deps.createBatchLog({
       batchAction: 'cron_skipped',
       batchPeriod: period,
-      batchParams: { period, reason: 'isRunning' }
-    }).catch(e => log.error(`[BatchLog] cron_skipped log failed: ${e.message}`))
+      batchParams: { period, reason: 'isRunning' },
+      podId: pod
+    }).catch(e => log.error(`[BatchLog] cron_skipped log failed: ${e?.message || e}`))
+    await releaseLock(redis, lockKey, pod)
     return
   }
 
   isRunning = true
+  let result = null
 
   try {
     const now = new Date()
@@ -192,7 +216,7 @@ async function runBatch(period) {
 
     log.info(`[RecoverySummary] Starting ${period} batch: ${dateGte} ~ ${dateLt}`)
 
-    const result = await runPipelinesForBucket(period, bucketStart, dateGte, dateLt, { source: 'cron' })
+    result = await runPipelinesForBucket(period, bucketStart, dateGte, dateLt, { source: 'cron' })
 
     log.info(`[RecoverySummary] ${period} batch completed: ${result.status}`)
 
@@ -200,22 +224,26 @@ async function runBatch(period) {
       batchAction: 'cron_completed',
       batchPeriod: period,
       batchParams: { period, bucket: bucketStart.toISOString() },
-      batchResult: { status: result.status, pipelineResults: result.pipelineResults }
-    }).catch(e => log.error(`[BatchLog] cron_completed log failed: ${e.message}`))
-
-    // Auto backfill after successful/partial cron run
-    if (result.status === 'success' || result.status === 'partial') {
-      await runBackfillCheck(period)
-    }
+      batchResult: { status: result.status, pipelineResults: result.pipelineResults },
+      podId: pod
+    }).catch(e => log.error(`[BatchLog] cron_completed log failed: ${e?.message || e}`))
   } catch (err) {
-    log.error(`[RecoverySummary] ${period} batch fatal error: ${err.message}`)
+    log.error(`[RecoverySummary] ${period} batch fatal error: ${err?.message || err}`)
     deps.createBatchLog({
       batchAction: 'cron_failed',
       batchPeriod: period,
-      batchParams: { period, error: err.message }
-    }).catch(e => log.error(`[BatchLog] cron_failed log failed: ${e.message}`))
+      batchParams: { period, error: err?.message || String(err) },
+      podId: pod
+    }).catch(e => log.error(`[BatchLog] cron_failed log failed: ${e?.message || e}`))
   } finally {
+    await releaseLock(redis, lockKey, pod)
     isRunning = false
+  }
+
+  // 4. Auto backfill (락 밖 — idempotent, 중복 실행 무해)
+  // runBackfillCheck는 내부 try/catch로 모든 에러를 흡수하므로 외부 catch 불필요
+  if (result && (result.status === 'success' || result.status === 'partial')) {
+    await runBackfillCheck(period)
   }
 }
 
@@ -272,7 +300,8 @@ async function runBackfillCheck(period) {
     deps.createBatchLog({
       batchAction: 'auto_backfill_completed',
       batchPeriod: period,
-      batchParams: { period, gapsFound: gaps.length, processed: toProcess.length }
+      batchParams: { period, gapsFound: gaps.length, processed: toProcess.length },
+      podId: getPod()
     }).catch(e => log.error(`[BatchLog] auto_backfill_completed log failed: ${e.message}`))
   } catch (err) {
     log.error(`[RecoverySummary] Auto-backfill error: ${err.message}`)

@@ -50,6 +50,9 @@ function isRotationSignal(response) {
   return !response.success && /exit value:\s*2/i.test(response.error || '')
 }
 
+// NOTE: Pod별 인메모리 카운터 — 멀티 Pod 환경에서 전역이 아닌 Pod당 제한.
+// Log tail SSE는 sticky session으로 같은 Pod에 고정되므로, Pod당 리소스
+// 보호 목적상 의도된 동작. 전역 제한이 필요하면 Redis 카운터로 전환 필요.
 let activeTailCount = 0
 
 /**

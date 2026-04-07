@@ -117,49 +117,60 @@ function validateClientData(data, existingIds = [], existingIps = [], isUpdate =
  * @param {Array} existingIps - Existing IP addresses
  * @returns {Object} - { valid: [], errors: [] }
  */
-function validateBatchCreate(clients, existingClients) {
+/**
+ * Pick the first eqpId from a Set (for error messages).
+ * Sets keep insertion order so this is deterministic per build.
+ */
+function firstEqpIdFromSet(set) {
+  if (!set) return null
+  for (const id of set) return id
+  return null
+}
+
+/**
+ * Validate batch create data
+ * @param {Array} clients - Array of client data to create
+ * @param {Set<string>} existingEqpIds - Set of existing eqpId values (lowercase), may have _originals Map
+ * @param {Map<string, Set<string>>} existingIpCombos - Map of "ipAddr|ipAddrL" → Set of eqpIds (handles duplicate combos)
+ * @returns {Object} - { valid: [], errors: [] }
+ */
+function validateBatchCreate(clients, existingEqpIds, existingIpCombos) {
   const valid = []
   const errors = []
-  const batchEntries = []  // [{ eqpId, ipCombo }]
+  const batchEqpIds = new Set()
+  const batchIpCombos = new Set()
 
   for (let i = 0; i < clients.length; i++) {
     const clientData = clients[i]
     const ipCombo = `${clientData.ipAddr || ''}|${clientData.ipAddrL || ''}`
+    const eqpIdLower = clientData.eqpId?.toLowerCase?.() || ''
 
     // Check for duplicate eqpId within batch
-    if (clientData.eqpId) {
-      const batchConflict = batchEntries.find(e => e.eqpId === clientData.eqpId.toLowerCase())
-      if (batchConflict) {
-        errors.push({ rowIndex: i, field: 'eqpId', message: `중복된 Equipment ID (배치 내)` })
-        continue
-      }
+    if (eqpIdLower && batchEqpIds.has(eqpIdLower)) {
+      errors.push({ rowIndex: i, field: 'eqpId', message: `중복된 Equipment ID (배치 내)` })
+      continue
     }
 
     // Check for duplicate IP combination within batch
-    if (clientData.ipAddr) {
-      const batchConflict = batchEntries.find(e => e.ipCombo === ipCombo)
-      if (batchConflict) {
-        errors.push({ rowIndex: i, field: 'ipAddr', message: `중복된 IP 조합 (배치 내)` })
-        continue
-      }
+    if (clientData.ipAddr && batchIpCombos.has(ipCombo)) {
+      errors.push({ rowIndex: i, field: 'ipAddr', message: `중복된 IP 조합 (배치 내)` })
+      continue
     }
 
     // Check for duplicate eqpId against existing data
-    if (clientData.eqpId) {
-      const conflict = existingClients.find(c => c.eqpId?.toLowerCase?.() === clientData.eqpId.toLowerCase())
-      if (conflict) {
-        errors.push({ rowIndex: i, field: 'eqpId', message: `이미 존재하는 Equipment ID (${conflict.eqpId})` })
-        continue
-      }
+    if (eqpIdLower && existingEqpIds.has(eqpIdLower)) {
+      const originalId = existingEqpIds._originals?.get(eqpIdLower) || clientData.eqpId
+      errors.push({ rowIndex: i, field: 'eqpId', message: `이미 존재하는 Equipment ID (${originalId})` })
+      continue
     }
 
     // Check for duplicate IP combination against existing data
-    if (clientData.ipAddr) {
-      const conflict = existingClients.find(c => `${c.ipAddr || ''}|${c.ipAddrL || ''}` === ipCombo)
-      if (conflict) {
-        errors.push({ rowIndex: i, field: 'ipAddr', message: `중복된 IP 조합 (${conflict.eqpId || conflict._id})` })
-        continue
-      }
+    if (clientData.ipAddr && existingIpCombos.has(ipCombo)) {
+      const conflictSet = existingIpCombos.get(ipCombo)
+      const conflictEqpId = firstEqpIdFromSet(conflictSet) || 'unknown'
+      const extra = conflictSet && conflictSet.size > 1 ? ` 외 ${conflictSet.size - 1}건` : ''
+      errors.push({ rowIndex: i, field: 'ipAddr', message: `중복된 IP 조합 (${conflictEqpId}${extra})` })
+      continue
     }
 
     const validationErrors = validateClientData(clientData, [], [], false)
@@ -169,10 +180,8 @@ function validateBatchCreate(clients, existingClients) {
         errors.push({ rowIndex: i, field, message })
       }
     } else {
-      batchEntries.push({
-        eqpId: clientData.eqpId?.toLowerCase?.() || '',
-        ipCombo
-      })
+      batchEqpIds.add(eqpIdLower)
+      batchIpCombos.add(ipCombo)
       valid.push(clientData)
     }
   }
@@ -182,27 +191,27 @@ function validateBatchCreate(clients, existingClients) {
 
 /**
  * Validate client data for update
- * @param {Object} data - Client data (including _id)
- * @param {Array} existingIds - Other clients' equipment IDs (lowercase)
- * @param {Array} existingIpCombos - Other clients' IP combinations (ipAddr|ipAddrL)
+ * @param {Object} data - Client data to update
+ * @param {Set<string>} existingEqpIds - Set of other clients' eqpId values (lowercase), with _originals Map
+ * @param {Map<string, Set<string>>} existingIpCombos - Map of other clients' "ipAddr|ipAddrL" → Set of eqpIds
  * @returns {Object} - { valid: boolean, errors: Object|null }
  */
-function validateUpdate(data, otherClients) {
+function validateUpdate(data, existingEqpIds, existingIpCombos) {
   const errors = {}
   const ipCombo = `${data.ipAddr || ''}|${data.ipAddrL || ''}`
 
-  // Check unique constraints against other clients (with conflict target info)
   if (data.eqpId) {
-    const conflict = otherClients.find(c => c.eqpId?.toLowerCase?.() === data.eqpId.toLowerCase())
-    if (conflict) {
-      errors.eqpId = `이미 존재하는 Equipment ID (${conflict.eqpId})`
+    const eqpIdLower = data.eqpId.toLowerCase()
+    if (existingEqpIds.has(eqpIdLower)) {
+      const originalId = existingEqpIds._originals?.get(eqpIdLower) || data.eqpId
+      errors.eqpId = `이미 존재하는 Equipment ID (${originalId})`
     }
   }
-  if (data.ipAddr) {
-    const conflict = otherClients.find(c => `${c.ipAddr || ''}|${c.ipAddrL || ''}` === ipCombo)
-    if (conflict) {
-      errors.ipAddr = `중복된 IP 조합 (${conflict.eqpId || conflict._id})`
-    }
+  if (data.ipAddr && existingIpCombos.has(ipCombo)) {
+    const conflictSet = existingIpCombos.get(ipCombo)
+    const conflictEqpId = firstEqpIdFromSet(conflictSet) || 'unknown'
+    const extra = conflictSet && conflictSet.size > 1 ? ` 외 ${conflictSet.size - 1}건` : ''
+    errors.ipAddr = `중복된 IP 조합 (${conflictEqpId}${extra})`
   }
 
   if (Object.keys(errors).length > 0) {

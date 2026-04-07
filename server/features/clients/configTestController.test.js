@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filterByPattern, isAbsolutePath } from './configTestController'
+import { filterByPattern, isAbsolutePath, resolveJodaTokens } from './configTestController'
 
 describe('filterByPattern', () => {
   const files = [
@@ -33,6 +33,42 @@ describe('filterByPattern', () => {
   it('빈 조건 — 전체 반환', () => {
     const result = filterByPattern(files, { prefix: '', suffix: '', exclude_suffix: [] })
     expect(result).toHaveLength(4)
+  })
+
+  it('wildcard 필터', () => {
+    const result = filterByPattern(files, { prefix: '', suffix: '', wildcard: '0219', exclude_suffix: [] })
+    expect(result).toHaveLength(3)
+    expect(result.every(f => f.name.includes('0219'))).toBe(true)
+  })
+
+  it('wildcard 필터 — 매칭 없음', () => {
+    const result = filterByPattern(files, { prefix: '', suffix: '', wildcard: '0220', exclude_suffix: [] })
+    expect(result).toHaveLength(0)
+  })
+
+  it('prefix + wildcard + suffix 복합', () => {
+    const result = filterByPattern(files, { prefix: 'TestLog', suffix: '.log', wildcard: '0219', exclude_suffix: [] })
+    expect(result).toHaveLength(1)
+    expect(result[0].name).toBe('TestLog_20260219.log')
+  })
+})
+
+describe('resolveJodaTokens', () => {
+  it('yyyy/MM/dd 토큰을 현재 날짜로 치환한다', () => {
+    const now = new Date()
+    const y = now.getFullYear().toString()
+    const m = (now.getMonth() + 1).toString().padStart(2, '0')
+    const d = now.getDate().toString().padStart(2, '0')
+    expect(resolveJodaTokens('TestLog_yyyyMMdd')).toBe(`TestLog_${y}${m}${d}`)
+  })
+
+  it('토큰이 없으면 원본 그대로 반환', () => {
+    expect(resolveJodaTokens('TestLog_')).toBe('TestLog_')
+  })
+
+  it('빈 문자열/null 처리', () => {
+    expect(resolveJodaTokens('')).toBe('')
+    expect(resolveJodaTokens(null)).toBe(null)
   })
 })
 

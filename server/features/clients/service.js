@@ -195,6 +195,7 @@ async function getClients(filters) {
   const clients = await Client.find(query)
     .select('eqpId eqpModel process ipAddr onoff osVer category line')
     .sort({ eqpId: 1 })
+    .lean()
 
   return clients.map(transformClient)
 }
@@ -324,11 +325,20 @@ async function createClients(clientsData, context = {}) {
   // 3. Execute beforeCreate hooks
   await rules.executeHooks('beforeCreate', dataToValidate, context)
 
-  // 4. Get existing clients for format/uniqueness validation
+  // 4. Build uniqueness lookup structures (Set/Map for O(1) checks)
+  // existingIpCombos: Map<combo, Set<eqpId>> — IP unique 인덱스가 없으므로 같은 조합이 여러 행에 존재 가능
   const existingClients = await Client.find({}, 'eqpId ipAddr ipAddrL').lean()
+  const existingEqpIds = new Set(existingClients.map(c => c.eqpId?.toLowerCase()).filter(Boolean))
+  existingEqpIds._originals = new Map(existingClients.filter(c => c.eqpId).map(c => [c.eqpId.toLowerCase(), c.eqpId]))
+  const existingIpCombos = new Map()
+  for (const c of existingClients) {
+    const combo = `${c.ipAddr || ''}|${c.ipAddrL || ''}`
+    if (!existingIpCombos.has(combo)) existingIpCombos.set(combo, new Set())
+    existingIpCombos.get(combo).add(c.eqpId || String(c._id))
+  }
 
   // 5. Validate format and uniqueness
-  const { valid, errors: validationErrors } = validateBatchCreate(dataToValidate, existingClients)
+  const { valid, errors: validationErrors } = validateBatchCreate(dataToValidate, existingEqpIds, existingIpCombos)
 
   // Adjust rowIndex for validation errors (account for removed items)
   const originalIndices = processedData
@@ -342,12 +352,34 @@ async function createClients(clientsData, context = {}) {
     })
   }
 
-  // 6. Insert valid clients
+  // 6. Insert valid clients (M9: ordered:false + 부분 실패 처리로 audit 정합성 유지)
   let created = 0
   let insertedDocs = []
   if (valid.length > 0) {
-    insertedDocs = await Client.insertMany(valid)
-    created = insertedDocs.length
+    try {
+      insertedDocs = await Client.insertMany(valid, { ordered: false })
+      created = insertedDocs.length
+    } catch (err) {
+      // mongoose MongoBulkWriteError: 부분 성공 docs는 err.insertedDocs에 있음
+      const partialDocs = err.insertedDocs || []
+      insertedDocs = partialDocs
+      created = partialDocs.length
+      const writeErrors = err.writeErrors || (err.result && err.result.writeErrors) || []
+      if (writeErrors.length === 0 && partialDocs.length === 0) {
+        // 부분 성공/실패 정보 추출 불가 → 원본 에러 전파
+        throw err
+      }
+      for (const we of writeErrors) {
+        const idx = we.index ?? we.err?.index
+        const failed = (idx !== undefined && idx !== null) ? valid[idx] : null
+        const msg = we.errmsg || we.err?.errmsg || we.message || 'Insert failed'
+        errors.push({
+          rowIndex: idx ?? -1,
+          field: failed?.eqpId ? 'eqpId' : '_id',
+          message: failed?.eqpId ? `${failed.eqpId}: ${msg}` : msg
+        })
+      }
+    }
   }
 
   // 7. Execute afterCreate hooks (with created data for audit logging)
@@ -369,9 +401,28 @@ async function updateClients(clientsData, context = {}) {
   const updatedDocs = []
   const previousDocs = []
 
-  // Get all clients' data (for change tracking and validation)
-  const allClients = await Client.find({}).lean()
-  const clientsById = new Map(allClients.map(c => [c._id.toString(), c]))
+  // Split queries: fetch only target docs + lightweight uniqueness data
+  const updateIds = clientsData.map(d => d._id).filter(Boolean)
+  const [targetDocs, uniquenessData] = await Promise.all([
+    Client.find({ _id: { $in: updateIds } }).lean(),
+    Client.find({}, 'eqpId ipAddr ipAddrL').lean()
+  ])
+  const clientsById = new Map(targetDocs.map(c => [c._id.toString(), c]))
+
+  // Build Set/Map for O(1) uniqueness lookups
+  // allIpCombos: Map<combo, Set<eqpId>> — 동일 IP 조합 중복 보존
+  const allEqpIds = new Set(uniquenessData.map(c => c.eqpId?.toLowerCase()).filter(Boolean))
+  allEqpIds._originals = new Map(uniquenessData.filter(c => c.eqpId).map(c => [c.eqpId.toLowerCase(), c.eqpId]))
+  const allIpCombos = new Map()
+  for (const c of uniquenessData) {
+    const combo = `${c.ipAddr || ''}|${c.ipAddrL || ''}`
+    if (!allIpCombos.has(combo)) allIpCombos.set(combo, new Set())
+    allIpCombos.get(combo).add(c.eqpId || String(c._id))
+  }
+
+  const updatedIdsList = []
+  const previousDocsList = []
+  const bulkOps = []
 
   for (let i = 0; i < clientsData.length; i++) {
     const clientData = clientsData[i]
@@ -410,29 +461,136 @@ async function updateClients(clientsData, context = {}) {
       previousData: existingDoc
     })
 
-    // 4. Get other clients (excluding current one) for uniqueness validation
-    const otherClients = allClients.filter(c => c._id.toString() !== _id)
+    // 4. Temporarily remove self from uniqueness structures for per-item validation
+    // (in-place 변경 후 finally에서 복원 — 매 iteration 클론 회피로 메모리 절감)
+    const selfEqpIdLower = existingDoc.eqpId?.toLowerCase()
+    const selfEqpIdOriginal = existingDoc.eqpId
+    const selfIpCombo = `${existingDoc.ipAddr || ''}|${existingDoc.ipAddrL || ''}`
+    const selfIpComboKey = existingDoc.eqpId || String(existingDoc._id)
+
+    let removedEqpId = false
+    if (selfEqpIdLower && allEqpIds.has(selfEqpIdLower)) {
+      allEqpIds.delete(selfEqpIdLower)
+      removedEqpId = true
+    }
+
+    let removedFromIpSet = false
+    let ipSetBecameEmpty = false
+    const ipConflictSet = allIpCombos.get(selfIpCombo)
+    if (ipConflictSet && ipConflictSet.has(selfIpComboKey)) {
+      ipConflictSet.delete(selfIpComboKey)
+      removedFromIpSet = true
+      if (ipConflictSet.size === 0) {
+        allIpCombos.delete(selfIpCombo)
+        ipSetBecameEmpty = true
+      }
+    }
 
     // 5. Validate format and uniqueness
-    const validation = validateUpdate(processedData, otherClients)
+    const validation = validateUpdate(processedData, allEqpIds, allIpCombos)
 
     if (!validation.valid) {
+      // 검증 실패 → self를 원래대로 복원하여 다음 iteration의 set 정합성 유지
+      if (removedEqpId) allEqpIds.add(selfEqpIdLower)
+      if (removedFromIpSet) {
+        if (ipSetBecameEmpty) allIpCombos.set(selfIpCombo, new Set())
+        allIpCombos.get(selfIpCombo).add(selfIpComboKey)
+      }
       for (const [field, message] of Object.entries(validation.errors)) {
         errors.push({ rowIndex: i, field, message })
       }
       continue
     }
 
-    // 6. Perform update
-    const result = await Client.updateOne({ _id }, { $set: processedData })
-    if (result.modifiedCount > 0) {
-      updated++
+    // 6. Queue update operation (will be batched via bulkWrite)
+    bulkOps.push({
+      updateOne: {
+        filter: { _id },
+        update: { $set: processedData }
+      }
+    })
+    updatedIdsList.push(_id)
+    previousDocsList.push(existingDoc)
 
-      // Get updated document for audit logging
-      const updatedDoc = await Client.findById(_id).lean()
-      if (updatedDoc) {
-        previousDocs.push(existingDoc)
-        updatedDocs.push(updatedDoc)
+    // I-NEW-4: 검증 통과 후 새 eqpId/IP를 set에 갱신 (cross-row uniqueness)
+    // processedData에 명시되지 않은 필드는 기존 값 유지
+    const newEqpIdOriginal = processedData.eqpId !== undefined ? processedData.eqpId : selfEqpIdOriginal
+    const newEqpIdLower = newEqpIdOriginal?.toLowerCase?.()
+    const newIpAddr = processedData.ipAddr !== undefined ? processedData.ipAddr : existingDoc.ipAddr
+    const newIpAddrL = processedData.ipAddrL !== undefined ? processedData.ipAddrL : existingDoc.ipAddrL
+    const newIpCombo = `${newIpAddr || ''}|${newIpAddrL || ''}`
+    const newIpComboKey = newEqpIdOriginal || String(existingDoc._id)
+
+    if (newEqpIdLower) {
+      allEqpIds.add(newEqpIdLower)
+      if (allEqpIds._originals && newEqpIdOriginal) {
+        allEqpIds._originals.set(newEqpIdLower, newEqpIdOriginal)
+      }
+    }
+    if (!allIpCombos.has(newIpCombo)) allIpCombos.set(newIpCombo, new Set())
+    allIpCombos.get(newIpCombo).add(newIpComboKey)
+  }
+
+  // Execute all updates in a single bulkWrite (I-NEW-2/3: matchedCount + 부분 실패 처리)
+  if (bulkOps.length > 0) {
+    let bulkResult = null
+    try {
+      bulkResult = await Client.bulkWrite(bulkOps, { ordered: false })
+    } catch (err) {
+      // BulkWriteError: 부분 성공 결과 추출
+      bulkResult = err.result || null
+      const writeErrors = err.writeErrors || (err.result && err.result.writeErrors) || []
+      if (!bulkResult && writeErrors.length === 0) {
+        throw err
+      }
+      // 실패한 row의 _id 추출
+      const failedIndices = new Set()
+      for (const we of writeErrors) {
+        const idx = we.index ?? we.err?.index
+        const failedId = (idx !== undefined && idx !== null) ? updatedIdsList[idx] : null
+        const msg = we.errmsg || we.err?.errmsg || we.message || 'Update failed'
+        errors.push({
+          rowIndex: idx ?? -1,
+          field: '_id',
+          message: failedId ? `${failedId}: ${msg}` : msg
+        })
+        if (idx !== undefined && idx !== null) failedIndices.add(idx)
+      }
+      // audit 정합성: 실패한 row를 updatedIdsList/previousDocsList에서 제거
+      if (failedIndices.size > 0) {
+        const newIds = []
+        const newPrev = []
+        for (let j = 0; j < updatedIdsList.length; j++) {
+          if (!failedIndices.has(j)) {
+            newIds.push(updatedIdsList[j])
+            newPrev.push(previousDocsList[j])
+          }
+        }
+        updatedIdsList.length = 0
+        previousDocsList.length = 0
+        updatedIdsList.push(...newIds)
+        previousDocsList.push(...newPrev)
+      }
+    }
+    if (bulkResult) {
+      // matchedCount 사용: 동일 데이터 재저장(modifiedCount=0)도 성공으로 카운트
+      updated = bulkResult.matchedCount ?? bulkResult.modifiedCount ?? 0
+    }
+  }
+
+  // Batch fetch all updated docs for audit logging
+  if (updatedIdsList.length > 0) {
+    const updatedDocsMap = new Map()
+    const fetchedDocs = await Client.find({ _id: { $in: updatedIdsList } }).lean()
+    for (const doc of fetchedDocs) updatedDocsMap.set(doc._id.toString(), doc)
+
+    // Maintain parallel array order
+    for (let i = 0; i < updatedIdsList.length; i++) {
+      const id = updatedIdsList[i]
+      const doc = updatedDocsMap.get(id.toString ? id.toString() : id)
+      if (doc) {
+        previousDocs.push(previousDocsList[i])
+        updatedDocs.push(doc)
       }
     }
   }

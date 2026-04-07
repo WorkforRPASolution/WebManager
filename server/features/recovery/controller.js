@@ -8,6 +8,7 @@ const { validatePeriodRange, validateBackfillRange } = require('./validation')
 const { parsePaginationParams, createPaginatedResponse } = require('../../shared/utils/pagination')
 const { createBatchLog } = require('../../shared/models/webmanagerLogModel')
 const batchLogsService = require('./batchLogsService')
+const { getPodId } = require('../../shared/utils/podIdentity')
 const { createLogger } = require('../../shared/logger')
 const log = createLogger('recovery')
 
@@ -209,8 +210,8 @@ async function startBackfill(req, res) {
   const { floorToKSTBucket } = getDateUtils()
 
   // Check if already running
-  const currentState = summaryService.getBackfillState()
-  if (currentState.status === 'running') {
+  const currentState = await summaryService.getBackfillState()
+  if (currentState.status === 'running' || currentState.status === 'running_on_other_pod') {
     return res.status(409).json({
       error: '이미 실행 중입니다',
       state: currentState
@@ -242,7 +243,8 @@ async function startBackfill(req, res) {
         throttleMs: clampedThrottle,
         retryPartial: !!retryPartial
       },
-      userId: req.user?.singleid || 'system'
+      userId: req.user?.singleid || 'system',
+      podId: getPodId()
     }).catch(e => log.error(`[BatchLog] backfill_started log failed: ${e.message}`))
 
     res.status(202).json({ message: 'Backfill started' })
@@ -253,8 +255,9 @@ async function startBackfill(req, res) {
 
 async function getBackfillStatus(req, res) {
   const summaryService = getSummaryService()
+  const state = await summaryService.getBackfillState()
   res.json({
-    ...summaryService.getBackfillState(),
+    ...state,
     indexReady: summaryService.isIndexReady()
   })
 }
@@ -275,12 +278,13 @@ async function getCronRunDistribution(req, res) {
 
 async function handleCancelBackfill(req, res) {
   const summaryService = getSummaryService()
-  summaryService.cancelBackfill()
+  await summaryService.cancelBackfill()
 
   createBatchLog({
     batchAction: 'backfill_cancelled',
     batchParams: {},
-    userId: req.user?.singleid || 'system'
+    userId: req.user?.singleid || 'system',
+    podId: getPodId()
   }).catch(e => log.error(`[BatchLog] backfill_cancelled log failed: ${e.message}`))
 
   res.json({ message: 'Backfill cancel requested' })

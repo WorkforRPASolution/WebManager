@@ -54,9 +54,12 @@
       <!-- File Tab -->
       <div v-if="activeTab === 'file'" class="space-y-3">
         <div
-          class="border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg p-4 text-center cursor-pointer hover:border-purple-400 transition"
+          class="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition"
+          :class="isDragging ? 'border-purple-400 bg-purple-50/30 dark:bg-purple-900/10 dark:border-purple-500' : 'border-gray-300 dark:border-dark-border hover:border-purple-400'"
           @click="$refs.fileInput.click()"
+          @dragenter.prevent="isDragging = true"
           @dragover.prevent
+          @dragleave.prevent="isDragging = false"
           @drop.prevent="handleFileDrop"
         >
           <input ref="fileInput" type="file" accept=".log,.txt,.csv" class="hidden" @change="handleFileSelect" />
@@ -129,6 +132,7 @@ const logText = ref('')
 const testResult = ref(null)
 const uploadedFile = ref(null)
 const fileProcessing = ref(false)
+const isDragging = ref(false)
 
 function runTextTest() {
   testResult.value = testMultilineBlocks(props.source, logText.value)
@@ -141,6 +145,7 @@ function handleFileSelect(event) {
 }
 
 function handleFileDrop(event) {
+  isDragging.value = false
   const file = event.dataTransfer.files[0]
   if (file) uploadedFile.value = { name: file.name, size: file.size, file }
 }
