@@ -32,7 +32,7 @@
       class="border rounded-lg overflow-hidden transition-colors"
       :class="draggingIdx === ti ? 'opacity-50 border-gray-300 dark:border-dark-border' : dragOverIdx === ti && draggingIdx >= 0 && draggingIdx !== ti ? 'border-primary-400 dark:border-primary-500 bg-primary-50/30 dark:bg-primary-900/10' : 'border-gray-200 dark:border-dark-border'"
       @dragover.prevent="draggingIdx >= 0 && (dragOverIdx = ti)"
-      @drop="onDrop(ti)"
+      @drop.prevent="onDrop(ti)"
     >
       <!-- Trigger Header -->
       <div

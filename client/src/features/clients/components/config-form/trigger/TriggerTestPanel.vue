@@ -74,20 +74,18 @@
 
       <!-- File Tab -->
       <div v-if="activeTab === 'file'" class="space-y-3">
+        <!-- Hidden file input — drop zone 밖으로 분리 (Firefox에서 nested input이 drop 이벤트를 가로채는 문제 방지) -->
+        <input ref="fileInput" type="file" multiple accept=".log,.txt,.csv" class="hidden" @change="handleFileSelect" />
         <div
+          ref="dropZone"
           class="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition"
           :class="isDragging ? 'border-primary-400 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-500' : 'border-gray-300 dark:border-dark-border hover:border-primary-400'"
-          @click="$refs.fileInput.click()"
-          @dragenter.prevent="isDragging = true"
-          @dragover.prevent
-          @dragleave.prevent="isDragging = false"
-          @drop.prevent="handleFileDrop"
+          @click="onAreaClick"
         >
-          <input ref="fileInput" type="file" multiple accept=".log,.txt,.csv" class="hidden" @change="handleFileSelect" />
-          <svg class="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-8 h-8 mx-auto mb-2 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
           </svg>
-          <p class="text-xs text-gray-500 dark:text-gray-400">클릭하거나 파일을 드래그&드롭하세요 (.log, .txt, .csv)</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 pointer-events-none">클릭하거나 파일을 드래그&드롭하세요 (.log, .txt, .csv)</p>
         </div>
 
         <!-- File list -->
@@ -305,7 +303,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { testTriggerPattern, testTriggerWithFiles } from './testEngine'
 import { formatFileSize } from '../shared/formatUtils'
 
@@ -372,15 +370,93 @@ function runTextTest() {
   }
 }
 
+const fileInput = ref(null)
+const dropZone = ref(null)
+
 function handleFileSelect(event) {
   addFiles(Array.from(event.target.files))
   event.target.value = ''
 }
 
-function handleFileDrop(event) {
-  isDragging.value = false
-  addFiles(Array.from(event.dataTransfer.files))
+function onAreaClick(event) {
+  // drop 직후 firing되는 합성 click 무시 (Firefox 호환)
+  if (event && event.detail === 0) return
+  fileInput.value && fileInput.value.click()
 }
+
+// Native event listeners (Vue @event 모디파이어 우회)
+// Firefox에서 @drop.prevent.stop이 일관되지 않게 동작하는 케이스 대응
+function nativeDragEnter(e) {
+  e.preventDefault()
+  e.stopPropagation()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+  isDragging.value = true
+  console.log('[TriggerTestPanel] dragenter', e.dataTransfer?.types)
+}
+
+function nativeDragOver(e) {
+  e.preventDefault()
+  e.stopPropagation()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+}
+
+function nativeDragLeave(e) {
+  e.preventDefault()
+  e.stopPropagation()
+  // dropZone 영역을 완전히 벗어났을 때만 해제 (자식 요소 위로 이동 시 잘못된 해제 방지)
+  if (e.target === dropZone.value) {
+    isDragging.value = false
+  }
+}
+
+function nativeDrop(e) {
+  e.preventDefault()
+  e.stopPropagation()
+  isDragging.value = false
+  console.log('[TriggerTestPanel] drop fired', e.dataTransfer?.files?.length, 'files')
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    addFiles(Array.from(e.dataTransfer.files))
+  }
+}
+
+function attachDropZoneListeners() {
+  const el = dropZone.value
+  if (!el) return
+  el.addEventListener('dragenter', nativeDragEnter)
+  el.addEventListener('dragover', nativeDragOver)
+  el.addEventListener('dragleave', nativeDragLeave)
+  el.addEventListener('drop', nativeDrop)
+}
+
+function detachDropZoneListeners() {
+  const el = dropZone.value
+  if (!el) return
+  el.removeEventListener('dragenter', nativeDragEnter)
+  el.removeEventListener('dragover', nativeDragOver)
+  el.removeEventListener('dragleave', nativeDragLeave)
+  el.removeEventListener('drop', nativeDrop)
+}
+
+// activeTab이 'file'로 바뀌면 dropZone이 v-if로 렌더링됨 → ref 갱신 후 listener 부착
+watch(activeTab, async (val) => {
+  if (val === 'file') {
+    await nextTick()
+    attachDropZoneListeners()
+  } else {
+    detachDropZoneListeners()
+  }
+})
+
+onMounted(async () => {
+  if (activeTab.value === 'file') {
+    await nextTick()
+    attachDropZoneListeners()
+  }
+})
+
+onBeforeUnmount(() => {
+  detachDropZoneListeners()
+})
 
 function addFiles(files) {
   for (const file of files) {
