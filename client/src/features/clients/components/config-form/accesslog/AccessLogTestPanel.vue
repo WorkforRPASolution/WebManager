@@ -109,25 +109,31 @@
           </div>
 
           <!-- File list (매칭된 파일이 있을 때만) -->
-          <div v-if="remoteResult.files.length > 0" class="max-h-48 overflow-y-auto border border-gray-200 dark:border-dark-border rounded-lg">
-            <table class="w-full text-xs">
-              <thead class="bg-gray-50 dark:bg-dark-bg sticky top-0">
-                <tr>
-                  <th class="text-left px-3 py-1.5 font-medium text-gray-500 dark:text-gray-400">파일명</th>
-                  <th class="text-right px-3 py-1.5 font-medium text-gray-500 dark:text-gray-400">크기</th>
-                  <th class="text-right px-3 py-1.5 font-medium text-gray-500 dark:text-gray-400">수정일</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(file, fi) in remoteResult.files" :key="fi" class="border-t border-gray-100 dark:border-dark-border">
-                  <td class="px-3 py-1.5 text-gray-700 dark:text-gray-300 font-mono">
-                    {{ file.subdir ? file.subdir + '/' : '' }}{{ file.name }}
-                  </td>
-                  <td class="px-3 py-1.5 text-right text-gray-500 dark:text-gray-400">{{ formatSize(file.size) }}</td>
-                  <td class="px-3 py-1.5 text-right text-gray-500 dark:text-gray-400">{{ formatDate(file.modifiedAt) }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div v-if="remoteResult.files.length > 0" class="space-y-1">
+            <div class="max-h-48 overflow-y-auto border border-gray-200 dark:border-dark-border rounded-lg">
+              <table class="w-full text-xs">
+                <thead class="bg-gray-50 dark:bg-dark-bg sticky top-0">
+                  <tr>
+                    <th class="text-left px-3 py-1.5 font-medium text-gray-500 dark:text-gray-400">파일명</th>
+                    <th class="text-right px-3 py-1.5 font-medium text-gray-500 dark:text-gray-400">크기</th>
+                    <th class="text-right px-3 py-1.5 font-medium text-gray-500 dark:text-gray-400">수정일</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(file, fi) in remoteResult.files" :key="fi" class="border-t border-gray-100 dark:border-dark-border">
+                    <td class="px-3 py-1.5 text-gray-700 dark:text-gray-300 font-mono">
+                      {{ file.subdir ? file.subdir + '/' : '' }}{{ file.name }}
+                    </td>
+                    <td class="px-3 py-1.5 text-right text-gray-500 dark:text-gray-400">{{ formatSize(file.size) }}</td>
+                    <td class="px-3 py-1.5 text-right text-gray-500 dark:text-gray-400">{{ formatDate(file.modifiedAt) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- Windows 클라이언트 안내 (모든 파일에 size/modifiedAt이 비어있을 때) -->
+            <p v-if="isFileMetaUnavailable" class="text-[11px] text-gray-400 dark:text-gray-500 italic">
+              ※ Windows 클라이언트에서는 파일 크기와 수정일이 표시되지 않습니다.
+            </p>
           </div>
         </div>
       </div>
@@ -186,6 +192,14 @@ const showLogTime = computed(() => {
 
 const showLineGroup = computed(() => {
   return !props.source?._omit_line_group && props.source?.line_group_count != null
+})
+
+// Windows 클라이언트는 'cmd dir /B'로 파일명만 받아오므로 size=0/modifiedAt=null.
+// 모든 파일이 그런 상태일 때만 안내 문구를 표시 (Linux는 빈 디렉토리에서도 modifiedAt이 채워짐).
+const isFileMetaUnavailable = computed(() => {
+  const files = remoteResult.value?.files
+  if (!files || files.length === 0) return false
+  return files.every(f => (!f.size || f.size === 0) && !f.modifiedAt)
 })
 
 function runTest() {
