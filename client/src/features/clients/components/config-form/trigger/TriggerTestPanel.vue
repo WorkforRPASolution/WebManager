@@ -441,8 +441,39 @@ function nativeDrop(e) {
     'types:', dt?.types
   )
 
+  // 진단: items의 kind와 type을 모두 출력
+  if (dt?.items) {
+    for (let i = 0; i < dt.items.length; i++) {
+      const it = dt.items[i]
+      console.log(`[TriggerTestPanel]  item[${i}] kind=${it.kind} type=${it.type}`)
+      if (it.kind === 'string') {
+        // string 데이터는 비동기로 읽어야 함
+        it.getAsString((data) => {
+          console.log(`[TriggerTestPanel]  item[${i}] string data:`, data)
+        })
+      }
+    }
+  }
+
   if (collected.length > 0) {
     addFiles(collected)
+    return
+  }
+
+  // 파일이 없는 경우: 사용자가 URL/링크를 드래그한 케이스 안내
+  // (text/x-moz-url, text/uri-list 등 — 실제 파일이 아니라 URL 참조)
+  const types = dt?.types ? Array.from(dt.types) : []
+  const isUrlDrop = types.some(t =>
+    t === 'text/x-moz-url' ||
+    t === 'text/uri-list' ||
+    t.toLowerCase().includes('url')
+  )
+  if (isUrlDrop) {
+    testError.value = '파일이 아닌 URL/링크가 드롭되었습니다. 운영체제의 파일 탐색기(Explorer/Finder)에서 파일을 직접 드래그해 주세요.'
+  } else if (types.length > 0) {
+    testError.value = `드롭된 항목에서 파일을 읽을 수 없습니다. (감지된 타입: ${types.join(', ')}) 파일 탐색기에서 직접 드래그하거나, 위의 영역을 클릭해 파일을 선택해 주세요.`
+  } else {
+    testError.value = '드롭된 항목에서 파일을 찾을 수 없습니다. 파일 탐색기에서 직접 드래그하거나, 위의 영역을 클릭해 파일을 선택해 주세요.'
   }
 }
 
