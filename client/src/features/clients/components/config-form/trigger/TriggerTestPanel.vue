@@ -413,9 +413,36 @@ function nativeDrop(e) {
   e.preventDefault()
   e.stopPropagation()
   isDragging.value = false
-  console.log('[TriggerTestPanel] drop fired', e.dataTransfer?.files?.length, 'files')
-  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-    addFiles(Array.from(e.dataTransfer.files))
+
+  const dt = e.dataTransfer
+  const collected = []
+
+  // 1순위: items API (Firefox는 files가 비어있는 경우가 있음)
+  if (dt && dt.items && dt.items.length > 0) {
+    for (let i = 0; i < dt.items.length; i++) {
+      const it = dt.items[i]
+      if (it.kind === 'file') {
+        const f = it.getAsFile()
+        if (f) collected.push(f)
+      }
+    }
+  }
+
+  // 2순위(폴백): files API (Chromium 계열은 보통 여기로도 잘 옴)
+  if (collected.length === 0 && dt && dt.files && dt.files.length > 0) {
+    for (let i = 0; i < dt.files.length; i++) collected.push(dt.files[i])
+  }
+
+  console.log(
+    '[TriggerTestPanel] drop fired',
+    'items:', dt?.items?.length || 0,
+    'files:', dt?.files?.length || 0,
+    'collected:', collected.length,
+    'types:', dt?.types
+  )
+
+  if (collected.length > 0) {
+    addFiles(collected)
   }
 }
 
