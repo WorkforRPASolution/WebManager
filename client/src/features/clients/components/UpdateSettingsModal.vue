@@ -203,7 +203,7 @@
                     <!-- Row 2: Type-specific fields -->
                     <template v-if="task.type === 'copy'">
                       <div class="grid grid-cols-2 gap-3">
-                        <div>
+                        <div class="relative">
                           <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Source Path</label>
                           <div class="flex gap-1">
                             <input v-model="task.sourcePath" @input="changed = true"
@@ -241,7 +241,8 @@
                                 </svg>
                                 <span class="truncate font-mono">{{ item.name }}</span>
                               </button>
-                              <div v-if="browseFiles.length === 0" class="px-3 py-4 text-center text-sm text-gray-400">Empty</div>
+                              <div v-if="browseError" class="px-3 py-4 text-center text-sm text-red-500">{{ browseError }}</div>
+                              <div v-else-if="browseFiles.length === 0" class="px-3 py-4 text-center text-sm text-gray-400">Empty</div>
                             </div>
                             <div v-if="browsePath && !browseLoading" class="px-3 py-2 border-t border-gray-200 dark:border-dark-border">
                               <button @click="selectCurrentFolder(index)"
@@ -769,6 +770,7 @@ const browsingTaskIndex = ref(-1)
 const browsePath = ref('')
 const browseFiles = ref([])
 const browseLoading = ref(false)
+const browseError = ref('')
 
 async function browseSource(taskIndex) {
   if (!selectedProfile.value) return
@@ -783,11 +785,13 @@ async function browseSource(taskIndex) {
 
 async function loadBrowseFiles(relativePath) {
   browseLoading.value = true
+  browseError.value = ''
   try {
     const res = await updateSettingsApi.listSourceFiles(selectedProfile.value.source, relativePath)
     browseFiles.value = res.data || []
-  } catch {
+  } catch (err) {
     browseFiles.value = []
+    browseError.value = err.response?.data?.error || err.message || 'Failed to load files'
   } finally {
     browseLoading.value = false
   }
