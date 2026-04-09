@@ -55,10 +55,12 @@ function createMockCronRunLog() {
     Object.assign(this, data)
     this.save = saveFn
   })
+  // findOne supports both `.lean()` and `.sort().lean()` chains
   MockModel.findOne = vi.fn().mockReturnValue({
     sort: vi.fn().mockReturnValue({
       lean: vi.fn().mockResolvedValue(null)
-    })
+    }),
+    lean: vi.fn().mockResolvedValue(null)
   })
   MockModel.findOneAndUpdate = vi.fn().mockResolvedValue({})
   MockModel.find = vi.fn().mockReturnValue({
@@ -1467,10 +1469,21 @@ describe('recoverySummaryService', () => {
         }
       })
 
-      MockModel.findOne = vi.fn().mockReturnValue({
-        sort: vi.fn().mockReturnValue({
-          lean: vi.fn().mockResolvedValue(null)
-        })
+      // findOne — 사전 체크: 같은 {jobName, period, bucket}이 success/partial이면 반환
+      // (.lean() 직접 호출과 .sort().lean() 체인 모두 지원)
+      MockModel.findOne = vi.fn().mockImplementation((query) => {
+        let hit = null
+        if (query?.jobName && query?.period && query?.bucket) {
+          const key = makeKey(query.jobName, query.period, query.bucket)
+          const doc = store.get(key)
+          if (doc && (!query.status?.$in || query.status.$in.includes(doc.status))) {
+            hit = doc
+          }
+        }
+        return {
+          lean: vi.fn().mockResolvedValue(hit),
+          sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(hit) })
+        }
       })
 
       MockModel.collection = {

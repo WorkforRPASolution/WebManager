@@ -48,7 +48,8 @@ function getActionBadge(action) {
 const SKIP_REASONS = {
   indexNotReady: '인덱스 미확인',
   distributedLock: '다른 Pod에서 실행 중',
-  isRunning: '이전 실행 진행 중'
+  isRunning: '이전 실행 진행 중',
+  alreadyCompleted: '이미 완료된 bucket'
 }
 
 // ── 상세 축약 ──

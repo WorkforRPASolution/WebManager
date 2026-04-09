@@ -46,8 +46,10 @@ function createMockEarsDb() {
 
 function createMockCronRunLog() {
   const MockModel = vi.fn(function (data) { Object.assign(this, data); this.save = vi.fn().mockResolvedValue({}) })
+  // findOne supports both `.lean()` and `.sort().lean()` chains
   MockModel.findOne = vi.fn().mockReturnValue({
-    sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) })
+    sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) }),
+    lean: vi.fn().mockResolvedValue(null)
   })
   MockModel.findOneAndUpdate = vi.fn().mockResolvedValue({})
   MockModel.find = vi.fn().mockReturnValue({
@@ -89,24 +91,19 @@ describe('batchRunner.runBatch — 분산 락 (I11)', () => {
     _setIndexReady(true)
   })
 
-  it('락 획득 성공 → 배치 실행 + Lua eval로 락 해제', async () => {
+  it('락 획득 성공 → 배치 실행 + 락은 TTL로 유지 (releaseLock 호출 없음)', async () => {
     const { redis, pod, earsDb, CronRunLog } = setupDeps()
 
     await runBatch('hourly')
 
-    // 락 획득 호출 (SET wm:cron:lock:hourly NX EX 600)
-    expect(redis.set).toHaveBeenCalledWith('wm:cron:lock:hourly', pod, 'NX', 'EX', 600)
+    // 락 획득 호출 (SET wm:cron:lock:hourly NX EX 300) — TTL 600 → 300으로 단축
+    expect(redis.set).toHaveBeenCalledWith('wm:cron:lock:hourly', pod, 'NX', 'EX', 300)
     // 배치 실행 (3개 파이프라인 aggregate)
     expect(earsDb._collection.aggregate).toHaveBeenCalledTimes(3)
-    // CronRunLog 업데이트 호출
+    // CronRunLog 업데이트 호출 (runPipelinesForBucket 내부)
     expect(CronRunLog.findOneAndUpdate).toHaveBeenCalled()
-    // 락 해제 — Lua compare-and-delete (eval)
-    expect(redis.eval).toHaveBeenCalledWith(
-      expect.stringContaining("redis.call('del'"),
-      1,
-      'wm:cron:lock:hourly',
-      pod
-    )
+    // ★ 락 해제 호출 없음 — TTL로 자연 만료하여 clock drift 흡수
+    expect(redis.eval).not.toHaveBeenCalled()
   })
 
   it('락 미획득 (다른 Pod 보유) → cron_skipped distributedLock 로그 + 배치 미실행', async () => {
@@ -155,7 +152,7 @@ describe('batchRunner.runBatch — 분산 락 (I11)', () => {
     expect(completed).toBeDefined()
   })
 
-  it('배치 실행 중 fatal error → finally에서 락 해제 보장', async () => {
+  it('배치 실행 중 fatal error → 락은 TTL로 유지 (release 호출 없음, 재시도까지 5분 대기)', async () => {
     const redis = createMockRedis()
     setupDeps({ redis })
     // findOneAndUpdate가 throw하도록 → fatal catch 진입
@@ -164,20 +161,18 @@ describe('batchRunner.runBatch — 분산 락 (I11)', () => {
 
     await runBatch('hourly')
 
-    // 락 해제 호출 보장 (Lua eval)
-    expect(redis.eval).toHaveBeenCalledWith(
-      expect.stringContaining("redis.call('del'"),
-      1,
-      'wm:cron:lock:hourly',
-      'pod-test-1'
-    )
+    // ★ 락 해제 호출 없음 — 실패 시에도 TTL 만료까지 재시도 방지 (장애 폭주 방지)
+    expect(redis.eval).not.toHaveBeenCalled()
+    // 락은 정상적으로 획득됐어야 함 (TTL 300s)
+    expect(redis.set).toHaveBeenCalledWith('wm:cron:lock:hourly', 'pod-test-1', 'NX', 'EX', 300)
   })
 
-  it('락 획득 + 인메모리 isRunning true → cron_skipped isRunning + 즉시 락 해제', async () => {
-    // 첫 번째 runBatch가 진행 중인 동안 두 번째 runBatch 시도
-    // 두 번째는 락 획득 → isRunning 체크 → skip + releaseLock
+  it('락 획득 + 인메모리 isRunning true → cron_skipped isRunning (release 호출 없음)', async () => {
+    // mock redis.set이 항상 'OK' 반환하는 특성상, 두 호출 모두 락을 획득하는 것으로 보임.
+    // 실제 Redis에서는 두 번째 호출이 lockResult === false로 distributedLock skip 경로에 걸림.
+    // 이 테스트는 인메모리 폴백(isRunning) 경로 자체를 검증하기 위한 것.
     const redis = createMockRedis()
-    const { earsDb, CronRunLog, createBatchLog } = setupDeps({ redis })
+    const { earsDb, createBatchLog } = setupDeps({ redis })
 
     // 느린 aggregate로 첫 번째 runBatch가 진행 중이도록
     earsDb._collection.aggregate.mockReturnValue({
@@ -196,8 +191,8 @@ describe('batchRunner.runBatch — 분산 락 (I11)', () => {
       c => c[0]?.batchAction === 'cron_skipped' && c[0]?.batchParams?.reason === 'isRunning'
     )
     expect(isRunningSkip).toBeDefined()
-    // 락 해제는 두 번 발생 (run1 finally + run2의 skip 경로)
-    expect(redis.eval.mock.calls.length).toBeGreaterThanOrEqual(2)
+    // ★ 락 해제 호출 없음 — TTL로 자연 만료
+    expect(redis.eval).not.toHaveBeenCalled()
   })
 
   it('다른 period(hourly/daily)는 별도 락 키 사용', async () => {
@@ -210,6 +205,84 @@ describe('batchRunner.runBatch — 분산 락 (I11)', () => {
     const lockKeys = redis.set.mock.calls.map(c => c[0]).filter(k => k.startsWith('wm:cron:lock:'))
     expect(lockKeys).toContain('wm:cron:lock:hourly')
     expect(lockKeys).toContain('wm:cron:lock:daily')
+  })
+
+  // ── 신규: CronRunLog 사전 체크 (이중 방어) ──
+
+  it('CronRunLog에 이미 성공한 bucket 존재 → cron_skipped alreadyCompleted + 배치 미실행', async () => {
+    const { redis, earsDb, CronRunLog, createBatchLog } = setupDeps()
+
+    // 동일 bucket에 대해 이미 success 상태의 CronRunLog가 존재
+    const existingLog = {
+      bucket: new Date(),
+      period: 'hourly',
+      status: 'success',
+      source: 'cron',
+      completedAt: new Date()
+    }
+    CronRunLog.findOne = vi.fn().mockReturnValue({
+      lean: vi.fn().mockResolvedValue(existingLog),
+      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(existingLog) })
+    })
+
+    await runBatch('hourly')
+
+    // 락은 획득함 (SET NX EX 300)
+    expect(redis.set).toHaveBeenCalledWith('wm:cron:lock:hourly', expect.any(String), 'NX', 'EX', 300)
+    // ★ aggregate는 실행 안 됨 — 이미 성공한 bucket이므로 skip
+    expect(earsDb._collection.aggregate).not.toHaveBeenCalled()
+    // ★ CronRunLog upsert도 호출 안 됨 (runPipelinesForBucket 진입 안 함)
+    expect(CronRunLog.findOneAndUpdate).not.toHaveBeenCalled()
+
+    // cron_skipped 'alreadyCompleted' 로그
+    const skippedCall = createBatchLog.mock.calls.find(
+      c => c[0]?.batchAction === 'cron_skipped' && c[0]?.batchParams?.reason === 'alreadyCompleted'
+    )
+    expect(skippedCall).toBeDefined()
+    expect(skippedCall[0].batchPeriod).toBe('hourly')
+    // 락은 TTL로 유지 — release 호출 없음
+    expect(redis.eval).not.toHaveBeenCalled()
+  })
+
+  it('CronRunLog에 partial 상태 bucket 존재 → cron_skipped alreadyCompleted', async () => {
+    const { earsDb, CronRunLog, createBatchLog } = setupDeps()
+
+    // partial 상태도 '이미 실행됨'으로 간주
+    const existingLog = {
+      bucket: new Date(),
+      period: 'hourly',
+      status: 'partial',
+      source: 'autoBackfill',
+      completedAt: new Date()
+    }
+    CronRunLog.findOne = vi.fn().mockReturnValue({
+      lean: vi.fn().mockResolvedValue(existingLog),
+      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(existingLog) })
+    })
+
+    await runBatch('hourly')
+
+    expect(earsDb._collection.aggregate).not.toHaveBeenCalled()
+    const skippedCall = createBatchLog.mock.calls.find(
+      c => c[0]?.batchAction === 'cron_skipped' && c[0]?.batchParams?.reason === 'alreadyCompleted'
+    )
+    expect(skippedCall).toBeDefined()
+  })
+
+  it('CronRunLog에 failed 상태 bucket 존재 → 재실행 진행 (failed는 재시도 대상)', async () => {
+    const { earsDb, CronRunLog } = setupDeps()
+
+    // failed 상태는 재시도되어야 함 → findOne이 null 반환 (failed는 {success, partial}에 포함 안 됨)
+    // 기본 mock이 null 반환하므로 추가 설정 불필요하지만, 명시성을 위해:
+    CronRunLog.findOne = vi.fn().mockReturnValue({
+      lean: vi.fn().mockResolvedValue(null),
+      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) })
+    })
+
+    await runBatch('hourly')
+
+    // 배치 정상 실행
+    expect(earsDb._collection.aggregate).toHaveBeenCalledTimes(3)
   })
 })
 
