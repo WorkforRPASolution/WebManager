@@ -74,18 +74,20 @@
 
       <!-- File Tab -->
       <div v-if="activeTab === 'file'" class="space-y-3">
-        <!-- Hidden file input — drop zone 밖으로 분리 (Firefox에서 nested input이 drop 이벤트를 가로채는 문제 방지) -->
-        <input ref="fileInput" type="file" multiple accept=".log,.txt,.csv" class="hidden" @change="handleFileSelect" />
         <div
-          ref="dropZone"
           class="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition"
           :class="isDragging ? 'border-primary-400 bg-primary-50/30 dark:bg-primary-900/10 dark:border-primary-500' : 'border-gray-300 dark:border-dark-border hover:border-primary-400'"
-          @click="onAreaClick"
+          @click="$refs.fileInput.click()"
+          @dragenter.prevent="isDragging = true"
+          @dragover.prevent
+          @dragleave.prevent="isDragging = false"
+          @drop.prevent="handleFileDrop"
         >
-          <svg class="w-8 h-8 mx-auto mb-2 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <input ref="fileInput" type="file" multiple accept=".log,.txt,.csv" class="hidden" @change="handleFileSelect" />
+          <svg class="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
           </svg>
-          <p class="text-xs text-gray-500 dark:text-gray-400 pointer-events-none">클릭하거나 파일을 드래그&드롭하세요 (.log, .txt, .csv)</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400">클릭하거나 파일을 드래그&드롭하세요 (.log, .txt, .csv)</p>
         </div>
 
         <!-- File list -->
@@ -303,7 +305,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, computed } from 'vue'
 import { testTriggerPattern, testTriggerWithFiles } from './testEngine'
 import { formatFileSize } from '../shared/formatUtils'
 
@@ -370,151 +372,15 @@ function runTextTest() {
   }
 }
 
-const fileInput = ref(null)
-const dropZone = ref(null)
-
 function handleFileSelect(event) {
   addFiles(Array.from(event.target.files))
   event.target.value = ''
 }
 
-function onAreaClick(event) {
-  // drop 직후 firing되는 합성 click 무시 (Firefox 호환)
-  if (event && event.detail === 0) return
-  fileInput.value && fileInput.value.click()
-}
-
-// Native event listeners (Vue @event 모디파이어 우회)
-// Firefox에서 @drop.prevent.stop이 일관되지 않게 동작하는 케이스 대응
-function nativeDragEnter(e) {
-  e.preventDefault()
-  e.stopPropagation()
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
-  isDragging.value = true
-  console.log('[TriggerTestPanel] dragenter', e.dataTransfer?.types)
-}
-
-function nativeDragOver(e) {
-  e.preventDefault()
-  e.stopPropagation()
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
-}
-
-function nativeDragLeave(e) {
-  e.preventDefault()
-  e.stopPropagation()
-  // dropZone 영역을 완전히 벗어났을 때만 해제 (자식 요소 위로 이동 시 잘못된 해제 방지)
-  if (e.target === dropZone.value) {
-    isDragging.value = false
-  }
-}
-
-function nativeDrop(e) {
-  e.preventDefault()
-  e.stopPropagation()
+function handleFileDrop(event) {
   isDragging.value = false
-
-  const dt = e.dataTransfer
-  const collected = []
-
-  // 1순위: items API (Firefox는 files가 비어있는 경우가 있음)
-  if (dt && dt.items && dt.items.length > 0) {
-    for (let i = 0; i < dt.items.length; i++) {
-      const it = dt.items[i]
-      if (it.kind === 'file') {
-        const f = it.getAsFile()
-        if (f) collected.push(f)
-      }
-    }
-  }
-
-  // 2순위(폴백): files API (Chromium 계열은 보통 여기로도 잘 옴)
-  if (collected.length === 0 && dt && dt.files && dt.files.length > 0) {
-    for (let i = 0; i < dt.files.length; i++) collected.push(dt.files[i])
-  }
-
-  console.log(
-    '[TriggerTestPanel] drop fired',
-    'items:', dt?.items?.length || 0,
-    'files:', dt?.files?.length || 0,
-    'collected:', collected.length,
-    'types:', dt?.types
-  )
-
-  // 진단: items의 kind와 type을 모두 출력
-  if (dt?.items) {
-    for (let i = 0; i < dt.items.length; i++) {
-      const it = dt.items[i]
-      console.log(`[TriggerTestPanel]  item[${i}] kind=${it.kind} type=${it.type}`)
-      if (it.kind === 'string') {
-        // string 데이터는 비동기로 읽어야 함
-        it.getAsString((data) => {
-          console.log(`[TriggerTestPanel]  item[${i}] string data:`, data)
-        })
-      }
-    }
-  }
-
-  if (collected.length > 0) {
-    addFiles(collected)
-    return
-  }
-
-  // 파일이 없는 경우: 사용자가 URL/링크를 드래그한 케이스 안내
-  // (text/x-moz-url, text/uri-list 등 — 실제 파일이 아니라 URL 참조)
-  const types = dt?.types ? Array.from(dt.types) : []
-  const isUrlDrop = types.some(t =>
-    t === 'text/x-moz-url' ||
-    t === 'text/uri-list' ||
-    t.toLowerCase().includes('url')
-  )
-  if (isUrlDrop) {
-    testError.value = '파일이 아닌 URL/링크가 드롭되었습니다. 운영체제의 파일 탐색기(Explorer/Finder)에서 파일을 직접 드래그해 주세요.'
-  } else if (types.length > 0) {
-    testError.value = `드롭된 항목에서 파일을 읽을 수 없습니다. (감지된 타입: ${types.join(', ')}) 파일 탐색기에서 직접 드래그하거나, 위의 영역을 클릭해 파일을 선택해 주세요.`
-  } else {
-    testError.value = '드롭된 항목에서 파일을 찾을 수 없습니다. 파일 탐색기에서 직접 드래그하거나, 위의 영역을 클릭해 파일을 선택해 주세요.'
-  }
+  addFiles(Array.from(event.dataTransfer.files))
 }
-
-function attachDropZoneListeners() {
-  const el = dropZone.value
-  if (!el) return
-  el.addEventListener('dragenter', nativeDragEnter)
-  el.addEventListener('dragover', nativeDragOver)
-  el.addEventListener('dragleave', nativeDragLeave)
-  el.addEventListener('drop', nativeDrop)
-}
-
-function detachDropZoneListeners() {
-  const el = dropZone.value
-  if (!el) return
-  el.removeEventListener('dragenter', nativeDragEnter)
-  el.removeEventListener('dragover', nativeDragOver)
-  el.removeEventListener('dragleave', nativeDragLeave)
-  el.removeEventListener('drop', nativeDrop)
-}
-
-// activeTab이 'file'로 바뀌면 dropZone이 v-if로 렌더링됨 → ref 갱신 후 listener 부착
-watch(activeTab, async (val) => {
-  if (val === 'file') {
-    await nextTick()
-    attachDropZoneListeners()
-  } else {
-    detachDropZoneListeners()
-  }
-})
-
-onMounted(async () => {
-  if (activeTab.value === 'file') {
-    await nextTick()
-    attachDropZoneListeners()
-  }
-})
-
-onBeforeUnmount(() => {
-  detachDropZoneListeners()
-})
 
 function addFiles(files) {
   for (const file of files) {
