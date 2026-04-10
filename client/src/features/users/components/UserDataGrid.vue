@@ -261,7 +261,7 @@ const columnDefs = ref([
   },
   {
     field: 'authority',
-    headerName: 'RPA Auth',
+    headerName: 'SE Auth',
     width: 100,
     editable: true,
     cellEditor: 'agSelectCellEditor',
