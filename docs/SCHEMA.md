@@ -43,20 +43,20 @@ EARS Database의 컬렉션에 WebManager가 추가한 전용 필드는 `[WM]`으
 | ipAddrL | String | Optional | Inner Network IP |
 | serviceType | String | Optional | `[WM]` 서비스 제어 방식 (예: `win_sc`) |
 | agentPorts | Object | Optional | `[WM]` 설비별 Agent 포트 override (미설정 시 .env 기본값 사용) |
-| agentPorts.rpc | Number | Optional | `[WM]` ManagerAgent RPC 포트 (기본: `MANAGER_AGENT_PORT=7180`) |
-| agentPorts.ftp | Number | Optional | `[WM]` ManagerAgent FTP 포트 (기본: `FTP_PORT=7181`) |
-| agentPorts.socks | Number | Optional | `[WM]` SOCKS5 프록시 포트 (기본: `SOCKS_PROXY_PORT=30000`) |
+| agentPorts.rpc | Long | Optional | `[WM]` ManagerAgent RPC 포트 (기본: `MANAGER_AGENT_PORT=7180`) |
+| agentPorts.ftp | Long | Optional | `[WM]` ManagerAgent FTP 포트 (기본: `FTP_PORT=7181`) |
+| agentPorts.socks | Long | Optional | `[WM]` SOCKS5 프록시 포트 (기본: `SOCKS_PROXY_PORT=30000`) |
 | basePath | String | Optional | `[WM]` ManagerAgent 설치 경로 (예: `/app/ManagerAgent`, `D:/EARS/EEGAgent`). Tail/FTP 경로 resolve에 사용. `sc qc ARSAgent` RPC로 자동 감지 가능. |
 | localpc | Long | Required | Local PC 여부 (1: Yes, 0: No) |
 | emailcategory | String | Required | Email category |
 | osVer | String | Required | OS version |
 | onoff | Long | Required | 사용 여부 (1: 사용, 0: 미사용)|
-| webmanagerUse | Number | Required | WebManager 사용 여부 (1: 사용, 0: 미사용) |
+| webmanagerUse | Long | Required | WebManager 사용 여부 (1: 사용, 0: 미사용) |
 | installdate | String | Optional | 설치일자 (yyyy-MM-dd) |
 | scFirstExcute | String | Optional | Scenario 최초 동작 일자 |
-| snapshotTimeDiff | Number | Optional | 서버와의 시간 차이 |
-| usereleasemsg | Number | Required | Release Message 사용 여부 |
-| usetkincancel | Number | Required | TKIN Cancel 사용 여부 |
+| snapshotTimeDiff | Long | Optional | 서버와의 시간 차이 |
+| usereleasemsg | Long | Required | Release Message 사용 여부 |
+| usetkincancel | Long | Required | TKIN Cancel 사용 여부 |
 
 ### Indexes
 
@@ -306,7 +306,7 @@ SC_PROPERTY의 scCategory를 `$lookup`으로 조인하여 생성.
 | line | String | Required | Line info |
 | process | String | Required | Process Name |
 | model | String | Required | Equipment Model |
-| scCategory | Number | Required | 시나리오 카테고리 숫자 (-1 = Uncategorized) |
+| scCategory | NumberLong | Required | 시나리오 카테고리 숫자 (-1 = Uncategorized) |
 | total | Number | Required | 총 실행 건수 |
 | status_counts | Object | Required | 상태별 건수 (`{ Success: N, Failed: N, ... }`) |
 | updated_at | Date | Required | 마지막 업데이트 시각 |
@@ -424,7 +424,7 @@ await initializeRecoveryCategoryMap();
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| roleLevel | Number | Required (Unique) | 역할 레벨 (0-3) |
+| roleLevel | NumberLong | Required (Unique) | 역할 레벨 (0-3) |
 | roleName | String | Required | 역할 이름 |
 | description | String | Optional | 역할 설명 |
 | permissions.dashboardOverview | Boolean | Required | Dashboard Overview 접근 권한 |
@@ -722,7 +722,7 @@ Admin이 Recovery by Category 대시보드에서 관리.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| scCategory | Number | Required (Unique) | SC_PROPERTY.scCategory 숫자값 |
+| scCategory | NumberLong | Required (Unique) | SC_PROPERTY.scCategory 숫자값 |
 | categoryName | String | Required | 카테고리 표시명 (예: "PM", "Chamber Clean", "Vision") |
 | description | String | Optional | 카테고리 설명 |
 | updatedBy | String | Optional | 마지막 수정자 singleid |
