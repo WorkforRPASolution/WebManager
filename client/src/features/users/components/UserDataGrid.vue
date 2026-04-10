@@ -269,7 +269,7 @@ const columnDefs = ref([
   },
   {
     field: 'authorityManager',
-    headerName: 'Role Level',
+    headerName: 'Authority',
     width: 100,
     editable: true,
     cellEditor: 'agSelectCellEditor',
