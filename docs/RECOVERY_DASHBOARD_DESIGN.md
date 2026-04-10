@@ -318,6 +318,7 @@ MainMenu: Dashboard
 ├── ...기존 메뉴...
 ├── SubMenu: Recovery Overview     (/recovery-overview)      ← 전체 현황
 ├── SubMenu: Recovery by Process   (/recovery-by-process)    ← 공정 비교 (관리자/임원)
+├── SubMenu: Recovery by Category  (/recovery-by-category)   ← 시나리오 카테고리별 비교
 └── SubMenu: Recovery Analysis     (/recovery-analysis)      ← 드릴다운 분석 + 이력 조회
 ```
 
@@ -325,7 +326,7 @@ MainMenu: Dashboard
 
 | 뷰 | 데이터 소스 | 비고 |
 |---|---|---|
-| 통계/집계 차트 | Summary 컬렉션 (배치 집계) | Overview, By Process, Analysis 차트/테이블 |
+| 통계/집계 차트 | Summary 컬렉션 (배치 집계) | Overview, By Process, By Category, Analysis 차트/테이블 |
 | 개별 이력 조회 | `EQP_AUTO_RECOVERY` 원본 (직접 조회) | Analysis 드릴다운 상세 패널 |
 
 ### 공통 UX 요소
@@ -584,13 +585,13 @@ db.EQP_AUTO_RECOVERY.find({
 
 ### 페이지 역할 비교
 
-| | Overview | By Process | Analysis | 이력 조회 패널 |
-|---|---|---|---|---|
-| **질문** | "전체 상황은?" | "어느 공정이 문제?" | "왜 실패하는가?" | "언제 어떻게 실패했나?" |
-| **대상** | 전체 | 관리자, 임원 | 엔지니어 | 엔지니어 |
-| **데이터** | Summary | Summary | Summary | **원본 (직접 조회)** |
-| **기간** | 자유 | 자유 | 자유 | **최대 7일** |
-| **흐름** | 첫 확인 → | 공정 식별 → | 드릴다운 → | 개별 레코드 확인 |
+| | Overview | By Process | By Category | Analysis | 이력 조회 패널 |
+|---|---|---|---|---|---|
+| **질문** | "전체 상황은?" | "어느 공정이 문제?" | "어느 카테고리가 문제?" | "왜 실패하는가?" | "언제 어떻게 실패했나?" |
+| **대상** | 전체 | 관리자, 임원 | 관리자, 임원 | 엔지니어 | 엔지니어 |
+| **데이터** | Summary | Summary (Scenario) | Summary (Category) | Summary | **원본 (직접 조회)** |
+| **기간** | 자유 | 자유 | 자유 | 자유 | **최대 7일** |
+| **흐름** | 첫 확인 → | 공정 식별 → | 카테고리 식별 → | 드릴다운 → | 개별 레코드 확인 |
 
 ---
 
@@ -725,7 +726,7 @@ on:   ["period", "bucket", "line", "process", "model", "trigger_by"]
 ```
 
 > **공통 사항**:
-> - `$match`는 3개 파이프라인 모두 동일: `create_date` 범위 (String) + `status: { $ne: null, $exists: true }`
+> - `$match`는 4개 파이프라인 모두 동일: `create_date` 범위 (String) + `status: { $ne: null, $exists: true }` (category 파이프라인은 추가로 `$lookup SC_PROPERTY` 포함)
 > - `$arrayToObject` (MongoDB 3.4.4+) — status 값을 동적 키로 변환. 새 status 추가 시 파이프라인 수정 불필요
 > - `updated_at: "$$NOW"` — 서버 측 타임스탬프 (MongoDB 4.2+, 파이프라인 실행 시점 고정)
 > - `{ allowDiskUse: true, maxTimeMS: 55000 }` — 고카디널리티 시간대에 `$group`이 100MB 메모리 제한 초과 방지 + 고아 커서 방지 (API timeout 60초보다 5초 일찍 종료)
@@ -901,12 +902,12 @@ WEB_MANAGER DB에 실행 이력 기록. Gap 감지 및 backfill 트리거에 활
   source:       "cron" | "autoBackfill" | "manualBackfill",
   startedAt:    ISODate("..."),
   completedAt:  ISODate("..."),
-  pipelineResults: { scenario: "success", equipment: "success", trigger: "failed" },
+  pipelineResults: { scenario: "success", equipment: "success", trigger: "failed", category: "success" },
   errorMessage: { trigger: "timeout error ..." }
 }
 ```
 
-> - `partial`: 3개 파이프라인 중 일부만 성공 시 (각 파이프라인은 독립 try/catch로 격리)
+> - `partial`: 4개 파이프라인 중 일부만 성공 시 (각 파이프라인은 독립 try/catch로 격리)
 > - `completedAt`에 TTL 90일 인덱스 적용 — 90일 이후 자동 삭제
 
 > EARS DB 백업/복원 시 `CRON_RUN_LOG`(WEB_MANAGER DB)와 불일치 가능.
@@ -1038,9 +1039,9 @@ await collection.deleteMany({
 - [x] ~~`status` 필드 정의~~ → Raw string 그대로 저장, 그룹핑은 프론트엔드에서 처리
 - [x] ~~성공률 공식~~ → `Success / Total` (단순 비율)
 - [x] ~~MongoDB 환경 확인~~ → Replica Set (PRIMARY + SECONDARY + ARBITER) 확인
-- [x] ~~Dashboard 페이지 구성~~ → 3페이지 + 이력 조회 패널
+- [x] ~~Dashboard 페이지 구성~~ → 4페이지 + 이력 조회 패널 (Overview/By Process/By Category/Analysis)
 - [x] ~~원본 인덱스 설계~~ → `{ create_date }` + `{ eqpid, create_date }` + `{ ears_code, create_date }` 확정
-- [x] ~~Dashboard API 쿼리 설계~~ → 5개 API 구현 (overview/by-process/analysis/history/last-aggregation)
+- [x] ~~Dashboard API 쿼리 설계~~ → 6개 API 구현 (overview/by-process/by-category/analysis/history/last-aggregation)
 - [x] ~~Summary 쿼리용 인덱스 설계~~ → unique 인덱스 prefix `{ period, bucket }` 활용으로 별도 불필요
 - [x] ~~배치 구현체~~ → `node-cron` + `isRunning` 동시 실행 방지 + `CRON_RUN_LOG` 기록
 - [x] ~~권한 등록~~ → 3개 권한 키 + `DEFAULT_ROLE_PERMISSIONS` 전 레벨 `true`

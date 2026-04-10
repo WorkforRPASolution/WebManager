@@ -80,6 +80,7 @@
 - [x] `GET /api/dashboard/resource-agent-version` — TTL **30초**
 - [x] `GET /api/recovery/overview` — TTL **60초** (배치 집계 기반, hourly 갱신)
 - [x] `GET /api/recovery/by-process` — TTL **60초**
+- [x] `GET /api/recovery/by-category` — TTL **60초** (RECOVERY_SUMMARY_BY_CATEGORY 기반)
 - [x] `GET /api/user-activity/tool-usage` — TTL **60초** (스냅샷 데이터)
 - [x] `GET /api/user-activity/webmanager-stats` — TTL **60초** (11개 aggregation, 성능 전문가 Critical 지적 반영)
 
@@ -97,6 +98,7 @@ wm:cache:dashboard:resource-agent-status:{md5}        → TTL 15s
 wm:cache:dashboard:resource-agent-version:{md5}       → TTL 30s
 wm:cache:recovery:overview:{md5}                      → TTL 60s
 wm:cache:recovery:by-process:{md5}                    → TTL 60s
+wm:cache:recovery:by-category:{md5}                   → TTL 60s
 wm:cache:user-activity:tool-usage:{md5}               → TTL 60s
 wm:cache:user-activity:webmanager-stats:{md5}         → TTL 60s
 ```
