@@ -11,6 +11,7 @@ const props = defineProps({
 
 // State
 const confirmed = ref(false)
+const duplicateError = ref('')
 const mode = ref('select') // 'select' | 'direct'
 const selectedProcess = ref('')
 const selectedModel = ref('')
@@ -171,13 +172,37 @@ const handleKeyDown = (event) => {
   }
 }
 
+// Check duplicate category across all rows
+const isDuplicate = (value) => {
+  const api = props.params.api
+  if (!api) return false
+  const currentRowId = props.params.node?.id
+  let found = false
+  api.forEachNode(node => {
+    if (node.id !== currentRowId && node.data?.category === value) {
+      found = true
+    }
+  })
+  return found
+}
+
 // Close editor and save
 const handleApply = () => {
+  duplicateError.value = ''
+
   // Select 모드: Group 필수 검증
   if (mode.value === 'select' && !groupInput.value.trim()) {
     groupInput.value = ''
     return
   }
+
+  // 중복 체크
+  const value = previewCategory.value
+  if (isDuplicate(value)) {
+    duplicateError.value = `"${value}" is already in use`
+    return
+  }
+
   confirmed.value = true
   props.params.stopEditing()
 }
@@ -426,7 +451,8 @@ onUnmounted(() => {
     </div>
 
     <!-- Preview & Footer Combined -->
-    <div class="px-3 py-2 border-t border-gray-200 dark:border-dark-border flex items-center justify-between gap-3 mt-2">
+    <div class="px-3 py-2 border-t border-gray-200 dark:border-dark-border flex flex-col gap-1 mt-2">
+      <div class="flex items-center justify-between gap-3">
       <div class="flex-1 min-w-0 px-2 py-1 bg-gray-50 dark:bg-dark-border/50 rounded text-xs">
         <span class="text-gray-500 dark:text-gray-400">Preview: </span>
         <span class="font-mono text-gray-900 dark:text-white truncate">{{ previewCategory }}</span>
@@ -447,6 +473,8 @@ onUnmounted(() => {
           Apply
         </button>
       </div>
+      </div>
+      <div v-if="duplicateError" class="text-xs text-red-500 dark:text-red-400 px-1">{{ duplicateError }}</div>
     </div>
   </div>
 </template>
