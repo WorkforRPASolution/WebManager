@@ -9,6 +9,7 @@ const bcrypt = require('bcryptjs')
 const { generateToken, generateRefreshToken, verifyToken } = require('../../shared/utils/jwt')
 const { getUserBySingleId, getRolePermissionByLevel } = require('../users/service')
 const { User } = require('../users/model')
+const { toLong } = require('../../shared/utils/mongoLong')
 const Client = require('../clients/model')
 const { sendEmailTo: _defaultSendEmailTo } = require('../../shared/services/emailNotificationService')
 const { buildTempPasswordEmail: _defaultBuildTempPasswordEmail, buildVerificationCodeEmail: _defaultBuildVerificationCodeEmail, buildSignupNotificationEmail } = require('../../shared/services/emailTemplates')
@@ -239,10 +240,10 @@ async function signup(userData) {
     note: note || '',
     accountStatus: 'pending',
     passwordStatus: 'normal',
-    authorityManager: authorityManager ?? 0,
+    authorityManager: toLong(authorityManager ?? 0),
     authority: authority || '',
-    accessnum: 0,
-    accessnum_desktop: 0
+    accessnum: toLong(0),
+    accessnum_desktop: toLong(0)
   })
 
   await newUser.save()
@@ -404,7 +405,7 @@ async function verifyCodeAndResetPassword(mail, code, newPassword) {
   const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS)
   await _User.updateOne(
     { _id: user._id },
-    { $set: { password: hashedPassword, passwordStatus: 'normal', passwordResetRequestedAt: null, accountStatus: 'active' } }
+    { $set: { password: hashedPassword, passwordStatus: 'normal', accountStatus: 'active' }, $unset: { passwordResetRequestedAt: '' } }
   )
 
   return { success: true, message: '비밀번호가 변경되었습니다.' }
@@ -468,7 +469,7 @@ async function setNewPassword(userId, newPassword) {
   // Update password and reset status, activate account (기존 Akka 사용자 accountStatus undefined → active)
   await _User.updateOne(
     { _id: user._id },
-    { $set: { password: hashedPassword, passwordStatus: 'normal', passwordResetRequestedAt: null, accountStatus: 'active' } }
+    { $set: { password: hashedPassword, passwordStatus: 'normal', accountStatus: 'active' }, $unset: { passwordResetRequestedAt: '' } }
   )
 
   return {
@@ -496,7 +497,7 @@ async function approvePasswordReset(userId, { email: manualEmail } = {}) {
   const hashedPassword = await bcrypt.hash(tempPassword, SALT_ROUNDS)
   await _User.updateOne(
     { _id: user._id },
-    { $set: { password: hashedPassword, passwordStatus: 'must_change', passwordResetRequestedAt: null } }
+    { $set: { password: hashedPassword, passwordStatus: 'must_change' }, $unset: { passwordResetRequestedAt: '' } }
   )
 
   // Send email notification (only in integrated mode)

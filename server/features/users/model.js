@@ -6,6 +6,11 @@
 
 const { Schema } = require('mongoose')
 const { earsConnection, webManagerConnection } = require('../../shared/db/connection')
+const { toLong } = require('../../shared/utils/mongoLong')
+
+// 정수 필드는 Mixed로 선언하여 Mongoose의 double 재캐스팅 방지
+// 쓰기 시 toLong()/ensureLongFields()로 BSON Long 변환, 읽기 시 MongoDB 드라이버가 자동 promote.
+const { Mixed } = Schema.Types
 
 // ===========================================
 // ARS_USER_INFO Schema (Extended)
@@ -53,10 +58,8 @@ const userSchema = new Schema({
     enum: ['', 'WRITE']
   },
   authorityManager: {
-    type: Number,
+    type: Mixed,
     required: true,
-    min: 0,
-    max: 3,
     default: 3
   },
   note: {
@@ -82,15 +85,14 @@ const userSchema = new Schema({
     default: 'normal'
   },
   passwordResetRequestedAt: {
-    type: Date,
-    default: null
+    type: Date
   },
   accessnum: {
-    type: Number,
+    type: Mixed,
     default: 0
   },
   accessnum_desktop: {
-    type: Number,
+    type: Mixed,
     default: 0
   },
   latestExecution: {
@@ -98,8 +100,8 @@ const userSchema = new Schema({
     default: ''
   },
   webmanagerLoginInfo: {
-    lastLoginAt: { type: Date, default: null },
-    loginCount: { type: Number, default: 0 }
+    lastLoginAt: { type: Date },
+    loginCount: { type: Mixed, default: 0 }
   }
 }, {
   collection: 'ARS_USER_INFO',
@@ -119,11 +121,9 @@ userSchema.index({ passwordStatus: 1 })
 // ===========================================
 const rolePermissionSchema = new Schema({
   roleLevel: {
-    type: Number,
+    type: Mixed,
     required: true,
-    unique: true,
-    min: 0,
-    max: 3
+    unique: true
   },
   roleName: {
     type: String,
@@ -169,7 +169,7 @@ const rolePermissionSchema = new Schema({
 // Default role permissions configuration
 const DEFAULT_ROLE_PERMISSIONS = [
   {
-    roleLevel: 0,
+    roleLevel: toLong(0),
     roleName: 'User',
     description: '일반 유저',
     permissions: {
@@ -197,7 +197,7 @@ const DEFAULT_ROLE_PERMISSIONS = [
     }
   },
   {
-    roleLevel: 1,
+    roleLevel: toLong(1),
     roleName: 'Admin',
     description: '시스템 관리자',
     permissions: {
@@ -225,7 +225,7 @@ const DEFAULT_ROLE_PERMISSIONS = [
     }
   },
   {
-    roleLevel: 2,
+    roleLevel: toLong(2),
     roleName: 'Conductor',
     description: '유저 중 최고 관리자',
     permissions: {
@@ -253,7 +253,7 @@ const DEFAULT_ROLE_PERMISSIONS = [
     }
   },
   {
-    roleLevel: 3,
+    roleLevel: toLong(3),
     roleName: 'Manager',
     description: '유저 중 관리자',
     permissions: {

@@ -135,7 +135,7 @@ describe('verifyCodeAndResetPassword', () => {
     expect(mockFindOne).toHaveBeenCalledWith({ singleid: 'testuser' })
     expect(mockUpdateOne).toHaveBeenCalledWith(
       { _id: 'user123' },
-      { $set: expect.objectContaining({ passwordStatus: 'normal', passwordResetRequestedAt: null, accountStatus: 'active' }) }
+      { $set: expect.objectContaining({ passwordStatus: 'normal', accountStatus: 'active' }), $unset: { passwordResetRequestedAt: '' } }
     )
     // password should be a bcrypt hash, not the original
     const setArg = mockUpdateOne.mock.calls[0][1].$set

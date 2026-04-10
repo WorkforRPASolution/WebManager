@@ -7,9 +7,10 @@
 const { Schema } = require('mongoose')
 const { webManagerConnection } = require('../../shared/db/connection')
 
+// SC_PROPERTY.scCategory가 NumberLong이므로 타입 일치를 위해 Mixed 사용
 const recoveryCategorySchema = new Schema({
   scCategory: {
-    type: Number,
+    type: Schema.Types.Mixed,
     required: true,
     unique: true
   },

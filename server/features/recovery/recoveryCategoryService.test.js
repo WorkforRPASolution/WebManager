@@ -7,6 +7,11 @@ import {
   _setDeps
 } from './recoveryCategoryService.js'
 
+// Long duck-type 매처 (bson ESM/CJS 중복 대응)
+function longVal(n) {
+  return expect.objectContaining({ low: n, high: 0 })
+}
+
 // ── Mock Model ──
 
 function createMockModel() {
@@ -66,9 +71,9 @@ describe('recoveryCategoryService', () => {
       const result = await upsertCategories(items, 'admin')
 
       expect(mockModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { scCategory: 1 },
+        { scCategory: longVal(1) },
         expect.objectContaining({
-          $set: expect.objectContaining({ categoryName: 'PM', updatedBy: 'admin' })
+          $set: expect.objectContaining({ scCategory: longVal(1), categoryName: 'PM', updatedBy: 'admin' })
         }),
         expect.objectContaining({ upsert: true })
       )
@@ -108,7 +113,7 @@ describe('recoveryCategoryService', () => {
 
       const result = await deleteCategories([1], 'admin')
 
-      expect(mockModel.deleteMany).toHaveBeenCalledWith({ scCategory: { $in: [1] } })
+      expect(mockModel.deleteMany).toHaveBeenCalledWith({ scCategory: { $in: [longVal(1)] } })
       expect(result.deletedCount).toBe(1)
     })
 

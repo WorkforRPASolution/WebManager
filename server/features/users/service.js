@@ -8,6 +8,7 @@ const { parsePaginationParams } = require('../../shared/utils/pagination')
 const { validateBatchCreate, validateUpdate } = require('./validation')
 const { makeAuditHelper, calculateChanges } = require('../../shared/models/webmanagerLogModel')
 const { createLogger } = require('../../shared/logger')
+const { toLong, stripNullFields, separateNullFields } = require('../../shared/utils/mongoLong')
 const log = createLogger('users')
 
 const SENSITIVE_FIELDS = ['password']
@@ -166,12 +167,14 @@ async function createUsers(usersData, context = {}) {
         return {
           ...syncedUser,
           password: await bcrypt.hash(user.password, SALT_ROUNDS),
-          authorityManager: Number(user.authorityManager) ?? 3
+          authorityManager: toLong(Number(user.authorityManager) ?? 3)
         }
       })
     )
 
-    const inserted = await User.insertMany(usersToCreate)
+    // NumberLong 변환 + null 필드 제거
+    const prepared = usersToCreate.map(u => stripNullFields(u))
+    const inserted = await User.insertMany(prepared)
     created = inserted.length
 
     // Audit logging (fire-and-forget)
@@ -227,9 +230,9 @@ async function updateUsers(usersData, context = {}) {
       updateData.password = await bcrypt.hash(updateData.password, SALT_ROUNDS)
     }
 
-    // Ensure authorityManager is a number
+    // Ensure authorityManager is NumberLong
     if (updateData.authorityManager !== undefined) {
-      updateData.authorityManager = Number(updateData.authorityManager)
+      updateData.authorityManager = toLong(Number(updateData.authorityManager))
     }
 
     // Sync process ↔ processes fields if either is being updated
@@ -237,7 +240,13 @@ async function updateUsers(usersData, context = {}) {
       syncProcessFields(updateData)
     }
 
-    const result = await User.updateOne({ _id }, { $set: updateData })
+    // null 필드를 $unset으로 분리
+    const { $set, $unset } = separateNullFields(updateData)
+    const update = {}
+    if (Object.keys($set).length > 0) update.$set = $set
+    if (Object.keys($unset).length > 0) update.$unset = $unset
+    if (Object.keys(update).length === 0) continue
+    const result = await User.updateOne({ _id }, update)
     if (result.modifiedCount > 0) {
       updated++
 
@@ -305,11 +314,12 @@ async function getRolePermissionByLevel(level) {
  * @param {Object} context - { user } execution context
  */
 async function updateRolePermissions(level, permissions, context = {}) {
+  const longLevel = toLong(Number(level))
   // Get previous state for audit
-  const previousDoc = await RolePermission.findOne({ roleLevel: level }).lean()
+  const previousDoc = await RolePermission.findOne({ roleLevel: longLevel }).lean()
 
   const result = await RolePermission.findOneAndUpdate(
-    { roleLevel: level },
+    { roleLevel: longLevel },
     { $set: { permissions } },
     { returnDocument: 'after', runValidators: true }
   ).lean()
@@ -354,7 +364,7 @@ async function syncRolePermissions() {
   const dbRoles = await RolePermission.find().lean()
 
   for (const dbRole of dbRoles) {
-    const defaultRole = DEFAULT_ROLE_PERMISSIONS.find(r => r.roleLevel === dbRole.roleLevel)
+    const defaultRole = DEFAULT_ROLE_PERMISSIONS.find(r => Number(r.roleLevel) === Number(dbRole.roleLevel))
     if (!defaultRole) continue
 
     const dbPermissionKeys = Object.keys(dbRole.permissions || {})

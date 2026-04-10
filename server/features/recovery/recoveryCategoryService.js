@@ -8,6 +8,7 @@ const RecoveryCategoryMap = require('./recoveryCategoryModel')
 const { earsConnection } = require('../../shared/db/connection')
 const { createActionLog } = require('../../shared/models/webmanagerLogModel')
 const { createLogger } = require('../../shared/logger')
+const { toLong } = require('../../shared/utils/mongoLong')
 const log = createLogger('recovery')
 
 // ── Dependency Injection (for testing) ──
@@ -43,12 +44,13 @@ async function upsertCategories(items, userId = 'system') {
   const results = []
 
   for (const item of items) {
-    const { scCategory, categoryName, description } = item
+    const { scCategory: rawCat, categoryName, description } = item
+    const scCategory = toLong(Number(rawCat))
     const prev = await Model.findOne({ scCategory }).lean()
 
     const doc = await Model.findOneAndUpdate(
       { scCategory },
-      { $set: { categoryName, description: description || '', updatedBy: userId, updatedAt: new Date() } },
+      { $set: { scCategory, categoryName, description: description || '', updatedBy: userId, updatedAt: new Date() } },
       { upsert: true, returnDocument: 'after', lean: true }
     )
     results.push(doc)
@@ -71,11 +73,12 @@ async function upsertCategories(items, userId = 'system') {
 
 async function deleteCategories(scCategories, userId = 'system') {
   const Model = getModel()
+  const longCats = scCategories.map(c => toLong(Number(c)))
 
-  const docs = await Model.find({ scCategory: { $in: scCategories } }).lean()
+  const docs = await Model.find({ scCategory: { $in: longCats } }).lean()
   if (docs.length === 0) return { deletedCount: 0 }
 
-  const result = await Model.deleteMany({ scCategory: { $in: scCategories } })
+  const result = await Model.deleteMany({ scCategory: { $in: longCats } })
 
   for (const doc of docs) {
     createActionLog({
