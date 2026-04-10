@@ -359,10 +359,10 @@ const fetchOperationMode = async () => {
 }
 fetchOperationMode()
 
-// Fetch available processes from EQP_INFO for the multi-select editor
+// Fetch available processes from ARS_USER_INFO for the multi-select editor
 const fetchAvailableProcesses = async () => {
   try {
-    const response = await clientListApi.getProcesses()
+    const response = await usersApi.getProcesses()
     const raw = response.data || []
     availableProcesses.value = raw.map(p => typeof p === 'object' ? p.value : p)
   } catch (err) {

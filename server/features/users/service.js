@@ -441,28 +441,34 @@ async function initializeRolePermissions() {
  * @param {string[]} userProcesses - User's process permissions (for filtering)
  */
 async function getProcesses(userProcesses) {
-  // process 필드(세미콜론 구분 문자열)에서 distinct 값 추출 + 카운트
-  const rawValues = await User.distinct('process')
-  const processMap = new Map()
-  for (const val of rawValues) {
-    if (!val) continue
-    for (const p of val.split(';')) {
-      const trimmed = p.trim()
-      if (trimmed) processMap.set(trimmed, (processMap.get(trimmed) || 0) + 1)
-    }
-  }
+  // processes 배열을 $unwind하여 process별 사용자 수를 정확하게 카운트
+  const pipeline = [
+    // processes 배열이 있으면 사용, 없으면 process 문자열에서 split
+    { $addFields: {
+      _procs: {
+        $cond: {
+          if: { $and: [{ $isArray: '$processes' }, { $gt: [{ $size: '$processes' }, 0] }] },
+          then: '$processes',
+          else: { $split: [{ $ifNull: ['$process', ''] }, ';'] }
+        }
+      }
+    }},
+    { $unwind: '$_procs' },
+    { $match: { _procs: { $nin: [null, ''] } } },
+    { $group: { _id: '$_procs', count: { $sum: 1 } } },
+    { $project: { _id: 0, value: '$_id', count: 1 } },
+    { $sort: { value: 1 } }
+  ]
 
-  let entries = Array.from(processMap.entries())
+  let results = await User.aggregate(pipeline)
 
   // If userProcesses is provided, filter to only include processes the user has access to
   if (userProcesses && userProcesses.length > 0) {
     const userProcessUpper = userProcesses.map(p => p.toUpperCase())
-    entries = entries.filter(([p]) => userProcessUpper.includes(p.toUpperCase()))
+    results = results.filter(r => userProcessUpper.includes(r.value.toUpperCase()))
   }
 
-  return entries
-    .map(([value, count]) => ({ value, count }))
-    .sort((a, b) => a.value.localeCompare(b.value))
+  return results
 }
 
 /**
