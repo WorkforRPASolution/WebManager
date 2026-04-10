@@ -14,7 +14,7 @@ const confirmed = ref(false)
 const mode = ref('select') // 'select' | 'direct'
 const selectedProcess = ref('')
 const selectedModel = ref('')
-const typeInput = ref('')
+const groupInput = ref('')
 const directInput = ref('')
 const containerRef = ref(null)
 const processSearchRef = ref(null)
@@ -43,19 +43,19 @@ const prefix = computed(() => {
 // Parse existing category value
 const parseCategory = (value) => {
   if (!value || typeof value !== 'string') {
-    return { process: '', model: '', type: '' }
+    return { process: '', model: '', group: '' }
   }
 
   const prefixStr = prefix.value
   if (!value.startsWith(prefixStr)) {
-    return { process: '', model: '', type: '', directValue: value }
+    return { process: '', model: '', group: '', directValue: value }
   }
 
   const parts = value.substring(prefixStr.length).split('-')
   return {
     process: parts[0] || '',
     model: parts[1] || '',
-    type: parts.slice(2).join('-') || ''
+    group: parts.slice(2).join('-') || ''
   }
 }
 
@@ -81,7 +81,7 @@ const previewCategory = computed(() => {
     parts.push(selectedProcess.value)
   }
   if (selectedModel.value) parts.push(selectedModel.value)
-  if (typeInput.value.trim()) parts.push(typeInput.value.trim())
+  if (groupInput.value.trim()) parts.push(groupInput.value.trim())
 
   return parts.join('-')
 })
@@ -173,6 +173,11 @@ const handleKeyDown = (event) => {
 
 // Close editor and save
 const handleApply = () => {
+  // Select 모드: Group 필수 검증
+  if (mode.value === 'select' && !groupInput.value.trim()) {
+    groupInput.value = ''
+    return
+  }
   confirmed.value = true
   props.params.stopEditing()
 }
@@ -211,7 +216,7 @@ onMounted(async () => {
     // Has valid parsed process, use select mode
     mode.value = 'select'
     selectedProcess.value = parsed.process
-    typeInput.value = parsed.type
+    groupInput.value = parsed.group
 
     // Fetch models for the process, then set model
     await fetchModels(parsed.process)
@@ -388,10 +393,10 @@ onUnmounted(() => {
           <!-- Type Input (Optional) -->
           <div class="flex-1 min-w-0 space-y-1">
             <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">
-              Type <span class="text-gray-400 dark:text-gray-500 text-[10px]">(opt)</span>
+              Group <span class="text-red-500">*</span>
             </label>
             <input
-              v-model="typeInput"
+              v-model="groupInput"
               type="text"
               placeholder="ALERT..."
               class="w-full px-2 py-1.5 text-xs bg-gray-50 dark:bg-dark-border border border-gray-200 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary-500"
