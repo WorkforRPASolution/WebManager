@@ -249,6 +249,7 @@ WebManager/
 | 컬렉션 | Database | 설명 |
 |--------|----------|------|
 | EQP_INFO | EARS | 장비 정보 (공유) |
+| AGENT_INFO | EARS | Agent 활성화 정보 (공유, EQP_INFO CRUD 시 자동 동기화) |
 | EMAIL_TEMPLATE_REPOSITORY | EARS | 이메일 템플릿 (공유) |
 | EMAILINFO | EARS | 이메일 수신자 (공유) |
 | ARS_USER_INFO | EARS | 사용자 정보 (공유) |

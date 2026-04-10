@@ -6,7 +6,7 @@ WebManager는 두 개의 MongoDB 데이터베이스를 사용합니다:
 
 | Database | 용도 | 컬렉션 |
 |----------|------|--------|
-| **EARS** | Akka 서버와 공유 | EQP_INFO, ARS_USER_INFO, EMAIL_TEMPLATE_REPOSITORY, POPUP_TEMPLATE_REPOSITORY, EMAILINFO, EMAIL_RECIPIENTS, EMAIL_IMAGE_REPOSITORY, SC_PROPERTY, EQP_AUTO_RECOVERY, RECOVERY_SUMMARY_BY_SCENARIO, RECOVERY_SUMMARY_BY_EQUIPMENT, RECOVERY_SUMMARY_BY_TRIGGER, RECOVERY_SUMMARY_BY_CATEGORY |
+| **EARS** | Akka 서버와 공유 | EQP_INFO, AGENT_INFO, ARS_USER_INFO, EMAIL_TEMPLATE_REPOSITORY, POPUP_TEMPLATE_REPOSITORY, EMAILINFO, EMAIL_RECIPIENTS, EMAIL_IMAGE_REPOSITORY, SC_PROPERTY, EQP_AUTO_RECOVERY, RECOVERY_SUMMARY_BY_SCENARIO, RECOVERY_SUMMARY_BY_EQUIPMENT, RECOVERY_SUMMARY_BY_TRIGGER, RECOVERY_SUMMARY_BY_CATEGORY |
 | **WEB_MANAGER** | WebManager 전용 | FEATURE_PERMISSIONS, WEBMANAGER_ROLE_PERMISSIONS, CONFIG_SETTINGS, LOG_SETTINGS, UPDATE_SETTINGS, OS_VERSION_LIST, EXEC_COMMANDS, WEBMANAGER_LOG, CRON_RUN_LOG, RECOVERY_CATEGORY_MAP |
 
 ### 환경변수
@@ -84,6 +84,35 @@ EARS Database의 컬렉션에 WebManager가 추가한 전용 필드는 `[WM]`으
   // agentPorts 필드 없음 → 모두 .env 기본값
 }
 ```
+
+---
+
+## AGENT_INFO (Agent 활성화 정보)
+
+장비별 Agent 활성화 정보를 저장하는 컬렉션. Akka 서버가 agent 플래그를 관리하며, WebManager는 EQP_INFO CRUD 시 `eqpId`/`IpAddr`만 자동 동기화합니다.
+
+### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| eqpId | String | Required (PK) | Equipment ID |
+| IpAddr | String | Required | Equipment IP Address |
+| arsagent | NumberLong | Required | arsagent 여부 (1:yes, 0:no, default: 0) |
+| resourceagent | NumberLong | Required | resourceagent 여부 (1:yes, 0:no, default: 1) |
+| aimmagent | NumberLong | Required | aimmagent 여부 (1:yes, 0:no, default: 0) |
+| arsagentJava | NumberLong | Required | arsagentJava 여부 (1:yes, 0:no, default: 1) |
+
+### Indexes
+
+- `{ eqpId: 1 }` (unique)
+
+### WebManager 연동
+
+- **EQP_INFO 생성 시**: AGENT_INFO upsert (기존 doc 있으면 IpAddr만 갱신, agent 플래그 보존)
+- **EQP_INFO 수정 시**: eqpId/ipAddr 변경 감지 → AGENT_INFO 동기화
+- **EQP_INFO 삭제 시**: 해당 eqpId의 AGENT_INFO 삭제
+
+> ⚠️ 필드명 주의: EQP_INFO는 `ipAddr` (소문자 a), AGENT_INFO는 `IpAddr` (대문자 A)
 
 ---
 

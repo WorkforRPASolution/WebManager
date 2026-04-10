@@ -9,6 +9,7 @@ const { createRulesContext } = require('../../shared/utils/businessRules')
 const strategyRegistry = require('./strategies')
 const { distinctWithCount } = require('../../shared/utils/aggregateHelpers')
 const { ensureLongFields, stripNullFields, separateNullFields } = require('../../shared/utils/mongoLong')
+const agentInfoSync = require('./agentInfoSyncService')
 
 // EQP_INFO 정수 필드 — BSON Long(int64)으로 저장할 필드 목록
 const EQP_INFO_LONG_FIELDS = [
@@ -399,7 +400,13 @@ async function createClients(clientsData, context = {}) {
     await rules.executeHooks('afterCreate', insertedDocs.map(d => d.toObject()), context)
   }
 
-  return { created, errors, syncStatus: context.syncStatus || null }
+  // 8. AGENT_INFO sync (eqpId + IpAddr upsert)
+  let agentInfoSyncResult = null
+  if (insertedDocs.length > 0) {
+    agentInfoSyncResult = await agentInfoSync.syncOnCreate(insertedDocs.map(d => d.toObject()))
+  }
+
+  return { created, errors, agentInfoSync: agentInfoSyncResult, syncStatus: context.syncStatus || null }
 }
 
 /**
@@ -621,7 +628,13 @@ async function updateClients(clientsData, context = {}) {
     context.syncStatus = hookContext.syncStatus
   }
 
-  return { updated, errors, syncStatus: context.syncStatus || null }
+  // 8. AGENT_INFO sync (eqpId/IpAddr 변경 감지 → 동기화)
+  let agentInfoSyncResult = null
+  if (updatedDocs.length > 0) {
+    agentInfoSyncResult = await agentInfoSync.syncOnUpdate(previousDocs, updatedDocs)
+  }
+
+  return { updated, errors, agentInfoSync: agentInfoSyncResult, syncStatus: context.syncStatus || null }
 }
 
 /**
@@ -649,7 +662,13 @@ async function deleteClients(ids, context = {}) {
     context.syncStatus = hookContext.syncStatus
   }
 
-  return { deleted: result.deletedCount, syncStatus: context.syncStatus || null }
+  // 5. AGENT_INFO sync (삭제된 eqpId 동기화)
+  let agentInfoSyncResult = null
+  if (documentsToDelete.length > 0) {
+    agentInfoSyncResult = await agentInfoSync.syncOnDelete(documentsToDelete)
+  }
+
+  return { deleted: result.deletedCount, agentInfoSync: agentInfoSyncResult, syncStatus: context.syncStatus || null }
 }
 
 /**
