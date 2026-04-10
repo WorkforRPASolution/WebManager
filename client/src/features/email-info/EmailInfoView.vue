@@ -289,8 +289,9 @@ const fetchAvailableProcesses = async () => {
   try {
     const response = await clientListApi.getProcesses()
     processFilterStore.setProcesses('clients', response.data)
-    // Filter by user permissions
-    availableProcesses.value = processFilterStore.getFilteredProcesses('clients')
+    // Filter by user permissions, then extract string values for category editor
+    const filtered = processFilterStore.getFilteredProcesses('clients')
+    availableProcesses.value = filtered.map(p => typeof p === 'object' ? p.value : p)
   } catch (error) {
     console.error('Failed to fetch processes:', error)
   }
