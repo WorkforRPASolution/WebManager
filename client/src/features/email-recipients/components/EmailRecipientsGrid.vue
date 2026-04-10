@@ -72,7 +72,8 @@ const userProcesses = computed(() => processFilterStore.getUserProcessList())
 const fetchAllProcesses = async () => {
   try {
     const response = await clientListApi.getProcesses()
-    return response.data || []
+    const raw = response.data || []
+    return raw.map(p => typeof p === 'object' ? p.value : p)
   } catch (error) {
     console.error('Failed to fetch all processes:', error)
     return []
@@ -83,7 +84,8 @@ const fetchAllProcesses = async () => {
 const fetchAllModels = async (process) => {
   try {
     const response = await clientListApi.getModels(process || null)
-    return response.data || []
+    const raw = response.data || []
+    return raw.map(m => typeof m === 'object' ? m.value : m)
   } catch (error) {
     console.error('Failed to fetch all models:', error)
     return []
@@ -95,7 +97,8 @@ const fetchModelsForProcess = async (process) => {
   if (!process) return []
   try {
     const response = await clientListApi.getModels(process)
-    return response.data || []
+    const raw = response.data || []
+    return raw.map(m => typeof m === 'object' ? m.value : m)
   } catch (error) {
     console.error('Failed to fetch models:', error)
     return []

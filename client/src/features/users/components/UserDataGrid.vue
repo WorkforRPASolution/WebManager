@@ -290,6 +290,7 @@ const columnDefs = ref([
     cellEditorParams: { values: ['pending', 'active', 'suspended'] },
     cellRenderer: (params) => {
       const status = params.value
+      if (!status) return '<span class="text-gray-400 dark:text-gray-500">-</span>'
       const styles = {
         pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
         active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
@@ -313,7 +314,7 @@ const columnDefs = ref([
     editable: false,
     cellRenderer: (params) => {
       const status = params.value
-      if (status === 'normal') return '-'
+      if (!status || status === 'normal') return '<span class="text-gray-400 dark:text-gray-500">-</span>'
       const styles = {
         reset_requested: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
         must_change: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'

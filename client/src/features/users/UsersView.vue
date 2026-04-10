@@ -363,7 +363,8 @@ fetchOperationMode()
 const fetchAvailableProcesses = async () => {
   try {
     const response = await clientListApi.getProcesses()
-    availableProcesses.value = response.data || []
+    const raw = response.data || []
+    availableProcesses.value = raw.map(p => typeof p === 'object' ? p.value : p)
   } catch (err) {
     console.error('Failed to fetch processes:', err)
   }

@@ -30,8 +30,7 @@ const userSchema = new Schema({
     maxlength: 50
   },
   password: {
-    type: String,
-    required: true
+    type: String
   },
   line: {
     type: String,
@@ -72,17 +71,15 @@ const userSchema = new Schema({
     trim: true,
     default: ''
   },
-  // Account lifecycle status
+  // Account lifecycle status (WebManager 전용, Akka 사용자는 필드 부재)
   accountStatus: {
     type: String,
-    enum: ['pending', 'active', 'suspended'],
-    default: 'active'
+    enum: ['pending', 'active', 'suspended']
   },
-  // Password lifecycle status
+  // Password lifecycle status (WebManager 전용, Akka 사용자는 필드 부재)
   passwordStatus: {
     type: String,
-    enum: ['normal', 'reset_requested', 'must_change'],
-    default: 'normal'
+    enum: ['normal', 'reset_requested', 'must_change']
   },
   passwordResetRequestedAt: {
     type: Date

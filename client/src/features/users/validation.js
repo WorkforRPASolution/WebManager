@@ -14,8 +14,8 @@ export const validationRules = {
   singleid: {
     required: true,
     maxLength: 50,
-    pattern: /^[A-Za-z0-9_-]+$/,
-    message: 'User ID is required (letters, numbers, _, -)'
+    pattern: /^[A-Za-z0-9._-]+$/,
+    message: 'User ID is required (letters, numbers, ., _, -)'
   },
   password: {
     required: false, // Not required for updates
@@ -45,13 +45,13 @@ export const validationRules = {
   },
 }
 
-// Validation rules for new users (password required)
+// Validation rules for new users (password optional — Admin creates without password)
 export const newUserValidationRules = {
   ...validationRules,
   password: {
-    required: true,
+    required: false,
     minLength: 4,
-    message: 'Password is required (min 4 chars)'
+    message: 'Password must be at least 4 characters'
   }
 }
 

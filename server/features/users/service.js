@@ -166,7 +166,7 @@ async function createUsers(usersData, context = {}) {
         const syncedUser = syncProcessFields({ ...user })
         return {
           ...syncedUser,
-          password: await bcrypt.hash(user.password, SALT_ROUNDS),
+          ...(user.password ? { password: await bcrypt.hash(user.password, SALT_ROUNDS) } : {}),
           authorityManager: toLong(Number(user.authorityManager) ?? 3)
         }
       })

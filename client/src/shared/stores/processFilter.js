@@ -99,11 +99,11 @@ export const useProcessFilterStore = defineStore('processFilter', () => {
   /**
    * API 응답을 캐시에 저장
    * @param {string} source - API 소스
-   * @param {string[]} processes - Process 목록
+   * @param {Array} processes - Process 목록 (문자열 배열 또는 { value, count } 객체 배열)
    */
   const setProcesses = (source, processes) => {
     if (allProcesses.value.hasOwnProperty(source)) {
-      allProcesses.value[source] = processes
+      allProcesses.value[source] = processes || []
     }
   }
 

@@ -152,9 +152,7 @@ export function useUserData() {
       authorityManager: 2,
       note: '',
       email: '',
-      department: '',
-      accountStatus: 'active',
-      passwordStatus: 'normal'
+      department: ''
     }
     currentData.value.unshift(newRow)
     unsavedNewRows.value.unshift(newRow)
@@ -184,8 +182,8 @@ export function useUserData() {
         note: rowData.note || '',
         email: rowData.email || '',
         department: rowData.department || '',
-        accountStatus: rowData.accountStatus || 'active',
-        passwordStatus: rowData.passwordStatus || 'normal'
+        ...(rowData.accountStatus && { accountStatus: rowData.accountStatus }),
+        ...(rowData.passwordStatus && { passwordStatus: rowData.passwordStatus })
       }
       currentData.value.unshift(newRow)
       unsavedNewRows.value.unshift(newRow)

@@ -231,7 +231,8 @@ const arrayValueSetter = (params) => {
 const fetchModelsForCategory = async (process) => {
   try {
     const response = await clientListApi.getModels(process)
-    return response.data || []
+    const raw = response.data || []
+    return raw.map(m => typeof m === 'object' ? m.value : m)
   } catch (error) {
     console.error('Failed to fetch models:', error)
     return []

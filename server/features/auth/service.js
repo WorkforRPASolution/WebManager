@@ -152,7 +152,7 @@ async function refreshAccessToken(refreshToken) {
   // Get fresh user data
   const user = await getUserBySingleId(decoded.singleid)
 
-  if (!user || user.accountStatus !== 'active') {
+  if (!user || (user.accountStatus && user.accountStatus !== 'active')) {
     return null
   }
 
@@ -217,6 +217,9 @@ async function signup(userData) {
   // Check if singleid already exists
   const existingUser = await _User.findOne({ singleid }).lean()
   if (existingUser) {
+    if (!existingUser.password) {
+      return { error: 'singleid', message: '이미 등록된 계정입니다. 비밀번호 초기화를 이용해주세요.' }
+    }
     return { error: 'singleid', message: '이미 사용 중인 ID입니다' }
   }
 
@@ -425,6 +428,11 @@ async function changePassword(userId, currentPassword, newPassword) {
     return { error: 'User not found' }
   }
 
+  // Check if password exists
+  if (!user.password) {
+    return { error: 'WebManager 비밀번호가 설정되지 않았습니다. 비밀번호 초기화를 요청해주세요.' }
+  }
+
   // Verify current password
   const isValid = await bcrypt.compare(currentPassword, user.password)
   if (!isValid) {
@@ -555,8 +563,11 @@ async function checkIdAvailability(singleid) {
     throw new Error('ID는 3자 이상이어야 합니다')
   }
 
-  const existing = await _User.findOne({ singleid: singleid.trim() }).select('singleid').lean()
+  const existing = await _User.findOne({ singleid: singleid.trim() }).select('singleid password').lean()
   if (existing) {
+    if (!existing.password) {
+      return { available: false, message: '이미 등록된 계정입니다. 비밀번호 초기화를 이용해주세요.' }
+    }
     return { available: false, message: '이미 사용 중인 ID입니다' }
   }
   return { available: true }

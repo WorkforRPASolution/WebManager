@@ -56,7 +56,7 @@ export function useFilterBar(config) {
     try {
       const userProcesses = applyPermissionFilter ? buildUserProcessFilter() : null
       const response = await api.getModels(null, userProcesses)
-      allModels.value = response.data
+      allModels.value = response.data || []
     } catch (error) {
       console.error('Failed to fetch all models:', error)
     }
@@ -73,7 +73,7 @@ export function useFilterBar(config) {
     }
     try {
       const response = await api.getModels(processArray.join(','))
-      filteredModels.value = response.data
+      filteredModels.value = response.data || []
     } catch (error) {
       console.error('Failed to fetch models:', error)
     }

@@ -26,10 +26,16 @@ describe('checkIdAvailability', () => {
     expect(result).toEqual({ available: true })
   })
 
-  it('이미 존재하는 ID → { available: false, message }', async () => {
-    mockFindOne.mockResolvedValue({ singleid: 'existinguser' })
+  it('이미 존재하는 ID (비밀번호 있음) → { available: false, message }', async () => {
+    mockFindOne.mockResolvedValue({ singleid: 'existinguser', password: '$2a$12$hash' })
     const result = await checkIdAvailability('existinguser')
     expect(result).toEqual({ available: false, message: '이미 사용 중인 ID입니다' })
+  })
+
+  it('이미 존재하는 ID (비밀번호 없음) → 비밀번호 초기화 안내', async () => {
+    mockFindOne.mockResolvedValue({ singleid: 'existinguser' })
+    const result = await checkIdAvailability('existinguser')
+    expect(result).toEqual({ available: false, message: '이미 등록된 계정입니다. 비밀번호 초기화를 이용해주세요.' })
   })
 
   it('빈 문자열 → throw', async () => {
