@@ -89,15 +89,16 @@
           </div>
         </div>
 
-        <!-- Line Filter -->
+        <!-- SE Auth Filter -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Line</label>
+          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SE Auth</label>
           <select
-            v-model="selectedLine"
+            v-model="selectedAuthority"
             class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 text-sm w-[150px] h-[38px]"
           >
-            <option value="">All Lines</option>
-            <option v-for="l in lines" :key="l" :value="l">{{ l }}</option>
+            <option value="">All</option>
+            <option value="WRITE">WRITE</option>
+            <option value="NONE">None</option>
           </select>
         </div>
 
@@ -165,7 +166,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onActivated, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onActivated, onUnmounted } from 'vue'
 import { usersApi } from '../api'
 import { useProcessFilterStore } from '../../../shared/stores/processFilter'
 import { useAuthStore } from '../../../shared/stores/auth'
@@ -180,12 +181,11 @@ const processFilterStore = useProcessFilterStore()
 const authStore = useAuthStore()
 
 const processes = ref([])
-const lines = ref([])
 const search = ref('')
 const selectedProcesses = ref([])  // Changed to array for multi-select
 const showProcessDropdown = ref(false)
 const processDropdownRef = ref(null)
-const selectedLine = ref('')
+const selectedAuthority = ref('')
 const selectedRole = ref('')
 const selectedAccountStatus = ref('')
 const selectedPasswordStatus = ref('')
@@ -215,17 +215,6 @@ onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
 })
 
-// Watch for process selection changes to refresh lines
-watch(selectedProcesses, async () => {
-  // Refresh lines when processes change
-  // 여러 process 선택 시 해당 processes의 Line 합집합 표시
-  if (selectedProcesses.value.length > 0) {
-    await fetchLines(selectedProcesses.value.join(','))
-  } else {
-    await fetchLines()
-  }
-})
-
 const accountStatusLabels = {
   active: 'Active',
   pending: 'Pending',
@@ -247,7 +236,7 @@ const filterSummary = computed(() => {
       : `${selectedProcesses.value.length} processes`
     parts.push(`Process: ${processText}`)
   }
-  if (selectedLine.value) parts.push(`Line: ${selectedLine.value}`)
+  if (selectedAuthority.value) parts.push(`SE Auth: ${selectedAuthority.value}`)
   if (selectedRole.value) parts.push(`Role: ${selectedRole.value}`)
   if (selectedAccountStatus.value) parts.push(`Account: ${accountStatusLabels[selectedAccountStatus.value]}`)
   if (selectedPasswordStatus.value) parts.push(`Password: ${passwordStatusLabels[selectedPasswordStatus.value]}`)
@@ -270,20 +259,6 @@ const fetchProcesses = async () => {
   }
 }
 
-const fetchLines = async (process = null) => {
-  try {
-    // 관리자/MASTER가 아닌 경우 userProcesses 전달하여 필터링
-    const userProcesses = processFilterStore.canViewAllProcesses
-      ? null
-      : processFilterStore.getUserProcessList()
-
-    const response = await usersApi.getLines(process, userProcesses)
-    lines.value = response.data
-  } catch (error) {
-    console.error('Failed to fetch lines:', error)
-  }
-}
-
 const handleSearch = () => {
   // 관리자/MASTER가 아닌 경우 userProcesses 전달 (키워드 검색 시 process 권한 필터링용)
   const userProcesses = processFilterStore.canViewAllProcesses
@@ -293,7 +268,7 @@ const handleSearch = () => {
   const filters = {
     search: search.value,
     processes: selectedProcesses.value.length > 0 ? selectedProcesses.value : null,  // Use array for multi-process
-    line: selectedLine.value,
+    authority: selectedAuthority.value,
     authorityManager: selectedRole.value,
     accountStatus: selectedAccountStatus.value,
     passwordStatus: selectedPasswordStatus.value,
@@ -307,7 +282,7 @@ const handleClear = () => {
   search.value = ''
   selectedProcesses.value = []
   showProcessDropdown.value = false
-  selectedLine.value = ''
+  selectedAuthority.value = ''
   selectedRole.value = ''
   selectedAccountStatus.value = ''
   selectedPasswordStatus.value = ''
@@ -315,7 +290,7 @@ const handleClear = () => {
 }
 
 const refreshFilters = async () => {
-  await Promise.all([fetchProcesses(), fetchLines()])
+  await fetchProcesses()
 }
 
 onMounted(async () => {

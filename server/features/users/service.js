@@ -65,8 +65,12 @@ async function getUsers(filters = {}, paginationQuery = {}) {
     query.process = { $regex: new RegExp(`(^|;)(${escaped.join('|')})(;|$)`, 'i') }
   }
 
-  if (filters.line) {
-    query.line = filters.line
+  if (filters.authority) {
+    if (filters.authority === 'WRITE') {
+      query.authority = 'WRITE'
+    } else if (filters.authority === 'NONE') {
+      query.authority = { $in: [null, '', undefined] }
+    }
   }
 
   if (filters.authorityManager !== undefined && filters.authorityManager !== '') {

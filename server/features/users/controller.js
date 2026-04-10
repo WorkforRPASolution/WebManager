@@ -17,7 +17,7 @@ const { createActionLog } = require('../../shared/models/webmanagerLogModel')
  * Supports multi-process filtering via `processes` parameter (comma-separated)
  */
 async function getUsers(req, res) {
-  const { process, processes, line, authorityManager, accountStatus, passwordStatus, search, page, pageSize, userProcesses } = req.query
+  const { process, processes, authority, authorityManager, accountStatus, passwordStatus, search, page, pageSize, userProcesses } = req.query
 
   // Parse processes parameter (comma-separated string → array)
   let processesArray = null
@@ -31,7 +31,7 @@ async function getUsers(req, res) {
     : null
 
   const result = await service.getUsers(
-    { process, processes: processesArray, line, authorityManager, accountStatus, passwordStatus, search, userProcesses: userProcessesArray },
+    { process, processes: processesArray, authority, authorityManager, accountStatus, passwordStatus, search, userProcesses: userProcessesArray },
     { page, pageSize }
   )
 
