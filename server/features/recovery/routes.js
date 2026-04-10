@@ -29,6 +29,15 @@ router.get('/backfill/status', authenticate, requireRole([1]), asyncHandler(cont
 router.get('/backfill/distribution', authenticate, requireRole([1]), asyncHandler(controller.getCronRunDistribution))
 router.post('/backfill/cancel', authenticate, requireRole([1]), asyncHandler(controller.cancelBackfill))
 
+// GET /api/recovery/by-category - 카테고리별 Recovery 비교
+router.get('/by-category', authenticate, requireMenuPermission('dashboardRecoveryByCategory'), asyncHandler(controller.getByCategory))
+
+// Category Map CRUD
+router.get('/category-map/sc-categories', authenticate, requireMenuPermission('dashboardRecoveryByCategory'), asyncHandler(controller.getScCategories))
+router.get('/category-map', authenticate, requireMenuPermission('dashboardRecoveryByCategory'), asyncHandler(controller.getCategoryMap))
+router.put('/category-map', authenticate, requireRole([1]), asyncHandler(controller.upsertCategoryMap))
+router.delete('/category-map', authenticate, requireRole([1]), asyncHandler(controller.deleteCategoryMap))
+
 // Batch Logs API (Admin only)
 router.get('/batch-logs', authenticate, requireRole([1]), asyncHandler(controller.getBatchLogs))
 router.get('/batch-logs/heatmap', authenticate, requireRole([1]), asyncHandler(controller.getBatchHeatmap))

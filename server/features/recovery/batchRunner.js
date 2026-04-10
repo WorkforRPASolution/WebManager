@@ -27,7 +27,8 @@ const LOCK_TTL_SEC = 300
 const PIPELINE_CONFIGS = {
   scenario: { collection: 'RECOVERY_SUMMARY_BY_SCENARIO', groupField: 'ears_code' },
   equipment: { collection: 'RECOVERY_SUMMARY_BY_EQUIPMENT', groupField: 'eqpid' },
-  trigger: { collection: 'RECOVERY_SUMMARY_BY_TRIGGER', groupField: 'trigger_by' }
+  trigger: { collection: 'RECOVERY_SUMMARY_BY_TRIGGER', groupField: 'trigger_by' },
+  category: { collection: 'RECOVERY_SUMMARY_BY_CATEGORY', groupField: 'scCategory', needsLookup: true }
 }
 
 // ── Pipeline Builder ──
@@ -103,6 +104,73 @@ function buildPipeline(configKey, period, bucketStart, dateGte, dateLt) {
   return [matchStage, firstGroupStage, secondGroupStage, addFieldsStage, unsetStage, mergeStage]
 }
 
+/**
+ * Category 전용 파이프라인.
+ * scCategory는 EQP_AUTO_RECOVERY에 없으므로 SC_PROPERTY에서 $lookup으로 가져온다.
+ */
+function buildCategoryPipeline(period, bucketStart, dateGte, dateLt) {
+  const targetCollection = PIPELINE_CONFIGS.category.collection
+
+  return [
+    // 1. $match — create_date 범위 + status not null (기존과 동일)
+    { $match: { create_date: { $gte: dateGte, $lt: dateLt }, status: { $ne: null } } },
+
+    // 2. $lookup SC_PROPERTY (같은 EARS DB, scname 인덱스 활용)
+    { $lookup: {
+      from: 'SC_PROPERTY',
+      localField: 'ears_code',
+      foreignField: 'scname',
+      as: '_scProp'
+    } },
+
+    // 3. scCategory 추출 (첫 번째 매치, null/미매칭이면 -1 = Uncategorized)
+    { $addFields: {
+      scCategory: { $ifNull: [{ $arrayElemAt: ['$_scProp.scCategory', 0] }, -1] }
+    } },
+    { $unset: '_scProp' },
+
+    // 4. 1차 $group (line, process, model, scCategory, status → count)
+    { $group: {
+      _id: {
+        line: '$line', process: '$process', model: '$model',
+        scCategory: '$scCategory', status: '$status'
+      },
+      count: { $sum: 1 }
+    } },
+
+    // 5. 2차 $group → status_counts 합산
+    { $group: {
+      _id: {
+        line: '$_id.line', process: '$_id.process', model: '$_id.model',
+        scCategory: '$_id.scCategory'
+      },
+      total: { $sum: '$count' },
+      status_pairs: { $push: { k: '$_id.status', v: '$count' } }
+    } },
+
+    // 6. $addFields — period, bucket, status_counts 변환
+    { $addFields: {
+      period,
+      bucket: bucketStart,
+      line: '$_id.line',
+      process: '$_id.process',
+      model: '$_id.model',
+      scCategory: '$_id.scCategory',
+      status_counts: { $arrayToObject: '$status_pairs' },
+      updated_at: '$$NOW'
+    } },
+    { $unset: ['_id', 'status_pairs'] },
+
+    // 7. $merge
+    { $merge: {
+      into: targetCollection,
+      on: ['period', 'bucket', 'line', 'process', 'model', 'scCategory'],
+      whenMatched: 'replace',
+      whenNotMatched: 'insert'
+    } }
+  ]
+}
+
 // ── Core Pipeline Execution ──
 
 async function runPipelinesForBucket(period, bucketStart, dateGte, dateLt, options = {}) {
@@ -113,9 +181,11 @@ async function runPipelinesForBucket(period, bucketStart, dateGte, dateLt, optio
   const pipelineResults = {}
   const errors = []
 
-  for (const [configKey] of Object.entries(PIPELINE_CONFIGS)) {
+  for (const [configKey, config] of Object.entries(PIPELINE_CONFIGS)) {
     try {
-      const pipeline = buildPipeline(configKey, period, bucketStart, dateGte, dateLt)
+      const pipeline = config.needsLookup
+        ? buildCategoryPipeline(period, bucketStart, dateGte, dateLt)
+        : buildPipeline(configKey, period, bucketStart, dateGte, dateLt)
       await earsDb.collection('EQP_AUTO_RECOVERY')
         .aggregate(pipeline, { allowDiskUse: true, maxTimeMS: 55000 })
         .toArray()
@@ -127,9 +197,10 @@ async function runPipelinesForBucket(period, bucketStart, dateGte, dateLt, optio
     }
   }
 
+  const totalPipelines = Object.keys(PIPELINE_CONFIGS).length
   const successCount = Object.values(pipelineResults).filter(r => r === 'success').length
   let status
-  if (successCount === 3) status = 'success'
+  if (successCount === totalPipelines) status = 'success'
   else if (successCount === 0) status = 'failed'
   else status = 'partial'
 
@@ -355,6 +426,7 @@ function _resetIsRunning() {
 module.exports = {
   PIPELINE_CONFIGS,
   buildPipeline,
+  buildCategoryPipeline,
   runPipelinesForBucket,
   runBatch,
   detectGaps,

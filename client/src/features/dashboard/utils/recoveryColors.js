@@ -58,3 +58,31 @@ export function getTriggerColor(trigger, isDark) {
   const mode = isDark ? 'dark' : 'light'
   return TRIGGER_COLORS[trigger]?.[mode] || TRIGGER_COLORS.Other[mode]
 }
+
+// Category 색상 팔레트 (인덱스 기반, STATUS/TRIGGER와 비충돌)
+const CATEGORY_PALETTE = [
+  { light: '#3b82f6', dark: '#60a5fa' },   // blue
+  { light: '#8b5cf6', dark: '#a78bfa' },   // violet
+  { light: '#10b981', dark: '#34d399' },   // emerald
+  { light: '#f59e0b', dark: '#fbbf24' },   // amber
+  { light: '#ec4899', dark: '#f472b6' },   // pink
+  { light: '#14b8a6', dark: '#2dd4bf' },   // teal
+  { light: '#d97706', dark: '#f97316' },   // orange
+  { light: '#6366f1', dark: '#818cf8' },   // indigo
+  { light: '#e11d48', dark: '#fb7185' },   // rose
+  { light: '#0891b2', dark: '#22d3ee' },   // cyan
+  { light: '#65a30d', dark: '#a3e635' },   // lime
+  { light: '#7c3aed', dark: '#c084fc' }    // purple
+]
+
+/**
+ * 카테고리 인덱스에 해당하는 색상 반환
+ * @param {number} index - 카테고리 순번 (0-based)
+ * @param {boolean} isDark - 다크 모드 여부
+ * @returns {string} hex color
+ */
+export function getCategoryColor(index, isDark) {
+  const mode = isDark ? 'dark' : 'light'
+  const palette = CATEGORY_PALETTE[index % CATEGORY_PALETTE.length]
+  return palette[mode]
+}

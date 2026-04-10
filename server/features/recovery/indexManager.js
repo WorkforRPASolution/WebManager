@@ -63,6 +63,14 @@ async function initializeRecoverySummary() {
       { unique: true }
     )
 
+    await earsDb.collection('RECOVERY_SUMMARY_BY_CATEGORY').createIndex(
+      { period: 1, bucket: 1, line: 1, process: 1, model: 1, scCategory: 1 },
+      { unique: true }
+    )
+
+    // SC_PROPERTY scname 인덱스 ($lookup 성능용)
+    await earsDb.collection('SC_PROPERTY').createIndex({ scname: 1 })
+
     const CronRunLog = getCronRunLog()
     await CronRunLog.collection.createIndex(
       { jobName: 1, period: 1, bucket: 1 },

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 import {
   buildPipeline,
+  buildCategoryPipeline,
   runBatch,
   runPipelinesForBucket,
   detectGaps,
@@ -84,8 +85,8 @@ describe('recoverySummaryService', () => {
   })
 
   describe('PIPELINE_CONFIGS', () => {
-    it('has three configs: scenario, equipment, trigger', () => {
-      expect(Object.keys(PIPELINE_CONFIGS)).toEqual(['scenario', 'equipment', 'trigger'])
+    it('has four configs: scenario, equipment, trigger, category', () => {
+      expect(Object.keys(PIPELINE_CONFIGS)).toEqual(['scenario', 'equipment', 'trigger', 'category'])
     })
 
     it('scenario config targets RECOVERY_SUMMARY_BY_SCENARIO with groupField ears_code', () => {
@@ -106,6 +107,14 @@ describe('recoverySummaryService', () => {
       expect(PIPELINE_CONFIGS.trigger).toEqual({
         collection: 'RECOVERY_SUMMARY_BY_TRIGGER',
         groupField: 'trigger_by'
+      })
+    })
+
+    it('category config targets RECOVERY_SUMMARY_BY_CATEGORY with $lookup', () => {
+      expect(PIPELINE_CONFIGS.category).toEqual({
+        collection: 'RECOVERY_SUMMARY_BY_CATEGORY',
+        groupField: 'scCategory',
+        needsLookup: true
       })
     })
   })
@@ -215,8 +224,66 @@ describe('recoverySummaryService', () => {
     })
   })
 
+  describe('buildCategoryPipeline', () => {
+    const bucketStart = new Date('2026-03-15T00:00:00.000Z')
+    const dateGte = '2026-03-15T09:00:00.000+09:00'
+    const dateLt = '2026-03-15T10:00:00.000+09:00'
+
+    it('builds pipeline with 9 stages including $lookup and $unset', () => {
+      const pipeline = buildCategoryPipeline('hourly', bucketStart, dateGte, dateLt)
+
+      expect(pipeline).toHaveLength(9)
+      expect(pipeline[0]).toHaveProperty('$match')
+      expect(pipeline[1]).toHaveProperty('$lookup')
+      expect(pipeline[2]).toHaveProperty('$addFields')   // scCategory 추출
+      expect(pipeline[3]).toHaveProperty('$unset', '_scProp')
+      expect(pipeline[4]).toHaveProperty('$group')         // 1차 group
+      expect(pipeline[5]).toHaveProperty('$group')         // 2차 group
+      expect(pipeline[6]).toHaveProperty('$addFields')     // period, bucket 등
+      expect(pipeline[7]).toHaveProperty('$unset')         // _id, status_pairs
+      expect(pipeline[8]).toHaveProperty('$merge')
+    })
+
+    it('$lookup joins SC_PROPERTY on ears_code → scname', () => {
+      const pipeline = buildCategoryPipeline('hourly', bucketStart, dateGte, dateLt)
+      const lookup = pipeline[1].$lookup
+
+      expect(lookup.from).toBe('SC_PROPERTY')
+      expect(lookup.localField).toBe('ears_code')
+      expect(lookup.foreignField).toBe('scname')
+      expect(lookup.as).toBe('_scProp')
+    })
+
+    it('extracts scCategory with $ifNull defaulting to -1 (Uncategorized)', () => {
+      const pipeline = buildCategoryPipeline('hourly', bucketStart, dateGte, dateLt)
+      const addFields = pipeline[2].$addFields
+
+      expect(addFields.scCategory.$ifNull[1]).toBe(-1)
+      expect(addFields.scCategory.$ifNull[0]).toEqual({ $arrayElemAt: ['$_scProp.scCategory', 0] })
+    })
+
+    it('$merge targets RECOVERY_SUMMARY_BY_CATEGORY with scCategory in on-fields', () => {
+      const pipeline = buildCategoryPipeline('hourly', bucketStart, dateGte, dateLt)
+      const merge = pipeline[8].$merge
+
+      expect(merge.into).toBe('RECOVERY_SUMMARY_BY_CATEGORY')
+      expect(merge.on).toContain('scCategory')
+      expect(merge.whenMatched).toBe('replace')
+    })
+
+    it('first $group groups by scCategory (not ears_code)', () => {
+      const pipeline = buildCategoryPipeline('hourly', bucketStart, dateGte, dateLt)
+      const group = pipeline[4].$group
+
+      expect(group._id).toHaveProperty('scCategory')
+      expect(group._id).not.toHaveProperty('ears_code')
+      expect(group._id).toHaveProperty('status')
+      expect(group.count).toEqual({ $sum: 1 })
+    })
+  })
+
   describe('runPipelinesForBucket', () => {
-    it('runs 3 pipelines and returns status success when all succeed', async () => {
+    it('runs 4 pipelines and returns status success when all succeed', async () => {
       const mockEarsDb = createMockEarsDb()
       const mockCronRunLog = createMockCronRunLog()
       _setDeps({ earsDb: mockEarsDb, CronRunLog: mockCronRunLog })
@@ -229,7 +296,7 @@ describe('recoverySummaryService', () => {
       )
 
       expect(result.status).toBe('success')
-      expect(mockEarsDb.collection('EQP_AUTO_RECOVERY').aggregate).toHaveBeenCalledTimes(3)
+      expect(mockEarsDb.collection('EQP_AUTO_RECOVERY').aggregate).toHaveBeenCalledTimes(4)
       expect(mockCronRunLog.findOneAndUpdate).toHaveBeenCalledTimes(1)
     })
 
@@ -363,9 +430,9 @@ describe('recoverySummaryService', () => {
 
       await runBatch('hourly')
 
-      // Should have called aggregate on EQP_AUTO_RECOVERY 3 times
+      // Should have called aggregate on EQP_AUTO_RECOVERY 4 times (scenario, equipment, trigger, category)
       const eqpColl = mockEarsDb.collection('EQP_AUTO_RECOVERY')
-      expect(eqpColl.aggregate).toHaveBeenCalledTimes(3)
+      expect(eqpColl.aggregate).toHaveBeenCalledTimes(4)
 
       // findOneAndUpdate should be called (from runPipelinesForBucket)
       expect(mockCronRunLog.findOneAndUpdate).toHaveBeenCalled()

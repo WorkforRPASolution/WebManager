@@ -17,6 +17,7 @@ const props = defineProps({
 
 const emit = defineEmits(['search', 'process-change', 'period-change'])
 
+const MAX_DAYS = 730
 const PERIOD_DAYS = { today: 1, '7d': 7, '30d': 30, '90d': 90, '1y': 365 }
 const {
   selectedPeriod, startDate, endDate, isCustom, isLatestPeriod,

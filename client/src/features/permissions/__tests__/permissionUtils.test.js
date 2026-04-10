@@ -17,8 +17,8 @@ import {
 // ──────────────────────────────────────
 describe('Menu Permission 유틸리티', () => {
   describe('menuPermissionGroups', () => {
-    it('5개 그룹이 정의되어 있어야 함', () => {
-      expect(menuPermissionGroups).toHaveLength(5)
+    it('6개 그룹이 정의되어 있어야 함', () => {
+      expect(menuPermissionGroups).toHaveLength(6)
     })
 
     it('Dashboard 그룹에 5개 항목', () => {
@@ -26,9 +26,9 @@ describe('Menu Permission 유틸리티', () => {
       expect(dashboard.keys).toHaveLength(5)
     })
 
-    it('Dashboard - Recovery 그룹에 3개 항목', () => {
+    it('Dashboard - Recovery 그룹에 4개 항목', () => {
       const recovery = menuPermissionGroups.find(g => g.label === 'Dashboard - Recovery')
-      expect(recovery.keys).toHaveLength(3)
+      expect(recovery.keys).toHaveLength(4)
     })
 
     it('Clients 그룹에 2개 항목', () => {

@@ -190,6 +190,27 @@ const routes = [
     }
   },
   {
+    path: '/recovery-by-category',
+    name: 'RecoveryByCategory',
+    component: () => import('../features/dashboard/RecoveryByCategoryView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'dashboardRecoveryByCategory',
+      menu: {
+        mainMenu: 'dashboard',
+        mainMenuLabel: 'Dashboard',
+        mainMenuIcon: 'dashboard',
+        mainMenuOrder: 1,
+        subMenu: 'recovery-by-category',
+        subMenuLabel: 'Recovery by Category',
+        subMenuIcon: 'category',
+        subMenuOrder: 8,
+        permission: 'dashboardRecoveryByCategory'
+      }
+    }
+  },
+  {
     path: '/recovery-analysis',
     name: 'RecoveryAnalysis',
     component: () => import('../features/dashboard/RecoveryAnalysisView.vue'),
@@ -205,7 +226,7 @@ const routes = [
         subMenu: 'recovery-analysis',
         subMenuLabel: 'Recovery Analysis',
         subMenuIcon: 'analytics',
-        subMenuOrder: 8,
+        subMenuOrder: 9,
         permission: 'dashboardRecoveryAnalysis'
       }
     }
@@ -226,7 +247,7 @@ const routes = [
         subMenu: 'user-activity',
         subMenuLabel: 'User Activity',
         subMenuIcon: 'group',
-        subMenuOrder: 9,
+        subMenuOrder: 10,
         permission: 'dashboardUserActivity'
       }
     }

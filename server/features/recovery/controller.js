@@ -304,9 +304,61 @@ async function getBatchHeatmap(req, res) {
   res.json({ data })
 }
 
+// ── By Category ──
+
+async function getByCategory(req, res) {
+  const { period, process, line, startDate, endDate } = req.query
+  if (period === 'custom') {
+    const validation = validatePeriodRange(startDate, endDate, 730)
+    if (!validation.valid) return res.status(400).json({ error: validation.error })
+  }
+  const result = await service.getByCategory({
+    period: period || 'today',
+    process: process || undefined,
+    line: line || undefined,
+    startDate, endDate
+  })
+  res.json(result)
+}
+
+// ── Category Map CRUD ──
+
+const recoveryCategoryService = require('./recoveryCategoryService')
+
+async function getCategoryMap(req, res) {
+  const data = await recoveryCategoryService.getAll()
+  res.json({ data })
+}
+
+async function upsertCategoryMap(req, res) {
+  const { items } = req.body
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items array is required' })
+  }
+  const userId = req.user?.singleid || 'system'
+  const data = await recoveryCategoryService.upsertCategories(items, userId)
+  res.json({ data })
+}
+
+async function deleteCategoryMap(req, res) {
+  const { scCategories } = req.body
+  if (!Array.isArray(scCategories) || scCategories.length === 0) {
+    return res.status(400).json({ error: 'scCategories array is required' })
+  }
+  const userId = req.user?.singleid || 'system'
+  const result = await recoveryCategoryService.deleteCategories(scCategories, userId)
+  res.json(result)
+}
+
+async function getScCategories(req, res) {
+  const data = await recoveryCategoryService.getDistinctScCategories()
+  res.json({ data })
+}
+
 module.exports = {
   getOverview,
   getByProcess,
+  getByCategory,
   getAnalysis,
   getAnalysisFilters,
   getHistory,
@@ -318,5 +370,9 @@ module.exports = {
   cancelBackfill: handleCancelBackfill,
   getBatchLogs,
   getBatchHeatmap,
+  getCategoryMap,
+  upsertCategoryMap,
+  deleteCategoryMap,
+  getScCategories,
   _setDeps
 }

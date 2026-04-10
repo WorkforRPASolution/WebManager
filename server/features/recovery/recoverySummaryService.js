@@ -15,6 +15,7 @@ const { validateBackfillRange } = require('./validation')
 const {
   PIPELINE_CONFIGS,
   buildPipeline,
+  buildCategoryPipeline,
   runPipelinesForBucket,
   runBatch,
   detectGaps,
@@ -60,6 +61,7 @@ function _getSettlingHours() {
 module.exports = {
   PIPELINE_CONFIGS,
   buildPipeline,
+  buildCategoryPipeline,
   runPipelinesForBucket,
   runBatch,
   detectGaps,

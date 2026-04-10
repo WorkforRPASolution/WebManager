@@ -773,9 +773,149 @@ async function getAnalysisFilters(filters = {}) {
   return { processes: allProcesses.filter(Boolean).sort(), modelsByProcess }
 }
 
+// ── By Category ──
+
+const recoveryCategoryService = require('./recoveryCategoryService')
+
+async function getByCategory(filters = {}) {
+  const redis = getRedis()
+  const cacheKey = buildCacheKey('recovery:by-category', {
+    period: filters.period, process: filters.process, line: filters.line,
+    startDate: filters.startDate, endDate: filters.endDate
+  })
+  return getWithCache(redis, cacheKey, () => _getByCategoryCore(filters), 60, { lockTtlSec: 90 })
+}
+
+async function _getByCategoryCore(filters = {}) {
+  const { period = 'today', process, line, startDate, endDate } = filters
+  const db = getEarsDb()
+  const dimFilters = { process, line, startDate, endDate }
+
+  const dailyMatch = buildMatchFilter(period, dimFilters)
+  const trendMatch = buildTrendMatchFilter(period, dimFilters)
+  const opts = { allowDiskUse: true, maxTimeMS: 55000 }
+  const coll = db.collection('RECOVERY_SUMMARY_BY_CATEGORY')
+
+  // 1. Category-level aggregation
+  const categoryPipeline = [
+    { $match: dailyMatch },
+    { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
+    { $unwind: '$sc_array' },
+    {
+      $group: {
+        _id: { scCategory: '$scCategory', status: '$sc_array.k' },
+        count: { $sum: '$sc_array.v' }
+      }
+    },
+    {
+      $group: {
+        _id: '$_id.scCategory',
+        total: { $sum: '$count' },
+        statuses: { $push: { k: '$_id.status', v: '$count' } }
+      }
+    },
+    { $addFields: { status_counts: { $arrayToObject: '$statuses' } } },
+    { $sort: { total: -1 } },
+    { $project: { _id: 0, scCategory: '$_id', total: 1, status_counts: 1 } }
+  ]
+
+  // 2. Trend per category
+  const trendPipeline = [
+    { $match: trendMatch },
+    { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
+    { $unwind: '$sc_array' },
+    {
+      $group: {
+        _id: { bucket: '$bucket', scCategory: '$scCategory', status: '$sc_array.k' },
+        count: { $sum: '$sc_array.v' }
+      }
+    },
+    {
+      $group: {
+        _id: { bucket: '$_id.bucket', scCategory: '$_id.scCategory' },
+        total: { $sum: '$count' },
+        statuses: { $push: { k: '$_id.status', v: '$count' } }
+      }
+    },
+    { $addFields: { status_counts: { $arrayToObject: '$statuses' } } },
+    { $sort: { '_id.bucket': 1 } },
+    {
+      $project: {
+        _id: 0,
+        bucket: '$_id.bucket',
+        scCategory: '$_id.scCategory',
+        total: 1,
+        status_counts: 1
+      }
+    }
+  ]
+
+  const [categories, trend, categoryNames] = await Promise.all([
+    coll.aggregate(categoryPipeline, opts).toArray(),
+    coll.aggregate(trendPipeline, opts).toArray(),
+    recoveryCategoryService.getAll()
+  ])
+
+  // Build scCategory → categoryName lookup
+  const nameMap = {}
+  for (const c of categoryNames) {
+    nameMap[c.scCategory] = c.categoryName
+  }
+
+  // Enrich categories with names
+  let totalAll = 0
+  let successAll = 0
+  let uncategorizedCount = 0
+  for (const cat of categories) {
+    cat.categoryName = cat.scCategory === -1
+      ? 'Uncategorized'
+      : (nameMap[cat.scCategory] || `Category ${cat.scCategory}`)
+    if (cat.scCategory === -1) uncategorizedCount = cat.total
+    totalAll += cat.total
+    successAll += (cat.status_counts?.Success || 0)
+  }
+
+  // Enrich trend with names
+  for (const t of trend) {
+    t.categoryName = t.scCategory === -1
+      ? 'Uncategorized'
+      : (nameMap[t.scCategory] || `Category ${t.scCategory}`)
+  }
+
+  const granularity = determineTrendGranularity(period, { startDate, endDate })
+  const rolledTrend = rollupTrend(normalizeDoc(trend), granularity)
+
+  // KPI
+  const kpi = {
+    total: totalAll,
+    success: successAll,
+    failed: 0,
+    stopped: 0,
+    skip: 0,
+    successRate: totalAll > 0 ? Math.round(successAll / totalAll * 1000) / 10 : 0,
+    categoryCount: categories.filter(c => c.scCategory !== -1).length,
+    uncategorizedCount
+  }
+  // Sum failed/stopped/skip from all categories
+  for (const cat of categories) {
+    const sc = cat.status_counts || {}
+    kpi.failed += (sc.Failed || 0) + (sc.ScriptFailed || 0) + (sc.VisionDelayed || 0) + (sc.NotStarted || 0)
+    kpi.stopped += (sc.Stopped || 0)
+    kpi.skip += (sc.Skip || 0)
+  }
+
+  return {
+    kpi,
+    categories: normalizeDoc(categories),
+    trend: rolledTrend,
+    granularity
+  }
+}
+
 module.exports = {
   getOverview,
   getByProcess,
+  getByCategory,
   getAnalysis,
   getAnalysisFilters,
   getHistory,

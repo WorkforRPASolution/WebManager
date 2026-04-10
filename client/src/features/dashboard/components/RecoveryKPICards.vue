@@ -6,6 +6,12 @@ const props = defineProps({
     type: Object,
     default: null
     // { total, success, failed, stopped, skip, successRate, prevTotal, prevSuccess, prevSuccessRate }
+  },
+  // 외부에서 카드 배열을 직접 주입할 때 사용 (예: Recovery by Category)
+  // [{ label, value, delta?, deltaLabel?, deltaColor?, accent? }]
+  customCards: {
+    type: Array,
+    default: null
   }
 })
 
@@ -19,7 +25,7 @@ function calcDelta(current, prev) {
   return current - prev
 }
 
-const cards = computed(() => {
+const defaultCards = computed(() => {
   const k = props.kpi || {}
   const totalDelta = calcDelta(k.total, k.prevTotal)
   const successRateDelta = k.successRate != null && k.prevSuccessRate != null
@@ -78,6 +84,14 @@ const cards = computed(() => {
   ]
 })
 
+const cards = computed(() => props.customCards || defaultCards.value)
+
+const gridClass = computed(() => {
+  const len = cards.value.length
+  if (len <= 4) return 'grid-cols-2 md:grid-cols-4'
+  return 'grid-cols-2 md:grid-cols-3 xl:grid-cols-6'
+})
+
 function getDeltaIcon(delta) {
   if (delta == null || delta === 0) return ''
   return delta > 0 ? '\u25B2' : '\u25BC'
@@ -98,7 +112,7 @@ function getDeltaClass(card) {
 </script>
 
 <template>
-  <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+  <div class="grid gap-4" :class="gridClass">
     <div
       v-for="(card, idx) in cards"
       :key="idx"

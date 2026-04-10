@@ -85,6 +85,11 @@ export const recoveryApi = {
   getCronRunDistribution: (params = {}) => api.get('/recovery/backfill/distribution', { params }),
   getBatchLogs: (params = {}) => api.get('/recovery/batch-logs', { params }),
   getBatchHeatmap: (params = {}) => api.get('/recovery/batch-logs/heatmap', { params }),
+  getByCategory: (params = {}) => api.get('/recovery/by-category', { params, timeout: 60000 }),
+  getCategoryMap: () => api.get('/recovery/category-map'),
+  upsertCategoryMap: (data) => api.put('/recovery/category-map', data),
+  deleteCategoryMap: (data) => api.delete('/recovery/category-map', { data }),
+  getScCategories: () => api.get('/recovery/category-map/sc-categories'),
 }
 
 // User Activity API

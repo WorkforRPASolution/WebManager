@@ -13,6 +13,7 @@ const { initializeConfigSettings } = require('./features/clients/configSettingsS
 const { initializeLogSettings } = require('./features/clients/logSettingsService')
 const { initializeUpdateSettings } = require('./features/clients/updateSettingsService')
 const { initializeRecoverySummary, startCronJobs, stopCronJobs } = require('./features/recovery/recoverySummaryService')
+const { initializeRecoveryCategoryMap } = require('./features/recovery/recoveryCategoryService')
 const { releaseLock } = require('./shared/utils/redisLock')
 const { getRedisClient } = require('./shared/db/redisConnection')
 const { getPodId } = require('./shared/utils/podIdentity')
@@ -38,6 +39,7 @@ const startServer = async () => {
     await initializeLogSettings();
     await initializeUpdateSettings();
     await initializeRecoverySummary();
+    await initializeRecoveryCategoryMap();
     serverLog.info('Permissions synced');
 
     registerEqpRedisHooks();

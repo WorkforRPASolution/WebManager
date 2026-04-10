@@ -98,8 +98,8 @@ describe('batchRunner.runBatch — 분산 락 (I11)', () => {
 
     // 락 획득 호출 (SET wm:cron:lock:hourly NX EX 300) — TTL 600 → 300으로 단축
     expect(redis.set).toHaveBeenCalledWith('wm:cron:lock:hourly', pod, 'NX', 'EX', 300)
-    // 배치 실행 (3개 파이프라인 aggregate)
-    expect(earsDb._collection.aggregate).toHaveBeenCalledTimes(3)
+    // 배치 실행 (4개 파이프라인 aggregate: scenario, equipment, trigger, category)
+    expect(earsDb._collection.aggregate).toHaveBeenCalledTimes(4)
     // CronRunLog 업데이트 호출 (runPipelinesForBucket 내부)
     expect(CronRunLog.findOneAndUpdate).toHaveBeenCalled()
     // ★ 락 해제 호출 없음 — TTL로 자연 만료하여 clock drift 흡수
@@ -144,8 +144,8 @@ describe('batchRunner.runBatch — 분산 락 (I11)', () => {
 
     await runBatch('hourly')
 
-    // 배치 정상 실행
-    expect(earsDb._collection.aggregate).toHaveBeenCalledTimes(3)
+    // 배치 정상 실행 (4개 파이프라인)
+    expect(earsDb._collection.aggregate).toHaveBeenCalledTimes(4)
     expect(CronRunLog.findOneAndUpdate).toHaveBeenCalled()
     // cron_completed 로그 발생
     const completed = createBatchLog.mock.calls.find(c => c[0]?.batchAction === 'cron_completed')
@@ -281,8 +281,8 @@ describe('batchRunner.runBatch — 분산 락 (I11)', () => {
 
     await runBatch('hourly')
 
-    // 배치 정상 실행
-    expect(earsDb._collection.aggregate).toHaveBeenCalledTimes(3)
+    // 배치 정상 실행 (4개 파이프라인)
+    expect(earsDb._collection.aggregate).toHaveBeenCalledTimes(4)
   })
 })
 

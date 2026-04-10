@@ -117,3 +117,32 @@ export function exportRecoveryHistoryCsv(data) {
 
   downloadCsv(filename, headers, rows)
 }
+
+/**
+ * Recovery by Category 카테고리 요약을 CSV로 내보내기
+ * @param {Array} categories - [{ scCategory, categoryName, total, statusCounts }]
+ */
+export function exportRecoveryByCategoryCsv(categories) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `Recovery_ByCategory_${timestamp}.csv`
+
+  const headers = ['Category', 'Code', 'Total', 'Success', 'Failed', 'Stopped', 'Skip', 'Success Rate']
+  const rows = (categories || []).map(c => {
+    const sc = c.statusCounts || {}
+    const success = sumByGroup(sc, 'success')
+    const failed = sumByGroup(sc, 'failed')
+    const rate = c.total > 0 ? (success / c.total * 100).toFixed(1) + '%' : '∅'
+    return [
+      c.categoryName || `Category ${c.scCategory}`,
+      c.scCategory,
+      c.total || 0,
+      success,
+      failed,
+      sc.Stopped || 0,
+      sc.Skip || 0,
+      rate
+    ]
+  })
+
+  downloadCsv(filename, headers, rows)
+}
