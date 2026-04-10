@@ -8,6 +8,14 @@ const { validateBatchCreate, validateUpdate } = require('./validation')
 const { createRulesContext } = require('../../shared/utils/businessRules')
 const strategyRegistry = require('./strategies')
 const { distinctWithCount } = require('../../shared/utils/aggregateHelpers')
+const { ensureLongFields, stripNullFields, separateNullFields } = require('../../shared/utils/mongoLong')
+
+// EQP_INFO 정수 필드 — BSON Long(int64)으로 저장할 필드 목록
+const EQP_INFO_LONG_FIELDS = [
+  'localpc', 'onoff', 'webmanagerUse', 'usereleasemsg', 'usetkincancel',
+  'snapshotTimeDiff',
+  'agentPorts.rpc', 'agentPorts.ftp', 'agentPorts.socks'
+]
 
 // EQP_INFO 컬렉션용 비즈니스 규칙 컨텍스트
 const rules = createRulesContext('EQP_INFO', { documentIdField: 'eqpId' })
@@ -356,8 +364,12 @@ async function createClients(clientsData, context = {}) {
   let created = 0
   let insertedDocs = []
   if (valid.length > 0) {
+    // NumberLong 변환 + null 필드 제거 (필드 부재로 처리)
+    const prepared = valid.map(item =>
+      stripNullFields(ensureLongFields(item, EQP_INFO_LONG_FIELDS))
+    )
     try {
-      insertedDocs = await Client.insertMany(valid, { ordered: false })
+      insertedDocs = await Client.insertMany(prepared, { ordered: false })
       created = insertedDocs.length
     } catch (err) {
       // mongoose MongoBulkWriteError: 부분 성공 docs는 err.insertedDocs에 있음
@@ -503,10 +515,17 @@ async function updateClients(clientsData, context = {}) {
     }
 
     // 6. Queue update operation (will be batched via bulkWrite)
+    // NumberLong 변환 + null 필드를 $unset으로 분리
+    const longData = ensureLongFields(processedData, EQP_INFO_LONG_FIELDS)
+    const { $set, $unset } = separateNullFields(longData)
+    const update = {}
+    if (Object.keys($set).length > 0) update.$set = $set
+    if (Object.keys($unset).length > 0) update.$unset = $unset
+    if (Object.keys(update).length === 0) continue
     bulkOps.push({
       updateOne: {
         filter: { _id },
-        update: { $set: processedData }
+        update
       }
     })
     updatedIdsList.push(_id)

@@ -8,6 +8,11 @@
 const { Schema } = require('mongoose');
 const { earsConnection } = require('../../shared/db/connection');
 
+// EARS DB 공유 컬렉션: 정수 필드는 Akka가 NumberLong(int64)으로 저장하므로
+// Schema.Types.Mixed를 사용하여 Mongoose의 double 재캐스팅을 방지합니다.
+// 쓰기 시 ensureLongFields()로 BSON Long 변환, 읽기 시 MongoDB 드라이버가 자동 promote.
+const { Mixed } = Schema.Types;
+
 const clientSchema = new Schema({
   line: { type: String, required: true },
   lineDesc: { type: String, required: true },
@@ -18,26 +23,26 @@ const clientSchema = new Schema({
   ipAddr: { type: String, required: true },
   ipAddrL: { type: String },
   agentPorts: {
-    rpc: { type: Number },
-    ftp: { type: Number },
-    socks: { type: Number },
+    rpc: { type: Mixed },
+    ftp: { type: Mixed },
+    socks: { type: Mixed },
   },
   basePath: { type: String },
   agentVersion: {
     arsAgent: { type: String },
     resourceAgent: { type: String },
   },
-  localpc: { type: Number, required: true },
+  localpc: { type: Mixed, required: true },
   emailcategory: { type: String, required: true },
   osVer: { type: String, required: true },
-  onoff: { type: Number, required: true },
-  webmanagerUse: { type: Number, required: true },
-  serviceType: { type: String, default: null, trim: true },
+  onoff: { type: Mixed, required: true },
+  webmanagerUse: { type: Mixed, required: true },
+  serviceType: { type: String, trim: true },
   installdate: { type: String },
   scFirstExcute: { type: String },
-  snapshotTimeDiff: { type: Number },
-  usereleasemsg: { type: Number, required: true },
-  usetkincancel: { type: Number, required: true },
+  snapshotTimeDiff: { type: Mixed },
+  usereleasemsg: { type: Mixed, required: true },
+  usetkincancel: { type: Mixed, required: true },
 }, {
   collection: 'EQP_INFO',
   timestamps: false,
