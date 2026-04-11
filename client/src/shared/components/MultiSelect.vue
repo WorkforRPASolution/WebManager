@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import AppIcon from './AppIcon.vue'
 
 const props = defineProps({
@@ -33,6 +33,7 @@ const emit = defineEmits(['update:modelValue'])
 
 const isOpen = ref(false)
 const searchQuery = ref('')
+const searchInputRef = ref(null)
 const containerRef = ref(null)
 
 // Helpers: support both string[] and [{value, count}] options
@@ -71,6 +72,7 @@ function toggleDropdown() {
   isOpen.value = !isOpen.value
   if (isOpen.value) {
     searchQuery.value = ''
+    nextTick(() => searchInputRef.value?.focus())
   }
 }
 
@@ -169,6 +171,7 @@ onUnmounted(() => {
             class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
           />
           <input
+            ref="searchInputRef"
             v-model="searchQuery"
             type="text"
             placeholder="Search..."

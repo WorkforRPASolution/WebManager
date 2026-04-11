@@ -37,57 +37,12 @@
         </div>
 
         <!-- Process Filter (Multi-select) -->
-        <div class="relative" ref="processDropdownRef">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Process</label>
-          <button
-            type="button"
-            @click="toggleProcessDropdown"
-            class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 text-sm w-[200px] text-left flex items-center justify-between"
-          >
-            <span class="truncate">
-              {{ selectedProcesses.length === 0 ? 'All Processes' : selectedProcesses.length === 1 ? selectedProcesses[0] : `${selectedProcesses.length} selected` }}
-            </span>
-            <svg class="w-4 h-4 ml-2 flex-shrink-0" :class="{ 'rotate-180': showProcessDropdown }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          <!-- Dropdown Menu -->
-          <div
-            v-show="showProcessDropdown"
-            class="absolute z-50 mt-1 w-[200px] max-h-60 overflow-auto bg-white dark:bg-dark-card border border-gray-300 dark:border-dark-border rounded-lg shadow-lg"
-          >
-            <div class="p-2 border-b border-gray-200 dark:border-dark-border">
-              <label class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded">
-                <input
-                  type="checkbox"
-                  :checked="selectedProcesses.length === 0"
-                  @change="clearProcessSelection"
-                  class="rounded border-gray-300 dark:border-dark-border text-primary-500 focus:ring-primary-500"
-                />
-                <span class="text-sm text-gray-700 dark:text-gray-300">All Processes</span>
-              </label>
-            </div>
-            <div class="p-2">
-              <label
-                v-for="p in processes"
-                :key="typeof p === 'string' ? p : p.value"
-                class="flex items-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded"
-              >
-                <input
-                  type="checkbox"
-                  :value="typeof p === 'string' ? p : p.value"
-                  v-model="selectedProcesses"
-                  class="rounded border-gray-300 dark:border-dark-border text-primary-500 focus:ring-primary-500"
-                />
-                <span class="text-sm text-gray-700 dark:text-gray-300 flex-1">{{ typeof p === 'string' ? p : p.value }}</span>
-                <span
-                  v-if="typeof p === 'object' && p.count != null"
-                  class="text-xs text-gray-400 dark:text-gray-500 tabular-nums"
-                >({{ p.count }})</span>
-              </label>
-            </div>
-          </div>
-        </div>
+        <MultiSelect
+          v-model="selectedProcesses"
+          :options="processes"
+          label="Process"
+          placeholder="All Processes"
+        />
 
         <!-- SE Auth Filter -->
         <div>
@@ -102,48 +57,32 @@
           </select>
         </div>
 
-        <!-- Role Filter -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
-          <select
-            v-model="selectedRole"
-            class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 text-sm w-[150px] h-[38px]"
-          >
-            <option value="">All Roles</option>
-            <option value="0">User (0)</option>
-            <option value="1">Admin (1)</option>
-            <option value="2">Conductor (2)</option>
-            <option value="3">Manager (3)</option>
-          </select>
-        </div>
+        <!-- Role Filter (Multi-select) -->
+        <MultiSelect
+          v-model="selectedRoles"
+          :options="roleOptions"
+          label="Role"
+          placeholder="All Roles"
+          width="170px"
+        />
 
-        <!-- Account Status Filter -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account</label>
-          <select
-            v-model="selectedAccountStatus"
-            class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 text-sm w-[150px] h-[38px]"
-          >
-            <option value="">All</option>
-            <option value="active">Active</option>
-            <option value="pending">Pending</option>
-            <option value="suspended">Suspended</option>
-          </select>
-        </div>
+        <!-- Account Status Filter (Multi-select) -->
+        <MultiSelect
+          v-model="selectedAccountStatuses"
+          :options="accountStatusOptions"
+          label="Account"
+          placeholder="All"
+          width="170px"
+        />
 
-        <!-- Password Status Filter -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-          <select
-            v-model="selectedPasswordStatus"
-            class="px-3 py-2 rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-bg text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 text-sm w-[160px] h-[38px]"
-          >
-            <option value="">All</option>
-            <option value="normal">Normal</option>
-            <option value="reset_requested">Reset Requested</option>
-            <option value="must_change">Must Change</option>
-          </select>
-        </div>
+        <!-- Password Status Filter (Multi-select) -->
+        <MultiSelect
+          v-model="selectedPasswordStatuses"
+          :options="passwordStatusOptions"
+          label="Password"
+          placeholder="All"
+          width="180px"
+        />
 
         <!-- Search Button -->
         <button
@@ -166,10 +105,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onActivated, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onActivated } from 'vue'
 import { usersApi } from '../api'
 import { useProcessFilterStore } from '../../../shared/stores/processFilter'
 import { useAuthStore } from '../../../shared/stores/auth'
+import MultiSelect from '../../../shared/components/MultiSelect.vue'
 
 defineProps({
   collapsed: { type: Boolean, default: false }
@@ -182,50 +122,19 @@ const authStore = useAuthStore()
 
 const processes = ref([])
 const search = ref('')
-const selectedProcesses = ref([])  // Changed to array for multi-select
-const showProcessDropdown = ref(false)
-const processDropdownRef = ref(null)
+const selectedProcesses = ref([])
 const selectedAuthority = ref('')
-const selectedRole = ref('')
-const selectedAccountStatus = ref('')
-const selectedPasswordStatus = ref('')
+const selectedRoles = ref([])
+const selectedAccountStatuses = ref([])
+const selectedPasswordStatuses = ref([])
 
-// Toggle dropdown
-const toggleProcessDropdown = () => {
-  showProcessDropdown.value = !showProcessDropdown.value
-}
+const roleOptions = ['User (0)', 'Admin (1)', 'Conductor (2)', 'Manager (3)']
+const accountStatusOptions = ['Active', 'Pending', 'Suspended']
+const passwordStatusOptions = ['Normal', 'Reset Requested', 'Must Change']
 
-// Clear process selection (select "All")
-const clearProcessSelection = () => {
-  selectedProcesses.value = []
-}
-
-// Close dropdown when clicking outside
-const handleClickOutside = (event) => {
-  if (processDropdownRef.value && !processDropdownRef.value.contains(event.target)) {
-    showProcessDropdown.value = false
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-})
-
-const accountStatusLabels = {
-  active: 'Active',
-  pending: 'Pending',
-  suspended: 'Suspended'
-}
-
-const passwordStatusLabels = {
-  normal: 'Normal',
-  reset_requested: 'Reset Requested',
-  must_change: 'Must Change'
-}
+const roleLabelToValue = { 'User (0)': '0', 'Admin (1)': '1', 'Conductor (2)': '2', 'Manager (3)': '3' }
+const accountLabelToValue = { 'Active': 'active', 'Pending': 'pending', 'Suspended': 'suspended' }
+const passwordLabelToValue = { 'Normal': 'normal', 'Reset Requested': 'reset_requested', 'Must Change': 'must_change' }
 
 const filterSummary = computed(() => {
   const parts = []
@@ -237,9 +146,9 @@ const filterSummary = computed(() => {
     parts.push(`Process: ${processText}`)
   }
   if (selectedAuthority.value) parts.push(`SE Auth: ${selectedAuthority.value}`)
-  if (selectedRole.value) parts.push(`Role: ${selectedRole.value}`)
-  if (selectedAccountStatus.value) parts.push(`Account: ${accountStatusLabels[selectedAccountStatus.value]}`)
-  if (selectedPasswordStatus.value) parts.push(`Password: ${passwordStatusLabels[selectedPasswordStatus.value]}`)
+  if (selectedRoles.value.length > 0) parts.push(`Role: ${selectedRoles.value.join(', ')}`)
+  if (selectedAccountStatuses.value.length > 0) parts.push(`Account: ${selectedAccountStatuses.value.join(', ')}`)
+  if (selectedPasswordStatuses.value.length > 0) parts.push(`Password: ${selectedPasswordStatuses.value.join(', ')}`)
   return parts.length ? parts.join(', ') : 'No filters'
 })
 
@@ -267,11 +176,17 @@ const handleSearch = () => {
 
   const filters = {
     search: search.value,
-    processes: selectedProcesses.value.length > 0 ? selectedProcesses.value : null,  // Use array for multi-process
+    processes: selectedProcesses.value.length > 0 ? selectedProcesses.value : null,
     authority: selectedAuthority.value,
-    authorityManager: selectedRole.value,
-    accountStatus: selectedAccountStatus.value,
-    passwordStatus: selectedPasswordStatus.value,
+    authorityManager: selectedRoles.value.length > 0
+      ? selectedRoles.value.map(r => roleLabelToValue[r]).join(',')
+      : '',
+    accountStatus: selectedAccountStatuses.value.length > 0
+      ? selectedAccountStatuses.value.map(s => accountLabelToValue[s]).join(',')
+      : '',
+    passwordStatus: selectedPasswordStatuses.value.length > 0
+      ? selectedPasswordStatuses.value.map(s => passwordLabelToValue[s]).join(',')
+      : '',
     userProcesses
   }
 
@@ -281,11 +196,10 @@ const handleSearch = () => {
 const handleClear = () => {
   search.value = ''
   selectedProcesses.value = []
-  showProcessDropdown.value = false
   selectedAuthority.value = ''
-  selectedRole.value = ''
-  selectedAccountStatus.value = ''
-  selectedPasswordStatus.value = ''
+  selectedRoles.value = []
+  selectedAccountStatuses.value = []
+  selectedPasswordStatuses.value = []
   emit('filter-change', null)
 }
 

@@ -73,18 +73,26 @@ async function getUsers(filters = {}, paginationQuery = {}) {
     }
   }
 
-  if (filters.authorityManager !== undefined && filters.authorityManager !== '') {
-    query.authorityManager = Number(filters.authorityManager)
+  if (filters.authorityManager) {
+    if (Array.isArray(filters.authorityManager)) {
+      query.authorityManager = { $in: filters.authorityManager.map(Number) }
+    } else if (filters.authorityManager !== '') {
+      query.authorityManager = Number(filters.authorityManager)
+    }
   }
 
-  // Filter by account status
+  // Filter by account status (single or multi)
   if (filters.accountStatus) {
-    query.accountStatus = filters.accountStatus
+    query.accountStatus = Array.isArray(filters.accountStatus)
+      ? { $in: filters.accountStatus }
+      : filters.accountStatus
   }
 
-  // Filter by password status
+  // Filter by password status (single or multi)
   if (filters.passwordStatus) {
-    query.passwordStatus = filters.passwordStatus
+    query.passwordStatus = Array.isArray(filters.passwordStatus)
+      ? { $in: filters.passwordStatus }
+      : filters.passwordStatus
   }
 
   if (filters.search) {

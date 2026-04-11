@@ -27,7 +27,9 @@ function buildFilter({ category, userId, action, pagePath, startDate, endDate, s
   const filter = {}
 
   if (category) filter.category = category
-  if (userId) filter.userId = userId
+  if (userId) {
+    filter.userId = Array.isArray(userId) ? { $in: userId } : userId
+  }
   if (pagePath) filter.pagePath = pagePath
 
   if (startDate || endDate) {
@@ -39,10 +41,11 @@ function buildFilter({ category, userId, action, pagePath, startDate, endDate, s
   const conditions = []
 
   if (action) {
+    const actionMatch = Array.isArray(action) ? { $in: action } : action
     conditions.push({ $or: [
-      { action },
-      { authAction: action },
-      { batchAction: action }
+      { action: actionMatch },
+      { authAction: actionMatch },
+      { batchAction: actionMatch }
     ]})
   }
 

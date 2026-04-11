@@ -19,19 +19,17 @@ const { createActionLog } = require('../../shared/models/webmanagerLogModel')
 async function getUsers(req, res) {
   const { process, processes, authority, authorityManager, accountStatus, passwordStatus, search, page, pageSize, userProcesses } = req.query
 
-  // Parse processes parameter (comma-separated string → array)
-  let processesArray = null
-  if (processes) {
-    processesArray = processes.split(',').map(p => p.trim()).filter(Boolean)
-  }
+  // Parse comma-separated parameters → arrays
+  const parseCSV = (val) => val ? val.split(',').map(s => s.trim()).filter(Boolean) : null
 
-  // Parse userProcesses parameter (comma-separated string → array)
-  const userProcessesArray = userProcesses
-    ? userProcesses.split(',').map(p => p.trim()).filter(p => p)
-    : null
+  const processesArray = parseCSV(processes)
+  const userProcessesArray = parseCSV(userProcesses)
+  const authorityManagerArray = parseCSV(authorityManager)
+  const accountStatusArray = parseCSV(accountStatus)
+  const passwordStatusArray = parseCSV(passwordStatus)
 
   const result = await service.getUsers(
-    { process, processes: processesArray, authority, authorityManager, accountStatus, passwordStatus, search, userProcesses: userProcessesArray },
+    { process, processes: processesArray, authority, authorityManager: authorityManagerArray, accountStatus: accountStatusArray, passwordStatus: passwordStatusArray, search, userProcesses: userProcessesArray },
     { page, pageSize }
   )
 

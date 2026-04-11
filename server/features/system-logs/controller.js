@@ -12,8 +12,12 @@ async function getLogs(req, res) {
   const catError = validateCategory(category)
   if (catError) return res.status(400).json({ error: catError })
 
+  // Parse comma-separated userId/action into arrays
+  const userIdArray = userId ? userId.split(',').map(s => s.trim()).filter(Boolean) : null
+  const actionArray = action ? action.split(',').map(s => s.trim()).filter(Boolean) : null
+
   const result = await getService().queryLogs({
-    category, userId, action, startDate, endDate, search, page, pageSize
+    category, userId: userIdArray, action: actionArray, startDate, endDate, search, page, pageSize
   })
 
   res.json(result)

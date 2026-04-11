@@ -35,8 +35,8 @@ describe('getLogs', () => {
 
     expect(mockQueryLogs).toHaveBeenCalledWith({
       category: 'auth',
-      userId: undefined,
-      action: undefined,
+      userId: null,
+      action: null,
       startDate: undefined,
       endDate: undefined,
       search: undefined,
