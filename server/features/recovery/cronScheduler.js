@@ -12,7 +12,7 @@ const {
   computeCronDistributionRange
 } = require('./dateUtils')
 const { getDeps, getCronRunLog } = require('./recoveryDeps')
-const { runBatch } = require('./batchRunner')
+const { runBatch, getPipelineKeys, getMissingOrFailedPipelines } = require('./batchRunner')
 
 let cronTasks = []
 
@@ -71,14 +71,15 @@ async function getCronRunDistribution(period, _nowOrOptions) {
     jobName: 'recoverySummary',
     bucket: { $gte: startDate, $lt: endDate },
     status: { $in: ['success', 'partial', 'failed'] }
-  }).select('bucket period status').lean()
+  }).select('bucket period status pipelineResults').lean()
 
   const existingSet = new Set(logs.map(l => `${l.period}:${l.bucket.getTime()}`))
+  const requiredKeys = getPipelineKeys()
 
   const groups = new Map()
   function ensureGroup(key) {
     if (!groups.has(key)) {
-      groups.set(key, { bucket: new Date(key), success: 0, partial: 0, failed: 0, pending: 0, total: 0 })
+      groups.set(key, { bucket: new Date(key), success: 0, partial: 0, failed: 0, incomplete: 0, pending: 0, total: 0 })
     }
     return groups.get(key)
   }
@@ -86,7 +87,14 @@ async function getCronRunDistribution(period, _nowOrOptions) {
   for (const log of logs) {
     const key = computeGroupKey(log.bucket.getTime(), granularity)
     const entry = ensureGroup(key)
-    entry[log.status] = (entry[log.status] || 0) + 1
+
+    let effectiveStatus = log.status
+    if (log.status === 'success') {
+      const missing = getMissingOrFailedPipelines(log.pipelineResults, requiredKeys)
+      if (missing.length > 0) effectiveStatus = 'incomplete'
+    }
+
+    entry[effectiveStatus] = (entry[effectiveStatus] || 0) + 1
     entry.total += 1
   }
 

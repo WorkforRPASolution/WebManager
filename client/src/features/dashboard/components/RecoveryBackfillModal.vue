@@ -490,6 +490,14 @@ const distributionChartOption = computed(() => {
         barMaxWidth: 20
       },
       {
+        name: 'Incomplete',
+        type: 'bar',
+        stack: 'total',
+        data: data.map(d => d.incomplete || 0),
+        itemStyle: { color: '#a855f7' },
+        barMaxWidth: 20
+      },
+      {
         name: 'Failed',
         type: 'bar',
         stack: 'total',

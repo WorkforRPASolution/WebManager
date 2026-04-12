@@ -50,9 +50,13 @@ const granularityLabel = computed(() => {
 async function fetchProcesses() {
   try {
     const res = await clientsApi.getProcesses()
-    const all = (res.data?.data || res.data || []).map(p => typeof p === 'string' ? p : p.process).filter(Boolean)
-    processes.value = [...new Set(all)].sort()
-  } catch { /* ignore */ }
+    const allProcesses = res.data || []
+    processFilterStore.setProcesses('clients', allProcesses)
+    processes.value = processFilterStore.getFilteredProcesses('clients')
+      .map(p => typeof p === 'string' ? p : p.value)
+  } catch (err) {
+    console.error('Failed to load processes:', err)
+  }
 }
 
 async function fetchData(filters = { period: 'today' }) {

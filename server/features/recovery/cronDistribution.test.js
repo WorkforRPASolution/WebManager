@@ -198,9 +198,10 @@ describe('getCronRunDistribution service', () => {
     // Supply 2 successful hourly logs within today's range
     const b1 = new Date('2026-03-17T15:00:00.000Z') // KST 03/18 00:00
     const b2 = new Date('2026-03-17T16:00:00.000Z') // KST 03/18 01:00
+    const fullPR = { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
     const logs = [
-      { bucket: b1, period: 'hourly', status: 'success' },
-      { bucket: b2, period: 'hourly', status: 'success' },
+      { bucket: b1, period: 'hourly', status: 'success', pipelineResults: fullPR },
+      { bucket: b2, period: 'hourly', status: 'success', pipelineResults: fullPR },
     ]
     mockFind.mockReturnValue({
       select: vi.fn().mockReturnValue({
@@ -216,7 +217,7 @@ describe('getCronRunDistribution service', () => {
     expect(totalPending).toBe(16) // 18 expected - 2 actual
   })
 
-  it('total = success + partial + failed + pending', async () => {
+  it('total = success + partial + failed + incomplete + pending', async () => {
     const b1 = new Date('2026-03-17T15:00:00.000Z')
     const logs = [
       { bucket: b1, period: 'hourly', status: 'partial' },
@@ -230,8 +231,70 @@ describe('getCronRunDistribution service', () => {
     const result = await svc('today', FIXED_NOW)
 
     for (const entry of result.data) {
-      expect(entry.total).toBe(entry.success + entry.partial + entry.failed + entry.pending)
+      expect(entry.total).toBe(entry.success + entry.partial + entry.failed + entry.incomplete + entry.pending)
     }
+  })
+
+  // ── Incomplete detection (pipeline-aware) ──
+
+  it('success log with missing pipeline keys → incomplete, not success', async () => {
+    const b1 = new Date('2026-03-17T15:00:00.000Z')
+    // 3개 키만 있고 category 누락 → incomplete
+    const logs = [
+      {
+        bucket: b1, period: 'hourly', status: 'success',
+        pipelineResults: { scenario: 'success', equipment: 'success', trigger: 'success' }
+      },
+    ]
+    mockFind.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue(logs)
+      })
+    })
+
+    const result = await svc('today', FIXED_NOW)
+    const totalIncomplete = result.data.reduce((sum, d) => sum + d.incomplete, 0)
+    const totalSuccess = result.data.reduce((sum, d) => sum + d.success, 0)
+    expect(totalIncomplete).toBe(1)
+    expect(totalSuccess).toBe(0)
+  })
+
+  it('success log with all pipeline keys success → success', async () => {
+    const b1 = new Date('2026-03-17T15:00:00.000Z')
+    const logs = [
+      {
+        bucket: b1, period: 'hourly', status: 'success',
+        pipelineResults: { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
+      },
+    ]
+    mockFind.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue(logs)
+      })
+    })
+
+    const result = await svc('today', FIXED_NOW)
+    const totalSuccess = result.data.reduce((sum, d) => sum + d.success, 0)
+    const totalIncomplete = result.data.reduce((sum, d) => sum + d.incomplete, 0)
+    expect(totalSuccess).toBe(1)
+    expect(totalIncomplete).toBe(0)
+  })
+
+  it('success log without pipelineResults (legacy) → incomplete', async () => {
+    const b1 = new Date('2026-03-17T15:00:00.000Z')
+    // pipelineResults 자체가 없는 레거시 로그
+    const logs = [
+      { bucket: b1, period: 'hourly', status: 'success' },
+    ]
+    mockFind.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue(logs)
+      })
+    })
+
+    const result = await svc('today', FIXED_NOW)
+    const totalIncomplete = result.data.reduce((sum, d) => sum + d.incomplete, 0)
+    expect(totalIncomplete).toBe(1)
   })
 
   // ── Grouping ──
@@ -240,8 +303,9 @@ describe('getCronRunDistribution service', () => {
     // Two buckets on same KST day (03/18): one daily, one hourly
     const dailyBucket = new Date('2026-03-17T15:00:00.000Z') // KST 03/18 00:00
     const hourlyBucket = new Date('2026-03-17T16:00:00.000Z') // KST 03/18 01:00
+    const fullPR = { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
     const logs = [
-      { bucket: dailyBucket, period: 'daily', status: 'success' },
+      { bucket: dailyBucket, period: 'daily', status: 'success', pipelineResults: fullPR },
       { bucket: hourlyBucket, period: 'hourly', status: 'failed' },
     ]
     mockFind.mockReturnValue({
