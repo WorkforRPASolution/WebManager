@@ -21,6 +21,7 @@ const {
 
 const mockGetCompletedBucketSet = vi.fn()
 const mockGetPartialBucketSet = vi.fn()
+const mockGetIncompleteBucketSet = vi.fn()
 const mockRunManualBackfill = vi.fn()
 const mockGetBackfillState = vi.fn()
 
@@ -48,6 +49,7 @@ describe('controller.backfill — KST alignment', () => {
     vi.clearAllMocks()
     mockGetCompletedBucketSet.mockResolvedValue(new Set())
     mockGetPartialBucketSet.mockResolvedValue(new Set())
+    mockGetIncompleteBucketSet.mockResolvedValue(new Set())
     mockRunManualBackfill.mockResolvedValue(undefined)
     mockGetBackfillState.mockReturnValue({ status: 'idle' })
 
@@ -57,6 +59,7 @@ describe('controller.backfill — KST alignment', () => {
       summaryService: {
         getCompletedBucketSet: mockGetCompletedBucketSet,
         getPartialBucketSet: mockGetPartialBucketSet,
+        getIncompleteBucketSet: mockGetIncompleteBucketSet,
         runManualBackfill: mockRunManualBackfill,
         getBackfillState: mockGetBackfillState,
         cancelBackfill: vi.fn(),
@@ -469,7 +472,7 @@ describe('controller.backfill — KST alignment', () => {
   // ────────────────────────────────────────────
 
   describe('Section F: Partial 분리 표시', () => {
-    it('F1: analyzeBackfill returns success/partial/pending 3-way breakdown', async () => {
+    it('F1: analyzeBackfill returns success/partial/incomplete/pending 4-way breakdown', async () => {
       const partialBucket = new Date('2026-03-16T15:00:00.000Z')
 
       mockGetCompletedBucketSet.mockResolvedValue(
@@ -545,6 +548,50 @@ describe('controller.backfill — KST alignment', () => {
 
       const options = mockRunManualBackfill.mock.calls[0][2]
       expect(options.retryPartial).toBeFalsy()
+    })
+
+    it('F5: analyzeBackfill shows incomplete count when pipeline keys are missing', async () => {
+      const incompleteBucket = new Date('2026-03-17T15:00:00.000Z')
+
+      mockGetCompletedBucketSet.mockResolvedValue(new Set())
+      mockGetPartialBucketSet.mockResolvedValue(new Set())
+      mockGetIncompleteBucketSet.mockResolvedValue(new Set([incompleteBucket.getTime()]))
+
+      const req = mockReq({
+        startDate: '2026-03-17',
+        endDate: '2026-03-18',
+        skipHourly: true
+      })
+      const res = mockRes()
+
+      await analyzeBackfill(req, res)
+
+      expect(res.body.daily.incomplete).toBe(1)
+      expect(res.body.daily.pending).toBe(1)
+      expect(res.body.daily.actionable).toBe(2) // pending + incomplete
+    })
+
+    it('F6: with retryPartial=true, actionable excludes incomplete (only partial)', async () => {
+      const incompleteBucket = new Date('2026-03-17T15:00:00.000Z')
+      const partialBucket = new Date('2026-03-16T15:00:00.000Z')
+
+      mockGetCompletedBucketSet.mockResolvedValue(new Set([partialBucket.getTime()]))
+      mockGetPartialBucketSet.mockResolvedValue(new Set([partialBucket.getTime()]))
+      mockGetIncompleteBucketSet.mockResolvedValue(new Set([incompleteBucket.getTime()]))
+
+      const req = mockReq({
+        startDate: '2026-03-17',
+        endDate: '2026-03-18',
+        skipHourly: true,
+        retryPartial: true
+      })
+      const res = mockRes()
+
+      await analyzeBackfill(req, res)
+
+      expect(res.body.daily.partial).toBe(1)
+      expect(res.body.daily.incomplete).toBe(1)
+      expect(res.body.daily.actionable).toBe(1) // only partial
     })
   })
 })

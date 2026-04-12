@@ -155,12 +155,16 @@
                     ⚠ Partial: {{ analysisResult[period].partial.toLocaleString() }}
                     ({{ pct(analysisResult[period].partial, analysisResult[period].total) }})
                   </span>
+                  <span v-if="analysisResult[period].incomplete > 0" class="text-purple-600 dark:text-purple-400">
+                    ◇ Incomplete: {{ analysisResult[period].incomplete.toLocaleString() }}
+                    ({{ pct(analysisResult[period].incomplete, analysisResult[period].total) }})
+                  </span>
                   <span class="text-orange-600 dark:text-orange-400">
                     ░ 미처리: {{ analysisResult[period].pending.toLocaleString() }}
                     ({{ pct(analysisResult[period].pending, analysisResult[period].total) }})
                   </span>
                 </div>
-                <!-- Progress bar: 3-segment -->
+                <!-- Progress bar: 4-segment -->
                 <div class="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden flex">
                   <div
                     class="h-full bg-green-500"
@@ -169,6 +173,11 @@
                   <div
                     class="h-full bg-amber-500"
                     :style="{ width: pct(analysisResult[period].partial, analysisResult[period].total) }"
+                  ></div>
+                  <div
+                    v-if="analysisResult[period].incomplete > 0"
+                    class="h-full bg-purple-500"
+                    :style="{ width: pct(analysisResult[period].incomplete, analysisResult[period].total) }"
                   ></div>
                 </div>
               </div>

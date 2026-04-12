@@ -16,9 +16,9 @@ const cronRunLogSchema = new Schema({
   startedAt: { type: Date },
   completedAt: { type: Date },
   pipelineResults: {
-    scenario: { type: String },
-    equipment: { type: String },
-    trigger: { type: String }
+    type: Map,
+    of: String,
+    default: undefined
   },
   errorMessage: [{ configKey: String, error: String, _id: false }],
   source: {

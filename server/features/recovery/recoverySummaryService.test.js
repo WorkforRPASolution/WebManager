@@ -12,9 +12,12 @@ import {
   cancelBackfill,
   getCompletedBucketSet,
   getPartialBucketSet,
+  getIncompleteBucketSet,
   validateBackfillRange,
   initializeRecoverySummary,
   getLastCronRun,
+  getPipelineKeys,
+  getMissingOrFailedPipelines,
   _setDeps,
   _getBackfillPromise,
   _resetState,
@@ -56,12 +59,12 @@ function createMockCronRunLog() {
     Object.assign(this, data)
     this.save = saveFn
   })
-  // findOne supports both `.lean()` and `.sort().lean()` chains
+  // findOne supports `.lean()`, `.sort().lean()`, and `.select().lean()` chains
+  const leanNull = vi.fn().mockResolvedValue(null)
   MockModel.findOne = vi.fn().mockReturnValue({
-    sort: vi.fn().mockReturnValue({
-      lean: vi.fn().mockResolvedValue(null)
-    }),
-    lean: vi.fn().mockResolvedValue(null)
+    sort: vi.fn().mockReturnValue({ lean: leanNull }),
+    select: vi.fn().mockReturnValue({ lean: leanNull }),
+    lean: leanNull
   })
   MockModel.findOneAndUpdate = vi.fn().mockResolvedValue({})
   MockModel.find = vi.fn().mockReturnValue({
@@ -535,6 +538,8 @@ describe('recoverySummaryService', () => {
   })
 
   describe('detectGaps', () => {
+    const fullPR = { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
+
     it('returns empty array when no gaps', async () => {
       const mockCronRunLog = createMockCronRunLog()
 
@@ -546,7 +551,7 @@ describe('recoverySummaryService', () => {
         const end = query.bucket.$lt.getTime()
         const allBuckets = []
         for (let t = start; t < end; t += 60 * 60 * 1000) {
-          allBuckets.push({ bucket: new Date(t) })
+          allBuckets.push({ bucket: new Date(t), pipelineResults: fullPR })
         }
         return {
           select: vi.fn().mockReturnValue({
@@ -625,6 +630,34 @@ describe('recoverySummaryService', () => {
 
       const gaps = await detectGaps('hourly', { scanWindowHours: 5 })
       expect(gaps.length).toBe(5)
+    })
+
+    it('treats bucket with missing pipeline keys as gap (pipeline-aware)', async () => {
+      const mockCronRunLog = createMockCronRunLog()
+
+      mockCronRunLog.find.mockImplementation((query) => {
+        const start = query.bucket.$gte.getTime()
+        const end = query.bucket.$lt.getTime()
+        const allBuckets = []
+        for (let t = start; t < end; t += 60 * 60 * 1000) {
+          // All buckets have only 3 keys — category missing
+          allBuckets.push({
+            bucket: new Date(t),
+            pipelineResults: { scenario: 'success', equipment: 'success', trigger: 'success' }
+          })
+        }
+        return {
+          select: vi.fn().mockReturnValue({
+            lean: vi.fn().mockResolvedValue(allBuckets)
+          })
+        }
+      })
+
+      _setDeps({ earsDb: createMockEarsDb(), CronRunLog: mockCronRunLog, settlingHours: 3 })
+
+      const gaps = await detectGaps('hourly', { scanWindowHours: 3 })
+      // All 3 buckets should be gaps because category key is missing
+      expect(gaps.length).toBe(3)
     })
   })
 
@@ -743,11 +776,12 @@ describe('recoverySummaryService', () => {
       const mockEarsDb = createMockEarsDb()
       const mockCronRunLog = createMockCronRunLog()
 
-      // First call (getCompletedBucketSet) returns 1 completed bucket
+      // First call (getCompletedBucketSet) returns 1 completed bucket (all pipeline keys present)
       const completedBucket = new Date('2026-03-15T00:00:00.000Z')
+      const fullPR = { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
       mockCronRunLog.find.mockReturnValue({
         select: vi.fn().mockReturnValue({
-          lean: vi.fn().mockResolvedValue([{ bucket: completedBucket }])
+          lean: vi.fn().mockResolvedValue([{ bucket: completedBucket, pipelineResults: fullPR }])
         })
       })
 
@@ -910,10 +944,11 @@ describe('recoverySummaryService', () => {
       await _getBackfillPromise()
     })
 
-    it('with retryPartial=true, processes only partial buckets and skips pending', async () => {
+    it('with retryPartial=true, processes only partial and incomplete buckets, skips pending and complete', async () => {
       const mockEarsDb = createMockEarsDb()
       const mockCronRunLog = createMockCronRunLog()
 
+      const fullPR = { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
       const successBucket = new Date('2026-03-14T15:00:00.000Z')
       const partialBucket = new Date('2026-03-15T15:00:00.000Z')
       // pendingBucket = 2026-03-16T15:00:00.000Z (no log entry)
@@ -921,9 +956,12 @@ describe('recoverySummaryService', () => {
       mockCronRunLog.find = vi.fn().mockImplementation((query) => {
         let result
         if (query.status === 'partial') {
-          result = [{ bucket: partialBucket }]
+          result = [{ bucket: partialBucket, pipelineResults: { scenario: 'success', equipment: 'success', trigger: 'failed: timeout', category: 'success' } }]
         } else if (query.status?.$in) {
-          result = [{ bucket: successBucket }]
+          result = [
+            { bucket: successBucket, pipelineResults: fullPR },
+            { bucket: partialBucket, pipelineResults: { scenario: 'success', equipment: 'success', trigger: 'failed: timeout', category: 'success' } }
+          ]
         } else {
           result = []
         }
@@ -960,11 +998,13 @@ describe('recoverySummaryService', () => {
   })
 
   describe('getCompletedBucketSet', () => {
+    const fullPR = { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
+
     it('queries by jobName only (source-agnostic)', async () => {
       const mockCronRunLog = createMockCronRunLog()
       const completedBuckets = [
-        { bucket: new Date('2026-03-15T00:00:00.000Z') },
-        { bucket: new Date('2026-03-15T01:00:00.000Z') }
+        { bucket: new Date('2026-03-15T00:00:00.000Z'), pipelineResults: fullPR },
+        { bucket: new Date('2026-03-15T01:00:00.000Z'), pipelineResults: fullPR }
       ]
       mockCronRunLog.find.mockReturnValue({
         select: vi.fn().mockReturnValue({
@@ -994,7 +1034,7 @@ describe('recoverySummaryService', () => {
       mockCronRunLog.find = vi.fn().mockReturnValue({
         select: vi.fn().mockReturnValue({
           lean: vi.fn().mockResolvedValue([
-            { bucket: new Date('2026-03-16T15:00:00.000Z') }
+            { bucket: new Date('2026-03-16T15:00:00.000Z'), pipelineResults: fullPR }
           ])
         })
       })
@@ -1009,6 +1049,26 @@ describe('recoverySummaryService', () => {
           status: { $in: ['success'] }
         })
       )
+    })
+
+    it('excludes buckets missing pipeline keys (pipeline-aware)', async () => {
+      const mockCronRunLog = createMockCronRunLog()
+      const bucket1 = new Date('2026-04-10T00:00:00Z')
+      const bucket2 = new Date('2026-04-10T01:00:00Z')
+      mockCronRunLog.find.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue([
+            { bucket: bucket1, pipelineResults: { scenario: 'success', equipment: 'success', trigger: 'success' } },
+            { bucket: bucket2, pipelineResults: fullPR }
+          ])
+        })
+      })
+      _setDeps({ CronRunLog: mockCronRunLog })
+
+      const result = await getCompletedBucketSet('hourly', new Date('2026-04-10T00:00:00Z'), new Date('2026-04-11T00:00:00Z'))
+
+      expect(result.has(bucket1.getTime())).toBe(false)
+      expect(result.has(bucket2.getTime())).toBe(true)
     })
   })
 
@@ -1350,10 +1410,11 @@ describe('recoverySummaryService', () => {
         const mockEarsDb = createMockEarsDb()
         const mockCronRunLog = createMockCronRunLog()
 
-        // Simulate: buckets 00:00 and 01:00 already completed by cron
+        // Simulate: buckets 00:00 and 01:00 already completed by cron (all pipeline keys)
+        const fullPR = { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
         const cronBuckets = [
-          { bucket: new Date('2026-03-15T00:00:00.000Z') },
-          { bucket: new Date('2026-03-15T01:00:00.000Z') }
+          { bucket: new Date('2026-03-15T00:00:00.000Z'), pipelineResults: fullPR },
+          { bucket: new Date('2026-03-15T01:00:00.000Z'), pipelineResults: fullPR }
         ]
         mockCronRunLog.find.mockReturnValue({
           select: vi.fn().mockReturnValue({
@@ -1537,7 +1598,7 @@ describe('recoverySummaryService', () => {
       })
 
       // findOne — 사전 체크: 같은 {jobName, period, bucket}이 success/partial이면 반환
-      // (.lean() 직접 호출과 .sort().lean() 체인 모두 지원)
+      // (.lean(), .sort().lean(), .select().lean() 체인 모두 지원)
       MockModel.findOne = vi.fn().mockImplementation((query) => {
         let hit = null
         if (query?.jobName && query?.period && query?.bucket) {
@@ -1547,9 +1608,11 @@ describe('recoverySummaryService', () => {
             hit = doc
           }
         }
+        const leanFn = vi.fn().mockResolvedValue(hit)
         return {
-          lean: vi.fn().mockResolvedValue(hit),
-          sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(hit) })
+          lean: leanFn,
+          sort: vi.fn().mockReturnValue({ lean: leanFn }),
+          select: vi.fn().mockReturnValue({ lean: leanFn })
         }
       })
 
@@ -1618,7 +1681,8 @@ describe('recoverySummaryService', () => {
             const key = statefulLog._makeKey('recoverySummary', 'hourly', b)
             statefulLog._store.set(key, {
               jobName: 'recoverySummary', period: 'hourly',
-              bucket: b, status: 'success', source: 'cron'
+              bucket: b, status: 'success', source: 'cron',
+              pipelineResults: { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
             })
           }
 
@@ -1673,7 +1737,8 @@ describe('recoverySummaryService', () => {
             const key = statefulLog._makeKey('recoverySummary', 'hourly', b)
             statefulLog._store.set(key, {
               jobName: 'recoverySummary', period: 'hourly',
-              bucket: b, status: 'success', source: 'cron'
+              bucket: b, status: 'success', source: 'cron',
+              pipelineResults: { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
             })
           }
 
@@ -1840,12 +1905,14 @@ describe('recoverySummaryService', () => {
         // 5개 bucket 중 3개를 cron이 미리 처리
         const hour = 60 * 60 * 1000
         const base = new Date('2026-03-15T00:00:00.000Z')
+        const fullPR = { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
         for (let i = 0; i < 3; i++) {
           const b = new Date(base.getTime() + i * hour)
           const key = statefulLog._makeKey('recoverySummary', 'hourly', b)
           statefulLog._store.set(key, {
             jobName: 'recoverySummary', period: 'hourly',
-            bucket: b, status: 'success', source: 'cron'
+            bucket: b, status: 'success', source: 'cron',
+            pipelineResults: fullPR
           })
         }
 
@@ -1894,9 +1961,11 @@ describe('recoverySummaryService', () => {
         const b1 = new Date(base.getTime() + hour)
         const b2 = new Date(base.getTime() + 2 * hour)
 
+        const fullPR = { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
         statefulLog._store.set(statefulLog._makeKey('recoverySummary', 'hourly', b0), {
           jobName: 'recoverySummary', period: 'hourly',
-          bucket: b0, status: 'success', source: 'cron'
+          bucket: b0, status: 'success', source: 'cron',
+          pipelineResults: fullPR
         })
         statefulLog._store.set(statefulLog._makeKey('recoverySummary', 'hourly', b1), {
           jobName: 'recoverySummary', period: 'hourly',
@@ -1942,6 +2011,92 @@ describe('recoverySummaryService', () => {
         const hourlyRecords = [...statefulLog._store.values()].filter(r => r.period === 'hourly')
         expect(hourlyRecords.length).toBe(3)
       })
+    })
+  })
+
+  // ══════════════════════════════════════════════
+  // Pipeline-aware backfill helpers (Issue 1 & 2)
+  // ══════════════════════════════════════════════
+
+  describe('getPipelineKeys', () => {
+    it('returns all PIPELINE_CONFIGS keys', () => {
+      expect(getPipelineKeys()).toEqual(['scenario', 'equipment', 'trigger', 'category'])
+    })
+  })
+
+  describe('getMissingOrFailedPipelines', () => {
+    const allKeys = ['scenario', 'equipment', 'trigger', 'category']
+
+    it('returns all keys when pipelineResults is null', () => {
+      expect(getMissingOrFailedPipelines(null, allKeys)).toEqual(allKeys)
+    })
+
+    it('returns all keys when pipelineResults is undefined', () => {
+      expect(getMissingOrFailedPipelines(undefined, allKeys)).toEqual(allKeys)
+    })
+
+    it('returns only missing key when 3 are success and 1 is absent', () => {
+      const pr = { scenario: 'success', equipment: 'success', trigger: 'success' }
+      expect(getMissingOrFailedPipelines(pr, allKeys)).toEqual(['category'])
+    })
+
+    it('returns only failed key when 3 are success and 1 is failed', () => {
+      const pr = { scenario: 'success', equipment: 'success', trigger: 'failed: timeout', category: 'success' }
+      expect(getMissingOrFailedPipelines(pr, allKeys)).toEqual(['trigger'])
+    })
+
+    it('returns empty array when all keys are success', () => {
+      const pr = { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
+      expect(getMissingOrFailedPipelines(pr, allKeys)).toEqual([])
+    })
+
+    it('returns both missing and failed keys', () => {
+      const pr = { scenario: 'success', trigger: 'failed: error' }
+      expect(getMissingOrFailedPipelines(pr, allKeys)).toEqual(['equipment', 'trigger', 'category'])
+    })
+
+    it('handles Mongoose Map objects', () => {
+      const map = new Map([['scenario', 'success'], ['equipment', 'success'], ['trigger', 'success']])
+      expect(getMissingOrFailedPipelines(map, allKeys)).toEqual(['category'])
+    })
+  })
+
+  describe('getIncompleteBucketSet', () => {
+    it('returns buckets where status is success but missing pipeline keys', async () => {
+      const mockCronRunLog = createMockCronRunLog()
+      const bucket1 = new Date('2026-04-10T00:00:00Z')
+      const bucket2 = new Date('2026-04-10T01:00:00Z')
+      mockCronRunLog.find.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue([
+            { bucket: bucket1, status: 'success', pipelineResults: { scenario: 'success', equipment: 'success', trigger: 'success' } },
+            { bucket: bucket2, status: 'success', pipelineResults: { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' } }
+          ])
+        })
+      })
+      _setDeps({ CronRunLog: mockCronRunLog, earsDb: createMockEarsDb(), settlingHours: 6, sleep: vi.fn(), defaultThrottleMs: 0, autoBackfillLimit: 6, createBatchLog: vi.fn().mockResolvedValue({}) })
+
+      const result = await getIncompleteBucketSet('hourly', new Date('2026-04-10T00:00:00Z'), new Date('2026-04-11T00:00:00Z'))
+
+      expect(result.has(bucket1.getTime())).toBe(true)
+      expect(result.has(bucket2.getTime())).toBe(false)
+    })
+
+    it('does not include buckets where all 4 keys are present', async () => {
+      const mockCronRunLog = createMockCronRunLog()
+      const bucket = new Date('2026-04-10T00:00:00Z')
+      mockCronRunLog.find.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue([
+            { bucket, status: 'success', pipelineResults: { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' } }
+          ])
+        })
+      })
+      _setDeps({ CronRunLog: mockCronRunLog, earsDb: createMockEarsDb(), settlingHours: 6, sleep: vi.fn(), defaultThrottleMs: 0, autoBackfillLimit: 6, createBatchLog: vi.fn().mockResolvedValue({}) })
+
+      const result = await getIncompleteBucketSet('hourly', new Date('2026-04-10T00:00:00Z'), new Date('2026-04-11T00:00:00Z'))
+
+      expect(result.size).toBe(0)
     })
   })
 })

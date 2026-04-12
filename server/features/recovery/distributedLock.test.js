@@ -46,10 +46,12 @@ function createMockEarsDb() {
 
 function createMockCronRunLog() {
   const MockModel = vi.fn(function (data) { Object.assign(this, data); this.save = vi.fn().mockResolvedValue({}) })
-  // findOne supports both `.lean()` and `.sort().lean()` chains
+  // findOne supports `.lean()`, `.sort().lean()`, and `.select().lean()` chains
+  const leanNull = vi.fn().mockResolvedValue(null)
   MockModel.findOne = vi.fn().mockReturnValue({
-    sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) }),
-    lean: vi.fn().mockResolvedValue(null)
+    sort: vi.fn().mockReturnValue({ lean: leanNull }),
+    select: vi.fn().mockReturnValue({ lean: leanNull }),
+    lean: leanNull
   })
   MockModel.findOneAndUpdate = vi.fn().mockResolvedValue({})
   MockModel.find = vi.fn().mockReturnValue({
@@ -218,11 +220,14 @@ describe('batchRunner.runBatch — 분산 락 (I11)', () => {
       period: 'hourly',
       status: 'success',
       source: 'cron',
-      completedAt: new Date()
+      completedAt: new Date(),
+      pipelineResults: { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
     }
+    const leanExisting = vi.fn().mockResolvedValue(existingLog)
     CronRunLog.findOne = vi.fn().mockReturnValue({
-      lean: vi.fn().mockResolvedValue(existingLog),
-      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(existingLog) })
+      lean: leanExisting,
+      sort: vi.fn().mockReturnValue({ lean: leanExisting }),
+      select: vi.fn().mockReturnValue({ lean: leanExisting })
     })
 
     await runBatch('hourly')
@@ -244,39 +249,40 @@ describe('batchRunner.runBatch — 분산 락 (I11)', () => {
     expect(redis.eval).not.toHaveBeenCalled()
   })
 
-  it('CronRunLog에 partial 상태 bucket 존재 → cron_skipped alreadyCompleted', async () => {
-    const { earsDb, CronRunLog, createBatchLog } = setupDeps()
+  it('CronRunLog에 partial 상태 bucket 존재 → 재실행 (실패 파이프라인 포함)', async () => {
+    const { earsDb, CronRunLog } = setupDeps()
 
-    // partial 상태도 '이미 실행됨'으로 간주
+    // partial 상태 — 일부 파이프라인이 실패했으므로 재실행 대상
     const existingLog = {
       bucket: new Date(),
       period: 'hourly',
       status: 'partial',
       source: 'autoBackfill',
-      completedAt: new Date()
+      completedAt: new Date(),
+      pipelineResults: { scenario: 'success', equipment: 'success', trigger: 'failed: timeout', category: 'success' }
     }
+    const leanExisting = vi.fn().mockResolvedValue(existingLog)
     CronRunLog.findOne = vi.fn().mockReturnValue({
-      lean: vi.fn().mockResolvedValue(existingLog),
-      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(existingLog) })
+      lean: leanExisting,
+      sort: vi.fn().mockReturnValue({ lean: leanExisting }),
+      select: vi.fn().mockReturnValue({ lean: leanExisting })
     })
 
     await runBatch('hourly')
 
-    expect(earsDb._collection.aggregate).not.toHaveBeenCalled()
-    const skippedCall = createBatchLog.mock.calls.find(
-      c => c[0]?.batchAction === 'cron_skipped' && c[0]?.batchParams?.reason === 'alreadyCompleted'
-    )
-    expect(skippedCall).toBeDefined()
+    // partial이므로 배치 재실행됨
+    expect(earsDb._collection.aggregate).toHaveBeenCalledTimes(4)
   })
 
   it('CronRunLog에 failed 상태 bucket 존재 → 재실행 진행 (failed는 재시도 대상)', async () => {
     const { earsDb, CronRunLog } = setupDeps()
 
     // failed 상태는 재시도되어야 함 → findOne이 null 반환 (failed는 {success, partial}에 포함 안 됨)
-    // 기본 mock이 null 반환하므로 추가 설정 불필요하지만, 명시성을 위해:
+    const leanNull = vi.fn().mockResolvedValue(null)
     CronRunLog.findOne = vi.fn().mockReturnValue({
-      lean: vi.fn().mockResolvedValue(null),
-      sort: vi.fn().mockReturnValue({ lean: vi.fn().mockResolvedValue(null) })
+      lean: leanNull,
+      sort: vi.fn().mockReturnValue({ lean: leanNull }),
+      select: vi.fn().mockReturnValue({ lean: leanNull })
     })
 
     await runBatch('hourly')

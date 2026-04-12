@@ -160,18 +160,23 @@ async function analyzeBackfill(req, res) {
     const expected = generateExpectedBuckets(period, start, end)
     const completedSet = await summaryService.getCompletedBucketSet(period, start, end)
     const partialSet = await summaryService.getPartialBucketSet(period, start, end)
+    const incompleteSet = await summaryService.getIncompleteBucketSet(period, start, end)
 
     const successCount = expected.filter(b =>
       completedSet.has(b.getTime()) && !partialSet.has(b.getTime())
     ).length
     const partialCount = expected.filter(b => partialSet.has(b.getTime())).length
-    const pendingCount = expected.length - successCount - partialCount
-    const actionable = retryPartial ? partialCount : pendingCount
+    const incompleteCount = expected.filter(b =>
+      incompleteSet.has(b.getTime()) && !partialSet.has(b.getTime()) && !completedSet.has(b.getTime())
+    ).length
+    const pendingCount = expected.length - successCount - partialCount - incompleteCount
+    const actionable = retryPartial ? partialCount : (pendingCount + incompleteCount)
 
     result[period] = {
       total: expected.length,
       success: successCount,
       partial: partialCount,
+      incomplete: incompleteCount,
       pending: pendingCount,
       actionable
     }

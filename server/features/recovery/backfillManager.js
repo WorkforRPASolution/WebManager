@@ -38,14 +38,27 @@ let backfillPromise = null
 
 async function getCompletedBucketSet(period, startDate, endDate, { retryPartial = false } = {}) {
   const CronRunLog = getCronRunLog()
+  const { PIPELINE_CONFIGS } = require('./batchRunner')
+  const requiredKeys = Object.keys(PIPELINE_CONFIGS)
   const statusFilter = retryPartial ? ['success'] : ['success', 'partial']
   const logs = await CronRunLog.find({
     jobName: 'recoverySummary',
     period,
     bucket: { $gte: startDate, $lt: endDate },
     status: { $in: statusFilter }
-  }).select('bucket').lean()
-  return new Set(logs.map(l => l.bucket.getTime()))
+  }).select('bucket pipelineResults').lean()
+
+  const completedSet = new Set()
+  for (const log of logs) {
+    const pr = log.pipelineResults instanceof Map
+      ? Object.fromEntries(log.pipelineResults)
+      : log.pipelineResults
+    const allComplete = requiredKeys.every(k => pr && pr[k] === 'success')
+    if (allComplete) {
+      completedSet.add(log.bucket.getTime())
+    }
+  }
+  return completedSet
 }
 
 async function getPartialBucketSet(period, startDate, endDate) {
@@ -57,6 +70,47 @@ async function getPartialBucketSet(period, startDate, endDate) {
     status: 'partial'
   }).select('bucket').lean()
   return new Set(logs.map(l => l.bucket.getTime()))
+}
+
+async function getBucketLogs(period, startDate, endDate) {
+  const CronRunLog = getCronRunLog()
+  const logs = await CronRunLog.find({
+    jobName: 'recoverySummary',
+    period,
+    bucket: { $gte: startDate, $lt: endDate },
+    status: { $in: ['success', 'partial'] }
+  }).select('bucket pipelineResults').lean()
+
+  const map = new Map()
+  for (const log of logs) {
+    map.set(log.bucket.getTime(), log)
+  }
+  return map
+}
+
+async function getIncompleteBucketSet(period, startDate, endDate) {
+  const CronRunLog = getCronRunLog()
+  const { PIPELINE_CONFIGS } = require('./batchRunner')
+  const requiredKeys = Object.keys(PIPELINE_CONFIGS)
+
+  const logs = await CronRunLog.find({
+    jobName: 'recoverySummary',
+    period,
+    bucket: { $gte: startDate, $lt: endDate },
+    status: { $in: ['success', 'partial'] }
+  }).select('bucket pipelineResults').lean()
+
+  const incompleteSet = new Set()
+  for (const log of logs) {
+    const pr = log.pipelineResults instanceof Map
+      ? Object.fromEntries(log.pipelineResults)
+      : log.pipelineResults
+    const hasMissing = requiredKeys.some(k => !pr || pr[k] === undefined)
+    if (hasMissing) {
+      incompleteSet.add(log.bucket.getTime())
+    }
+  }
+  return incompleteSet
 }
 
 async function runManualBackfill(startDate, endDate, options = {}) {
@@ -118,13 +172,16 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
   const redis = getRedis()
   try {
     let allBuckets = []
+    // 버킷별 기존 로그 맵 (선택 실행에 활용)
+    const bucketLogMaps = new Map()
     for (const period of periods) {
       const expected = generateExpectedBuckets(period, startDate, endDate)
 
       if (retryPartial) {
         const partialSet = await getPartialBucketSet(period, startDate, endDate)
+        const incompleteSet = await getIncompleteBucketSet(period, startDate, endDate)
         for (const bucket of expected) {
-          if (partialSet.has(bucket.getTime())) {
+          if (partialSet.has(bucket.getTime()) || incompleteSet.has(bucket.getTime())) {
             allBuckets.push({ period, bucket })
           } else {
             backfillState.skipped++
@@ -140,6 +197,10 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
           }
         }
       }
+
+      // 기존 로그 조회 (선택 실행용)
+      const logMap = await getBucketLogs(period, startDate, endDate)
+      bucketLogMaps.set(period, logMap)
     }
 
     backfillState.total = allBuckets.length + backfillState.skipped
@@ -182,7 +243,18 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
 
       try {
         const { bucketStart, dateGte, dateLt } = computeBoundariesForBucket(period, bucket)
-        await runPipelinesForBucket(period, bucketStart, dateGte, dateLt, { source: 'manualBackfill' })
+
+        // 기존 로그에서 누락/실패 파이프라인만 선택 실행
+        const existingLog = bucketLogMaps.get(period)?.get(bucket.getTime())
+        const { PIPELINE_CONFIGS, getMissingOrFailedPipelines } = require('./batchRunner')
+        const missingKeys = existingLog
+          ? getMissingOrFailedPipelines(existingLog.pipelineResults, Object.keys(PIPELINE_CONFIGS))
+          : null  // null = 전체 실행
+
+        await runPipelinesForBucket(period, bucketStart, dateGte, dateLt, {
+          source: 'manualBackfill',
+          pipelineKeys: missingKeys && missingKeys.length > 0 ? missingKeys : null
+        })
       } catch (err) {
         if (backfillState.errors.length < 100) {
           backfillState.errors.push({
@@ -299,6 +371,7 @@ function _resetBackfill() {
 module.exports = {
   getCompletedBucketSet,
   getPartialBucketSet,
+  getIncompleteBucketSet,
   runManualBackfill,
   getBackfillState,
   cancelBackfill,

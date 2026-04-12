@@ -31,6 +31,26 @@ const PIPELINE_CONFIGS = {
   category: { collection: 'RECOVERY_SUMMARY_BY_CATEGORY', groupField: 'scCategory', needsLookup: true }
 }
 
+// ── Pipeline-Aware Helpers ──
+
+function getPipelineKeys() {
+  return Object.keys(PIPELINE_CONFIGS)
+}
+
+/**
+ * pipelineResults에서 누락/실패 파이프라인 키 목록 반환.
+ * @param {Object|Map|null} pipelineResults - CRON_RUN_LOG의 pipelineResults
+ * @param {string[]} requiredKeys - 현재 PIPELINE_CONFIGS 키 목록
+ * @returns {string[]} 실행이 필요한 키 목록
+ */
+function getMissingOrFailedPipelines(pipelineResults, requiredKeys) {
+  if (!pipelineResults) return [...requiredKeys]
+  const entries = pipelineResults instanceof Map
+    ? Object.fromEntries(pipelineResults)
+    : pipelineResults
+  return requiredKeys.filter(k => !entries[k] || entries[k] !== 'success')
+}
+
 // ── Pipeline Builder ──
 
 function buildPipeline(configKey, period, bucketStart, dateGte, dateLt) {
@@ -174,14 +194,19 @@ function buildCategoryPipeline(period, bucketStart, dateGte, dateLt) {
 // ── Core Pipeline Execution ──
 
 async function runPipelinesForBucket(period, bucketStart, dateGte, dateLt, options = {}) {
-  const { source = 'cron' } = options
+  const { source = 'cron', pipelineKeys = null } = options
   const earsDb = getEarsDb()
   const CronRunLog = getCronRunLog()
   const startedAt = new Date()
   const pipelineResults = {}
   const errors = []
 
-  for (const [configKey, config] of Object.entries(PIPELINE_CONFIGS)) {
+  // 선택 실행: pipelineKeys가 지정되면 해당 키만 실행
+  const targetConfigs = pipelineKeys
+    ? Object.entries(PIPELINE_CONFIGS).filter(([key]) => pipelineKeys.includes(key))
+    : Object.entries(PIPELINE_CONFIGS)
+
+  for (const [configKey, config] of targetConfigs) {
     try {
       const pipeline = config.needsLookup
         ? buildCategoryPipeline(period, bucketStart, dateGte, dateLt)
@@ -197,6 +222,39 @@ async function runPipelinesForBucket(period, bucketStart, dateGte, dateLt, optio
     }
   }
 
+  const isSelective = pipelineKeys !== null
+  const filter = { jobName: 'recoverySummary', period, bucket: bucketStart }
+
+  if (isSelective) {
+    // 선택 실행: dot notation으로 개별 키만 머지 (기존 성공 키 보존)
+    const $set = { source, startedAt, completedAt: new Date() }
+    for (const [key, value] of Object.entries(pipelineResults)) {
+      $set[`pipelineResults.${key}`] = value
+    }
+    const updateOp = { $set, $unset: { docsInBucket: '' } }
+    if (errors.length > 0) {
+      updateOp.$push = { errorMessage: { $each: errors } }
+    }
+    const updatedDoc = await CronRunLog.findOneAndUpdate(filter, updateOp, { upsert: true, returnDocument: 'after' })
+
+    // 머지된 전체 pipelineResults에서 status 재계산
+    const allKeys = Object.keys(PIPELINE_CONFIGS)
+    const mergedPR = updatedDoc?.pipelineResults instanceof Map
+      ? Object.fromEntries(updatedDoc.pipelineResults)
+      : updatedDoc?.pipelineResults || pipelineResults
+    const totalSuccess = allKeys.filter(k => mergedPR[k] === 'success').length
+    let status
+    if (totalSuccess === allKeys.length) status = 'success'
+    else if (totalSuccess === 0) status = 'failed'
+    else status = 'partial'
+
+    // status 갱신
+    await CronRunLog.findOneAndUpdate(filter, { $set: { status } })
+
+    return { status, pipelineResults: mergedPR, errors }
+  }
+
+  // 전체 실행: 기존 로직
   const totalPipelines = Object.keys(PIPELINE_CONFIGS).length
   const successCount = Object.values(pipelineResults).filter(r => r === 'success').length
   let status
@@ -205,7 +263,7 @@ async function runPipelinesForBucket(period, bucketStart, dateGte, dateLt, optio
   else status = 'partial'
 
   await CronRunLog.findOneAndUpdate(
-    { jobName: 'recoverySummary', period, bucket: bucketStart },
+    filter,
     {
       $set: {
         status,
@@ -304,25 +362,35 @@ async function runBatch(period) {
 
     const { bucketStart, dateGte, dateLt } = boundaries
 
-    // 4. CronRunLog 사전 체크 — 이미 성공/부분성공한 bucket이면 skip (이중 방어).
+    // 4. CronRunLog 사전 체크 — 이미 모든 파이프라인이 성공한 bucket이면 skip (이중 방어).
     //    분산 락이 어떤 이유로 뚫려도 같은 bucket이 재실행되는 것을 막는다.
-    //    failed 상태는 재시도 대상이므로 여기서 걸리지 않음.
+    //    failed 상태 또는 파이프라인 키 누락은 재시도 대상.
     const existing = await getCronRunLog().findOne({
       jobName: 'recoverySummary',
       period,
       bucket: bucketStart,
       status: { $in: ['success', 'partial'] }
-    }).lean()
+    }).select('status source completedAt pipelineResults').lean()
 
     if (existing) {
-      log.info(`[RecoverySummary] ${period} ${bucketStart.toISOString()} already completed by ${existing.source} (${existing.completedAt?.toISOString?.() || existing.completedAt}) — skipping`)
-      deps.createBatchLog({
-        batchAction: 'cron_skipped',
-        batchPeriod: period,
-        batchParams: { period, bucket: bucketStart.toISOString(), reason: 'alreadyCompleted' },
-        podId: pod
-      }).catch(e => log.error(`[BatchLog] cron_skipped log failed: ${e?.message || e}`))
-      return
+      const requiredKeys = Object.keys(PIPELINE_CONFIGS)
+      const pr = existing.pipelineResults instanceof Map
+        ? Object.fromEntries(existing.pipelineResults)
+        : existing.pipelineResults
+      const allComplete = requiredKeys.every(k => pr && pr[k] === 'success')
+      if (!allComplete) {
+        const missing = requiredKeys.filter(k => !pr || pr[k] !== 'success')
+        log.info(`[RecoverySummary] ${period} ${bucketStart.toISOString()} incomplete (${missing.join(', ')}) — re-running`)
+      } else {
+        log.info(`[RecoverySummary] ${period} ${bucketStart.toISOString()} already completed by ${existing.source} (${existing.completedAt?.toISOString?.() || existing.completedAt}) — skipping`)
+        deps.createBatchLog({
+          batchAction: 'cron_skipped',
+          batchPeriod: period,
+          batchParams: { period, bucket: bucketStart.toISOString(), reason: 'alreadyCompleted' },
+          podId: pod
+        }).catch(e => log.error(`[BatchLog] cron_skipped log failed: ${e?.message || e}`))
+        return
+      }
     }
 
     log.info(`[RecoverySummary] Starting ${period} batch: ${dateGte} ~ ${dateLt}`)
@@ -363,6 +431,7 @@ async function runBatch(period) {
 async function detectGaps(period, opts = {}) {
   const deps = getDeps()
   const CronRunLog = getCronRunLog()
+  const requiredKeys = Object.keys(PIPELINE_CONFIGS)
   const defaultWindow = period === 'hourly' ? 48 : 7 * 24
   const scanWindowHours = opts.scanWindowHours ?? defaultWindow
 
@@ -379,9 +448,19 @@ async function detectGaps(period, opts = {}) {
     period,
     bucket: { $gte: scanStart, $lt: scanEnd },
     status: { $in: ['success', 'partial'] }
-  }).select('bucket').lean()
+  }).select('bucket pipelineResults').lean()
 
-  const completedSet = new Set(logs.map(l => l.bucket.getTime()))
+  // Pipeline-aware: only consider a bucket complete if ALL current pipeline keys are success
+  const completedSet = new Set()
+  for (const log of logs) {
+    const pr = log.pipelineResults instanceof Map
+      ? Object.fromEntries(log.pipelineResults)
+      : log.pipelineResults
+    const allComplete = requiredKeys.every(k => pr && pr[k] === 'success')
+    if (allComplete) {
+      completedSet.add(log.bucket.getTime())
+    }
+  }
 
   return expected.filter(b => !completedSet.has(b.getTime()))
 }
@@ -425,6 +504,8 @@ function _resetIsRunning() {
 
 module.exports = {
   PIPELINE_CONFIGS,
+  getPipelineKeys,
+  getMissingOrFailedPipelines,
   buildPipeline,
   buildCategoryPipeline,
   runPipelinesForBucket,

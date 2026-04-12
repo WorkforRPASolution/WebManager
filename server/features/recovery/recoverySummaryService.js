@@ -14,6 +14,8 @@ const { validateBackfillRange } = require('./validation')
 
 const {
   PIPELINE_CONFIGS,
+  getPipelineKeys,
+  getMissingOrFailedPipelines,
   buildPipeline,
   buildCategoryPipeline,
   runPipelinesForBucket,
@@ -26,6 +28,7 @@ const {
 const {
   getCompletedBucketSet,
   getPartialBucketSet,
+  getIncompleteBucketSet,
   runManualBackfill,
   getBackfillState,
   cancelBackfill,
@@ -60,6 +63,8 @@ function _getSettlingHours() {
 
 module.exports = {
   PIPELINE_CONFIGS,
+  getPipelineKeys,
+  getMissingOrFailedPipelines,
   buildPipeline,
   buildCategoryPipeline,
   runPipelinesForBucket,
@@ -71,6 +76,7 @@ module.exports = {
   cancelBackfill,
   getCompletedBucketSet,
   getPartialBucketSet,
+  getIncompleteBucketSet,
   validateBackfillRange,
   checkEarIndexes,
   isIndexReady,
