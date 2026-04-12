@@ -65,7 +65,7 @@ function handleExportCsv() {
           <RecoveryAnalysisChart :data="data" @select="handleChartSelect" />
         </div>
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
-          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">시간 추이</h3>
+          <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-2">성공률 추이</h3>
           <RecoveryAnalysisTrend :data="selectedTrend" :selectedItem="selectedItem" :granularity="granularity" />
         </div>
       </div>

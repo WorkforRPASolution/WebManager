@@ -44,11 +44,6 @@ const kpiCards = computed(() => {
 })
 
 
-const granularityLabel = computed(() => {
-  const map = { hourly: 'Hourly', daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' }
-  return map[categoryData.value?.granularity] || ''
-})
-
 async function fetchProcesses() {
   try {
     const res = await clientsApi.getProcesses()
@@ -161,14 +156,14 @@ onMounted(() => {
       <!-- Donuts + KPI Cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Category Distribution</h3>
+          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">카테고리별 실행 분포</h3>
           <CategoryDistributionDonut
             :data="categoryData.categories || []"
             style="height: 180px"
           />
         </div>
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Success by Category</h3>
+          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">카테고리별 성공 분포</h3>
           <CategoryDistributionDonut
             :data="categoryData.categories || []"
             valueKey="Success"
@@ -177,7 +172,7 @@ onMounted(() => {
           />
         </div>
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Failed by Category</h3>
+          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">카테고리별 실패 분포</h3>
           <CategoryDistributionDonut
             :data="categoryData.categories || []"
             :valueKey="['Failed', 'ScriptFailed', 'VisionDelayed', 'NotStarted']"
@@ -193,13 +188,12 @@ onMounted(() => {
       <!-- Charts Row -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Category Comparison (Success Rate %)</h3>
+          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">카테고리별 성공률 비교</h3>
           <CategoryComparisonChart :data="categoryData.categories || []" />
         </div>
         <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
           <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-            Category Trend
-            <span v-if="granularityLabel" class="text-xs font-normal text-gray-400 dark:text-gray-500 ml-1">({{ granularityLabel }})</span>
+            카테고리별 성공률 추이 ({{ { hourly: '시간별', daily: '일별', weekly: '주별', monthly: '월별' }[categoryData.granularity] || '일별' }})
           </h3>
           <CategoryTrendChart
             :data="categoryData.trend || []"
@@ -211,7 +205,7 @@ onMounted(() => {
       <!-- Summary Table -->
       <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Category Summary</h3>
+          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">카테고리별 요약</h3>
           <button
             @click="handleCsvExport"
             class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition-colors"

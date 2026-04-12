@@ -171,7 +171,7 @@ onMounted(() => {
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
           <h3 class="text-sm font-semibold text-gray-600 dark:text-gray-300 mb-3">
-            {{ { hourly: '시간별', daily: '일별', weekly: '주별', monthly: '월별' }[overviewData.granularity] || '시간별' }} 트렌드
+            실행 현황 추이 ({{ { hourly: '시간별', daily: '일별', weekly: '주별', monthly: '월별' }[overviewData.granularity] || '시간별' }})
           </h3>
           <RecoveryTrendChart :data="overviewData.trend || []" :granularity="overviewData.granularity || 'hourly'" />
         </div>
