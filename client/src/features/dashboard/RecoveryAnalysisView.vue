@@ -24,8 +24,8 @@ const trendData = ref([])
 const granularity = ref('hourly')
 const lastAggregation = ref(null)
 const processes = ref([])
+const scenarios = ref([])
 const models = ref([])
-const modelsByProcess = ref({})
 const currentFilters = ref({})
 
 // History modal state
@@ -35,13 +35,14 @@ const historyTargetId = ref('')
 
 onMounted(async () => {
   await loadAnalysisFilters()
-  // Auto-apply process filter from navigation query or first available
   const initProcess = route.query.process || (processes.value.length > 0 ? processes.value[0] : '')
   if (initProcess) {
     currentFilters.value.process = initProcess
-    models.value = modelsByProcess.value[initProcess] || []
-    if (models.value.length > 0) {
-      currentFilters.value.model = models.value[0]
+    // Process → Scenario 캐스케이드
+    await handleProcessChange(initProcess)
+    if (scenarios.value.length > 0) {
+      currentFilters.value.scenario = scenarios.value[0]
+      await handleScenarioChange(scenarios.value[0])
     }
     fetchData(currentFilters.value)
   }
@@ -55,7 +56,6 @@ async function loadAnalysisFilters(period, startDate, endDate) {
     if (endDate) params.endDate = endDate
     const res = await recoveryApi.getAnalysisFilters(params)
     processes.value = res.data.processes || []
-    modelsByProcess.value = res.data.modelsByProcess || {}
   } catch (err) {
     console.error('Failed to load analysis filters:', err)
   }
@@ -95,27 +95,64 @@ watch(activeTab, () => {
   fetchData(currentFilters.value)
 })
 
-function handleProcessChange(process) {
-  models.value = modelsByProcess.value[process] || []
+// Process 변경 → Scenario 목록 갱신
+async function handleProcessChange(process) {
+  currentFilters.value.process = process
+  currentFilters.value.scenario = ''
+  currentFilters.value.model = ''
+  try {
+    const params = {
+      period: currentFilters.value.period || 'today',
+      process,
+      startDate: currentFilters.value.startDate,
+      endDate: currentFilters.value.endDate
+    }
+    const res = await recoveryApi.getAnalysisFilters(params)
+    scenarios.value = res.data.scenarios || []
+    models.value = []
+  } catch (err) {
+    console.error('Failed to load scenarios:', err)
+  }
+}
+
+// Scenario 변경 → Model 목록 갱신
+async function handleScenarioChange(scenario) {
+  currentFilters.value.scenario = scenario
+  currentFilters.value.model = ''
+  const process = currentFilters.value.process
+  if (!process || !scenario) { models.value = []; return }
+  try {
+    const params = {
+      period: currentFilters.value.period || 'today',
+      process, scenario,
+      startDate: currentFilters.value.startDate,
+      endDate: currentFilters.value.endDate
+    }
+    const res = await recoveryApi.getAnalysisFilters(params)
+    models.value = res.data.models || []
+  } catch (err) {
+    console.error('Failed to load models:', err)
+  }
 }
 
 async function handlePeriodChange(period) {
+  currentFilters.value.period = period
   await loadAnalysisFilters(period)
 }
 
 async function handleSearch(filters) {
   currentFilters.value = filters
-  // 기간 변경 시 필터 목록도 갱신
+  // 기간 변경 시 필터 목록 갱신
   await loadAnalysisFilters(filters.period, filters.startDate, filters.endDate)
   // 선택된 process가 새 목록에 없으면 첫 번째로 변경
   if (filters.process && !processes.value.includes(filters.process)) {
     filters.process = processes.value[0] || ''
-    models.value = modelsByProcess.value[filters.process] || []
-    filters.model = models.value[0] || ''
-  } else if (filters.process) {
-    models.value = modelsByProcess.value[filters.process] || []
-    if (filters.model && !models.value.includes(filters.model)) {
-      filters.model = models.value[0] || ''
+    currentFilters.value.process = filters.process
+    await handleProcessChange(filters.process)
+    if (scenarios.value.length > 0) {
+      filters.scenario = scenarios.value[0]
+      currentFilters.value.scenario = filters.scenario
+      await handleScenarioChange(filters.scenario)
     }
   }
   fetchData(filters)
@@ -145,14 +182,17 @@ function openHistory(item) {
       <div class="flex flex-wrap items-end justify-between gap-4">
         <RecoveryFilterBar
           :processes="processes"
+          :scenarios="scenarios"
           :models="models"
           :loading="loading"
           :showModelFilter="true"
+          :showScenarioFilter="true"
           :singleSelectMode="true"
           :initialProcess="currentFilters.process || ''"
-          :initialModel="currentFilters.model || ''"
+          :initialScenario="currentFilters.scenario || ''"
           @search="handleSearch"
           @process-change="handleProcessChange"
+          @scenario-change="handleScenarioChange"
           @period-change="handlePeriodChange"
         />
         <DataFreshnessIndicator :lastAggregation="lastAggregation" @refresh="handleRefresh" />

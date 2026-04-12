@@ -239,6 +239,57 @@ describe('recovery service', () => {
       expect(Array.isArray(result.data)).toBe(true)
       expect(Array.isArray(result.trend)).toBe(true)
     })
+
+    it('applies scenario filter as ears_code on scenario tab', async () => {
+      const scenarioColl = createMockCollection()
+      const mockEarsDb = createMockEarsDb({
+        'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl
+      })
+      _setDeps({ earsDb: mockEarsDb })
+
+      await service.getAnalysis({
+        period: 'today', tab: 'scenario',
+        process: 'ETCH', scenario: 'SC_001'
+      })
+
+      const firstCallPipeline = scenarioColl.aggregate.mock.calls[0][0]
+      const matchStage = firstCallPipeline.find(s => s.$match)
+      expect(matchStage.$match).toHaveProperty('ears_code', 'SC_001')
+    })
+
+    it('does NOT apply scenario filter on equipment tab', async () => {
+      const equipmentColl = createMockCollection()
+      const mockEarsDb = createMockEarsDb({
+        'RECOVERY_SUMMARY_BY_EQUIPMENT': equipmentColl
+      })
+      _setDeps({ earsDb: mockEarsDb })
+
+      await service.getAnalysis({
+        period: 'today', tab: 'equipment',
+        process: 'ETCH', scenario: 'SC_001'
+      })
+
+      const firstCallPipeline = equipmentColl.aggregate.mock.calls[0][0]
+      const matchStage = firstCallPipeline.find(s => s.$match)
+      expect(matchStage.$match).not.toHaveProperty('ears_code')
+    })
+
+    it('does NOT apply scenario filter on trigger tab', async () => {
+      const triggerColl = createMockCollection()
+      const mockEarsDb = createMockEarsDb({
+        'RECOVERY_SUMMARY_BY_TRIGGER': triggerColl
+      })
+      _setDeps({ earsDb: mockEarsDb })
+
+      await service.getAnalysis({
+        period: 'today', tab: 'trigger',
+        process: 'ETCH', scenario: 'SC_001'
+      })
+
+      const firstCallPipeline = triggerColl.aggregate.mock.calls[0][0]
+      const matchStage = firstCallPipeline.find(s => s.$match)
+      expect(matchStage.$match).not.toHaveProperty('ears_code')
+    })
   })
 
   describe('getByModel', () => {

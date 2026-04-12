@@ -78,7 +78,7 @@ async function getByModel(req, res) {
 }
 
 async function getAnalysis(req, res) {
-  const { period, process, line, model, tab, startDate, endDate } = req.query
+  const { period, process, line, model, scenario, tab, startDate, endDate } = req.query
   if (period === 'custom') {
     const validation = validatePeriodRange(startDate, endDate, 730)
     if (!validation.valid) return res.status(400).json({ error: validation.error })
@@ -88,6 +88,7 @@ async function getAnalysis(req, res) {
     process: process || undefined,
     line: line || undefined,
     model: model || undefined,
+    scenario: scenario || undefined,
     tab: tab || 'scenario',
     startDate, endDate
   })
@@ -99,11 +100,14 @@ async function getAnalysisFilters(req, res) {
   const userProcesses = req.user?.process
     ? req.user.process.split(';').map(p => p.trim()).filter(Boolean)
     : null
+  const { process, scenario } = req.query
   const result = await service.getAnalysisFilters({
     userProcesses,
     period: period || 'today',
     startDate,
-    endDate
+    endDate,
+    process: process || undefined,
+    scenario: scenario || undefined
   })
   res.json(result)
 }

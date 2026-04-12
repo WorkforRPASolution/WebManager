@@ -10,12 +10,15 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
   showProcessFilter: { type: Boolean, default: true },
   showModelFilter: { type: Boolean, default: false },
+  showScenarioFilter: { type: Boolean, default: false },
+  scenarios: { type: Array, default: () => [] },
   singleSelectMode: { type: Boolean, default: false },
   initialProcess: { type: String, default: '' },
-  initialModel: { type: String, default: '' }
+  initialModel: { type: String, default: '' },
+  initialScenario: { type: String, default: '' }
 })
 
-const emit = defineEmits(['search', 'process-change', 'period-change'])
+const emit = defineEmits(['search', 'process-change', 'scenario-change', 'period-change'])
 
 const MAX_DAYS = 730
 const PERIOD_DAYS = { today: 1, '7d': 7, '30d': 30, '90d': 90, '1y': 365 }
@@ -34,18 +37,31 @@ const selectedModels = ref([])
 // 단일 선택 모드용 state
 const singleProcess = ref(props.initialProcess)
 const singleModel = ref(props.initialModel)
+const singleScenario = ref(props.initialScenario)
 
-// initialProcess/Model이 비동기로 설정될 때 반영
+// initialProcess/Model/Scenario이 비동기로 설정될 때 반영
 watch(() => props.initialProcess, (v) => { if (v && !singleProcess.value) singleProcess.value = v })
 watch(() => props.initialModel, (v) => { if (v && !singleModel.value) singleModel.value = v })
+watch(() => props.initialScenario, (v) => { if (v && !singleScenario.value) singleScenario.value = v })
 
 function selectSingleProcess(p) {
   singleProcess.value = p
   processDropdownOpen.value = false
   processSearch.value = ''
-  // Model 초기화 + 부모에 알림
+  // Scenario + Model 초기화 + 부모에 알림
+  singleScenario.value = ''
   singleModel.value = ''
   emit('process-change', p)
+}
+
+function selectSingleScenario(s) {
+  singleScenario.value = s
+  scenarioDropdownOpen.value = false
+  scenarioSearch.value = ''
+  // Model 초기화 + 부모에 알림
+  singleModel.value = ''
+  selectedModels.value = []
+  emit('scenario-change', s)
 }
 
 function selectSingleModel(m) {
@@ -54,16 +70,25 @@ function selectSingleModel(m) {
   modelSearch.value = ''
 }
 const processDropdownOpen = ref(false)
+const scenarioDropdownOpen = ref(false)
 const modelDropdownOpen = ref(false)
 const processContainerRef = ref(null)
+const scenarioContainerRef = ref(null)
 const modelContainerRef = ref(null)
 const processSearch = ref('')
+const scenarioSearch = ref('')
 const modelSearch = ref('')
 
 const filteredProcesses = computed(() => {
   if (!processSearch.value) return props.processes
   const q = processSearch.value.toLowerCase()
   return props.processes.filter(p => p.toLowerCase().includes(q))
+})
+
+const filteredScenarios = computed(() => {
+  if (!scenarioSearch.value) return props.scenarios
+  const q = scenarioSearch.value.toLowerCase()
+  return props.scenarios.filter(s => s.toLowerCase().includes(q))
 })
 
 const filteredModels = computed(() => {
@@ -75,6 +100,9 @@ const filteredModels = computed(() => {
 function handleSingleDropdownClickOutside(e) {
   if (processContainerRef.value && !processContainerRef.value.contains(e.target)) {
     processDropdownOpen.value = false
+  }
+  if (scenarioContainerRef.value && !scenarioContainerRef.value.contains(e.target)) {
+    scenarioDropdownOpen.value = false
   }
   if (modelContainerRef.value && !modelContainerRef.value.contains(e.target)) {
     modelDropdownOpen.value = false
@@ -159,8 +187,12 @@ function handleSearch() {
       filters.process = selectedProcesses.value.join(',')
     }
   }
+  if (props.showScenarioFilter) {
+    if (singleScenario.value) filters.scenario = singleScenario.value
+  }
   if (props.showModelFilter) {
-    if (props.singleSelectMode) {
+    // showScenarioFilter 활성 시 Model은 항상 멀티선택
+    if (props.singleSelectMode && !props.showScenarioFilter) {
       if (singleModel.value) filters.model = singleModel.value
     } else if (selectedModels.value.length > 0) {
       filters.model = selectedModels.value.join(',')
@@ -317,10 +349,54 @@ function handleSearch() {
       />
     </template>
 
+    <!-- Scenario Filter (Process → Scenario 캐스케이드) -->
+    <template v-if="showScenarioFilter">
+      <div ref="scenarioContainerRef" class="relative">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Scenario</label>
+        <div
+          @click="scenarioDropdownOpen = !scenarioDropdownOpen"
+          class="flex items-center justify-between px-3 py-2 rounded-lg border cursor-pointer transition-colors"
+          :class="[
+            scenarioDropdownOpen ? 'border-primary-500 ring-2 ring-primary-500/20' : 'border-gray-300 dark:border-dark-border',
+            'bg-white dark:bg-dark-bg hover:border-primary-400'
+          ]"
+          style="width: 240px"
+        >
+          <span class="text-sm truncate" :class="singleScenario ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'">
+            {{ singleScenario || 'Scenario 선택' }}
+          </span>
+          <AppIcon name="chevron_down" size="4" class="text-gray-400 flex-shrink-0 transition-transform" :class="{ 'rotate-180': scenarioDropdownOpen }" />
+        </div>
+        <div v-show="scenarioDropdownOpen" class="absolute z-50 mt-1 w-full bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border shadow-lg">
+          <div class="p-2 border-b border-gray-200 dark:border-dark-border">
+            <input
+              v-model="scenarioSearch"
+              type="text"
+              placeholder="검색..."
+              class="w-full px-2 py-1.5 text-sm bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900 dark:text-white placeholder-gray-400"
+              @click.stop
+            />
+          </div>
+          <div class="max-h-52 overflow-y-auto">
+            <div
+              v-for="s in filteredScenarios"
+              :key="s"
+              @click="selectSingleScenario(s)"
+              class="px-3 py-2 hover:bg-gray-50 dark:hover:bg-dark-border cursor-pointer text-sm truncate"
+              :class="singleScenario === s ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'"
+            >{{ s }}</div>
+            <div v-if="filteredScenarios.length === 0" class="px-3 py-2 text-sm text-gray-400">
+              {{ scenarios.length === 0 ? 'Process를 먼저 선택하세요' : '결과 없음' }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+
     <!-- Model Filter -->
     <template v-if="showModelFilter">
-      <!-- 단일 선택 모드 -->
-      <div v-if="singleSelectMode" ref="modelContainerRef" class="relative">
+      <!-- 단일 선택 모드 (showScenarioFilter가 없을 때만) -->
+      <div v-if="singleSelectMode && !showScenarioFilter" ref="modelContainerRef" class="relative">
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Model</label>
         <div
           @click="modelDropdownOpen = !modelDropdownOpen"

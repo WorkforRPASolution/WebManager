@@ -65,7 +65,7 @@ function toMatchValue(csv) {
   return arr.length === 1 ? arr[0] : { $in: arr }
 }
 
-function buildMatchFilter(period, { process, line, model, startDate, endDate } = {}) {
+function buildMatchFilter(period, { process, line, model, scenario, startDate, endDate } = {}) {
   const parsed = parsePeriod(period, { startDate, endDate })
   const granularity = determineTrendGranularity(period, { startDate, endDate })
   const summaryPeriod = (granularity === 'hourly') ? 'hourly' : 'daily'
@@ -81,6 +81,8 @@ function buildMatchFilter(period, { process, line, model, startDate, endDate } =
   if (lv) match.line = lv
   const mv = toMatchValue(model)
   if (mv) match.model = mv
+  const sv = toMatchValue(scenario)
+  if (sv) match.ears_code = sv
 
   return match
 }
@@ -115,7 +117,7 @@ function determineTrendGranularity(period, { startDate, endDate } = {}) {
  * Build trend match filter.
  * hourly는 hourly summary 사용, daily/weekly/monthly는 daily summary 사용 (weekly/monthly는 후처리로 롤업).
  */
-function buildTrendMatchFilter(period, { process, line, model, startDate, endDate } = {}) {
+function buildTrendMatchFilter(period, { process, line, model, scenario, startDate, endDate } = {}) {
   const parsed = parsePeriod(period, { startDate, endDate })
   const granularity = determineTrendGranularity(period, { startDate, endDate })
   // hourly만 hourly summary, 나머지는 daily summary에서 롤업
@@ -132,6 +134,8 @@ function buildTrendMatchFilter(period, { process, line, model, startDate, endDat
   if (lv) match.line = lv
   const mv = toMatchValue(model)
   if (mv) match.model = mv
+  const sv = toMatchValue(scenario)
+  if (sv) match.ears_code = sv
 
   return match
 }
@@ -734,7 +738,7 @@ async function _getByModelCore(filters = {}) {
  * GET /api/recovery/analysis
  */
 async function getAnalysis(filters = {}) {
-  const { period = 'today', process, line, model, tab = 'scenario', startDate, endDate } = filters
+  const { period = 'today', process, line, model, scenario, tab = 'scenario', startDate, endDate } = filters
   const db = getEarsDb()
 
   const config = TAB_CONFIG[tab]
@@ -743,7 +747,11 @@ async function getAnalysis(filters = {}) {
   }
 
   const { collection: collName, groupField } = config
+  // scenario 필터는 scenario 탭에서만 적용 (equipment/trigger 컬렉션에 ears_code 필드 없음)
   const dimFilters = { process, line, model, startDate, endDate }
+  if (tab === 'scenario' && scenario) {
+    dimFilters.scenario = scenario
+  }
   const dailyMatch = buildMatchFilter(period, dimFilters)
   const trendMatch = buildTrendMatchFilter(period, dimFilters)
 
@@ -879,7 +887,7 @@ async function getHistory(filters = {}) {
  * Filtered by user's process permissions and period.
  */
 async function getAnalysisFilters(filters = {}) {
-  const { userProcesses, period = 'today', startDate, endDate } = filters
+  const { userProcesses, period = 'today', startDate, endDate, process, scenario } = filters
   const db = getEarsDb()
 
   // Build base match with period + process permission
@@ -895,25 +903,27 @@ async function getAnalysisFilters(filters = {}) {
   }
 
   const scenarioColl = db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
-  const eqColl = db.collection('RECOVERY_SUMMARY_BY_EQUIPMENT')
 
-  // 병렬: process distinct + model per process
-  const [allProcesses, modelDocs] = await Promise.all([
-    scenarioColl.distinct('process', baseMatch),
-    eqColl.aggregate([
-      { $match: baseMatch },
-      { $group: { _id: { process: '$process', model: '$model' } } },
-      { $group: { _id: '$_id.process', models: { $addToSet: '$_id.model' } } },
-      { $project: { _id: 0, process: '$_id', models: 1 } }
-    ]).toArray()
-  ])
+  // 1. processes distinct (항상)
+  const allProcesses = await scenarioColl.distinct('process', baseMatch)
 
-  const modelsByProcess = {}
-  for (const doc of modelDocs) {
-    modelsByProcess[doc.process] = doc.models.filter(Boolean).sort()
+  // 2. process 선택 시 → 해당 공정의 scenarios
+  let scenarios = []
+  if (process) {
+    scenarios = await scenarioColl.distinct('ears_code', { ...baseMatch, process })
   }
 
-  return { processes: allProcesses.filter(Boolean).sort(), modelsByProcess }
+  // 3. process + scenario 선택 시 → 해당 조합의 models
+  let models = []
+  if (process && scenario) {
+    models = await scenarioColl.distinct('model', { ...baseMatch, process, ears_code: scenario })
+  }
+
+  return {
+    processes: allProcesses.filter(Boolean).sort(),
+    scenarios: scenarios.filter(Boolean).sort(),
+    models: models.filter(Boolean).sort()
+  }
 }
 
 // ── By Category ──
