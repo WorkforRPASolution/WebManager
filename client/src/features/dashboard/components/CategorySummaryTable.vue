@@ -60,22 +60,11 @@ function getRowSuccessRate(row) {
         <tr
           v-for="row in data"
           :key="row.scCategory"
-          @click="$emit('expand', row.scCategory)"
-          class="cursor-pointer border-b border-gray-100 dark:border-gray-700/50 transition-colors"
-          :class="expandedCategory === row.scCategory
-            ? 'bg-blue-50 dark:bg-blue-900/20'
-            : 'hover:bg-gray-50 dark:hover:bg-dark-border'"
+          class="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-dark-border transition-colors"
         >
           <td class="py-2.5 px-3 font-medium text-gray-900 dark:text-gray-100">
-            <div class="flex items-center gap-1.5">
-              <svg class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 transition-transform"
-                   :class="{ 'rotate-90': expandedCategory === row.scCategory }"
-                   viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
-              </svg>
-              <span>{{ row.categoryName }}</span>
-              <span v-if="row.scCategory !== -1" class="text-xs text-gray-400 dark:text-gray-500">({{ row.scCategory }})</span>
-            </div>
+            <span>{{ row.categoryName }}</span>
+            <span v-if="row.scCategory !== -1" class="text-xs text-gray-400 dark:text-gray-500 ml-1">({{ row.scCategory }})</span>
           </td>
           <td class="py-2.5 px-3 text-right text-gray-700 dark:text-gray-300">
             {{ (row.total || 0).toLocaleString() }}

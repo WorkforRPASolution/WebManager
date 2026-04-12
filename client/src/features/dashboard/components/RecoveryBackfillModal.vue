@@ -417,6 +417,7 @@ function validateRange() {
 async function handleAnalyze() {
   if (!validateRange()) return
   await _handleAnalyze()
+  fetchDistribution()
 }
 
 // ── Start Backfill ──

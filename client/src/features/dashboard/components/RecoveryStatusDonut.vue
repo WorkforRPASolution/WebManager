@@ -13,7 +13,8 @@ use([PieChart, TooltipComponent, LegendComponent, CanvasRenderer])
 
 const props = defineProps({
   statusDistribution: { type: Object, default: () => ({}) },
-  successRate: { type: Number, default: 0 }
+  successRate: { type: Number, default: 0 },
+  compact: { type: Boolean, default: false }
 })
 
 const { isDark } = useTheme()
@@ -45,6 +46,7 @@ const option = computed(() => {
     }))
 
   const rateText = props.successRate != null ? props.successRate.toFixed(1) : '0'
+  const isCompact = props.compact
 
   return {
     tooltip: {
@@ -56,17 +58,20 @@ const option = computed(() => {
     },
     legend: {
       bottom: 0,
-      textStyle: { color: dark ? '#9ca3af' : '#6b7280' }
+      textStyle: { color: dark ? '#9ca3af' : '#6b7280', fontSize: isCompact ? 10 : 12 },
+      itemWidth: isCompact ? 10 : 25,
+      itemHeight: isCompact ? 10 : 14,
+      itemGap: isCompact ? 6 : 10
     },
     series: [{
       type: 'pie',
-      radius: ['55%', '80%'],
-      center: ['50%', '45%'],
+      radius: isCompact ? ['48%', '76%'] : ['55%', '80%'],
+      center: ['50%', isCompact ? '42%' : '45%'],
       avoidLabelOverlap: false,
       itemStyle: {
-        borderRadius: 6,
+        borderRadius: isCompact ? 4 : 6,
         borderColor: dark ? '#1f2937' : '#fff',
-        borderWidth: 3
+        borderWidth: isCompact ? 2 : 3
       },
       label: {
         show: true,
@@ -74,15 +79,15 @@ const option = computed(() => {
         formatter: `{rate|${rateText}%}\n{label|성공률}`,
         rich: {
           rate: {
-            fontSize: 28,
+            fontSize: isCompact ? 18 : 28,
             fontWeight: 'bold',
             color: dark ? '#fff' : '#111827',
-            lineHeight: 36
+            lineHeight: isCompact ? 24 : 36
           },
           label: {
-            fontSize: 13,
+            fontSize: isCompact ? 10 : 13,
             color: dark ? '#9ca3af' : '#6b7280',
-            lineHeight: 20
+            lineHeight: isCompact ? 14 : 20
           }
         }
       },
@@ -101,7 +106,7 @@ const option = computed(() => {
 </script>
 
 <template>
-  <div class="w-full h-full flex items-center justify-center" style="min-height: 280px">
-    <VChart :option="option" autoresize style="width: 100%; height: 280px" />
+  <div class="w-full h-full flex items-center justify-center" :style="{ minHeight: compact ? '180px' : '280px' }">
+    <VChart :option="option" autoresize :style="{ width: '100%', height: compact ? '180px' : '280px' }" />
   </div>
 </template>

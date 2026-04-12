@@ -6,8 +6,10 @@ import { useProcessPermission } from '../../shared/composables/useProcessPermiss
 import { useAuthStore } from '../../shared/stores/auth'
 import { useToast } from '../../shared/composables/useToast'
 import { sumByGroup } from './utils/recoveryStatusGroups'
+import { exportRecoveryByCategoryCsv } from './utils/recoveryCsvExport'
 import RecoveryFilterBar from './components/RecoveryFilterBar.vue'
 import RecoveryKPICards from './components/RecoveryKPICards.vue'
+import CategoryDistributionDonut from './components/CategoryDistributionDonut.vue'
 import CategoryComparisonChart from './components/CategoryComparisonChart.vue'
 import CategoryTrendChart from './components/CategoryTrendChart.vue'
 import CategorySummaryTable from './components/CategorySummaryTable.vue'
@@ -33,7 +35,6 @@ const kpiCards = computed(() => {
   const k = categoryData.value?.kpi
   if (!k) return []
   return [
-    { label: 'Total Executions', value: (k.total || 0).toLocaleString() },
     { label: 'Success Rate', value: k.successRate != null ? `${k.successRate.toFixed(1)}%` : '0%',
       accent: k.successRate >= 90 ? 'text-green-600 dark:text-green-400' : k.successRate >= 70 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400' },
     { label: 'Categories', value: String(k.categoryCount || 0), accent: 'text-blue-600 dark:text-blue-400' },
@@ -41,6 +42,7 @@ const kpiCards = computed(() => {
       accent: k.uncategorizedCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400 dark:text-gray-500' }
   ]
 })
+
 
 const granularityLabel = computed(() => {
   const map = { hourly: 'Hourly', daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' }
@@ -85,6 +87,12 @@ async function fetchData(filters = { period: 'today' }) {
 
 function handleExpand(scCategory) {
   expandedCategory.value = expandedCategory.value === scCategory ? null : scCategory
+}
+
+function handleCsvExport() {
+  const categories = categoryData.value?.categories
+  if (!categories || categories.length === 0) return
+  exportRecoveryByCategoryCsv(categories)
 }
 
 function handleRefresh() {
@@ -150,8 +158,37 @@ onMounted(() => {
 
     <!-- Content -->
     <template v-else-if="categoryData">
-      <!-- KPI -->
-      <RecoveryKPICards :customCards="kpiCards" />
+      <!-- Donuts + KPI Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
+          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Category Distribution</h3>
+          <CategoryDistributionDonut
+            :data="categoryData.categories || []"
+            style="height: 180px"
+          />
+        </div>
+        <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
+          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Success by Category</h3>
+          <CategoryDistributionDonut
+            :data="categoryData.categories || []"
+            valueKey="Success"
+            centerLabel="Success"
+            style="height: 180px"
+          />
+        </div>
+        <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
+          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Failed by Category</h3>
+          <CategoryDistributionDonut
+            :data="categoryData.categories || []"
+            :valueKey="['Failed', 'ScriptFailed', 'VisionDelayed', 'NotStarted']"
+            centerLabel="Failed"
+            style="height: 180px"
+          />
+        </div>
+        <div>
+          <RecoveryKPICards :customCards="kpiCards" vertical />
+        </div>
+      </div>
 
       <!-- Charts Row -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -173,7 +210,18 @@ onMounted(() => {
 
       <!-- Summary Table -->
       <div class="bg-white dark:bg-dark-card rounded-xl shadow-sm border border-gray-200 dark:border-dark-border p-4">
-        <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Category Summary</h3>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Category Summary</h3>
+          <button
+            @click="handleCsvExport"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-border transition-colors"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            CSV
+          </button>
+        </div>
         <CategorySummaryTable
           :data="categoryData.categories || []"
           :expandedCategory="expandedCategory"

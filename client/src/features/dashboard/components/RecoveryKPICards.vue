@@ -12,6 +12,10 @@ const props = defineProps({
   customCards: {
     type: Array,
     default: null
+  },
+  vertical: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -87,6 +91,7 @@ const defaultCards = computed(() => {
 const cards = computed(() => props.customCards || defaultCards.value)
 
 const gridClass = computed(() => {
+  if (props.vertical) return 'grid-cols-1'
   const len = cards.value.length
   if (len <= 4) return 'grid-cols-2 md:grid-cols-4'
   return 'grid-cols-2 md:grid-cols-3 xl:grid-cols-6'
