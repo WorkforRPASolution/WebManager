@@ -74,6 +74,7 @@ export const dashboardApi = {
 export const recoveryApi = {
   getOverview: (params = {}) => api.get('/recovery/overview', { params, timeout: 60000 }),
   getByProcess: (params = {}) => api.get('/recovery/by-process', { params, timeout: 60000 }),
+  getByModel: (params = {}) => api.get('/recovery/by-model', { params, timeout: 60000 }),
   getAnalysis: (params = {}) => api.get('/recovery/analysis', { params, timeout: 60000 }),
   getAnalysisFilters: (params = {}) => api.get('/recovery/analysis/filters', { params }),
   getHistory: (params = {}) => api.get('/recovery/history', { params, timeout: 30000 }),

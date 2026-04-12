@@ -56,6 +56,28 @@ export function exportRecoveryByProcessCsv(processes) {
 }
 
 /**
+ * Recovery by Model 데이터를 CSV로 내보내기
+ * @param {Array} models - [{ model, total, success, failed, stopped, skip, successRate }]
+ */
+export function exportRecoveryByModelCsv(models) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `Recovery_ByModel_${timestamp}.csv`
+
+  const headers = ['Model', 'Total', 'Success', 'Failed', 'Stopped', 'Skip', 'Success Rate']
+  const rows = (models || []).map(m => [
+    m.model,
+    m.total || 0,
+    m.success || 0,
+    m.failed || 0,
+    m.stopped || 0,
+    m.skip || 0,
+    m.successRate != null ? `${m.successRate.toFixed(1)}%` : '0%'
+  ])
+
+  downloadCsv(filename, headers, rows)
+}
+
+/**
  * Recovery Analysis 데이터를 CSV로 내보내기
  * @param {Object} data - Analysis 데이터
  * @param {string} tab - 현재 탭 (scenario, equipment, trigger)

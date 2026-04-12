@@ -10,6 +10,9 @@ router.get('/overview', authenticate, requireMenuPermission('dashboardRecoveryOv
 // GET /api/recovery/by-process - 공정별 Recovery 비교
 router.get('/by-process', authenticate, requireMenuPermission('dashboardRecoveryByProcess'), asyncHandler(controller.getByProcess))
 
+// GET /api/recovery/by-model - 모델별 Recovery 비교
+router.get('/by-model', authenticate, requireMenuPermission('dashboardRecoveryByModel'), asyncHandler(controller.getByModel))
+
 // GET /api/recovery/analysis/filters - 데이터가 있는 공정/모델 목록
 router.get('/analysis/filters', authenticate, requireMenuPermission('dashboardRecoveryAnalysis'), asyncHandler(controller.getAnalysisFilters))
 

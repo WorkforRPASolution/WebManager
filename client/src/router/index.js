@@ -190,6 +190,27 @@ const routes = [
     }
   },
   {
+    path: '/recovery-by-model',
+    name: 'RecoveryByModel',
+    component: () => import('../features/dashboard/RecoveryByModelView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      permission: 'dashboardRecoveryByModel',
+      menu: {
+        mainMenu: 'dashboard',
+        mainMenuLabel: 'Dashboard',
+        mainMenuIcon: 'dashboard',
+        mainMenuOrder: 1,
+        subMenu: 'recovery-by-model',
+        subMenuLabel: 'Recovery by Model',
+        subMenuIcon: 'precision_manufacturing',
+        subMenuOrder: 7.5,
+        permission: 'dashboardRecoveryByModel'
+      }
+    }
+  },
+  {
     path: '/recovery-by-category',
     name: 'RecoveryByCategory',
     component: () => import('../features/dashboard/RecoveryByCategoryView.vue'),

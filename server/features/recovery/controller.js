@@ -61,6 +61,22 @@ async function getByProcess(req, res) {
   res.json(result)
 }
 
+async function getByModel(req, res) {
+  const { period, process, line, model, startDate, endDate } = req.query
+  if (period === 'custom') {
+    const validation = validatePeriodRange(startDate, endDate, 730)
+    if (!validation.valid) return res.status(400).json({ error: validation.error })
+  }
+  const result = await service.getByModel({
+    period: period || 'today',
+    process: process || undefined,
+    line: line || undefined,
+    model: model || undefined,
+    startDate, endDate
+  })
+  res.json(result)
+}
+
 async function getAnalysis(req, res) {
   const { period, process, line, model, tab, startDate, endDate } = req.query
   if (period === 'custom') {
@@ -363,6 +379,7 @@ async function getScCategories(req, res) {
 module.exports = {
   getOverview,
   getByProcess,
+  getByModel,
   getByCategory,
   getAnalysis,
   getAnalysisFilters,

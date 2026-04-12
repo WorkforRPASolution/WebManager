@@ -146,7 +146,7 @@ function buildTrendMatchFilter(period, { process, line, model, startDate, endDat
  * 항목 구분 키 추출 (Analysis trend처럼 ears_code/eqpid/trigger_by/name 등)
  */
 function extractItemKey(item) {
-  return item.ears_code || item.eqpid || item.trigger_by || item.name || item.process || null
+  return item.ears_code || item.eqpid || item.trigger_by || item.name || item.process || item.model || null
 }
 
 function rollupTrend(dailyTrend, granularity) {
@@ -588,6 +588,149 @@ async function _getByProcessCore(filters = {}) {
 }
 
 /**
+ * GET /api/recovery/by-model
+ */
+async function getByModel(filters = {}) {
+  const redis = getRedis()
+  const cacheKey = buildCacheKey('recovery:by-model', {
+    period: filters.period, process: filters.process, line: filters.line,
+    model: filters.model, startDate: filters.startDate, endDate: filters.endDate
+  })
+  return getWithCache(redis, cacheKey, () => _getByModelCore(filters), 60, { lockTtlSec: 90 })
+}
+
+async function _getByModelCore(filters = {}) {
+  const { period = 'today', process, line, model, startDate, endDate } = filters
+  const db = getEarsDb()
+  const dimFilters = { process, line, model, startDate, endDate }
+
+  const dailyMatch = buildMatchFilter(period, dimFilters)
+  const trendMatch = buildTrendMatchFilter(period, dimFilters)
+
+  const opts = { allowDiskUse: true, maxTimeMS: 55000 }
+  const eqColl = db.collection('RECOVERY_SUMMARY_BY_EQUIPMENT')
+
+  // 1. Model-level aggregation
+  const modelPipeline = [
+    { $match: dailyMatch },
+    { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
+    { $unwind: '$sc_array' },
+    {
+      $group: {
+        _id: { model: '$model', status: '$sc_array.k' },
+        count: { $sum: '$sc_array.v' }
+      }
+    },
+    {
+      $group: {
+        _id: '$_id.model',
+        total: { $sum: '$count' },
+        statuses: { $push: { k: '$_id.status', v: '$count' } }
+      }
+    },
+    { $addFields: { status_counts: { $arrayToObject: '$statuses' } } },
+    { $sort: { _id: 1 } },
+    { $project: { _id: 0, model: '$_id', total: 1, status_counts: 1 } }
+  ]
+
+  // 2. Trend per model
+  const trendPipeline = [
+    { $match: trendMatch },
+    { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
+    { $unwind: '$sc_array' },
+    {
+      $group: {
+        _id: { bucket: '$bucket', model: '$model', status: '$sc_array.k' },
+        count: { $sum: '$sc_array.v' }
+      }
+    },
+    {
+      $group: {
+        _id: { bucket: '$_id.bucket', model: '$_id.model' },
+        total: { $sum: '$count' },
+        statuses: { $push: { k: '$_id.status', v: '$count' } }
+      }
+    },
+    { $addFields: { status_counts: { $arrayToObject: '$statuses' } } },
+    { $sort: { '_id.bucket': 1 } },
+    {
+      $project: {
+        _id: 0,
+        bucket: '$_id.bucket',
+        model: '$_id.model',
+        total: 1,
+        status_counts: 1
+      }
+    }
+  ]
+
+  // 3. Drilldown: Top 5 failed equipment per model
+  const drilldownEquipmentPipeline = [
+    { $match: dailyMatch },
+    { $addFields: { sc_array: { $objectToArray: '$status_counts' } } },
+    { $unwind: '$sc_array' },
+    { $match: { 'sc_array.k': { $in: FAILED_STATUSES } } },
+    {
+      $group: {
+        _id: { model: '$model', eqpid: '$eqpid' },
+        failedCount: { $sum: '$sc_array.v' }
+      }
+    },
+    { $sort: { failedCount: -1 } },
+    {
+      $group: {
+        _id: '$_id.model',
+        topEquipment: { $push: { name: '$_id.eqpid', count: '$failedCount' } }
+      }
+    },
+    { $project: { _id: 0, model: '$_id', topEquipment: { $slice: ['$topEquipment', 5] } } }
+  ]
+
+  // 4. Process distribution per model
+  const processDistPipeline = [
+    { $match: dailyMatch },
+    {
+      $group: {
+        _id: { model: '$model', process: '$process' },
+        total: { $sum: '$total' }
+      }
+    },
+    { $sort: { total: -1 } },
+    {
+      $group: {
+        _id: '$_id.model',
+        processes: { $push: { process: '$_id.process', total: '$total' } }
+      }
+    },
+    { $project: { _id: 0, model: '$_id', processes: 1 } }
+  ]
+
+  // 병렬 실행 — 4개 쿼리 동시
+  const [models, trend, drilldownEquipment, processDistData] = await Promise.all([
+    eqColl.aggregate(modelPipeline, opts).toArray(),
+    eqColl.aggregate(trendPipeline, opts).toArray(),
+    eqColl.aggregate(drilldownEquipmentPipeline, opts).toArray(),
+    eqColl.aggregate(processDistPipeline, opts).toArray()
+  ])
+
+  // Merge drilldown data by model
+  const drilldown = {}
+  for (const item of drilldownEquipment) {
+    if (!drilldown[item.model]) drilldown[item.model] = {}
+    drilldown[item.model].topEquipment = item.topEquipment
+  }
+  for (const item of processDistData) {
+    if (!drilldown[item.model]) drilldown[item.model] = {}
+    drilldown[item.model].processDistribution = item.processes
+  }
+
+  const granularity = determineTrendGranularity(period, { startDate, endDate })
+  const rolledTrend = rollupTrend(normalizeDoc(trend), granularity)
+
+  return { models: normalizeDoc(models), trend: rolledTrend, granularity, drilldown }
+}
+
+/**
  * GET /api/recovery/analysis
  */
 async function getAnalysis(filters = {}) {
@@ -915,6 +1058,7 @@ async function _getByCategoryCore(filters = {}) {
 module.exports = {
   getOverview,
   getByProcess,
+  getByModel,
   getByCategory,
   getAnalysis,
   getAnalysisFilters,
