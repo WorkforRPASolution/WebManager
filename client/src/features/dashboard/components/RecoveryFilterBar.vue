@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import MultiSelect from '../../../shared/components/MultiSelect.vue'
 import AppIcon from '../../../shared/components/AppIcon.vue'
 import { useRecoveryPeriod, localDateStr } from '../composables/useRecoveryPeriod'
@@ -37,31 +37,27 @@ const selectedModels = ref([])
 // 단일 선택 모드용 state
 const singleProcess = ref(props.initialProcess)
 const singleModel = ref(props.initialModel)
-const singleScenario = ref(props.initialScenario)
+const selectedScenarios = ref([])
 
-// initialProcess/Model/Scenario이 비동기로 설정될 때 반영
+// initialProcess/Model이 비동기로 설정될 때 반영
 watch(() => props.initialProcess, (v) => { if (v && !singleProcess.value) singleProcess.value = v })
 watch(() => props.initialModel, (v) => { if (v && !singleModel.value) singleModel.value = v })
-watch(() => props.initialScenario, (v) => { if (v && !singleScenario.value) singleScenario.value = v })
+
+// Scenario 멀티선택 변경 → Model 초기화 + 부모 알림
+watch(selectedScenarios, (val) => {
+  singleModel.value = ''
+  selectedModels.value = []
+  emit('scenario-change', val.join(','))
+})
 
 function selectSingleProcess(p) {
   singleProcess.value = p
   processDropdownOpen.value = false
   processSearch.value = ''
   // Scenario + Model 초기화 + 부모에 알림
-  singleScenario.value = ''
+  selectedScenarios.value = []
   singleModel.value = ''
   emit('process-change', p)
-}
-
-function selectSingleScenario(s) {
-  singleScenario.value = s
-  scenarioDropdownOpen.value = false
-  scenarioSearch.value = ''
-  // Model 초기화 + 부모에 알림
-  singleModel.value = ''
-  selectedModels.value = []
-  emit('scenario-change', s)
 }
 
 function selectSingleModel(m) {
@@ -70,25 +66,25 @@ function selectSingleModel(m) {
   modelSearch.value = ''
 }
 const processDropdownOpen = ref(false)
-const scenarioDropdownOpen = ref(false)
 const modelDropdownOpen = ref(false)
 const processContainerRef = ref(null)
-const scenarioContainerRef = ref(null)
 const modelContainerRef = ref(null)
 const processSearch = ref('')
-const scenarioSearch = ref('')
 const modelSearch = ref('')
+const processSearchInputRef = ref(null)
+const modelSearchInputRef = ref(null)
+
+watch(processDropdownOpen, (open) => {
+  if (open) nextTick(() => processSearchInputRef.value?.focus())
+})
+watch(modelDropdownOpen, (open) => {
+  if (open) nextTick(() => modelSearchInputRef.value?.focus())
+})
 
 const filteredProcesses = computed(() => {
   if (!processSearch.value) return props.processes
   const q = processSearch.value.toLowerCase()
   return props.processes.filter(p => p.toLowerCase().includes(q))
-})
-
-const filteredScenarios = computed(() => {
-  if (!scenarioSearch.value) return props.scenarios
-  const q = scenarioSearch.value.toLowerCase()
-  return props.scenarios.filter(s => s.toLowerCase().includes(q))
 })
 
 const filteredModels = computed(() => {
@@ -100,9 +96,6 @@ const filteredModels = computed(() => {
 function handleSingleDropdownClickOutside(e) {
   if (processContainerRef.value && !processContainerRef.value.contains(e.target)) {
     processDropdownOpen.value = false
-  }
-  if (scenarioContainerRef.value && !scenarioContainerRef.value.contains(e.target)) {
-    scenarioDropdownOpen.value = false
   }
   if (modelContainerRef.value && !modelContainerRef.value.contains(e.target)) {
     modelDropdownOpen.value = false
@@ -187,8 +180,8 @@ function handleSearch() {
       filters.process = selectedProcesses.value.join(',')
     }
   }
-  if (props.showScenarioFilter) {
-    if (singleScenario.value) filters.scenario = singleScenario.value
+  if (props.showScenarioFilter && selectedScenarios.value.length > 0) {
+    filters.scenario = selectedScenarios.value.join(',')
   }
   if (props.showModelFilter) {
     // showScenarioFilter 활성 시 Model은 항상 멀티선택
@@ -311,7 +304,7 @@ function handleSearch() {
           ]"
           style="width: 200px"
         >
-          <span class="text-sm" :class="singleProcess ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'">
+          <span class="text-sm truncate" :class="singleProcess ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'" :title="singleProcess || undefined">
             {{ singleProcess || 'Process 선택' }}
           </span>
           <AppIcon name="chevron_down" size="4" class="text-gray-400 transition-transform" :class="{ 'rotate-180': processDropdownOpen }" />
@@ -319,6 +312,7 @@ function handleSearch() {
         <div v-show="processDropdownOpen" class="absolute z-50 mt-1 w-full bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border shadow-lg">
           <div class="p-2 border-b border-gray-200 dark:border-dark-border">
             <input
+              ref="processSearchInputRef"
               v-model="processSearch"
               type="text"
               placeholder="검색..."
@@ -331,8 +325,9 @@ function handleSearch() {
               v-for="p in filteredProcesses"
               :key="p"
               @click="selectSingleProcess(p)"
-              class="px-3 py-2 hover:bg-gray-50 dark:hover:bg-dark-border cursor-pointer text-sm"
+              class="px-3 py-2 hover:bg-gray-50 dark:hover:bg-dark-border cursor-pointer text-sm truncate"
               :class="singleProcess === p ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'"
+              :title="p"
             >{{ p }}</div>
             <div v-if="filteredProcesses.length === 0" class="px-3 py-2 text-sm text-gray-400">결과 없음</div>
           </div>
@@ -349,49 +344,15 @@ function handleSearch() {
       />
     </template>
 
-    <!-- Scenario Filter (Process → Scenario 캐스케이드) -->
-    <template v-if="showScenarioFilter">
-      <div ref="scenarioContainerRef" class="relative">
-        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Scenario</label>
-        <div
-          @click="scenarioDropdownOpen = !scenarioDropdownOpen"
-          class="flex items-center justify-between px-3 py-2 rounded-lg border cursor-pointer transition-colors"
-          :class="[
-            scenarioDropdownOpen ? 'border-primary-500 ring-2 ring-primary-500/20' : 'border-gray-300 dark:border-dark-border',
-            'bg-white dark:bg-dark-bg hover:border-primary-400'
-          ]"
-          style="width: 240px"
-        >
-          <span class="text-sm truncate" :class="singleScenario ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'">
-            {{ singleScenario || 'Scenario 선택' }}
-          </span>
-          <AppIcon name="chevron_down" size="4" class="text-gray-400 flex-shrink-0 transition-transform" :class="{ 'rotate-180': scenarioDropdownOpen }" />
-        </div>
-        <div v-show="scenarioDropdownOpen" class="absolute z-50 mt-1 w-full bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border shadow-lg">
-          <div class="p-2 border-b border-gray-200 dark:border-dark-border">
-            <input
-              v-model="scenarioSearch"
-              type="text"
-              placeholder="검색..."
-              class="w-full px-2 py-1.5 text-sm bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-900 dark:text-white placeholder-gray-400"
-              @click.stop
-            />
-          </div>
-          <div class="max-h-52 overflow-y-auto">
-            <div
-              v-for="s in filteredScenarios"
-              :key="s"
-              @click="selectSingleScenario(s)"
-              class="px-3 py-2 hover:bg-gray-50 dark:hover:bg-dark-border cursor-pointer text-sm truncate"
-              :class="singleScenario === s ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'"
-            >{{ s }}</div>
-            <div v-if="filteredScenarios.length === 0" class="px-3 py-2 text-sm text-gray-400">
-              {{ scenarios.length === 0 ? 'Process를 먼저 선택하세요' : '결과 없음' }}
-            </div>
-          </div>
-        </div>
-      </div>
-    </template>
+    <!-- Scenario Filter (Process → Scenario 캐스케이드, 멀티선택) -->
+    <MultiSelect
+      v-if="showScenarioFilter"
+      v-model="selectedScenarios"
+      :options="scenarios"
+      label="Scenario"
+      placeholder="전체 Scenario"
+      width="240px"
+    />
 
     <!-- Model Filter -->
     <template v-if="showModelFilter">
@@ -407,7 +368,7 @@ function handleSearch() {
           ]"
           style="width: 300px"
         >
-          <span class="text-sm" :class="singleModel ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'">
+          <span class="text-sm truncate" :class="singleModel ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'" :title="singleModel || undefined">
             {{ singleModel || 'Model 선택' }}
           </span>
           <AppIcon name="chevron_down" size="4" class="text-gray-400 transition-transform" :class="{ 'rotate-180': modelDropdownOpen }" />
@@ -415,6 +376,7 @@ function handleSearch() {
         <div v-show="modelDropdownOpen" class="absolute z-50 mt-1 w-full bg-white dark:bg-dark-card rounded-lg border border-gray-200 dark:border-dark-border shadow-lg">
           <div class="p-2 border-b border-gray-200 dark:border-dark-border">
             <input
+              ref="modelSearchInputRef"
               v-model="modelSearch"
               type="text"
               placeholder="검색..."
@@ -427,8 +389,9 @@ function handleSearch() {
               v-for="m in filteredModels"
               :key="m"
               @click="selectSingleModel(m)"
-              class="px-3 py-2 hover:bg-gray-50 dark:hover:bg-dark-border cursor-pointer text-sm"
+              class="px-3 py-2 hover:bg-gray-50 dark:hover:bg-dark-border cursor-pointer text-sm truncate"
               :class="singleModel === m ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'"
+              :title="m"
             >{{ m }}</div>
             <div v-if="filteredModels.length === 0" class="px-3 py-2 text-sm text-gray-400">결과 없음</div>
           </div>

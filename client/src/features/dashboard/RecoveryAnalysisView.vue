@@ -40,10 +40,6 @@ onMounted(async () => {
     currentFilters.value.process = initProcess
     // Process → Scenario 캐스케이드
     await handleProcessChange(initProcess)
-    if (scenarios.value.length > 0) {
-      currentFilters.value.scenario = scenarios.value[0]
-      await handleScenarioChange(scenarios.value[0])
-    }
     fetchData(currentFilters.value)
   }
 })
@@ -115,9 +111,9 @@ async function handleProcessChange(process) {
   }
 }
 
-// Scenario 변경 → Model 목록 갱신
+// Scenario 변경 (comma-separated) → Model 목록 갱신
 async function handleScenarioChange(scenario) {
-  currentFilters.value.scenario = scenario
+  currentFilters.value.scenario = scenario || ''
   currentFilters.value.model = ''
   const process = currentFilters.value.process
   if (!process || !scenario) { models.value = []; return }
@@ -149,11 +145,6 @@ async function handleSearch(filters) {
     filters.process = processes.value[0] || ''
     currentFilters.value.process = filters.process
     await handleProcessChange(filters.process)
-    if (scenarios.value.length > 0) {
-      filters.scenario = scenarios.value[0]
-      currentFilters.value.scenario = filters.scenario
-      await handleScenarioChange(filters.scenario)
-    }
   }
   fetchData(filters)
 }
@@ -189,7 +180,6 @@ function openHistory(item) {
           :showScenarioFilter="true"
           :singleSelectMode="true"
           :initialProcess="currentFilters.process || ''"
-          :initialScenario="currentFilters.scenario || ''"
           @search="handleSearch"
           @process-change="handleProcessChange"
           @scenario-change="handleScenarioChange"

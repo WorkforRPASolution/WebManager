@@ -916,7 +916,7 @@ async function getAnalysisFilters(filters = {}) {
   // 3. process + scenario 선택 시 → 해당 조합의 models
   let models = []
   if (process && scenario) {
-    models = await scenarioColl.distinct('model', { ...baseMatch, process, ears_code: scenario })
+    models = await scenarioColl.distinct('model', { ...baseMatch, process, ears_code: toMatchValue(scenario) })
   }
 
   return {
