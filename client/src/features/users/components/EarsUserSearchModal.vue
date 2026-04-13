@@ -47,7 +47,7 @@ function onKeydown(e) {
       <div class="absolute inset-0 bg-black/50" @click="close" />
 
       <!-- Modal -->
-      <div class="relative bg-white dark:bg-dark-card rounded-xl shadow-2xl border border-gray-200 dark:border-dark-border w-full max-w-lg mx-4 flex flex-col max-h-[80vh]">
+      <div class="relative bg-white dark:bg-dark-card rounded-xl shadow-2xl border border-gray-200 dark:border-dark-border w-full max-w-3xl mx-4 flex flex-col max-h-[80vh]">
         <!-- Header -->
         <div class="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-dark-border">
           <h3 class="text-base font-semibold text-gray-900 dark:text-white">EARS 사용자 검색</h3>

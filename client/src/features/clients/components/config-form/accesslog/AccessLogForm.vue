@@ -472,6 +472,11 @@ function handleBoolToggle(idx, field, checked) {
 function updateBaseName(idx, newBaseName) {
   const source = sources.value[idx]
   const newName = formatSourceName(newBaseName, source.purpose || 'trigger')
+  if (!newBaseName) {
+    // 입력 중 빈 값 → 로컬만 업데이트 (emitUpdate 시 (unnamed) 키 생성 방지)
+    sources.value = sources.value.map((s, i) => i === idx ? { ...s, baseName: '', name: '' } : { ...s })
+    return
+  }
   const updated = sources.value.map((s, i) => i === idx ? { ...s, baseName: newBaseName, name: newName } : { ...s })
   emitUpdate(updated)
 }
