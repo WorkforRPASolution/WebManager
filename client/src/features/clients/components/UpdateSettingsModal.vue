@@ -88,13 +88,27 @@
               </div>
             </div>
             <!-- Left Panel Footer -->
-            <div class="px-3 py-2 border-t border-gray-200 dark:border-dark-border flex gap-2">
+            <div class="px-3 py-2 border-t border-gray-200 dark:border-dark-border flex gap-1.5">
               <button @click="addProfile"
                 class="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-xs bg-green-500 hover:bg-green-600 text-white rounded transition-colors">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
                 Add
+              </button>
+              <button @click="copyProfile" :disabled="profiles.length === 0"
+                class="flex items-center justify-center px-2 py-1.5 text-xs border border-gray-300 dark:border-dark-border rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                title="Copy profile">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
+              <button @click="pasteProfile" :disabled="!hasClipboardProfile"
+                class="flex items-center justify-center px-2 py-1.5 text-xs border border-gray-300 dark:border-dark-border rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                title="Paste profile">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
               </button>
               <button @click="deleteProfile" :disabled="profiles.length === 0"
                 class="flex items-center justify-center px-2 py-1.5 text-xs bg-red-500 hover:bg-red-600 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
@@ -138,15 +152,27 @@
               <div>
                 <div class="flex items-center justify-between mb-3">
                   <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Deploy Tasks</h4>
-                  <button
-                    @click="addTask"
-                    class="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-                  >
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                    Add
-                  </button>
+                  <div class="flex items-center gap-2">
+                    <button
+                      @click="pasteTask" :disabled="!hasClipboardTask"
+                      class="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Paste task"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      Paste
+                    </button>
+                    <button
+                      @click="addTask"
+                      class="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                      </svg>
+                      Add
+                    </button>
+                  </div>
                 </div>
                 <div class="space-y-3">
                   <div v-for="(task, index) in selectedProfile.tasks" :key="task._key"
@@ -190,6 +216,12 @@
                         <button @click="moveTask(index, 'bottom')" :disabled="index === selectedProfile.tasks.length - 1"
                           class="p-1 rounded transition-colors" :class="index === selectedProfile.tasks.length - 1 ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'" title="Move to bottom">
                           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19" /><polyline points="5 15 12 22 19 15" /><line x1="5" y1="3" x2="19" y2="3" /></svg>
+                        </button>
+                        <button @click="copyTask(index)"
+                          class="p-1 text-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded transition-colors" title="Copy task">
+                          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
                         </button>
                         <button @click="removeTask(index)"
                           class="p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors" title="Delete">
@@ -485,11 +517,19 @@
   </Teleport>
 </template>
 
+<!-- Module-level clipboard (survives component unmount/remount) -->
+<script>
+let _clipboardProfile = null
+let _clipboardTask = null
+</script>
+
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { updateSettingsApi } from '../api'
 import { osVersionApi } from '../../equipment-info/api'
 import { useResizableModal } from '@/shared/composables/useResizableModal'
+import { useToast } from '@/shared/composables/useToast'
+import { createProfileSnapshot, createTaskSnapshot, createProfileFromSnapshot, createTaskFromSnapshot } from '../composables/updateProfileUtils'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -501,6 +541,10 @@ const emit = defineEmits(['update:modelValue', 'saved'])
 // Modal sizing
 const modalRef = ref(null)
 const { isMaximized, modalStyle, startDrag, startResize, toggleMaximize, center: centerModal } = useResizableModal(modalRef, { defaultWidth: 1024, defaultHeight: 650 })
+
+const { showSuccess } = useToast()
+const hasClipboardProfile = ref(!!_clipboardProfile)
+const hasClipboardTask = ref(!!_clipboardTask)
 
 const loading = ref(false)
 const saving = ref(false)
@@ -604,6 +648,39 @@ function deleteProfile() {
   if (selectedIndex.value < 0 || profiles.value.length === 0) return
   profiles.value.splice(selectedIndex.value, 1)
   selectedIndex.value = Math.min(selectedIndex.value, profiles.value.length - 1)
+  changed.value = true
+}
+
+function copyProfile() {
+  if (!selectedProfile.value) return
+  _clipboardProfile = createProfileSnapshot(selectedProfile.value)
+  hasClipboardProfile.value = true
+  showSuccess(`Profile '${selectedProfile.value.name}' copied`)
+}
+
+function pasteProfile() {
+  if (!_clipboardProfile) return
+  const existingNames = profiles.value.map(p => p.name)
+  const getNextKey = () => `k_${keyCounter++}`
+  profiles.value.push(createProfileFromSnapshot(_clipboardProfile, existingNames, getNextKey))
+  selectedIndex.value = profiles.value.length - 1
+  changed.value = true
+}
+
+function copyTask(index) {
+  if (!selectedProfile.value) return
+  const src = selectedProfile.value.tasks[index]
+  if (!src) return
+  _clipboardTask = createTaskSnapshot(src)
+  hasClipboardTask.value = true
+  showSuccess(`Task '${src.name}' copied`)
+}
+
+function pasteTask() {
+  if (!selectedProfile.value || !_clipboardTask) return
+  const existingNames = selectedProfile.value.tasks.map(t => t.name)
+  const getNextKey = () => `k_${keyCounter++}`
+  selectedProfile.value.tasks.push(createTaskFromSnapshot(_clipboardTask, existingNames, getNextKey))
   changed.value = true
 }
 
