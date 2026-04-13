@@ -259,7 +259,7 @@ WebManager/
 | CONFIG_SETTINGS | WEB_MANAGER | Config 파일 설정 (전용) |
 | LOG_SETTINGS | WEB_MANAGER | 로그 소스 설정 (전용) |
 | UPDATE_SETTINGS | WEB_MANAGER | 소프트웨어 업데이트 설정 (전용) |
-| CRON_RUN_LOG | WEB_MANAGER | Cron 배치 실행 이력 (전용) |
+| CRON_RUN_LOG | WEB_MANAGER | Cron 배치 실행 이력 (전용, TTL 800일, docsMatched 원본건수 기록) |
 | WEBMANAGER_LOG | WEB_MANAGER | 시스템 로그 (audit/batch 카테고리, 전용) |
 | EQP_AUTO_RECOVERY | EARS | Recovery 실행 원본 (Akka 공유) |
 | RECOVERY_SUMMARY_BY_SCENARIO | EARS | Recovery 시나리오별 집계 (WebManager 생성) |
@@ -333,7 +333,7 @@ cd server && npm run reset:buckets -- --keep-logs  # batch 로그 유지
 - Recovery Dashboard 완료 (4페이지: Overview + By Process + By Category + Analysis)
   - Cron 배치 집계 서비스 (hourly :05, daily settlingHours:10 KST 동적 설정, node-cron, 동시 실행 방지)
   - 4개 Summary 컬렉션 ($merge 기반 멱등 집계, EARS DB — Scenario/Equipment/Trigger/Category)
-  - CRON_RUN_LOG 실행 이력 (WEB_MANAGER DB)
+  - CRON_RUN_LOG 실행 이력 (WEB_MANAGER DB, TTL 800일, docsMatched 원본건수)
   - REST API 5개 + 권한 4개 (dashboardRecoveryOverview/ByProcess/ByCategory/Analysis)
   - 조회 기간: 오늘/7일/30일/90일/1년/커스텀(최대 2년)
   - 기간별 트렌드 단위 자동 전환 (hourly → daily → weekly → monthly)
@@ -351,6 +351,8 @@ cd server && npm run reset:buckets -- --keep-logs  # batch 로그 유지
   - Batch History 모달 (Admin 전용, GitHub 히트맵 + 필터 + 페이지네이션 테이블)
   - Trigger 분포 Top 5 + 기타 합산
   - 초기화 스크립트: `npm run reset:buckets` (Summary + CRON_RUN_LOG + batch 로그 삭제)
+  - CRON_RUN_LOG TTL 800일 (조회 최대 730일 + 70일 버퍼, `expireAfterSeconds: 69120000`)
+  - Backfill verify 옵션: CRON_RUN_LOG ↔ SUMMARY 교차 검증, docsMatched로 빈 버킷 구분, orphanedLog 감지
 - Dashboard 사이드바 메뉴 ResAgent → ResourceAgent 명칭 변경
 - Permissions 페이지 완료 (System 메뉴 하위, Admin 전용 allowedRoles 필터링)
   - 2탭: Menu Permissions (6그룹 20항목 매트릭스) + Feature Permissions (2그룹 8항목 R/W/D 매트릭스)

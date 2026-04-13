@@ -201,6 +201,13 @@ async function runPipelinesForBucket(period, bucketStart, dateGte, dateLt, optio
   const pipelineResults = {}
   const errors = []
 
+  // 빈 버킷 감지: 원본 건수 카운트 (verify에서 emptyBucket vs orphanedLog 구분용)
+  const docsMatched = await earsDb.collection('EQP_AUTO_RECOVERY')
+    .countDocuments(
+      { create_date: { $gte: dateGte, $lt: dateLt }, status: { $ne: null } },
+      { maxTimeMS: 10000 }
+    ).catch(() => undefined)
+
   // 선택 실행: pipelineKeys가 지정되면 해당 키만 실행
   const targetConfigs = pipelineKeys
     ? Object.entries(PIPELINE_CONFIGS).filter(([key]) => pipelineKeys.includes(key))
@@ -227,7 +234,7 @@ async function runPipelinesForBucket(period, bucketStart, dateGte, dateLt, optio
 
   if (isSelective) {
     // 선택 실행: dot notation으로 개별 키만 머지 (기존 성공 키 보존)
-    const $set = { source, startedAt, completedAt: new Date() }
+    const $set = { source, startedAt, completedAt: new Date(), docsMatched }
     for (const [key, value] of Object.entries(pipelineResults)) {
       $set[`pipelineResults.${key}`] = value
     }
@@ -271,6 +278,7 @@ async function runPipelinesForBucket(period, bucketStart, dateGte, dateLt, optio
         startedAt,
         completedAt: new Date(),
         pipelineResults,
+        docsMatched,
         errorMessage: errors.length > 0 ? errors : undefined
       },
       $unset: { docsInBucket: '' }

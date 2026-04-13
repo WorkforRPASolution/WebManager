@@ -151,7 +151,7 @@ async function analyzeBackfill(req, res) {
     })
   }
 
-  const { startDate, endDate, skipHourly, skipDaily, throttleMs, retryPartial } = req.body
+  const { startDate, endDate, skipHourly, skipDaily, throttleMs, retryPartial, verify } = req.body
   const validation = validateBackfillRange(startDate, endDate)
   if (!validation.valid) return res.status(400).json({ error: validation.error })
 
@@ -182,7 +182,7 @@ async function analyzeBackfill(req, res) {
     const partialSet = await summaryService.getPartialBucketSet(period, start, end)
     const incompleteSet = await summaryService.getIncompleteBucketSet(period, start, end)
 
-    const successCount = expected.filter(b =>
+    let successCount = expected.filter(b =>
       completedSet.has(b.getTime()) && !partialSet.has(b.getTime())
     ).length
     const partialCount = expected.filter(b => partialSet.has(b.getTime())).length
@@ -190,7 +190,25 @@ async function analyzeBackfill(req, res) {
       incompleteSet.has(b.getTime()) && !partialSet.has(b.getTime()) && !completedSet.has(b.getTime())
     ).length
     const pendingCount = expected.length - successCount - partialCount - incompleteCount
-    const actionable = retryPartial ? partialCount : (pendingCount + incompleteCount)
+    let actionable = retryPartial ? partialCount : (pendingCount + incompleteCount)
+
+    // ── verify: SUMMARY 교차 검증 ──
+    let verifyResult
+    if (verify) {
+      const { orphanedLogSet, emptyBucketSet } =
+        await summaryService.getOrphanedBuckets(period, start, end)
+
+      const orphanedLogCount = expected.filter(b => orphanedLogSet.has(b.getTime())).length
+      const emptyBucketCount = expected.filter(b => emptyBucketSet.has(b.getTime())).length
+
+      // orphanedLog: success → actionable 이동
+      successCount -= orphanedLogCount
+      actionable = retryPartial
+        ? partialCount + orphanedLogCount
+        : pendingCount + incompleteCount + orphanedLogCount
+
+      verifyResult = { orphanedLog: orphanedLogCount, emptyBucket: emptyBucketCount }
+    }
 
     result[period] = {
       total: expected.length,
@@ -198,7 +216,8 @@ async function analyzeBackfill(req, res) {
       partial: partialCount,
       incomplete: incompleteCount,
       pending: pendingCount,
-      actionable
+      actionable,
+      ...(verifyResult && { verify: verifyResult })
     }
     totalActionable += actionable
   }
@@ -228,7 +247,7 @@ async function startBackfill(req, res) {
     })
   }
 
-  const { startDate, endDate, skipHourly, skipDaily, throttleMs, retryPartial } = req.body
+  const { startDate, endDate, skipHourly, skipDaily, throttleMs, retryPartial, verify } = req.body
   const validation = validateBackfillRange(startDate, endDate)
   if (!validation.valid) return res.status(400).json({ error: validation.error })
 
@@ -255,7 +274,8 @@ async function startBackfill(req, res) {
       skipHourly: !!skipHourly,
       skipDaily: !!skipDaily,
       throttleMs: clampedThrottle,
-      retryPartial: !!retryPartial
+      retryPartial: !!retryPartial,
+      verify: !!verify
     })
 
     createBatchLog({

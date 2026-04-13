@@ -18,6 +18,8 @@ import {
   getLastCronRun,
   getPipelineKeys,
   getMissingOrFailedPipelines,
+  getSummaryBucketSet,
+  getOrphanedBuckets,
   _setDeps,
   _getBackfillPromise,
   _resetState,
@@ -422,6 +424,82 @@ describe('recoverySummaryService', () => {
 
       expect(result.status).toBe('partial')
       expect(result.errors).toHaveLength(1)
+    })
+
+    // ── docsMatched: 원본 건수 기록 ──
+
+    it('D1: stores docsMatched=0 when EQP_AUTO_RECOVERY has no matching documents', async () => {
+      const earCollection = createMockCollection({ countResult: 0 })
+      const mockEarsDb = createMockEarsDb({ 'EQP_AUTO_RECOVERY': earCollection })
+      const mockCronRunLog = createMockCronRunLog()
+      _setDeps({ earsDb: mockEarsDb, CronRunLog: mockCronRunLog })
+
+      await runPipelinesForBucket(
+        'hourly', new Date('2026-03-15T00:00:00.000Z'),
+        '2026-03-15T09:00:00.000+09:00', '2026-03-15T10:00:00.000+09:00'
+      )
+
+      const $set = mockCronRunLog.findOneAndUpdate.mock.calls[0][1].$set
+      expect($set.docsMatched).toBe(0)
+    })
+
+    it('D2: stores docsMatched=150 when EQP_AUTO_RECOVERY has 150 matching documents', async () => {
+      const earCollection = createMockCollection({ countResult: 150 })
+      const mockEarsDb = createMockEarsDb({ 'EQP_AUTO_RECOVERY': earCollection })
+      const mockCronRunLog = createMockCronRunLog()
+      _setDeps({ earsDb: mockEarsDb, CronRunLog: mockCronRunLog })
+
+      await runPipelinesForBucket(
+        'hourly', new Date('2026-03-15T00:00:00.000Z'),
+        '2026-03-15T09:00:00.000+09:00', '2026-03-15T10:00:00.000+09:00'
+      )
+
+      const $set = mockCronRunLog.findOneAndUpdate.mock.calls[0][1].$set
+      expect($set.docsMatched).toBe(150)
+    })
+
+    it('D3: countDocuments failure does not prevent pipeline execution — docsMatched=undefined', async () => {
+      const earCollection = createMockCollection()
+      earCollection.countDocuments.mockRejectedValue(new Error('timeout'))
+      const mockEarsDb = createMockEarsDb({ 'EQP_AUTO_RECOVERY': earCollection })
+      const mockCronRunLog = createMockCronRunLog()
+      _setDeps({ earsDb: mockEarsDb, CronRunLog: mockCronRunLog })
+
+      const result = await runPipelinesForBucket(
+        'hourly', new Date('2026-03-15T00:00:00.000Z'),
+        '2026-03-15T09:00:00.000+09:00', '2026-03-15T10:00:00.000+09:00'
+      )
+
+      // pipelines still run
+      expect(result.status).toBe('success')
+      expect(earCollection.aggregate).toHaveBeenCalledTimes(4)
+      // docsMatched is undefined
+      const $set = mockCronRunLog.findOneAndUpdate.mock.calls[0][1].$set
+      expect($set.docsMatched).toBeUndefined()
+    })
+
+    it('D4: selective execution (pipelineKeys) also stores docsMatched', async () => {
+      const earCollection = createMockCollection({ countResult: 42 })
+      const mockEarsDb = createMockEarsDb({ 'EQP_AUTO_RECOVERY': earCollection })
+      const mockCronRunLog = createMockCronRunLog()
+      // selective execution needs existing doc for findOneAndUpdate to return
+      mockCronRunLog.findOneAndUpdate.mockResolvedValue({
+        pipelineResults: new Map([
+          ['scenario', 'success'], ['equipment', 'success'],
+          ['trigger', 'success'], ['category', 'success']
+        ])
+      })
+      _setDeps({ earsDb: mockEarsDb, CronRunLog: mockCronRunLog })
+
+      await runPipelinesForBucket(
+        'hourly', new Date('2026-03-15T00:00:00.000Z'),
+        '2026-03-15T09:00:00.000+09:00', '2026-03-15T10:00:00.000+09:00',
+        { pipelineKeys: ['trigger'] }
+      )
+
+      // selective path: first findOneAndUpdate is the merge call
+      const firstCall = mockCronRunLog.findOneAndUpdate.mock.calls[0][1].$set
+      expect(firstCall.docsMatched).toBe(42)
     })
   })
 
@@ -993,6 +1071,139 @@ describe('recoverySummaryService', () => {
       const state = await getBackfillState()
       expect(state.status).toBe('completed')
       expect(state.total).toBe(3)
+      expect(state.skipped).toBe(2)
+    })
+
+    // ── processBackfill verify ──
+
+    it('P1: verify=true reprocesses orphanedLog buckets (removes from completedSet)', async () => {
+      const mockEarsDb = createMockEarsDb()
+      // distinct for getSummaryBucketSet: return empty (no SUMMARY data)
+      for (const config of Object.values(PIPELINE_CONFIGS)) {
+        mockEarsDb._collections[config.collection] = {
+          ...createMockCollection(),
+          distinct: vi.fn().mockResolvedValue([])
+        }
+      }
+
+      const mockCronRunLog = createMockCronRunLog()
+      const completedBucket = new Date('2026-03-15T00:00:00.000Z')
+      const fullPR = { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
+
+      // CRON_RUN_LOG.find: used by both getCompletedBucketSet and getOrphanedBuckets
+      mockCronRunLog.find.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue([
+            { bucket: completedBucket, pipelineResults: fullPR, docsMatched: 100 }
+          ])
+        })
+      })
+
+      _setDeps({
+        earsDb: mockEarsDb,
+        CronRunLog: mockCronRunLog,
+        settlingHours: 0,
+        sleep: vi.fn().mockResolvedValue(undefined)
+      })
+
+      await runManualBackfill(
+        new Date('2026-03-15T00:00:00.000Z'),
+        new Date('2026-03-15T03:00:00.000Z'),
+        { skipDaily: true, throttleMs: 0, verify: true }
+      )
+      await _getBackfillPromise()
+
+      const state = await getBackfillState()
+      // Without verify: orphanedLog bucket would be skipped (it's in completedSet)
+      // With verify: orphanedLog (docsMatched=100 + no SUMMARY) → removed from completedSet → processed
+      // 3 hourly buckets total, 0 skipped (the completed bucket was orphanedLog → reprocessed)
+      expect(state.skipped).toBe(0)
+      expect(state.total).toBe(3)
+    })
+
+    it('P2: verify=false does not call getOrphanedBuckets (existing behavior)', async () => {
+      const mockEarsDb = createMockEarsDb()
+      const mockCronRunLog = createMockCronRunLog()
+      const completedBucket = new Date('2026-03-15T00:00:00.000Z')
+      const fullPR = { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
+
+      mockCronRunLog.find.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue([
+            { bucket: completedBucket, pipelineResults: fullPR }
+          ])
+        })
+      })
+
+      _setDeps({
+        earsDb: mockEarsDb,
+        CronRunLog: mockCronRunLog,
+        settlingHours: 0,
+        sleep: vi.fn().mockResolvedValue(undefined)
+      })
+
+      await runManualBackfill(
+        new Date('2026-03-15T00:00:00.000Z'),
+        new Date('2026-03-15T03:00:00.000Z'),
+        { skipDaily: true, throttleMs: 0 }  // verify=false (default)
+      )
+      await _getBackfillPromise()
+
+      const state = await getBackfillState()
+      // completedBucket is skipped as usual
+      expect(state.skipped).toBe(1)
+      expect(state.total).toBe(3)
+      // No distinct calls to SUMMARY collections
+      for (const config of Object.values(PIPELINE_CONFIGS)) {
+        const coll = mockEarsDb._collections[config.collection]
+        if (coll?.distinct) {
+          expect(coll.distinct).not.toHaveBeenCalled()
+        }
+      }
+    })
+
+    it('P3: verify=true + retryPartial=true includes orphanedLog in processing', async () => {
+      const mockEarsDb = createMockEarsDb()
+      for (const config of Object.values(PIPELINE_CONFIGS)) {
+        mockEarsDb._collections[config.collection] = {
+          ...createMockCollection(),
+          distinct: vi.fn().mockResolvedValue([])
+        }
+      }
+
+      const mockCronRunLog = createMockCronRunLog()
+      const completedBucket = new Date('2026-03-15T00:00:00.000Z')
+      const fullPR = { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
+
+      mockCronRunLog.find.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue([
+            { bucket: completedBucket, pipelineResults: fullPR, docsMatched: 50 }
+          ])
+        })
+      })
+
+      _setDeps({
+        earsDb: mockEarsDb,
+        CronRunLog: mockCronRunLog,
+        settlingHours: 0,
+        sleep: vi.fn().mockResolvedValue(undefined)
+      })
+
+      await runManualBackfill(
+        new Date('2026-03-15T00:00:00.000Z'),
+        new Date('2026-03-15T03:00:00.000Z'),
+        { skipDaily: true, throttleMs: 0, retryPartial: true, verify: true }
+      )
+      await _getBackfillPromise()
+
+      const state = await getBackfillState()
+      // retryPartial path: normally only partial/incomplete processed
+      // verify=true: orphanedLog (docsMatched=50 + no SUMMARY) also processed
+      // The orphanedLog bucket should NOT be skipped
+      expect(state.total).toBe(3) // 3 expected buckets
+      // 2 are skipped (not partial, not incomplete, not orphanedLog)
+      // 1 is orphanedLog → processed
       expect(state.skipped).toBe(2)
     })
   })
@@ -2097,6 +2308,200 @@ describe('recoverySummaryService', () => {
       const result = await getIncompleteBucketSet('hourly', new Date('2026-04-10T00:00:00Z'), new Date('2026-04-11T00:00:00Z'))
 
       expect(result.size).toBe(0)
+    })
+  })
+
+  // ── verify: getSummaryBucketSet ──
+
+  describe('getSummaryBucketSet', () => {
+    const start = new Date('2026-04-10T00:00:00Z')
+    const end = new Date('2026-04-11T00:00:00Z')
+    const bucketA = new Date('2026-04-10T01:00:00Z')
+    const bucketB = new Date('2026-04-10T02:00:00Z')
+    const bucketC = new Date('2026-04-10T03:00:00Z')
+
+    function createDistinctMockEarsDb(distinctResults = {}) {
+      const collections = {}
+      return {
+        collection: vi.fn((name) => {
+          if (!collections[name]) {
+            collections[name] = {
+              ...createMockCollection(),
+              distinct: vi.fn().mockResolvedValue(distinctResults[name] || [])
+            }
+          }
+          return collections[name]
+        }),
+        _collections: collections
+      }
+    }
+
+    it('S1: returns union of bucket timestamps from all 4 SUMMARY collections', async () => {
+      const mockEarsDb = createDistinctMockEarsDb({
+        'RECOVERY_SUMMARY_BY_SCENARIO': [bucketA],
+        'RECOVERY_SUMMARY_BY_EQUIPMENT': [bucketB],
+        'RECOVERY_SUMMARY_BY_TRIGGER': [bucketC],
+        'RECOVERY_SUMMARY_BY_CATEGORY': []
+      })
+      _setDeps({ earsDb: mockEarsDb, CronRunLog: createMockCronRunLog() })
+
+      const result = await getSummaryBucketSet('hourly', start, end)
+
+      expect(result).toBeInstanceOf(Set)
+      expect(result.size).toBe(3)
+      expect(result.has(bucketA.getTime())).toBe(true)
+      expect(result.has(bucketB.getTime())).toBe(true)
+      expect(result.has(bucketC.getTime())).toBe(true)
+    })
+
+    it('S2: returns empty Set when all collections are empty', async () => {
+      const mockEarsDb = createDistinctMockEarsDb({})
+      _setDeps({ earsDb: mockEarsDb, CronRunLog: createMockCronRunLog() })
+
+      const result = await getSummaryBucketSet('hourly', start, end)
+
+      expect(result.size).toBe(0)
+    })
+
+    it('S3: deduplicates overlapping buckets across collections', async () => {
+      const mockEarsDb = createDistinctMockEarsDb({
+        'RECOVERY_SUMMARY_BY_SCENARIO': [bucketA, bucketB],
+        'RECOVERY_SUMMARY_BY_EQUIPMENT': [bucketA, bucketB],
+        'RECOVERY_SUMMARY_BY_TRIGGER': [bucketA],
+        'RECOVERY_SUMMARY_BY_CATEGORY': [bucketA, bucketB]
+      })
+      _setDeps({ earsDb: mockEarsDb, CronRunLog: createMockCronRunLog() })
+
+      const result = await getSummaryBucketSet('hourly', start, end)
+
+      expect(result.size).toBe(2)
+    })
+
+    it('S4: passes correct filter { period, bucket: { $gte, $lt } } to distinct', async () => {
+      const mockEarsDb = createDistinctMockEarsDb({})
+      _setDeps({ earsDb: mockEarsDb, CronRunLog: createMockCronRunLog() })
+
+      await getSummaryBucketSet('daily', start, end)
+
+      for (const config of Object.values(PIPELINE_CONFIGS)) {
+        const coll = mockEarsDb.collection(config.collection)
+        expect(coll.distinct).toHaveBeenCalledWith('bucket', {
+          period: 'daily',
+          bucket: { $gte: start, $lt: end }
+        })
+      }
+    })
+  })
+
+  // ── verify: getOrphanedBuckets ──
+
+  describe('getOrphanedBuckets', () => {
+    const start = new Date('2026-04-10T00:00:00Z')
+    const end = new Date('2026-04-11T00:00:00Z')
+    const bucketA = new Date('2026-04-10T01:00:00Z')
+    const bucketB = new Date('2026-04-10T02:00:00Z')
+    const bucketC = new Date('2026-04-10T03:00:00Z')
+
+    function setupOrphanedTest({ cronLogs = [], distinctResults = {} } = {}) {
+      const mockCronRunLog = createMockCronRunLog()
+      mockCronRunLog.find = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          lean: vi.fn().mockResolvedValue(cronLogs)
+        })
+      })
+
+      const collections = {}
+      const mockEarsDb = {
+        collection: vi.fn((name) => {
+          if (!collections[name]) {
+            collections[name] = {
+              ...createMockCollection(),
+              distinct: vi.fn().mockResolvedValue(distinctResults[name] || [])
+            }
+          }
+          return collections[name]
+        }),
+        _collections: collections
+      }
+
+      _setDeps({ earsDb: mockEarsDb, CronRunLog: mockCronRunLog })
+      return { mockEarsDb, mockCronRunLog }
+    }
+
+    function allSuccessPR() {
+      return { scenario: 'success', equipment: 'success', trigger: 'success', category: 'success' }
+    }
+
+    it('O1: orphanedLog — CRON success + SUMMARY absent + docsMatched=100', async () => {
+      setupOrphanedTest({
+        cronLogs: [
+          { bucket: bucketA, pipelineResults: allSuccessPR(), docsMatched: 100 }
+        ],
+        distinctResults: {} // SUMMARY에 데이터 없음
+      })
+
+      const result = await getOrphanedBuckets('hourly', start, end)
+
+      expect(result.orphanedLogSet.has(bucketA.getTime())).toBe(true)
+      expect(result.emptyBucketSet.size).toBe(0)
+    })
+
+    it('O2: emptyBucket — CRON success + SUMMARY absent + docsMatched=0', async () => {
+      setupOrphanedTest({
+        cronLogs: [
+          { bucket: bucketA, pipelineResults: allSuccessPR(), docsMatched: 0 }
+        ],
+        distinctResults: {}
+      })
+
+      const result = await getOrphanedBuckets('hourly', start, end)
+
+      expect(result.emptyBucketSet.has(bucketA.getTime())).toBe(true)
+      expect(result.orphanedLogSet.size).toBe(0)
+    })
+
+    it('O3: verified — CRON success + SUMMARY present → neither set', async () => {
+      setupOrphanedTest({
+        cronLogs: [
+          { bucket: bucketA, pipelineResults: allSuccessPR(), docsMatched: 50 }
+        ],
+        distinctResults: {
+          'RECOVERY_SUMMARY_BY_SCENARIO': [bucketA]
+        }
+      })
+
+      const result = await getOrphanedBuckets('hourly', start, end)
+
+      expect(result.orphanedLogSet.size).toBe(0)
+      expect(result.emptyBucketSet.size).toBe(0)
+    })
+
+    it('O4: legacy docsMatched=null → treated as orphanedLog (conservative)', async () => {
+      setupOrphanedTest({
+        cronLogs: [
+          { bucket: bucketA, pipelineResults: allSuccessPR(), docsMatched: null }
+        ],
+        distinctResults: {}
+      })
+
+      const result = await getOrphanedBuckets('hourly', start, end)
+
+      expect(result.orphanedLogSet.has(bucketA.getTime())).toBe(true)
+    })
+
+    it('O5: partial CRON status excluded from orphan detection', async () => {
+      setupOrphanedTest({
+        cronLogs: [
+          { bucket: bucketA, pipelineResults: { scenario: 'success', equipment: 'failed: err', trigger: 'success', category: 'success' }, docsMatched: 50 }
+        ],
+        distinctResults: {}
+      })
+
+      const result = await getOrphanedBuckets('hourly', start, end)
+
+      // partial이므로 completedMap에 포함 안 됨 → orphan 대상 아님
+      expect(result.orphanedLogSet.size).toBe(0)
+      expect(result.emptyBucketSet.size).toBe(0)
     })
   })
 })

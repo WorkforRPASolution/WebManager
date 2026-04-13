@@ -25,7 +25,8 @@ const cronRunLogSchema = new Schema({
     type: String,
     enum: ['cron', 'autoBackfill', 'manualBackfill'],
     default: 'cron'
-  }
+  },
+  docsMatched: { type: Number, default: undefined }
 }, {
   collection: 'CRON_RUN_LOG',
   timestamps: false

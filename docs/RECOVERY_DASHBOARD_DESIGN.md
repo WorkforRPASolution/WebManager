@@ -902,13 +902,15 @@ WEB_MANAGER DB에 실행 이력 기록. Gap 감지 및 backfill 트리거에 활
   source:       "cron" | "autoBackfill" | "manualBackfill",
   startedAt:    ISODate("..."),
   completedAt:  ISODate("..."),
+  docsMatched:  150,  // 원본(EQP_AUTO_RECOVERY) 건수 — 빈 버킷(0) vs 데이터 유실(>0) 구분용
   pipelineResults: { scenario: "success", equipment: "success", trigger: "failed", category: "success" },
   errorMessage: { trigger: "timeout error ..." }
 }
 ```
 
 > - `partial`: 4개 파이프라인 중 일부만 성공 시 (각 파이프라인은 독립 try/catch로 격리)
-> - `completedAt`에 TTL 90일 인덱스 적용 — 90일 이후 자동 삭제
+> - `docsMatched`: 파이프라인 실행 전 `EQP_AUTO_RECOVERY.countDocuments()` 결과. verify 옵션에서 빈 버킷(docsMatched=0) vs 데이터 유실(docsMatched>0) 구분에 사용
+> - `completedAt`에 TTL 800일 인덱스 적용 — 조회 최대 범위(730일) + 70일 버퍼
 
 > EARS DB 백업/복원 시 `CRON_RUN_LOG`(WEB_MANAGER DB)와 불일치 가능.
 > 복원 후에는 backfill 스크립트로 복원 시점~현재 구간 재집계 권장.
@@ -918,7 +920,27 @@ WEB_MANAGER DB에 실행 이력 기록. Gap 감지 및 backfill 트리거에 활
 각 배치 완료 후:
 1. `total === sum(status_counts)` 확인 — 불일치 시 미인식 status 값 존재 가능
 2. 이전 동일 bucket 대비 급격한 변동 감지 (예: 전시간 대비 10배 이상)
-3. 0건 집계된 bucket에 대해 원본 `countDocuments` 교차 확인
+3. 0건 집계된 bucket에 대해 원본 `countDocuments` 교차 확인 → `docsMatched` 필드로 자동 기록
+
+### 9-5a. Backfill Verify 옵션
+
+Backfill 분석/실행 시 `verify=true` 옵션으로 CRON_RUN_LOG ↔ SUMMARY 컬렉션 교차 검증 수행.
+
+**버킷 분류 매트릭스 (verify=true):**
+
+| CRON 상태 | SUMMARY | docsMatched | 분류 | 동작 |
+|-----------|---------|-------------|------|------|
+| all success | 있음 | - | **verified** | 스킵 |
+| all success | 없음 | 0 | **emptyBucket** | 스킵 (원본도 없었음) |
+| all success | 없음 | >0 or null | **orphanedLog** | 재처리 (데이터 유실) |
+| partial/incomplete | - | - | 기존 로직 | 기존 로직 |
+| 없음 | - | - | **pending** | 재처리 |
+
+- `verify=false` (기본값): 기존 동작과 100% 동일, 추가 쿼리 없음
+- `verify=true`: 4개 SUMMARY 컬렉션에 `distinct('bucket')` 쿼리 4회 추가 (인덱스 DISTINCT_SCAN, <1초)
+- orphanedLog: `success` 에서 `actionable`로 이동 → 재처리 대상
+- emptyBucket: `docsMatched=0`으로 빈 버킷 정상 확인 → 오탐 방지
+- UI: RecoveryBackfillModal "데이터 검증" 체크박스 + 결과 표시 ("로그만 존재: N건" / "로그-데이터 일치")
 
 ### 9-6. 초기 Backfill 전략
 
@@ -942,8 +964,15 @@ for (let day = startDate; day < endDate; day = addDays(day, 1)) {
 
 ### 9-7. Retention / TTL
 
-**CRON_RUN_LOG**: `completedAt`에 TTL 90일 인덱스 적용 (`expireAfterSeconds: 7776000`).
-서버 시작 시 `initializeRecoverySummary()`에서 자동 생성. 90일 이후 MongoDB가 자동 삭제.
+**CRON_RUN_LOG**: `completedAt`에 TTL 800일 인덱스 적용 (`expireAfterSeconds: 69120000`).
+서버 시작 시 `initializeRecoverySummary()`에서 자동 생성. 800일 이후 MongoDB가 자동 삭제.
+
+> **TTL 800일 설정 근거**: 조회 최대 범위 730일(custom 기간) + 70일 버퍼.
+> 데이터 규모: 25건/일 × 800일 = ~20,000건, ~6MB — 인덱스 성능 영향 무의미.
+> TTL 변경 시 `collMod`를 먼저 실행한 뒤 코드 배포 (IndexOptionsConflict 방지).
+> ```
+> db.runCommand({ collMod: "CRON_RUN_LOG", index: { keyPattern: { completedAt: 1 }, expireAfterSeconds: 69120000 } })
+> ```
 
 **Summary 컬렉션**: MongoDB TTL 인덱스는 단일 Date 필드 기준이라, `period`별 차등 보존이 불가.
 → **Cron 기반 정리 작업** 권장:

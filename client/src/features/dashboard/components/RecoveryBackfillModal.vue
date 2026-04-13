@@ -96,6 +96,10 @@
                 <input type="checkbox" v-model="retryPartial" class="rounded" />
                 Partial 재처리
               </label>
+              <label class="inline-flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                <input type="checkbox" v-model="verify" class="rounded" />
+                데이터 검증
+              </label>
             </div>
 
             <div>
@@ -179,6 +183,18 @@
                     class="h-full bg-purple-500"
                     :style="{ width: pct(analysisResult[period].incomplete, analysisResult[period].total) }"
                   ></div>
+                </div>
+                <!-- Verify result -->
+                <div v-if="analysisResult[period].verify" class="flex items-center gap-3 text-xs flex-wrap mt-1">
+                  <span v-if="analysisResult[period].verify.orphanedLog > 0" class="text-red-600 dark:text-red-400">
+                    ✗ 로그만 존재: {{ analysisResult[period].verify.orphanedLog.toLocaleString() }}건
+                  </span>
+                  <span v-if="analysisResult[period].verify.emptyBucket > 0" class="text-gray-500 dark:text-gray-400">
+                    ∅ 빈 버킷: {{ analysisResult[period].verify.emptyBucket.toLocaleString() }}건
+                  </span>
+                  <span v-if="analysisResult[period].verify.orphanedLog === 0" class="text-green-600 dark:text-green-400">
+                    ✓ 로그-데이터 일치
+                  </span>
                 </div>
               </div>
             </template>
@@ -345,6 +361,7 @@ const periodOptions = [
 const skipHourly = ref(false)
 const skipDaily = ref(false)
 const retryPartial = ref(false)
+const verify = ref(false)
 const throttleMs = ref(1000)
 const rangeError = ref('')
 
@@ -366,7 +383,8 @@ const {
     skipHourly: skipHourly.value,
     skipDaily: skipDaily.value,
     throttleMs: throttleMs.value,
-    retryPartial: retryPartial.value
+    retryPartial: retryPartial.value,
+    verify: verify.value
   }),
   showError
 })

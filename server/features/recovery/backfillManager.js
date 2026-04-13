@@ -6,7 +6,7 @@ const {
   computeBoundariesForBucket,
   generateExpectedBuckets
 } = require('./dateUtils')
-const { getDeps, getCronRunLog, getRedis, getPod } = require('./recoveryDeps')
+const { getDeps, getEarsDb, getCronRunLog, getRedis, getPod } = require('./recoveryDeps')
 const { runPipelinesForBucket } = require('./batchRunner')
 const { releaseLock } = require('../../shared/utils/redisLock')
 const { createLogger } = require('../../shared/logger')
@@ -142,7 +142,7 @@ async function runManualBackfill(startDate, endDate, options = {}) {
     }
   }
 
-  const { skipHourly = false, skipDaily = false, throttleMs = deps.defaultThrottleMs, retryPartial = false } = options
+  const { skipHourly = false, skipDaily = false, throttleMs = deps.defaultThrottleMs, retryPartial = false, verify = false } = options
 
   const maxEnd = new Date(Date.now() - deps.settlingHours * 60 * 60 * 1000)
   const clampedEnd = new Date(Math.min(new Date(endDate).getTime(), maxEnd.getTime()))
@@ -164,10 +164,10 @@ async function runManualBackfill(startDate, endDate, options = {}) {
   if (!skipHourly) periods.push('hourly')
   if (!skipDaily) periods.push('daily')
 
-  backfillPromise = processBackfill(periods, start, clampedEnd, throttleMs, { retryPartial })
+  backfillPromise = processBackfill(periods, start, clampedEnd, throttleMs, { retryPartial, verify })
 }
 
-async function processBackfill(periods, startDate, endDate, throttleMs, { retryPartial = false } = {}) {
+async function processBackfill(periods, startDate, endDate, throttleMs, { retryPartial = false, verify = false } = {}) {
   const deps = getDeps()
   const redis = getRedis()
   try {
@@ -180,8 +180,16 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
       if (retryPartial) {
         const partialSet = await getPartialBucketSet(period, startDate, endDate)
         const incompleteSet = await getIncompleteBucketSet(period, startDate, endDate)
+
+        let orphanedLogSet = new Set()
+        if (verify) {
+          const result = await getOrphanedBuckets(period, startDate, endDate)
+          orphanedLogSet = result.orphanedLogSet
+        }
+
         for (const bucket of expected) {
-          if (partialSet.has(bucket.getTime()) || incompleteSet.has(bucket.getTime())) {
+          const ts = bucket.getTime()
+          if (partialSet.has(ts) || incompleteSet.has(ts) || orphanedLogSet.has(ts)) {
             allBuckets.push({ period, bucket })
           } else {
             backfillState.skipped++
@@ -189,6 +197,12 @@ async function processBackfill(periods, startDate, endDate, throttleMs, { retryP
         }
       } else {
         const completed = await getCompletedBucketSet(period, startDate, endDate)
+
+        if (verify) {
+          const { orphanedLogSet } = await getOrphanedBuckets(period, startDate, endDate)
+          for (const ts of orphanedLogSet) completed.delete(ts)
+        }
+
         for (const bucket of expected) {
           if (completed.has(bucket.getTime())) {
             backfillState.skipped++
@@ -368,10 +382,66 @@ function _resetBackfill() {
   backfillPromise = null
 }
 
+// ── Verify: SUMMARY 교차 검증 ──
+
+async function getSummaryBucketSet(period, startDate, endDate) {
+  const earsDb = getEarsDb()
+  const { PIPELINE_CONFIGS } = require('./batchRunner')
+  const union = new Set()
+
+  const bucketArrays = await Promise.all(
+    Object.values(PIPELINE_CONFIGS).map(config =>
+      earsDb.collection(config.collection)
+        .distinct('bucket', { period, bucket: { $gte: startDate, $lt: endDate } })
+    )
+  )
+  for (const arr of bucketArrays) {
+    for (const b of arr) union.add(new Date(b).getTime())
+  }
+  return union
+}
+
+async function getOrphanedBuckets(period, startDate, endDate) {
+  const CronRunLog = getCronRunLog()
+  const { PIPELINE_CONFIGS } = require('./batchRunner')
+  const requiredKeys = Object.keys(PIPELINE_CONFIGS)
+
+  const logs = await CronRunLog.find({
+    jobName: 'recoverySummary', period,
+    bucket: { $gte: startDate, $lt: endDate },
+    status: { $in: ['success', 'partial'] }
+  }).select('bucket pipelineResults docsMatched').lean()
+
+  const completedMap = new Map()
+  for (const log of logs) {
+    const pr = log.pipelineResults instanceof Map
+      ? Object.fromEntries(log.pipelineResults) : log.pipelineResults
+    if (requiredKeys.every(k => pr && pr[k] === 'success')) {
+      completedMap.set(log.bucket.getTime(), log.docsMatched)
+    }
+  }
+
+  const summarySet = await getSummaryBucketSet(period, startDate, endDate)
+
+  const orphanedLogSet = new Set()
+  const emptyBucketSet = new Set()
+
+  for (const [ts, docsMatched] of completedMap) {
+    if (!summarySet.has(ts)) {
+      if (docsMatched === 0) emptyBucketSet.add(ts)
+      else orphanedLogSet.add(ts)
+    }
+  }
+
+  return { orphanedLogSet, emptyBucketSet }
+}
+
 module.exports = {
   getCompletedBucketSet,
   getPartialBucketSet,
   getIncompleteBucketSet,
+  getSummaryBucketSet,
+  getOrphanedBuckets,
   runManualBackfill,
   getBackfillState,
   cancelBackfill,

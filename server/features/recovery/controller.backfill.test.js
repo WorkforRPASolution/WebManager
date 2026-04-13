@@ -594,4 +594,102 @@ describe('controller.backfill — KST alignment', () => {
       expect(res.body.daily.actionable).toBe(1) // only partial
     })
   })
+
+  // ────────────────────────────────────────────
+  // Section H: verify option (4개)
+  // ────────────────────────────────────────────
+
+  describe('Section H: verify option', () => {
+    const mockGetOrphanedBuckets = vi.fn()
+
+    beforeEach(() => {
+      mockGetOrphanedBuckets.mockResolvedValue({
+        orphanedLogSet: new Set(),
+        emptyBucketSet: new Set()
+      })
+
+      _setDeps({
+        dateUtils: { generateExpectedBuckets, floorToKSTBucket },
+        summaryService: {
+          getCompletedBucketSet: mockGetCompletedBucketSet,
+          getPartialBucketSet: mockGetPartialBucketSet,
+          getIncompleteBucketSet: mockGetIncompleteBucketSet,
+          getOrphanedBuckets: mockGetOrphanedBuckets,
+          runManualBackfill: mockRunManualBackfill,
+          getBackfillState: mockGetBackfillState,
+          cancelBackfill: vi.fn(),
+          getLastCronRun: vi.fn(),
+          isIndexReady: () => true,
+          _getSettlingHours: () => 0
+        }
+      })
+    })
+
+    it('H1: verify=false → response has no verify key', async () => {
+      const req = mockReq({ startDate: '2026-04-10', endDate: '2026-04-11', skipHourly: true })
+      const res = mockRes()
+
+      await analyzeBackfill(req, res)
+
+      expect(res.body.daily).toBeDefined()
+      expect(res.body.daily.verify).toBeUndefined()
+      expect(mockGetOrphanedBuckets).not.toHaveBeenCalled()
+    })
+
+    it('H2: verify=true + orphanedLog → success decreases, actionable increases', async () => {
+      // 2026-04-10 ~ 2026-04-11 → KST daily 2개: 04/10, 04/11
+      // 둘 다 completed, 하나가 orphanedLog
+      const bucket1 = floorToKSTBucket('daily', new Date('2026-04-10')).getTime()
+      const bucket2 = floorToKSTBucket('daily', new Date('2026-04-11')).getTime()
+
+      mockGetCompletedBucketSet.mockResolvedValue(new Set([bucket1, bucket2]))
+      mockGetOrphanedBuckets.mockResolvedValue({
+        orphanedLogSet: new Set([bucket1]),
+        emptyBucketSet: new Set()
+      })
+
+      const req = mockReq({ startDate: '2026-04-10', endDate: '2026-04-11', skipHourly: true, verify: true })
+      const res = mockRes()
+
+      await analyzeBackfill(req, res)
+
+      expect(res.body.daily.verify).toBeDefined()
+      expect(res.body.daily.verify.orphanedLog).toBe(1)
+      expect(res.body.daily.total).toBe(2)
+      expect(res.body.daily.success).toBe(1)  // 2 → 1 (orphanedLog 1개 이동)
+      expect(res.body.daily.actionable).toBe(1)  // orphanedLog 포함
+    })
+
+    it('H3: verify=true + emptyBucket → informational only, no impact on success/actionable', async () => {
+      const bucket1 = floorToKSTBucket('daily', new Date('2026-04-10')).getTime()
+      const bucket2 = floorToKSTBucket('daily', new Date('2026-04-11')).getTime()
+
+      mockGetCompletedBucketSet.mockResolvedValue(new Set([bucket1, bucket2]))
+      mockGetOrphanedBuckets.mockResolvedValue({
+        orphanedLogSet: new Set(),
+        emptyBucketSet: new Set([bucket1])
+      })
+
+      const req = mockReq({ startDate: '2026-04-10', endDate: '2026-04-11', skipHourly: true, verify: true })
+      const res = mockRes()
+
+      await analyzeBackfill(req, res)
+
+      expect(res.body.daily.verify.emptyBucket).toBe(1)
+      expect(res.body.daily.verify.orphanedLog).toBe(0)
+      expect(res.body.daily.success).toBe(2)  // emptyBucket은 success 유지
+      expect(res.body.daily.actionable).toBe(0)
+    })
+
+    it('H4: startBackfill passes verify option to runManualBackfill', async () => {
+      const req = mockReq({ startDate: '2026-04-10', endDate: '2026-04-11', verify: true })
+      const res = mockRes()
+
+      await startBackfill(req, res)
+
+      expect(mockRunManualBackfill).toHaveBeenCalledTimes(1)
+      const options = mockRunManualBackfill.mock.calls[0][2]
+      expect(options.verify).toBe(true)
+    })
+  })
 })

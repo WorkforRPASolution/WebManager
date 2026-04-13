@@ -77,10 +77,17 @@ async function initializeRecoverySummary() {
       { unique: true }
     )
 
-    await CronRunLog.collection.createIndex(
-      { completedAt: 1 },
-      { expireAfterSeconds: 7776000 }
-    )
+    // TTL: 800일 (조회 최대 730일 + 70일 버퍼)
+    // 변경 시 collMod를 먼저 실행한 뒤 코드 배포 (IndexOptionsConflict 방지)
+    try {
+      await CronRunLog.collection.createIndex(
+        { completedAt: 1 },
+        { expireAfterSeconds: 69120000 }
+      )
+    } catch (ttlErr) {
+      // IndexOptionsConflict: collMod로 먼저 변경하지 않은 경우 발생 가능
+      log.warn(`[RecoverySummary] TTL index creation issue (run collMod if TTL was changed): ${ttlErr.message}`)
+    }
 
     await checkEarIndexes()
 
