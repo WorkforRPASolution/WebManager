@@ -319,6 +319,7 @@ MainMenu: Dashboard
 ├── SubMenu: Recovery Overview     (/recovery-overview)      ← 전체 현황
 ├── SubMenu: Recovery by Process   (/recovery-by-process)    ← 공정 비교 (관리자/임원)
 ├── SubMenu: Recovery by Category  (/recovery-by-category)   ← 시나리오 카테고리별 비교
+├── SubMenu: Recovery by Model     (/recovery-by-model)      ← 모델별 비교
 └── SubMenu: Recovery Analysis     (/recovery-analysis)      ← 드릴다운 분석 + 이력 조회
 ```
 
@@ -326,7 +327,7 @@ MainMenu: Dashboard
 
 | 뷰 | 데이터 소스 | 비고 |
 |---|---|---|
-| 통계/집계 차트 | Summary 컬렉션 (배치 집계) | Overview, By Process, By Category, Analysis 차트/테이블 |
+| 통계/집계 차트 | Summary 컬렉션 (배치 집계) | Overview, By Process, By Category, By Model, Analysis 차트/테이블 |
 | 개별 이력 조회 | `EQP_AUTO_RECOVERY` 원본 (직접 조회) | Analysis 드릴다운 상세 패널 |
 
 ### 공통 UX 요소
@@ -461,13 +462,31 @@ BY_SCENARIO에는 시간대당 ~10,000개 문서가 있으므로 클라이언트
 
 ---
 
-### 5-3. Recovery Analysis (`/recovery-analysis`)
+### 5-3. Recovery by Model (`/recovery-by-model`)
+> "어느 모델이 문제인가?" — 동일 공정 내 모델 간 비교
+
+| 영역 | 데이터 소스 | 비고 |
+|------|------------|------|
+| 모델별 성공률 비교 | BY_SCENARIO | 서버 API에서 model별 재집계 |
+| 모델별 성공률 추이 | BY_SCENARIO | hourly/daily, model별 라인 |
+| 요약 테이블 | BY_SCENARIO | model별 집계 |
+| 드릴다운 Top5 시나리오 | BY_SCENARIO | 선택 model 필터 |
+| 드릴다운 Top5 장비 | BY_EQUIPMENT | 선택 model 필터 |
+
+- **Process 필터 필수**: 단일 Process 선택 후 해당 Process 내 모델 비교
+- **권한**: `dashboardRecoveryByModel`
+- **CSV 내보내기**: 요약 테이블 데이터 export
+
+---
+
+### 5-4. Recovery Analysis (`/recovery-analysis`)
 > "왜 실패하는가?" — 엔지니어용 드릴다운 분석 + 원본 이력 조회
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  필터 바: [Period ▼] [Process ▼] [Line ▼] [Model ▼]              │
-│  탭:  [ Scenario | Equipment | Trigger ]     마지막 집계: 14:05 🔄│
+│  필터 바: [Period ▼] [Process ▼] [Scenario ▼(Multi)] [Model ▼]    │
+│  (Process→Scenario→Model 캐스케이드)         마지막 집계: 14:05 🔄│
+│  탭:  [ Scenario | Equipment | Trigger ]                          │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                   │
 │  ══════════════════ Scenario 탭 ══════════════════                │
@@ -508,7 +527,7 @@ BY_SCENARIO에는 시간대당 ~10,000개 문서가 있으므로 클라이언트
 
 ---
 
-### 5-4. 이력 조회 상세 패널 (Analysis 페이지 내 드릴다운)
+### 5-5. 이력 조회 상세 패널 (Analysis 페이지 내 드릴다운)
 > 특정 장비 또는 시나리오의 **개별 Recovery 레코드**를 원본에서 직접 조회
 
 Analysis 페이지의 테이블에서 특정 행을 선택하고 `[이력 조회]` 버튼 클릭 시,
@@ -585,13 +604,13 @@ db.EQP_AUTO_RECOVERY.find({
 
 ### 페이지 역할 비교
 
-| | Overview | By Process | By Category | Analysis | 이력 조회 패널 |
-|---|---|---|---|---|---|
-| **질문** | "전체 상황은?" | "어느 공정이 문제?" | "어느 카테고리가 문제?" | "왜 실패하는가?" | "언제 어떻게 실패했나?" |
-| **대상** | 전체 | 관리자, 임원 | 관리자, 임원 | 엔지니어 | 엔지니어 |
-| **데이터** | Summary | Summary (Scenario) | Summary (Category) | Summary | **원본 (직접 조회)** |
-| **기간** | 자유 | 자유 | 자유 | 자유 | **최대 7일** |
-| **흐름** | 첫 확인 → | 공정 식별 → | 카테고리 식별 → | 드릴다운 → | 개별 레코드 확인 |
+| | Overview | By Process | By Category | By Model | Analysis | 이력 조회 패널 |
+|---|---|---|---|---|---|---|
+| **질문** | "전체 상황은?" | "어느 공정이 문제?" | "어느 카테고리가 문제?" | "어느 모델이 문제?" | "왜 실패하는가?" | "언제 어떻게 실패했나?" |
+| **대상** | 전체 | 관리자, 임원 | 관리자, 임원 | 엔지니어, 관리자 | 엔지니어 | 엔지니어 |
+| **데이터** | Summary | Summary (Scenario) | Summary (Category) | Summary (Scenario) | Summary | **원본 (직접 조회)** |
+| **기간** | 자유 | 자유 | 자유 | 자유 | 자유 | **최대 7일** |
+| **흐름** | 첫 확인 → | 공정 식별 → | 카테고리 식별 → | 모델 식별 → | 드릴다운 → | 개별 레코드 확인 |
 
 ---
 
@@ -749,7 +768,7 @@ on:   ["period", "bucket", "line", "process", "model", "trigger_by"]
       │  │ 동시 실행 방지       │               │  인덱스:
       │  └──────────────────────┘               │  { eqpid: 1, create_date: 1 }
       ▼                                         │  { ears_code: 1, create_date: 1 }
-  Aggregation Pipeline × 3                      │
+  Aggregation Pipeline × 4                      │
   ($match → $group×2 → ... → $merge)           │
   인덱스: { create_date: 1 }                    │
       │                                         │
@@ -765,6 +784,8 @@ on:   ["period", "bucket", "line", "process", "model", "trigger_by"]
   ┌────────────────────────────────────────────────┐
   │  Recovery Overview      │  Summary 기반 (배치) │
   │  Recovery by Process    │  Summary 기반 (배치) │
+  │  Recovery by Category   │  Summary 기반 (배치) │
+  │  Recovery by Model      │  Summary 기반 (배치) │
   │  Recovery Analysis      │  Summary 기반 (배치) │
   │    └─ 이력 조회 패널    │  원본 직접 조회       │
   └────────────────────────────────────────────────┘
