@@ -21,6 +21,7 @@
         @cell-value-changed="onCellValueChanged"
         @selection-changed="onSelectionChanged"
         @cell-clicked="onCellClicked"
+        @cell-double-clicked="onCellDoubleClicked"
         @sort-changed="onSortChanged"
         @displayed-columns-changed="handleColumnChange"
         @column-resized="handleColumnChange"
@@ -120,7 +121,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['cell-edit', 'selection-change', 'paste-rows', 'paste-cells', 'approve-user', 'approve-reset'])
+const emit = defineEmits(['cell-edit', 'selection-change', 'paste-rows', 'paste-cells', 'approve-user', 'approve-reset', 'ears-search'])
 
 const gridContainer = ref(null)
 const gridApi = ref(null)
@@ -217,7 +218,15 @@ const rowSelection = ref({
 
 const columnDefs = ref([
   { field: 'name', headerName: 'Name', width: 100, editable: true },
-  { field: 'singleid', headerName: 'User ID', width: 150, editable: true },
+  {
+    field: 'singleid', headerName: 'User ID', width: 150,
+    editable: () => props.operationMode !== 'integrated',
+    cellRenderer: props.operationMode === 'integrated' ? (params) => {
+      const val = params.value || ''
+      if (val) return `<span class="flex items-center gap-1">${val}<svg class="w-3 h-3 text-gray-400 ml-auto flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg></span>`
+      return '<span class="text-gray-400 italic">더블클릭하여 검색</span>'
+    } : undefined
+  },
   { field: 'line', headerName: 'Line', width: 85, editable: true },
   {
     field: 'processes',
@@ -462,6 +471,13 @@ const onGridReady = (params) => {
   gridApi.value = params.api
   // Initialize custom scrollbar after grid is ready
   handleColumnChange()
+}
+
+const onCellDoubleClicked = (params) => {
+  if (props.operationMode === 'integrated' && params.colDef.field === 'singleid') {
+    const rowId = params.data._id || params.data._tempId
+    emit('ears-search', rowId)
+  }
 }
 
 const onCellValueChanged = (params) => {

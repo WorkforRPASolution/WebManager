@@ -125,6 +125,7 @@
         @paste-cells="handlePasteCells"
         @approve-user="handleApproveUser"
         @approve-reset="handleApprovePasswordReset"
+        @ears-search="handleEarsSearch"
       />
     </div>
 
@@ -287,6 +288,13 @@
       @close="showValidationErrorsModal = false"
     />
 
+    <!-- EARS User Search Modal (integrated mode) -->
+    <EarsUserSearchModal
+      :visible="earsSearchVisible"
+      @select="handleEarsSelect"
+      @close="earsSearchVisible = false"
+    />
+
     <!-- Toast Notification -->
     <Teleport to="body">
       <div
@@ -322,6 +330,8 @@ import DeleteConfirmModal from './components/DeleteConfirmModal.vue'
 import PermissionSettingsDialog from '@/shared/components/PermissionSettingsDialog.vue'
 import ValidationErrorsModal from '@/shared/components/ValidationErrorsModal.vue'
 import EarsUserSearch from '@/shared/components/EarsUserSearch.vue'
+import EarsUserSearchModal from './components/EarsUserSearchModal.vue'
+import { mapEarsUserToRow } from './composables/earsUserMapping'
 import { useUserData } from './composables/useUserData'
 import { useToast } from '@/shared/composables/useToast'
 import { useFeaturePermission } from '@/shared/composables/useFeaturePermission'
@@ -346,6 +356,8 @@ const hasSearched = ref(false)
 const filterCollapsed = ref(false)
 const availableProcesses = ref([])
 const operationMode = ref('standalone')
+const earsSearchVisible = ref(false)
+const earsSearchTargetRowId = ref(null)
 const { toast, showToast } = useToast()
 
 // Fetch operation mode
@@ -510,6 +522,23 @@ const handlePageChange = async (newPage) => {
 
 const handleCellEdit = (rowId, field, newValue) => {
   trackChange(rowId, field, newValue)
+}
+
+const handleEarsSearch = (rowId) => {
+  earsSearchTargetRowId.value = rowId
+  earsSearchVisible.value = true
+}
+
+const handleEarsSelect = (earsUser) => {
+  const rowId = earsSearchTargetRowId.value
+  if (!rowId) return
+  const mapped = mapEarsUserToRow(earsUser)
+  trackChange(rowId, 'singleid', mapped.singleid)
+  trackChange(rowId, 'name', mapped.name)
+  if (mapped.department) trackChange(rowId, 'department', mapped.department)
+  earsSearchVisible.value = false
+  // Refresh grid to show updated values
+  gridRef.value?.refreshCells?.()
 }
 
 const handleSelectionChange = (ids) => {

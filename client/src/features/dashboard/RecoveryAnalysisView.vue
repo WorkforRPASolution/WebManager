@@ -1,15 +1,19 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { recoveryApi } from '../../shared/api'
+import { recoveryApi, clientsApi } from '../../shared/api'
 import RecoveryFilterBar from './components/RecoveryFilterBar.vue'
 import RecoveryAnalysisTab from './components/RecoveryAnalysisTab.vue'
 import RecoveryHistoryModal from './components/RecoveryHistoryModal.vue'
 import DataFreshnessIndicator from './components/DataFreshnessIndicator.vue'
 import { useToast } from '../../shared/composables/useToast'
+import { useProcessFilterStore } from '../../shared/stores/processFilter'
+import { useProcessPermission } from '../../shared/composables/useProcessPermission'
 
 const route = useRoute()
 const { showError } = useToast()
+const processFilterStore = useProcessFilterStore()
+const { buildUserProcessFilter } = useProcessPermission()
 
 const activeTab = ref('scenario')
 const tabs = [
@@ -46,12 +50,11 @@ onMounted(async () => {
 
 async function loadAnalysisFilters(period, startDate, endDate) {
   try {
-    const params = {}
-    if (period) params.period = period
-    if (startDate) params.startDate = startDate
-    if (endDate) params.endDate = endDate
-    const res = await recoveryApi.getAnalysisFilters(params)
-    processes.value = res.data.processes || []
+    const res = await clientsApi.getProcesses()
+    const allProcesses = res.data || []
+    processFilterStore.setProcesses('clients', allProcesses)
+    processes.value = processFilterStore.getFilteredProcesses('clients')
+      .map(p => typeof p === 'string' ? p : p.value)
   } catch (err) {
     console.error('Failed to load analysis filters:', err)
   }
@@ -60,7 +63,12 @@ async function loadAnalysisFilters(period, startDate, endDate) {
 async function fetchData(filters = {}) {
   loading.value = true
   try {
-    const params = { ...filters, tab: activeTab.value }
+    const queryFilters = { ...filters }
+    if (!queryFilters.process) {
+      const userProcesses = buildUserProcessFilter()
+      if (userProcesses) queryFilters.process = userProcesses.join(',')
+    }
+    const params = { ...queryFilters, tab: activeTab.value }
 
     const [analysisRes, aggRes] = await Promise.allSettled([
       recoveryApi.getAnalysis(params),
