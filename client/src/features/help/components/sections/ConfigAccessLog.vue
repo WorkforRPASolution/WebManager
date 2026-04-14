@@ -379,6 +379,13 @@ import HelpImage from '../HelpImage.vue'
       디렉토리 내 파일 목록을 조회한 뒤 패턴 매칭 결과를 테이블로 보여줍니다.
       파일명, 크기, 수정일이 표시되며, "전체 N개 중 M개 매칭" 통계도 제공됩니다.
     </p>
+    <div class="callout-warning">
+      <div class="callout-title">Windows 클라이언트 참고</div>
+      <p>
+        Windows 클라이언트의 경우 파일 메타 정보(크기, 수정일)가 제공되지 않을 수 있습니다.
+        이 경우 파일 존재 여부와 패턴 매칭 여부만 확인됩니다.
+      </p>
+    </div>
 
     <h4>5.2 멀티라인 블록 추출 테스트</h4>
     <HelpImage name="config-accesslog-test-multiline" alt="멀티라인 블록 추출 테스트" caption="테스트 결과 — 추출된 블록, 건너뛴 라인, 블록 종료 사유 표시" />

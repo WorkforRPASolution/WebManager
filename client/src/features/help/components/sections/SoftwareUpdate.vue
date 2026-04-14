@@ -262,5 +262,45 @@ import HelpImage from '../HelpImage.vue'
         소스 유형에 따라 Local 파일 시스템, 원격 파일 서버, MinIO 버킷의 파일을 탐색하여 경로를 선택할 수 있습니다.
       </p>
     </div>
+
+
+    <!-- ====== Copy & Paste ====== -->
+    <h3>프로필 / 태스크 복사 &amp; 붙여넣기</h3>
+    <p>
+      프로필이나 태스크를 클립보드에 복사한 뒤 다른 위치에 붙여넣기할 수 있습니다.
+      유사한 프로필을 만들거나, 특정 태스크를 다른 프로필에 재사용할 때 유용합니다.
+    </p>
+
+    <HelpImage name="update-settings-copy-paste" alt="Update Settings Copy & Paste" caption="Update Settings — 프로필/태스크 Copy & Paste 버튼 위치" />
+
+    <div class="callout-info">
+      <div class="callout-title">사용 시나리오 1: 프로필 전체 복사</div>
+      <p>
+        "A 프로필의 전체 구성을 복사해서 일부만 수정한 B 프로필을 만들고 싶다"
+        &rarr; 좌측 패널에서 A 프로필 선택 &rarr; <strong>Copy</strong> 아이콘 클릭
+        &rarr; <strong>Paste</strong> 아이콘 클릭 &rarr; "A (copy)" 이름의 새 프로필 생성
+        &rarr; 필요한 부분만 수정 후 Save
+      </p>
+    </div>
+
+    <div class="callout-info">
+      <div class="callout-title">사용 시나리오 2: 크로스 프로필 태스크 복사</div>
+      <p>
+        "A 프로필의 특정 태스크만 B 프로필에 추가하고 싶다"
+        &rarr; A 프로필의 해당 태스크에서 <strong>Copy</strong> 아이콘 클릭
+        &rarr; 좌측 패널에서 B 프로필로 전환
+        &rarr; Deploy Tasks 헤더의 <strong>Paste</strong> 버튼 클릭 &rarr; 태스크가 B 프로필에 추가됨
+      </p>
+    </div>
+
+    <h4>상세 기능</h4>
+    <ul>
+      <li><strong>Profile Copy</strong>: 좌측 패널 하단의 Copy 아이콘 &mdash; 프로필 전체(태스크 + 소스 설정)를 클립보드에 복사합니다. 복사 시 토스트 알림이 표시됩니다.</li>
+      <li><strong>Profile Paste</strong>: 좌측 패널 하단의 Paste 아이콘 &mdash; 복사한 프로필을 새 프로필로 생성합니다. 이름은 자동으로 변경됩니다 (<code>이름 (copy)</code>, <code>이름 (copy 2)</code> 등).</li>
+      <li><strong>Task Copy</strong>: 각 태스크 카드의 Copy 아이콘 &mdash; 단일 태스크를 클립보드에 복사합니다.</li>
+      <li><strong>Task Paste</strong>: Deploy Tasks 헤더의 Paste 버튼 &mdash; 클립보드의 태스크를 현재 프로필에 추가합니다. 동명 태스크가 있으면 이름이 자동 변경됩니다.</li>
+      <li><strong>클립보드 유지</strong>: 모달을 닫았다 다시 열어도 클립보드 내용은 유지됩니다 (세션 내 보존).</li>
+      <li><strong>비활성 상태</strong>: 클립보드가 비어있으면 Paste 버튼이 비활성화됩니다.</li>
+    </ul>
   </div>
 </template>

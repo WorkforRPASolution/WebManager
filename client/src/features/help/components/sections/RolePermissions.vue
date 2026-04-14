@@ -74,6 +74,10 @@ import HelpImage from '../HelpImage.vue'
           <td>Recovery Summary 배치 실행 이력 및 히트맵 조회</td>
         </tr>
         <tr>
+          <td><strong>Category Mapping</strong></td>
+          <td>Recovery by Category의 카테고리명 매핑 관리</td>
+        </tr>
+        <tr>
           <td><strong>OS List 관리</strong></td>
           <td>Equipment Info의 OS Version 드롭다운 목록 관리</td>
         </tr>
@@ -108,7 +112,7 @@ import HelpImage from '../HelpImage.vue'
       역할별 메뉴 접근 권한을 매트릭스 형태로 관리합니다.
     </p>
     <ul>
-      <li>6개 메뉴 그룹(Dashboard, Clients, 기준정보 등)의 20개 항목을 매트릭스로 표시합니다</li>
+      <li>6개 메뉴 그룹(Dashboard, Clients, 기준정보 등)의 22개 항목을 매트릭스로 표시합니다</li>
       <li>각 항목의 체크박스를 토글하여 역할별 접근을 허용/차단합니다</li>
       <li>그룹 헤더를 클릭하면 해당 그룹을 접거나 펼 수 있습니다</li>
       <li>그룹 헤더의 "All" 토글로 해당 그룹 전체를 일괄 허용/차단합니다</li>

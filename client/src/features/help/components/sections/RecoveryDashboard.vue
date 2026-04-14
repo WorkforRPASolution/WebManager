@@ -18,7 +18,7 @@ import HelpImage from '../HelpImage.vue'
 
     <p>
       Recovery Dashboard는 자동 복구(Recovery) 실행 이력을 종합적으로 분석하는 대시보드입니다.
-      3개의 서브 페이지(Overview, By Process, Analysis)로 구성되며,
+      5개의 서브 페이지(Overview, By Process, By Category, By Model, Analysis)로 구성되며,
       집계 데이터를 기반으로 다양한 기간별 트렌드와 분포를 시각화합니다.
     </p>
 
@@ -207,6 +207,104 @@ import HelpImage from '../HelpImage.vue'
     </p>
 
 
+    <!-- ====== Recovery by Category ====== -->
+    <h3>Recovery by Category</h3>
+    <p>
+      시나리오 카테고리별 Recovery 성공률을 비교 분석하는 페이지입니다.
+      시나리오가 어떤 카테고리(예: 장비 초기화, 레시피 복구 등)에 속하는지에 따라
+      성공/실패 현황을 분류하고, 카테고리 간 성능 차이를 파악합니다.
+    </p>
+
+    <HelpImage name="recovery-by-category" alt="Recovery by Category 화면" caption="Recovery by Category - 카테고리별 성공률 비교 및 도넛 차트" />
+
+    <h4>KPI 카드</h4>
+    <p>
+      선택 기간의 전체 성공률, 카테고리 수, Uncategorized(미분류) 건수를 표시합니다.
+      전일/전주 대비 증감이 함께 표시됩니다.
+    </p>
+
+    <h4>카테고리별 성공률 비교 (Stacked Bar)</h4>
+    <p>
+      각 카테고리의 성공/실패/중단/Skip 비율을 누적 막대 차트로 표시합니다.
+    </p>
+
+    <h4>카테고리 분포 도넛 차트</h4>
+    <p>
+      전체 실행 건수, 성공 건수, 실패 건수의 카테고리별 분포를 3개의 도넛 차트로 시각화합니다.
+    </p>
+
+    <h4>성공률 추이 (Multi-Line)</h4>
+    <p>
+      시간에 따른 각 카테고리의 성공률 변화를 추적합니다.
+      트렌드 단위는 선택 기간에 따라 자동 결정됩니다.
+    </p>
+
+    <h4>요약 테이블 + 드릴다운</h4>
+    <p>
+      모든 카테고리의 실행 건수, 성공률 등을 테이블로 정리합니다.
+      행 클릭으로 상세 드릴다운을 펼칠 수 있으며, CSV 내보내기를 지원합니다.
+    </p>
+
+    <div class="callout-warning">
+      <div class="callout-title">Admin 전용: 카테고리 매핑 설정</div>
+      <p>
+        카테고리명은 시나리오 속성(SC_PROPERTY)의 scCategory 번호를 기반으로 합니다.
+        기본적으로 모든 시나리오가 <strong>"Uncategorized"</strong>로 표시될 수 있습니다.
+        이를 의미 있는 이름으로 변경하려면, 페이지 상단의
+        <strong>Category Mapping</strong> 버튼을 클릭하여 매핑 모달을 여세요.
+      </p>
+      <p>
+        매핑 모달에서 scCategory 번호에 대응하는 카테고리명(예: "장비 초기화", "레시피 복구" 등)을
+        입력하고 저장하면, 이후 해당 번호의 시나리오가 지정된 카테고리명으로 표시됩니다.
+      </p>
+
+      <HelpImage name="category-mapping-modal" alt="Category Mapping 모달" caption="Category Mapping — scCategory 번호 → 카테고리명 매핑 (Admin 전용)" />
+    </div>
+
+
+    <!-- ====== Recovery by Model ====== -->
+    <h3>Recovery by Model</h3>
+    <p>
+      동일 공정 내 장비 모델별 Recovery 성공률을 비교하는 페이지입니다.
+      같은 공정이라도 장비 모델에 따라 Recovery 성능이 다를 수 있으며,
+      이를 파악하여 모델별 시나리오 최적화에 활용합니다.
+    </p>
+
+    <HelpImage name="recovery-by-model" alt="Recovery by Model 화면" caption="Recovery by Model - 모델별 성공률 비교 및 추이" />
+
+    <h4>Process 필터 (필수)</h4>
+    <p>
+      이 페이지는 반드시 하나의 <strong>Process를 선택</strong>해야 합니다.
+      선택한 Process에 속하는 장비 모델들의 성공률을 비교합니다.
+    </p>
+
+    <h4>모델별 성공률 비교 (Grouped Bar)</h4>
+    <p>
+      각 모델의 성공률을 막대 차트로 비교합니다. 모델이 많은 경우 스크롤로 확인할 수 있습니다.
+    </p>
+
+    <h4>모델별 성공률 추이 (Multi-Line)</h4>
+    <p>
+      시간에 따른 각 모델의 성공률 변화를 Multi-Line 차트로 추적합니다.
+    </p>
+
+    <h4>요약 테이블 + 드릴다운</h4>
+    <p>
+      모든 모델의 실행 건수, 성공률 등을 테이블로 정리합니다.
+      행 클릭 시 해당 모델의 상위 실패 시나리오 및 장비 정보가 펼쳐집니다.
+      CSV 내보내기를 지원합니다.
+    </p>
+
+    <div class="callout-info">
+      <div class="callout-title">사용 시나리오</div>
+      <p>
+        "지난주 ETCH 공정에서 어떤 모델의 Recovery 성공률이 낮은지 확인하고 싶다"
+        &rarr; Period: 7일, Process: ETCH 선택 &rarr; 모델별 성공률 차트에서 비교 &rarr;
+        성공률이 낮은 모델의 드릴다운에서 실패 시나리오 확인
+      </p>
+    </div>
+
+
     <!-- ====== Recovery Analysis ====== -->
     <h3>Recovery Analysis</h3>
     <p>
@@ -219,19 +317,19 @@ import HelpImage from '../HelpImage.vue'
     <HelpImage name="recovery-analysis-equipment" alt="Recovery Analysis Equipment 탭" caption="Recovery Analysis — Equipment 탭 (장비별 분석)" />
     <HelpImage name="recovery-analysis-trigger" alt="Recovery Analysis Trigger 탭" caption="Recovery Analysis — Trigger 탭 전환 시" />
 
-    <h4>필터 구성</h4>
+    <h4>단계별 연동 필터</h4>
     <p>
-      Analysis 페이지는 다른 Recovery 페이지와 달리 <strong>단일 선택 모드</strong>로 동작합니다.
+      Analysis 페이지는 <strong>Process &rarr; Scenario &rarr; Model</strong> 3단계 연동 필터로 동작합니다.
+      상위 필터를 선택하면 하위 필터의 목록이 자동으로 갱신됩니다.
     </p>
     <ul>
-      <li><strong>Process</strong>: 반드시 하나의 공정을 선택해야 합니다 (단일 선택)</li>
-      <li><strong>Model</strong>: 선택한 Process에 속하는 모델 중 하나를 선택 (단일 선택)</li>
+      <li><strong>Process</strong>: 반드시 하나의 공정을 선택합니다 (단일 선택)</li>
+      <li><strong>Scenario</strong>: 선택한 Process에 속하는 시나리오 목록이 로드됩니다. <strong>여러 개를 동시에 선택</strong>할 수 있습니다 (MultiSelect)</li>
+      <li><strong>Model</strong>: 선택한 Scenario에 속하는 모델 목록이 로드됩니다 (선택사항)</li>
       <li><strong>기간</strong>: Overview와 동일한 프리셋 기간 선택</li>
     </ul>
-    <p>
-      필터의 Process/Model 목록은 실제 데이터가 존재하는 항목만 표시됩니다.
-      기간을 변경하면 해당 기간에 데이터가 있는 Process/Model로 목록이 갱신됩니다.
-    </p>
+
+    <HelpImage name="recovery-analysis-cascade" alt="Analysis 단계별 연동 필터" caption="Recovery Analysis — Process → Scenario(다중 선택) → Model 단계별 연동 필터" />
 
     <h4>3개 분석 탭</h4>
     <table>
@@ -313,6 +411,15 @@ import HelpImage from '../HelpImage.vue'
     <p>
       조회에 시간이 걸릴 수 있습니다. 데이터가 많은 기간을 조회할 경우 잠시 기다려 주세요.
     </p>
+
+    <div class="callout-info">
+      <div class="callout-title">Admin 전용: Backfill verify (데이터 정합성 검증)</div>
+      <p>
+        Backfill 모달에서 <strong>verify</strong> 체크박스를 활성화하면, 실행 전에 배치 실행 로그(CRON_RUN_LOG)와
+        집계 결과(SUMMARY)를 교차 검증합니다. 검증 결과에서 빈 버킷 수, 로그만 존재하는 항목(orphanedLog) 등을
+        확인할 수 있으며, 문제가 있는 구간만 선택하여 재실행할 수 있습니다.
+      </p>
+    </div>
 
     <div class="callout-info">
       <div class="callout-title">데이터 초기화</div>

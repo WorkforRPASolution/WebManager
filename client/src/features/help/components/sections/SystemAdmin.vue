@@ -133,10 +133,10 @@ import HelpImage from '../HelpImage.vue'
 
     <p><strong>필터 조건:</strong></p>
     <ul>
-      <li><strong>Category</strong> - 로그 유형 선택 (All, audit, error, auth, batch, access, eqp-redis)</li>
+      <li><strong>Category</strong> - 로그 유형 선택, 여러 카테고리 동시 선택 가능 (MultiSelect)</li>
       <li><strong>Period</strong> - 조회 기간 (Today, 7d, 30d, 90d, Custom)</li>
-      <li><strong>User ID</strong> - 특정 사용자의 로그만 필터 (드롭다운 검색 지원)</li>
-      <li><strong>Action</strong> - 특정 액션의 로그만 필터 (드롭다운 검색 지원)</li>
+      <li><strong>User ID</strong> - 특정 사용자의 로그만 필터, 여러 사용자 동시 선택 가능 (MultiSelect)</li>
+      <li><strong>Action</strong> - 특정 액션의 로그만 필터, 여러 액션 동시 선택 가능 (MultiSelect)</li>
       <li><strong>Search</strong> - 자유 텍스트 검색 (로그 내용에서 키워드 검색)</li>
     </ul>
 

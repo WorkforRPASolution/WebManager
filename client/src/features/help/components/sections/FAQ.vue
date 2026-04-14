@@ -342,6 +342,50 @@ function toggle(id) {
       <p>System Logs는 <strong>Admin 전용</strong> 메뉴입니다. Admin 역할이 아닌 사용자(Conductor, Manager, User)에게는 사이드바에 표시되지 않으며, URL을 직접 입력해도 접근할 수 없습니다.</p>
       <p>시스템 로그 확인이 필요한 경우 Admin에게 요청하세요. Admin은 System Logs에서 관련 로그를 필터링하여 필요한 정보를 공유할 수 있습니다.</p>
     </div>
+
+    <!-- ───────────────────────────────── -->
+    <!-- 6. 기타 운영 -->
+    <!-- ───────────────────────────────── -->
+    <h3>6. 기타 운영</h3>
+
+    <!-- Q6-1 -->
+    <div class="faq-item" @click="toggle('q6-1')">
+      <div class="faq-question">
+        <svg class="faq-arrow" :class="{ 'faq-arrow-open': openItems['q6-1'] }" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+        <span>비밀번호 없이 사용자를 생성할 수 있나요?</span>
+      </div>
+    </div>
+    <div v-show="openItems['q6-1']" class="faq-answer">
+      <p>네, User Management에서 비밀번호 필드를 비워둔 채로 사용자를 생성할 수 있습니다. 이 기능은 Akka 서버에서 이미 관리되는 기존 사용자를 WebManager에 등록할 때 유용합니다. 비밀번호가 없는 사용자는 첫 로그인 시 비밀번호 재설정을 통해 비밀번호를 설정해야 합니다.</p>
+    </div>
+
+    <!-- Q6-2 -->
+    <div class="faq-item" @click="toggle('q6-2')">
+      <div class="faq-question">
+        <svg class="faq-arrow" :class="{ 'faq-arrow-open': openItems['q6-2'] }" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+        <span>Email Info에서 Group이 필수인데, 기존 데이터는 어떻게 되나요?</span>
+      </div>
+    </div>
+    <div v-show="openItems['q6-2']" class="faq-answer">
+      <p>기존에 Group(이전 명칭: Type)이 비어있는 항목은 조회에는 문제가 없으나, 해당 행을 편집하여 저장할 때 Group 입력이 필요합니다. 유효성 검사에서 Group이 비어있으면 오류가 표시되므로, 편집 시 적절한 Group 값을 입력하세요.</p>
+    </div>
+
+    <!-- Q6-3 -->
+    <div class="faq-item" @click="toggle('q6-3')">
+      <div class="faq-question">
+        <svg class="faq-arrow" :class="{ 'faq-arrow-open': openItems['q6-3'] }" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+        <span>Recovery by Category에서 모두 "Uncategorized"로 표시됩니다.</span>
+      </div>
+    </div>
+    <div v-show="openItems['q6-3']" class="faq-answer">
+      <p>시나리오 카테고리명이 설정되지 않았기 때문입니다. Admin이 Recovery by Category 페이지에서 <strong>Category Mapping</strong> 버튼을 클릭하여 scCategory 번호에 대응하는 카테고리명을 설정해야 합니다. 설정 후 다음 배치 집계부터 카테고리명이 반영됩니다.</p>
+    </div>
   </div>
 </template>
 

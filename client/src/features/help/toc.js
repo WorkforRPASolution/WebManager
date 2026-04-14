@@ -75,8 +75,8 @@ export const TOC = [
         id: 'recovery-dashboard',
         label: 'Recovery Dashboard',
         component: () => import('./components/sections/RecoveryDashboard.vue'),
-        searchText: 'Recovery 복구 Overview 공정별 Analysis 시나리오 장비 트리거 KPI 트렌드 도넛 성공률 실패율 기간 배치 집계 신선도 Batch History 히트맵 recovery overview by-process analysis',
-        keywords: ['Recovery', '복구', '분석', 'recovery', 'analysis']
+        searchText: 'Recovery 복구 Overview 공정별 Analysis 시나리오 장비 트리거 KPI 트렌드 도넛 성공률 실패율 기간 배치 집계 신선도 Batch History 히트맵 Category 카테고리 Model 모델 by-category by-model by-process 단계별필터 캐스케이드 verify 교차검증 CSV 내보내기 recovery overview analysis',
+        keywords: ['Recovery', '복구', '분석', '카테고리', '모델', 'recovery', 'analysis', 'category', 'model']
       },
       {
         id: 'user-activity',
@@ -145,8 +145,8 @@ export const TOC = [
         id: 'software-update',
         label: 'Software Update',
         component: () => import('./components/sections/SoftwareUpdate.vue'),
-        searchText: '소프트웨어 업데이트 배포 프로필 OS별 버전별 SSE 진행률 FTP MinIO Local exec 명령 software update deploy profile',
-        keywords: ['업데이트', 'Software', 'Update', '배포']
+        searchText: '소프트웨어 업데이트 배포 프로필 OS별 버전별 SSE 진행률 FTP MinIO Local exec 명령 Copy Paste 복사 붙여넣기 클립보드 clipboard 프로필복사 태스크복사 software update deploy profile',
+        keywords: ['업데이트', 'Software', 'Update', '배포', '복사', 'Copy', 'Paste']
       }
     ]
   },
@@ -159,8 +159,8 @@ export const TOC = [
         id: 'reference-data',
         label: 'Equipment / Template / Email / User',
         component: () => import('./components/sections/ReferenceData.vue'),
-        searchText: 'Equipment Info 장비 기준정보 Email Template Popup Template Email Image Email Recipients Email Info User Management 사용자 관리 역할 권한 계정상태 비밀번호 AG Grid 편집 Monaco Editor',
-        keywords: ['기준정보', 'Equipment', 'Template', 'Email', '사용자']
+        searchText: 'Equipment Info 장비 기준정보 AGENT_INFO 동기화 Email Template Popup Template Email Image Email Recipients Email Info Group User Management 사용자 관리 역할 권한 Authority SE Auth EARS 검색 계정상태 비밀번호 AG Grid 편집 Monaco Editor',
+        keywords: ['기준정보', 'Equipment', 'Template', 'Email', '사용자', 'EARS', 'Authority']
       }
     ]
   },
@@ -173,8 +173,8 @@ export const TOC = [
         id: 'system-admin',
         label: 'Settings / Permissions / System Logs',
         component: () => import('./components/sections/SystemAdmin.vue'),
-        searchText: 'Settings Permissions System Logs 설정 권한 시스템 로그 Role Menu Feature 매트릭스 Admin Conductor Manager User audit auth error batch access 카테고리 통계',
-        keywords: ['Settings', 'Permissions', '권한', 'System Logs', '로그']
+        searchText: 'Settings Permissions System Logs 설정 권한 시스템 로그 Role Menu Feature 매트릭스 Admin Conductor Manager User audit auth error batch access 카테고리 통계 MultiSelect 다중선택',
+        keywords: ['Settings', 'Permissions', '권한', 'System Logs', '로그', 'MultiSelect']
       }
     ]
   },
@@ -194,8 +194,8 @@ export const TOC = [
         id: 'faq',
         label: '자주 묻는 질문 (FAQ)',
         component: () => import('./components/sections/FAQ.vue'),
-        searchText: 'FAQ 자주 묻는 질문 비밀번호 메뉴 안보임 Config 적용 로그 조회 권한 차단 문제 해결 troubleshooting',
-        keywords: ['FAQ', '질문', '문제', '해결']
+        searchText: 'FAQ 자주 묻는 질문 비밀번호 비밀번호없이 메뉴 안보임 Config 적용 로그 조회 권한 차단 Uncategorized Group 필수 문제 해결 troubleshooting',
+        keywords: ['FAQ', '질문', '문제', '해결', 'Uncategorized']
       }
     ]
   }

@@ -102,6 +102,15 @@ import HelpImage from '../HelpImage.vue'
       </p>
     </div>
 
+    <div class="callout-info">
+      <div class="callout-title">AGENT_INFO 자동 동기화</div>
+      <p>
+        Equipment Info에서 장비를 생성/수정/삭제하면 AGENT_INFO(Agent 활성화 정보)가 자동으로 동기화됩니다.
+        별도의 수동 작업이 필요하지 않습니다. 기존 AGENT_INFO 데이터가 있는 경우 IP만 갱신되며,
+        Agent 플래그(arsagent, resourceagent 등)는 보존됩니다.
+      </p>
+    </div>
+
     <h4>OS List 관리 (Admin 전용)</h4>
     <p>
       페이지 상단 우측의 <strong>OS List</strong> 버튼(Admin 전용)을 클릭하면 OS Version List 모달이 열립니다.
@@ -169,6 +178,7 @@ import HelpImage from '../HelpImage.vue'
       <li><strong>Email Info</strong> : 프로젝트 + 카테고리별 발신 계정 및 부서 정보</li>
       <li><strong>Email Recipients</strong> : 카테고리별 이메일 수신자 목록 관리</li>
       <li>Equipment Info에서 설정한 emailcategory와 연동되어, 장비별로 적절한 수신자에게 알림이 발송됩니다</li>
+      <li><strong>Group 컬럼 (필수)</strong> : Email Info의 Group은 필수 입력입니다. 저장 시 Group이 비어있으면 유효성 검사 오류가 발생합니다. 동일 Group 중복 입력도 차단됩니다.</li>
     </ul>
 
     <!-- ===== User Management ===== -->
@@ -182,8 +192,9 @@ import HelpImage from '../HelpImage.vue'
 
     <h4>필터바</h4>
     <ul>
-      <li><strong>Process</strong> : 공정별 필터링</li>
-      <li><strong>Role</strong> : 역할별 필터링</li>
+      <li><strong>Process</strong> : 공정별 필터링 (다중 선택 가능)</li>
+      <li><strong>Role</strong> : 역할별 필터링 (다중 선택 가능)</li>
+      <li><strong>SE Auth</strong> : 시나리오 작성 권한 필터 (다중 선택 가능)</li>
       <li><strong>키워드 검색</strong> : 사용자 ID, 이름 검색</li>
       <li><strong>Load All Users</strong> : 필터 없이 전체 사용자를 로드합니다</li>
     </ul>
@@ -209,16 +220,16 @@ import HelpImage from '../HelpImage.vue'
           <td>사용자 이름</td>
         </tr>
         <tr>
-          <td>authorityManager</td>
-          <td>역할 (1=Admin, 2=Conductor, 3=Manager, 4=User)</td>
+          <td>Authority</td>
+          <td>역할 (Admin / Conductor / Manager / User)</td>
         </tr>
         <tr>
-          <td>processes</td>
+          <td>Process</td>
           <td>담당 공정 (다중 선택 가능)</td>
         </tr>
         <tr>
-          <td>scenarioWritePermission</td>
-          <td>시나리오 작성 권한 (true/false)</td>
+          <td>SE Auth</td>
+          <td>시나리오 작성 권한 (WRITE / 빈 값)</td>
         </tr>
         <tr>
           <td>accountStatus</td>
@@ -259,6 +270,27 @@ import HelpImage from '../HelpImage.vue'
         </tr>
       </tbody>
     </table>
+
+    <h4>사용자 등록</h4>
+    <p>
+      Add 버튼으로 빈 행을 추가한 뒤, 각 컬럼을 편집하여 사용자를 등록합니다.
+      <strong>비밀번호 없이 사용자를 생성할 수 있습니다</strong> (Akka 서버에서 관리하는 기존 사용자 등록 시).
+      비밀번호가 없는 사용자는 첫 로그인 시 비밀번호 재설정이 필요합니다.
+    </p>
+
+    <div class="callout-info">
+      <div class="callout-title">Integrated 모드: EARS 사용자 검색</div>
+      <p>
+        Integrated 모드에서는 User ID(singleid) 셀을 <strong>더블클릭</strong>하면 EARS 사용자 검색 모달이 열립니다.
+        이름으로 검색하여 결과 목록에서 사용자를 선택하면, 입력 미리보기에서 User ID / Name / Department가
+        표시됩니다. "선택" 버튼을 클릭하면 3개 필드가 자동으로 입력됩니다.
+      </p>
+      <p>
+        Standalone 모드에서는 기존과 동일하게 singleid 셀에 직접 타이핑합니다.
+      </p>
+
+      <HelpImage name="user-management-ears-search" alt="EARS 사용자 검색 모달" caption="User Management — EARS 검색 모달 (Integrated 모드, 더블클릭으로 열기)" />
+    </div>
 
     <h4>비밀번호 초기화</h4>
     <p>
