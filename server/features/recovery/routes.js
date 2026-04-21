@@ -45,4 +45,8 @@ router.delete('/category-map', authenticate, requireRole([1]), asyncHandler(cont
 router.get('/batch-logs', authenticate, requireRole([1]), asyncHandler(controller.getBatchLogs))
 router.get('/batch-logs/heatmap', authenticate, requireRole([1]), asyncHandler(controller.getBatchHeatmap))
 
+// Scenario Summary API (Admin only)
+router.get('/scenario-summary', authenticate, requireRole([1]), asyncHandler(controller.getScenarioSummary))
+router.get('/scenario-summary/export', authenticate, requireRole([1]), asyncHandler(controller.exportScenarioSummary))
+
 module.exports = router

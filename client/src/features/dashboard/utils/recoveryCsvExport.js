@@ -168,3 +168,24 @@ export function exportRecoveryByCategoryCsv(categories) {
 
   downloadCsv(filename, headers, rows)
 }
+
+/**
+ * Recovery Scenario Summary (Admin) 데이터를 CSV로 내보내기
+ * @param {Array} data - [{ process, model, ears_code, categoryName, total, success, fail, lastModifier }]
+ */
+export function exportRecoveryScenarioSummaryCsv(data) {
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')
+  const filename = `Recovery_ScenarioSummary_${timestamp}.csv`
+  const headers = ['Process', 'Model', 'EARS Code', 'Category', 'Total', 'Success', 'Fail', 'Last Modifier']
+  const rows = (data || []).map(r => [
+    r.process,
+    r.model,
+    r.ears_code,
+    r.categoryName || '-',
+    r.total || 0,
+    r.success || 0,
+    r.fail || 0,
+    r.lastModifier || '-'
+  ])
+  downloadCsv(filename, headers, rows)
+}

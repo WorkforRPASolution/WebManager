@@ -26,6 +26,10 @@ function getSummaryService() {
   return deps.summaryService || require('./recoverySummaryService')
 }
 
+function getRecoveryService() {
+  return deps.service || service
+}
+
 function getDateUtils() {
   return deps.dateUtils || require('./dateUtils')
 }
@@ -400,6 +404,42 @@ async function getScCategories(req, res) {
   res.json({ data })
 }
 
+const SCENARIO_SUMMARY_EXPORT_LIMIT = 50000
+
+async function getScenarioSummary(req, res) {
+  const { period = '30d', startDate, endDate } = req.query
+  const process = req.query.process || undefined
+  if (period === 'custom') {
+    const validation = validatePeriodRange(startDate, endDate, 730)
+    if (!validation.valid) return res.status(400).json({ error: validation.error })
+  }
+  const { page, pageSize, skip, limit } = parsePaginationParams(req.query)
+  const result = await getRecoveryService().getScenarioSummary(
+    { period, startDate, endDate, process },
+    { skip, limit }
+  )
+  res.json(createPaginatedResponse(result.data, result.total, page, pageSize))
+}
+
+async function exportScenarioSummary(req, res) {
+  const { period = '30d', startDate, endDate } = req.query
+  const process = req.query.process || undefined
+  if (period === 'custom') {
+    const validation = validatePeriodRange(startDate, endDate, 730)
+    if (!validation.valid) return res.status(400).json({ error: validation.error })
+  }
+  const result = await getRecoveryService().getScenarioSummary(
+    { period, startDate, endDate, process },
+    { skip: 0, limit: SCENARIO_SUMMARY_EXPORT_LIMIT + 1 }
+  )
+  const truncated = result.data.length > SCENARIO_SUMMARY_EXPORT_LIMIT
+  res.json({
+    data: result.data.slice(0, SCENARIO_SUMMARY_EXPORT_LIMIT),
+    truncated,
+    limit: SCENARIO_SUMMARY_EXPORT_LIMIT
+  })
+}
+
 module.exports = {
   getOverview,
   getByProcess,
@@ -420,5 +460,7 @@ module.exports = {
   upsertCategoryMap,
   deleteCategoryMap,
   getScCategories,
+  getScenarioSummary,
+  exportScenarioSummary,
   _setDeps
 }

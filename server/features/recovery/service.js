@@ -1065,6 +1065,165 @@ async function _getByCategoryCore(filters = {}) {
   }
 }
 
+/**
+ * (process, model, ears_code) 단위 시나리오 실적 집계 (Admin 전용 조회 페이지)
+ * @param {{ period, process, startDate, endDate }} filters
+ * @param {{ skip, limit }} paging
+ * @returns {{ data: Array, total: number }}
+ */
+async function getScenarioSummary(filters, { skip = 0, limit = 50 } = {}) {
+  const { period = '30d', process, startDate, endDate } = filters
+  const matchFilter = buildMatchFilter(period, { process, startDate, endDate })
+
+  const pipeline = [
+    { $match: matchFilter },
+    // status_counts 객체에서 success / fail 카운트를 필드로 분리
+    {
+      $addFields: {
+        _success: { $ifNull: ['$status_counts.Success', 0] },
+        _fail: {
+          $add: [
+            { $ifNull: ['$status_counts.Failed', 0] },
+            { $ifNull: ['$status_counts.ScriptFailed', 0] },
+            { $ifNull: ['$status_counts.VisionDelayed', 0] },
+            { $ifNull: ['$status_counts.NotStarted', 0] }
+          ]
+        }
+      }
+    },
+    {
+      $group: {
+        _id: { process: '$process', model: '$model', ears_code: '$ears_code' },
+        total: { $sum: '$total' },
+        success: { $sum: '$_success' },
+        fail: { $sum: '$_fail' }
+      }
+    },
+    { $sort: { '_id.process': 1, '_id.model': 1, '_id.ears_code': 1 } },
+    {
+      $facet: {
+        data: [
+          // SC_PROPERTY 조인으로 scCategory, property.Owners 획득
+          {
+            $lookup: {
+              from: 'SC_PROPERTY',
+              localField: '_id.ears_code',
+              foreignField: 'scname',
+              as: '_sc'
+            }
+          },
+          {
+            $addFields: {
+              ears_code: '$_id.ears_code',
+              process: '$_id.process',
+              model: '$_id.model',
+              _scDoc: { $first: '$_sc' }
+            }
+          },
+          {
+            $addFields: {
+              scCategory: '$_scDoc.scCategory',
+              _owners: { $ifNull: ['$_scDoc.property.Owners', []] }
+            }
+          },
+          // Owners 배열 → { userId, ts } 파싱
+          {
+            $addFields: {
+              _parsedOwners: {
+                $map: {
+                  input: '$_owners',
+                  in: {
+                    userId: { $arrayElemAt: [{ $split: ['$$this', '@'] }, 0] },
+                    ts: { $arrayElemAt: [{ $split: ['$$this', '@'] }, 1] }
+                  }
+                }
+              }
+            }
+          },
+          // ts 최대값의 userId 선택 (사전순 비교 = 시간순 비교, 형식: "yyyy-MM-dd HH:mm:ss")
+          {
+            $addFields: {
+              _lastOwner: {
+                $reduce: {
+                  input: '$_parsedOwners',
+                  initialValue: null,
+                  in: {
+                    $cond: [
+                      { $or: [{ $eq: ['$$value', null] }, { $gt: ['$$this.ts', '$$value.ts'] }] },
+                      '$$this',
+                      '$$value'
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          {
+            $addFields: {
+              lastModifier: {
+                $cond: [
+                  { $eq: ['$_lastOwner', null] },
+                  null,
+                  {
+                    $concat: [
+                      '$_lastOwner.userId', ' (',
+                      { $substr: ['$_lastOwner.ts', 0, 16] },
+                      ')'
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          // RECOVERY_CATEGORY_MAP 조인으로 카테고리 이름 획득
+          {
+            $lookup: {
+              from: 'RECOVERY_CATEGORY_MAP',
+              localField: 'scCategory',
+              foreignField: 'scCategory',
+              as: '_catMap'
+            }
+          },
+          {
+            $addFields: {
+              categoryName: { $ifNull: [{ $first: '$_catMap.categoryName' }, null] }
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              process: 1,
+              model: 1,
+              ears_code: 1,
+              total: 1,
+              success: 1,
+              fail: 1,
+              scCategory: 1,
+              categoryName: 1,
+              lastModifier: 1
+            }
+          },
+          { $skip: skip },
+          { $limit: limit }
+        ],
+        total: [{ $count: 'count' }]
+      }
+    }
+  ]
+
+  const db = getEarsDb()
+  const coll = db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
+  const results = await coll.aggregate(pipeline, { allowDiskUse: true }).toArray()
+
+  if (!results || results.length === 0) return { data: [], total: 0 }
+
+  const { data, total } = results[0]
+  return {
+    data: data || [],
+    total: (total && total.length > 0) ? total[0].count : 0
+  }
+}
+
 module.exports = {
   getOverview,
   getByProcess,
@@ -1073,5 +1232,6 @@ module.exports = {
   getAnalysis,
   getAnalysisFilters,
   getHistory,
+  getScenarioSummary,
   _setDeps
 }

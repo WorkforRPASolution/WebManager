@@ -91,6 +91,8 @@ export const recoveryApi = {
   upsertCategoryMap: (data) => api.put('/recovery/category-map', data),
   deleteCategoryMap: (data) => api.delete('/recovery/category-map', { data }),
   getScCategories: () => api.get('/recovery/category-map/sc-categories'),
+  getScenarioSummary: (params = {}) => api.get('/recovery/scenario-summary', { params, timeout: 60000 }),
+  exportScenarioSummary: (params = {}) => api.get('/recovery/scenario-summary/export', { params, timeout: 60000 }),
 }
 
 // User Activity API

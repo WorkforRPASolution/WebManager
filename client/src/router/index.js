@@ -502,6 +502,26 @@ const routes = [
     }
   },
   {
+    path: '/recovery-scenario-summary',
+    name: 'RecoveryScenarioSummary',
+    component: () => import('../features/dashboard/RecoveryScenarioSummaryView.vue'),
+    meta: {
+      layout: 'default',
+      requiresAuth: true,
+      allowedRoles: [1],
+      menu: {
+        mainMenu: 'system',
+        mainMenuLabel: 'System',
+        mainMenuIcon: 'settings',
+        mainMenuOrder: 4,
+        subMenu: 'recovery-scenario-summary',
+        subMenuLabel: 'Recovery Scenario Summary',
+        subMenuIcon: 'analytics',
+        subMenuOrder: 4,
+      }
+    }
+  },
+  {
     path: '/settings',
     name: 'Settings',
     component: () => import('../features/settings/SettingsView.vue'),
