@@ -105,14 +105,16 @@ function handleKeyDown(event) {
   // Enter: add new value if allowed or confirm and close
   if (event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault()
-    if (allowCustomInput.value && searchQuery.value) {
+    // Only add as new value when the search term doesn't match any existing option
+    // (otherwise the user is filtering existing options to pick via checkbox).
+    if (allowCustomInput.value
+        && searchQuery.value
+        && filteredOptions.value.length === 0
+        && canAddNewValue.value) {
       addNewValue()
-      confirmed.value = true
-      props.params.stopEditing()
-    } else {
-      confirmed.value = true
-      props.params.stopEditing()
     }
+    confirmed.value = true
+    props.params.stopEditing()
   }
   // Escape: cancel
   if (event.key === 'Escape') {
@@ -176,7 +178,7 @@ onMounted(() => {
           :value="searchQuery"
           @input="handleSearchInput"
           type="text"
-          :placeholder="allowCustomInput ? 'Search or add (A-Z, _ only)...' : 'Search...'"
+          :placeholder="allowCustomInput ? 'Search or add (A-Z, 0-9, _ only)...' : 'Search...'"
           class="w-full pl-9 pr-3 py-2 text-sm bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-400"
         />
       </div>

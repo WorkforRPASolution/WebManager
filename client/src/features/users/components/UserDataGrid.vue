@@ -247,7 +247,7 @@ const columnDefs = ref([
     cellEditor: AgGridMultiSelectEditor,
     cellEditorParams: () => ({
       options: props.availableProcesses,
-      allowCustomInput: true  // Allow adding custom values (A-Z, _ only)
+      allowCustomInput: true  // Allow adding custom values (A-Z, 0-9, _ only)
     }),
     cellEditorPopup: true,
     // AG Grid가 Enter/Escape를 가로채지 않도록 에디터에 위임
