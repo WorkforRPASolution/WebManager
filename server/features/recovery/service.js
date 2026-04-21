@@ -1117,7 +1117,7 @@ async function getScenarioSummary(filters, { skip = 0, limit = 50 } = {}) {
               ears_code: '$_id.ears_code',
               process: '$_id.process',
               model: '$_id.model',
-              _scDoc: { $first: '$_sc' }
+              _scDoc: { $arrayElemAt: ['$_sc', 0] }
             }
           },
           {
@@ -1175,20 +1175,6 @@ async function getScenarioSummary(filters, { skip = 0, limit = 50 } = {}) {
               }
             }
           },
-          // RECOVERY_CATEGORY_MAP 조인으로 카테고리 이름 획득
-          {
-            $lookup: {
-              from: 'RECOVERY_CATEGORY_MAP',
-              localField: 'scCategory',
-              foreignField: 'scCategory',
-              as: '_catMap'
-            }
-          },
-          {
-            $addFields: {
-              categoryName: { $ifNull: [{ $first: '$_catMap.categoryName' }, null] }
-            }
-          },
           {
             $project: {
               _id: 0,
@@ -1199,7 +1185,6 @@ async function getScenarioSummary(filters, { skip = 0, limit = 50 } = {}) {
               success: 1,
               fail: 1,
               scCategory: 1,
-              categoryName: 1,
               lastModifier: 1
             }
           },
@@ -1213,13 +1198,28 @@ async function getScenarioSummary(filters, { skip = 0, limit = 50 } = {}) {
 
   const db = getEarsDb()
   const coll = db.collection('RECOVERY_SUMMARY_BY_SCENARIO')
-  const results = await coll.aggregate(pipeline, { allowDiskUse: true }).toArray()
+  const categoryService = deps.categoryService || recoveryCategoryService
+  const [results, categoryNames] = await Promise.all([
+    coll.aggregate(pipeline, { allowDiskUse: true }).toArray(),
+    categoryService.getAll()
+  ])
 
   if (!results || results.length === 0) return { data: [], total: 0 }
 
+  // RECOVERY_CATEGORY_MAP은 WEB_MANAGER DB에 있으므로 $lookup 불가 → JS에서 매핑
+  const nameMap = {}
+  for (const c of categoryNames) {
+    nameMap[Number(c.scCategory)] = c.categoryName
+  }
+
   const { data, total } = results[0]
+  const enriched = (data || []).map(row => ({
+    ...row,
+    categoryName: row.scCategory != null ? (nameMap[Number(row.scCategory)] || null) : null
+  }))
+
   return {
-    data: data || [],
+    data: enriched,
     total: (total && total.length > 0) ? total[0].count : 0
   }
 }

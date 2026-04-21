@@ -19,6 +19,13 @@ function createMockEarsDb(collectionOverrides = {}) {
 let service
 let _setDeps
 
+function setDepsWith(earsDb, categoryNames = []) {
+  _setDeps({
+    earsDb,
+    categoryService: { getAll: vi.fn().mockResolvedValue(categoryNames) }
+  })
+}
+
 beforeEach(async () => {
   vi.resetModules()
   const mod = await import('./service.js')
@@ -46,7 +53,10 @@ describe('getScenarioSummary', () => {
     }]
 
     const scenarioColl = createMockAggregateCollection(facetResult)
-    _setDeps({ earsDb: createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }) })
+    setDepsWith(
+      createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }),
+      [{ scCategory: 2, categoryName: 'Vacuum' }]
+    )
 
     const result = await service.getScenarioSummary({ period: '30d' }, { skip: 0, limit: 50 })
 
@@ -69,7 +79,7 @@ describe('getScenarioSummary', () => {
   it('total 배열이 비어있으면 total=0을 반환한다', async () => {
     const facetResult = [{ data: [], total: [] }]
     const scenarioColl = createMockAggregateCollection(facetResult)
-    _setDeps({ earsDb: createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }) })
+    setDepsWith(createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }))
 
     const result = await service.getScenarioSummary({ period: '7d' }, { skip: 0, limit: 50 })
 
@@ -79,7 +89,7 @@ describe('getScenarioSummary', () => {
 
   it('집계 결과가 빈 배열이면 data=[], total=0을 반환한다', async () => {
     const scenarioColl = createMockAggregateCollection([])
-    _setDeps({ earsDb: createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }) })
+    setDepsWith(createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }))
 
     const result = await service.getScenarioSummary({ period: '30d' }, { skip: 0, limit: 50 })
 
@@ -90,7 +100,7 @@ describe('getScenarioSummary', () => {
   it('process 필터가 전달되면 aggregate에 전달된 파이프라인에 process $match가 포함된다', async () => {
     const facetResult = [{ data: [], total: [] }]
     const scenarioColl = createMockAggregateCollection(facetResult)
-    _setDeps({ earsDb: createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }) })
+    setDepsWith(createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }))
 
     await service.getScenarioSummary({ period: '30d', process: 'CVD' }, { skip: 0, limit: 50 })
 
@@ -103,7 +113,7 @@ describe('getScenarioSummary', () => {
   it('process가 쉼표 구분 다중값이면 $in 조건으로 변환된다', async () => {
     const facetResult = [{ data: [], total: [] }]
     const scenarioColl = createMockAggregateCollection(facetResult)
-    _setDeps({ earsDb: createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }) })
+    setDepsWith(createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }))
 
     await service.getScenarioSummary({ period: '30d', process: 'CVD,PVD' }, { skip: 0, limit: 50 })
 
@@ -115,7 +125,7 @@ describe('getScenarioSummary', () => {
   it('skip/limit이 파이프라인 $facet data 분기에 반영된다', async () => {
     const facetResult = [{ data: [], total: [] }]
     const scenarioColl = createMockAggregateCollection(facetResult)
-    _setDeps({ earsDb: createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }) })
+    setDepsWith(createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }))
 
     await service.getScenarioSummary({ period: '30d' }, { skip: 25, limit: 25 })
 
@@ -133,7 +143,7 @@ describe('getScenarioSummary', () => {
   it('파이프라인에 $sort {process:1, model:1, ears_code:1} 스테이지가 포함된다', async () => {
     const facetResult = [{ data: [], total: [] }]
     const scenarioColl = createMockAggregateCollection(facetResult)
-    _setDeps({ earsDb: createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }) })
+    setDepsWith(createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }))
 
     await service.getScenarioSummary({ period: '30d' }, { skip: 0, limit: 50 })
 
@@ -147,7 +157,7 @@ describe('getScenarioSummary', () => {
   it('파이프라인에 SC_PROPERTY $lookup 스테이지가 포함된다', async () => {
     const facetResult = [{ data: [], total: [] }]
     const scenarioColl = createMockAggregateCollection(facetResult)
-    _setDeps({ earsDb: createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }) })
+    setDepsWith(createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }))
 
     await service.getScenarioSummary({ period: '30d' }, { skip: 0, limit: 50 })
 
@@ -161,17 +171,29 @@ describe('getScenarioSummary', () => {
     expect(scLookup.$lookup.foreignField).toBe('scname')
   })
 
-  it('파이프라인에 RECOVERY_CATEGORY_MAP $lookup 스테이지가 포함된다', async () => {
-    const facetResult = [{ data: [], total: [] }]
+  it('RECOVERY_CATEGORY_MAP은 WEB_MANAGER DB에 있으므로 $lookup이 아닌 JS 레벨에서 categoryName을 주입한다', async () => {
+    const facetResult = [{
+      data: [
+        { process: 'CVD', model: 'M1', ears_code: 'SC001', total: 10, success: 9, fail: 1, scCategory: 2, lastModifier: null }
+      ],
+      total: [{ count: 1 }]
+    }]
     const scenarioColl = createMockAggregateCollection(facetResult)
-    _setDeps({ earsDb: createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }) })
+    setDepsWith(
+      createMockEarsDb({ 'RECOVERY_SUMMARY_BY_SCENARIO': scenarioColl }),
+      [{ scCategory: 2, categoryName: 'Chamber Clean' }]
+    )
 
-    await service.getScenarioSummary({ period: '30d' }, { skip: 0, limit: 50 })
+    const result = await service.getScenarioSummary({ period: '30d' }, { skip: 0, limit: 50 })
 
+    // 파이프라인에서 RECOVERY_CATEGORY_MAP $lookup은 제거되어야 한다 (cross-DB 불가)
     const pipeline = scenarioColl.aggregate.mock.calls[0][0]
     const facetStage = pipeline.find(s => s.$facet)
     const dataStages = facetStage.$facet.data
     const catLookup = dataStages.find(s => s.$lookup && s.$lookup.from === 'RECOVERY_CATEGORY_MAP')
-    expect(catLookup).toBeDefined()
+    expect(catLookup).toBeUndefined()
+
+    // JS 레벨에서 categoryName 주입 확인
+    expect(result.data[0].categoryName).toBe('Chamber Clean')
   })
 })
