@@ -130,11 +130,17 @@ router.post('/:id/test-accesslog', authenticate, requireMenuPermission(['arsAgen
 // Update Settings & Deploy Routes
 // ============================================
 
-// GET /api/clients/update-settings/:agentGroup
-router.get('/update-settings/:agentGroup', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(updateController.getUpdateSettings))
+// GET /api/clients/update-settings/:agentGroup  — list profiles for agentGroup
+router.get('/update-settings/:agentGroup', authenticate, requireMenuPermission(['arsAgent', 'resourceAgent']), asyncHandler(updateController.listUpdateSettings))
 
-// PUT /api/clients/update-settings/:agentGroup
-router.put('/update-settings/:agentGroup', authenticate, requireRole(1), asyncHandler(updateController.saveUpdateSettings))
+// POST /api/clients/update-settings/:agentGroup/profiles  — create profile
+router.post('/update-settings/:agentGroup/profiles', authenticate, requireRole(1), asyncHandler(updateController.createProfile))
+
+// PUT /api/clients/update-settings/:agentGroup/profiles/:profileId  — update profile
+router.put('/update-settings/:agentGroup/profiles/:profileId', authenticate, requireRole(1), asyncHandler(updateController.updateProfile))
+
+// DELETE /api/clients/update-settings/:agentGroup/profiles/:profileId  — delete profile
+router.delete('/update-settings/:agentGroup/profiles/:profileId', authenticate, requireRole(1), asyncHandler(updateController.deleteProfile))
 
 // POST /api/clients/update-source/list
 router.post('/update-source/list', authenticate, requireRole(1), asyncHandler(updateController.listUpdateSourceFiles))

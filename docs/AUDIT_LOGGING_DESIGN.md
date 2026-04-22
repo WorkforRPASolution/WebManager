@@ -82,7 +82,7 @@
 | PW Reset 승인 | `createActionLog` | action: 'approve' |
 | Config Settings | `createAuditLog` + `calculateChanges` | previousDoc diff |
 | Log Settings | `createAuditLog` + `calculateChanges` | previousDoc diff |
-| Update Settings | `createAuditLog` + `calculateChanges` | previousDoc diff (real) |
+| Update Settings | `createAuditLog` + `calculateChanges` | per-profile CRUD (`create`/`update`/`delete`), documentId=`{agentGroup}:{profileId}` |
 
 #### Domain 3: Clients
 

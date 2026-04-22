@@ -47,6 +47,8 @@ export function createTaskFromSnapshot(snapshot, existingNames, getNextKey) {
 export function createProfileFromSnapshot(snapshot, existingNames, getNextKey) {
   return {
     _key: getNextKey(), profileId: null,
+    _dirty: true,          // pasted profiles start dirty — user clicks Save Profile to POST
+    _saveError: null,
     name: generateUniqueName(snapshot.name, existingNames),
     osVer: snapshot.osVer, version: snapshot.version, _nameError: null,
     tasks: snapshot.tasks.map(t => createTaskFromSnapshot(t, [], getNextKey)),

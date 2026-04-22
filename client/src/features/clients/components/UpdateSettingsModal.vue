@@ -66,8 +66,12 @@
                   ? 'bg-green-50 dark:bg-green-900/20 border-l-2 border-l-green-500'
                   : 'hover:bg-gray-50 dark:hover:bg-dark-bg border-l-2 border-l-transparent'"
               >
-                <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
-                  {{ profile.name || '(unnamed)' }}
+                <div class="flex items-center gap-1.5">
+                  <span class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {{ profile.name || '(unnamed)' }}
+                  </span>
+                  <span v-if="profile._dirty" class="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" title="Unsaved changes"></span>
+                  <span v-if="!profile.profileId" class="inline-block px-1.5 py-0 text-[10px] font-semibold rounded bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 flex-shrink-0" title="New profile — not yet saved">NEW</span>
                 </div>
                 <div class="flex items-center gap-1.5 mt-0.5">
                   <span v-if="profile.osVer"
@@ -126,7 +130,7 @@
               <div class="grid grid-cols-3 gap-4">
                 <div>
                   <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-1">Name</label>
-                  <input v-model="selectedProfile.name" @input="changed = true"
+                  <input v-model="selectedProfile.name" @input="markSelectedDirty()"
                     class="w-full px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                     :class="{ 'border-red-500': selectedProfile._nameError }"
                     placeholder="Windows v2.0" />
@@ -134,7 +138,7 @@
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-1">OS Version</label>
-                  <select v-model="selectedProfile.osVer" @change="changed = true"
+                  <select v-model="selectedProfile.osVer" @change="markSelectedDirty()"
                     class="w-full px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500">
                     <option value="">All OS</option>
                     <option v-for="ov in osVersionOptions" :key="ov" :value="ov">{{ ov }}</option>
@@ -142,7 +146,7 @@
                 </div>
                 <div>
                   <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-1">Version</label>
-                  <input v-model="selectedProfile.version" @input="changed = true"
+                  <input v-model="selectedProfile.version" @input="markSelectedDirty()"
                     class="w-full px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                     placeholder="2.0.0" />
                 </div>
@@ -189,7 +193,7 @@
                       </div>
                       <div class="flex-1">
                         <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Name</label>
-                        <input v-model="task.name" @input="changed = true"
+                        <input v-model="task.name" @input="markSelectedDirty()"
                           class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                           :class="{ 'border-red-500': task._nameError }"
                           :placeholder="task.type === 'exec' ? 'Stop Agent' : 'Agent Binary'" />
@@ -197,7 +201,7 @@
                       </div>
                       <div class="flex items-end gap-1 pt-3.5">
                         <label class="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap cursor-pointer mr-1">
-                          <input type="checkbox" v-model="task.stopOnFail" @change="changed = true"
+                          <input type="checkbox" v-model="task.stopOnFail" @change="markSelectedDirty()"
                             class="rounded border-gray-300 dark:border-dark-border text-orange-500 focus:ring-orange-500" />
                           Stop on Fail
                         </label>
@@ -238,7 +242,7 @@
                         <div class="relative">
                           <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Source Path</label>
                           <div class="flex gap-1">
-                            <input v-model="task.sourcePath" @input="changed = true"
+                            <input v-model="task.sourcePath" @input="markSelectedDirty()"
                               class="flex-1 px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
                               :class="{ 'border-red-500': task._sourcePathError }"
                               placeholder="release/bin/agent.jar" />
@@ -289,7 +293,7 @@
                         </div>
                         <div>
                           <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Target Path</label>
-                          <input v-model="task.targetPath" @input="changed = true"
+                          <input v-model="task.targetPath" @input="markSelectedDirty()"
                             class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
                             :class="{ 'border-red-500': task._targetPathError }"
                             placeholder="bin/agent.jar" />
@@ -302,7 +306,7 @@
                       <div class="grid grid-cols-3 gap-3">
                         <div class="col-span-2">
                           <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Command</label>
-                          <input v-model="task.commandLine" @input="changed = true"
+                          <input v-model="task.commandLine" @input="markSelectedDirty()"
                             class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
                             :class="{ 'border-red-500': task._commandLineError }"
                             placeholder="net stop resourceagent" />
@@ -310,7 +314,7 @@
                         </div>
                         <div>
                           <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Timeout (sec)</label>
-                          <input v-model.number="task.timeout" @input="changed = true" type="number" min="1"
+                          <input v-model.number="task.timeout" @input="markSelectedDirty()" type="number" min="1"
                             class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                             placeholder="30" />
                         </div>
@@ -326,7 +330,7 @@
                     <!-- Description (common) -->
                     <div>
                       <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Description</label>
-                      <input v-model="task.description" @input="changed = true"
+                      <input v-model="task.description" @input="markSelectedDirty()"
                         class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                         placeholder="Optional" />
                     </div>
@@ -354,7 +358,7 @@
                   <!-- Local Source -->
                   <div v-if="selectedProfile.source.type === 'local'" class="flex items-center gap-4">
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-300 w-20">Path</label>
-                    <input v-model="selectedProfile.source.localPath" @input="changed = true"
+                    <input v-model="selectedProfile.source.localPath" @input="markSelectedDirty()"
                       class="flex-1 px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-card border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
                       placeholder="/opt/releases/ars-agent/latest" />
                   </div>
@@ -364,32 +368,32 @@
                     <div class="grid grid-cols-2 gap-4">
                       <div class="flex items-center gap-4">
                         <label class="text-sm font-medium text-gray-700 dark:text-gray-300 w-20">Host</label>
-                        <input v-model="selectedProfile.source.ftpHost" @input="changed = true"
+                        <input v-model="selectedProfile.source.ftpHost" @input="markSelectedDirty()"
                           class="flex-1 px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-card border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
                           placeholder="ftp.example.com" />
                       </div>
                       <div class="flex items-center gap-4">
                         <label class="text-sm font-medium text-gray-700 dark:text-gray-300 w-20">Port</label>
-                        <input v-model.number="selectedProfile.source.ftpPort" @input="changed = true" type="number"
+                        <input v-model.number="selectedProfile.source.ftpPort" @input="markSelectedDirty()" type="number"
                           class="flex-1 px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-card border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                           placeholder="21" />
                       </div>
                       <div class="flex items-center gap-4">
                         <label class="text-sm font-medium text-gray-700 dark:text-gray-300 w-20">User</label>
-                        <input v-model="selectedProfile.source.ftpUser" @input="changed = true"
+                        <input v-model="selectedProfile.source.ftpUser" @input="markSelectedDirty()"
                           class="flex-1 px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-card border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                           placeholder="ftpuser" />
                       </div>
                       <div class="flex items-center gap-4">
                         <label class="text-sm font-medium text-gray-700 dark:text-gray-300 w-20">Password</label>
-                        <input v-model="selectedProfile.source.ftpPass" @input="changed = true" type="password"
+                        <input v-model="selectedProfile.source.ftpPass" @input="markSelectedDirty()" type="password"
                           class="flex-1 px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-card border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                           placeholder="********" />
                       </div>
                     </div>
                     <div class="flex items-center gap-4">
                       <label class="text-sm font-medium text-gray-700 dark:text-gray-300 w-20">Base Path</label>
-                      <input v-model="selectedProfile.source.ftpBasePath" @input="changed = true"
+                      <input v-model="selectedProfile.source.ftpBasePath" @input="markSelectedDirty()"
                         class="flex-1 px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-card border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
                         placeholder="/releases" />
                     </div>
@@ -400,45 +404,45 @@
                     <div class="grid grid-cols-2 gap-4">
                       <div class="flex items-center gap-4">
                         <label class="text-sm font-medium text-gray-700 dark:text-gray-300 w-20">Endpoint</label>
-                        <input v-model="selectedProfile.source.minioEndpoint" @input="changed = true"
+                        <input v-model="selectedProfile.source.minioEndpoint" @input="markSelectedDirty()"
                           class="flex-1 px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-card border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
                           placeholder="localhost" />
                       </div>
                       <div class="flex items-center gap-4">
                         <label class="text-sm font-medium text-gray-700 dark:text-gray-300 w-20">Port</label>
-                        <input v-model.number="selectedProfile.source.minioPort" @input="changed = true" type="number"
+                        <input v-model.number="selectedProfile.source.minioPort" @input="markSelectedDirty()" type="number"
                           class="flex-1 px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-card border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                           placeholder="9000" />
                       </div>
                       <div class="flex items-center gap-4">
                         <label class="text-sm font-medium text-gray-700 dark:text-gray-300 w-20">Bucket</label>
-                        <input v-model="selectedProfile.source.minioBucket" @input="changed = true"
+                        <input v-model="selectedProfile.source.minioBucket" @input="markSelectedDirty()"
                           class="flex-1 px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-card border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
                           placeholder="update-source" />
                       </div>
                       <div class="flex items-center gap-4">
                         <label class="text-sm font-medium text-gray-700 dark:text-gray-300 w-20 flex items-center gap-1">
-                          <input type="checkbox" v-model="selectedProfile.source.minioUseSSL" @change="changed = true"
+                          <input type="checkbox" v-model="selectedProfile.source.minioUseSSL" @change="markSelectedDirty()"
                             class="rounded border-gray-300 dark:border-dark-border text-green-500 focus:ring-green-500" />
                           SSL
                         </label>
                       </div>
                       <div class="flex items-center gap-4">
                         <label class="text-sm font-medium text-gray-700 dark:text-gray-300 w-20">Access Key</label>
-                        <input v-model="selectedProfile.source.minioAccessKey" @input="changed = true"
+                        <input v-model="selectedProfile.source.minioAccessKey" @input="markSelectedDirty()"
                           class="flex-1 px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-card border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                           placeholder="minioadmin" />
                       </div>
                       <div class="flex items-center gap-4">
                         <label class="text-sm font-medium text-gray-700 dark:text-gray-300 w-20">Secret Key</label>
-                        <input v-model="selectedProfile.source.minioSecretKey" @input="changed = true" type="password"
+                        <input v-model="selectedProfile.source.minioSecretKey" @input="markSelectedDirty()" type="password"
                           class="flex-1 px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-card border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500"
                           placeholder="********" />
                       </div>
                     </div>
                     <div class="flex items-center gap-4">
                       <label class="text-sm font-medium text-gray-700 dark:text-gray-300 w-20">Base Path</label>
-                      <input v-model="selectedProfile.source.minioBasePath" @input="changed = true"
+                      <input v-model="selectedProfile.source.minioBasePath" @input="markSelectedDirty()"
                         class="flex-1 px-3 py-1.5 text-sm border rounded bg-white dark:bg-dark-card border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
                         placeholder="(optional prefix)" />
                     </div>
@@ -480,28 +484,39 @@
               </div>
             </div>
 
-            <!-- Error message -->
-            <p v-if="saveError" class="text-sm text-red-500">{{ saveError }}</p>
+            <!-- Per-profile save error -->
+            <p v-if="selectedProfile && selectedProfile._saveError" class="text-sm text-red-500">
+              {{ selectedProfile._saveError }}
+            </p>
           </div>
         </div>
 
         <!-- Footer -->
         <div class="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-dark-border">
           <div class="text-sm text-gray-500 dark:text-gray-400">
-            <span v-if="changed" class="text-amber-500">Unsaved changes</span>
+            <span v-if="hasUnsavedChanges" class="text-amber-500">
+              Unsaved changes in {{ profiles.filter(p => p._dirty).length }} profile(s)
+            </span>
           </div>
           <div class="flex gap-3">
-            <button @click="handleClose"
-              class="px-4 py-2 text-sm bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors">
-              Cancel
-            </button>
-            <button @click="handleSave" :disabled="!changed || saving"
-              class="flex items-center gap-2 px-4 py-2 text-sm bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <button
+              v-if="selectedProfile"
+              @click="saveProfile"
+              :disabled="!selectedProfile._dirty || saving"
+              class="flex items-center gap-2 px-4 py-2 text-sm bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :title="selectedProfile.profileId ? 'Update this profile' : 'Create this profile'">
               <svg v-if="saving" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Save
+              <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+              {{ selectedProfile.profileId ? 'Save Profile' : 'Create Profile' }}
+            </button>
+            <button @click="handleClose"
+              class="px-4 py-2 text-sm bg-gray-100 dark:bg-dark-border hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg transition-colors">
+              Close
             </button>
           </div>
         </div>
@@ -542,20 +557,26 @@ const emit = defineEmits(['update:modelValue', 'saved'])
 const modalRef = ref(null)
 const { isMaximized, modalStyle, startDrag, startResize, toggleMaximize, center: centerModal } = useResizableModal(modalRef, { defaultWidth: 1024, defaultHeight: 650 })
 
-const { showSuccess } = useToast()
+const { showSuccess, showError } = useToast()
 const hasClipboardProfile = ref(!!_clipboardProfile)
 const hasClipboardTask = ref(!!_clipboardTask)
 
 const loading = ref(false)
 const saving = ref(false)
-const changed = ref(false)
-const saveError = ref(null)
 const profiles = ref([])
 const selectedIndex = ref(0)
 const osVersionOptions = ref([])
 let keyCounter = 0
 
 const selectedProfile = computed(() => profiles.value[selectedIndex.value] || null)
+const hasUnsavedChanges = computed(() => profiles.value.some(p => p._dirty))
+
+function markDirty(profile) {
+  if (profile) profile._dirty = true
+}
+function markSelectedDirty() {
+  if (selectedProfile.value) selectedProfile.value._dirty = true
+}
 
 watch(() => props.modelValue, async (v) => {
   if (v) {
@@ -582,8 +603,6 @@ function mapSource(s) {
 
 async function loadData() {
   loading.value = true
-  changed.value = false
-  saveError.value = null
   try {
     const [settingsRes, osRes] = await Promise.all([
       updateSettingsApi.getSettings(props.agentGroup),
@@ -594,6 +613,8 @@ async function loadData() {
 
     profiles.value = (doc.profiles || []).map(p => ({
       _key: `k_${keyCounter++}`,
+      _dirty: false,
+      _saveError: null,
       profileId: p.profileId,
       name: p.name || '',
       osVer: p.osVer || '',
@@ -632,6 +653,8 @@ async function loadData() {
 function addProfile() {
   profiles.value.push({
     _key: `k_${keyCounter++}`,
+    _dirty: true,  // new profile starts dirty (needs Save to persist)
+    _saveError: null,
     profileId: null,
     name: '',
     osVer: '',
@@ -641,14 +664,33 @@ function addProfile() {
     source: makeDefaultSource()
   })
   selectedIndex.value = profiles.value.length - 1
-  changed.value = true
 }
 
-function deleteProfile() {
+async function deleteProfile() {
   if (selectedIndex.value < 0 || profiles.value.length === 0) return
-  profiles.value.splice(selectedIndex.value, 1)
-  selectedIndex.value = Math.min(selectedIndex.value, profiles.value.length - 1)
-  changed.value = true
+  const profile = profiles.value[selectedIndex.value]
+  if (!profile) return
+
+  // Unsaved (new) profile → just remove from local list.
+  if (!profile.profileId) {
+    profiles.value.splice(selectedIndex.value, 1)
+    selectedIndex.value = Math.min(selectedIndex.value, profiles.value.length - 1)
+    return
+  }
+
+  // Persisted profile → confirm + DELETE API call.
+  if (!window.confirm(`Delete profile "${profile.name}"? This cannot be undone.`)) return
+
+  try {
+    await updateSettingsApi.deleteProfile(props.agentGroup, profile.profileId)
+    profiles.value.splice(selectedIndex.value, 1)
+    selectedIndex.value = Math.min(selectedIndex.value, profiles.value.length - 1)
+    showSuccess(`Profile "${profile.name}" deleted`)
+    emit('saved')
+  } catch (err) {
+    profile._saveError = err.response?.data?.message || err.message || 'Delete failed'
+    showError(`Delete failed: ${profile._saveError}`)
+  }
 }
 
 function copyProfile() {
@@ -664,7 +706,6 @@ function pasteProfile() {
   const getNextKey = () => `k_${keyCounter++}`
   profiles.value.push(createProfileFromSnapshot(_clipboardProfile, existingNames, getNextKey))
   selectedIndex.value = profiles.value.length - 1
-  changed.value = true
 }
 
 function copyTask(index) {
@@ -681,7 +722,7 @@ function pasteTask() {
   const existingNames = selectedProfile.value.tasks.map(t => t.name)
   const getNextKey = () => `k_${keyCounter++}`
   selectedProfile.value.tasks.push(createTaskFromSnapshot(_clipboardTask, existingNames, getNextKey))
-  changed.value = true
+  markSelectedDirty()
 }
 
 function addTask() {
@@ -703,15 +744,15 @@ function addTask() {
     _targetPathError: null,
     _commandLineError: null
   })
-  changed.value = true
+  markSelectedDirty()
 }
 
 function onTaskTypeChange(task) {
-  changed.value = true
+  markSelectedDirty()
 }
 
 function onArgsInput(task) {
-  changed.value = true
+  markSelectedDirty()
 }
 
 function onSourceTypeChange() {
@@ -720,13 +761,13 @@ function onSourceTypeChange() {
   // Apply defaults for the new type (preserves type, fills missing fields)
   selectedProfile.value.source = { type, ...SOURCE_DEFAULTS[type] }
   testResult.value = null
-  changed.value = true
+  markSelectedDirty()
 }
 
 function removeTask(index) {
   if (!selectedProfile.value) return
   selectedProfile.value.tasks.splice(index, 1)
-  changed.value = true
+  markSelectedDirty()
 }
 
 function moveTask(index, direction) {
@@ -743,82 +784,111 @@ function moveTask(index, direction) {
   if (newIndex < 0 || newIndex >= tasks.length || newIndex === index) return
   const [task] = tasks.splice(index, 1)
   tasks.splice(newIndex, 0, task)
-  changed.value = true
+  markSelectedDirty()
 }
 
-function validate() {
+/**
+ * Validate a single profile. Sets inline errors. Returns true if valid.
+ */
+function validateProfile(profile) {
+  if (!profile) return false
   let valid = true
-  for (const profile of profiles.value) {
-    profile._nameError = null
-    if (!profile.name || !profile.name.trim()) {
-      profile._nameError = 'Required'
+  profile._nameError = null
+  if (!profile.name || !profile.name.trim()) {
+    profile._nameError = 'Required'
+    valid = false
+  }
+  for (const task of profile.tasks) {
+    task._nameError = null
+    task._sourcePathError = null
+    task._targetPathError = null
+    task._commandLineError = null
+    if (!task.name || !task.name.trim()) {
+      task._nameError = 'Required'
       valid = false
     }
-    for (const task of profile.tasks) {
-      task._nameError = null
-      task._sourcePathError = null
-      task._targetPathError = null
-      task._commandLineError = null
-      if (!task.name || !task.name.trim()) {
-        task._nameError = 'Required'
+    if (task.type === 'copy') {
+      if (!task.sourcePath || !task.sourcePath.trim()) {
+        task._sourcePathError = 'Required'
         valid = false
       }
-      if (task.type === 'copy') {
-        if (!task.sourcePath || !task.sourcePath.trim()) {
-          task._sourcePathError = 'Required'
-          valid = false
-        }
-        if (!task.targetPath || !task.targetPath.trim()) {
-          task._targetPathError = 'Required'
-          valid = false
-        }
-      } else if (task.type === 'exec') {
-        if (!task.commandLine || !task.commandLine.trim()) {
-          task._commandLineError = 'Required'
-          valid = false
-        }
+      if (!task.targetPath || !task.targetPath.trim()) {
+        task._targetPathError = 'Required'
+        valid = false
+      }
+    } else if (task.type === 'exec') {
+      if (!task.commandLine || !task.commandLine.trim()) {
+        task._commandLineError = 'Required'
+        valid = false
       }
     }
   }
   return valid
 }
 
-async function handleSave() {
-  if (!validate()) return
+function buildProfilePayload(profile) {
+  return {
+    profileId: profile.profileId,
+    name: profile.name.trim(),
+    osVer: (profile.osVer || '').trim(),
+    version: (profile.version || '').trim(),
+    tasks: profile.tasks.map(task => {
+      const base = {
+        taskId: task.taskId,
+        type: task.type || 'copy',
+        name: task.name.trim(),
+        description: (task.description || '').trim(),
+        stopOnFail: !!task.stopOnFail
+      }
+      if (task.type === 'exec') {
+        base.commandLine = (task.commandLine || '').trim()
+        const argsStr = (task._argsText || '').trim()
+        if (argsStr) base.args = argsStr.split(/\s+/)
+        base.timeout = (task.timeout || 30) * 1000
+      } else {
+        base.sourcePath = (task.sourcePath || '').trim()
+        base.targetPath = (task.targetPath || '').trim()
+      }
+      return base
+    }),
+    source: { ...profile.source }
+  }
+}
+
+/**
+ * Save the currently selected profile.
+ * New profile (profileId=null) → POST. Existing → PUT.
+ */
+async function saveProfile() {
+  const profile = selectedProfile.value
+  if (!profile) return
+  if (!validateProfile(profile)) return
+
   saving.value = true
-  saveError.value = null
+  profile._saveError = null
   try {
-    const payload = profiles.value.map(p => ({
-      profileId: p.profileId,
-      name: p.name.trim(),
-      osVer: (p.osVer || '').trim(),
-      version: (p.version || '').trim(),
-      tasks: p.tasks.map(task => {
-        const base = {
-          taskId: task.taskId,
-          type: task.type || 'copy',
-          name: task.name.trim(),
-          description: (task.description || '').trim(),
-          stopOnFail: !!task.stopOnFail
-        }
-        if (task.type === 'exec') {
-          base.commandLine = (task.commandLine || '').trim()
-          const argsStr = (task._argsText || '').trim()
-          if (argsStr) base.args = argsStr.split(/\s+/)
-          base.timeout = (task.timeout || 30) * 1000 // sec → ms
-        } else {
-          base.sourcePath = (task.sourcePath || '').trim()
-          base.targetPath = (task.targetPath || '').trim()
-        }
-        return base
-      }),
-      source: { ...p.source }
-    }))
-    await updateSettingsApi.saveSettings(props.agentGroup, payload)
-    changed.value = false
+    const payload = buildProfilePayload(profile)
+    let saved
+    if (!profile.profileId) {
+      const res = await updateSettingsApi.createProfile(props.agentGroup, payload)
+      saved = res.data
+    } else {
+      const res = await updateSettingsApi.updateProfile(props.agentGroup, profile.profileId, payload)
+      saved = res.data
+    }
+    // Update local state with server-authoritative fields (profileId, taskIds).
+    profile.profileId = saved.profileId
+    profile._dirty = false
+    if (saved.tasks) {
+      saved.tasks.forEach((serverTask, i) => {
+        if (profile.tasks[i]) profile.tasks[i].taskId = serverTask.taskId
+      })
+    }
+    showSuccess(`Profile "${profile.name}" saved`)
     emit('saved')
   } catch (error) {
-    saveError.value = error.response?.data?.message || error.message || 'Failed to save'
+    profile._saveError = error.response?.data?.message || error.message || 'Failed to save'
+    showError(profile._saveError)
   } finally {
     saving.value = false
   }
@@ -892,7 +962,7 @@ function selectBrowseItem(item, taskIndex) {
     if (task) {
       task.sourcePath = fullPath
       if (!task.targetPath) task.targetPath = fullPath
-      changed.value = true
+      markSelectedDirty()
     }
     browsingTaskIndex.value = -1
   }
@@ -903,12 +973,16 @@ function selectCurrentFolder(taskIndex) {
   if (task) {
     task.sourcePath = browsePath.value
     if (!task.targetPath) task.targetPath = browsePath.value
-    changed.value = true
+    markSelectedDirty()
   }
   browsingTaskIndex.value = -1
 }
 
 function handleClose() {
+  if (hasUnsavedChanges.value) {
+    const dirtyCount = profiles.value.filter(p => p._dirty).length
+    if (!window.confirm(`${dirtyCount} profile(s) have unsaved changes. Close anyway?`)) return
+  }
   centerModal()
   emit('update:modelValue', false)
 }

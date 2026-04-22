@@ -1,6 +1,7 @@
 /**
  * Update Settings Model
- * UPDATE_SETTINGS - Manages software update settings per agentGroup
+ * UPDATE_SETTINGS - 1 document = 1 profile.
+ * Composite primary key: (agentGroup, profileId).
  *
  * Database: WEBMANAGER (WebManager-specific)
  */
@@ -21,19 +22,13 @@ const taskSchema = new Schema({
   timeout: { type: Number, default: 30000 }
 }, { _id: false })
 
-const profileSchema = new Schema({
-  profileId: { type: String, required: true },
+const updateProfileSchema = new Schema({
+  agentGroup: { type: String, required: true, trim: true },
+  profileId: { type: String, required: true, trim: true },
   name: { type: String, required: true, trim: true },
   osVer: { type: String, default: '', trim: true },
   version: { type: String, default: '', trim: true },
-  tasks: [taskSchema],
-  source: { type: Schema.Types.Mixed, default: () => ({ type: 'local' }) }
-}, { _id: false })
-
-const updateSettingsSchema = new Schema({
-  agentGroup: { type: String, required: true, unique: true, trim: true },
-  profiles: [profileSchema],
-  packages: { type: [Schema.Types.Mixed], default: undefined },
+  tasks: { type: [taskSchema], default: [] },
   source: { type: Schema.Types.Mixed, default: () => ({ type: 'local' }) },
   updatedBy: { type: String, default: 'system' }
 }, {
@@ -41,4 +36,9 @@ const updateSettingsSchema = new Schema({
   timestamps: true
 })
 
-module.exports = webManagerConnection.model('UpdateSettings', updateSettingsSchema)
+// Compound index supports { agentGroup } queries via leftmost-prefix matching,
+// so no separate { agentGroup: 1 } index is needed.
+updateProfileSchema.index({ agentGroup: 1, profileId: 1 }, { unique: true })
+
+module.exports = webManagerConnection.model('UpdateSettings', updateProfileSchema)
+module.exports.taskSchema = taskSchema

@@ -575,58 +575,80 @@ Log Viewer에서 FTP로 조회할 로그 디렉토리와 파일명 필터를 관
 
 ## UPDATE_SETTINGS (소프트웨어 업데이트 설정)
 
-agentGroup별 소프트웨어 업데이트 **프로필**을 저장하는 컬렉션.
-각 프로필은 독립된 name/osVer/version/tasks/source를 가지며, OS별·버전별 다중 배포 구성을 지원합니다.
+**1 document = 1 profile.** 복합키 `(agentGroup, profileId)`로 식별되는 per-profile 문서. OS별·버전별 다중 배포 구성을 지원합니다.
 
 ### Fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | agentGroup | String | Required (PK) | Agent 그룹 식별자 (예: `ars_agent`, `resource_agent`) |
-| profiles | Array | Optional | 배포 프로필 목록 |
-| profiles[].profileId | String | Required | 프로필 ID (자동 생성: `prof_` 접두어) |
-| profiles[].name | String | Required | 프로필 표시명 (예: `Windows v2.0`) |
-| profiles[].osVer | String | Optional | 대상 OS 버전 (OS_VERSION_LIST 값). 빈 문자열 = "모든 OS" |
-| profiles[].version | String | Optional | 배포 버전 (free text, 예: `2.0.0`) |
-| profiles[].tasks | Array | Optional | 배포 태스크 목록 |
-| profiles[].tasks[].taskId | String | Required | 태스크 ID (자동 생성: `task_` 접두어) |
-| profiles[].tasks[].type | String | Optional | `copy` (파일 업로드) 또는 `exec` (원격 명령). 기본: `copy` |
-| profiles[].tasks[].name | String | Required | 태스크 표시명 (예: `Agent Binary`) |
-| profiles[].tasks[].stopOnFail | Boolean | Optional | `true`: 실패 시 해당 eqpId의 후속 태스크 스킵. 기본: `false` |
-| profiles[].tasks[].sourcePath | String | Optional | copy용: 소스 경로 (trailing `/` = directory) |
-| profiles[].tasks[].targetPath | String | Optional | copy용: basePath 기준 상대경로 (예: `bin/agent.jar`) |
-| profiles[].tasks[].commandLine | String | Optional | exec용: 실행 명령어 (예: `net`, `./bin/install.bat`) |
-| profiles[].tasks[].args | [String] | Optional | exec용: 명령어 인수 배열 (예: `["stop", "svc"]`) |
-| profiles[].tasks[].timeout | Number | Optional | exec용: 실행 타임아웃(ms). 기본: 30000 |
-| profiles[].tasks[].description | String | Optional | 태스크 설명 |
-| profiles[].source | Object | Optional | 프로필별 업데이트 소스 설정 |
-| profiles[].source.type | String | Optional | 소스 타입: `local`, `ftp`, 또는 `minio`. 기본: `local` |
-| profiles[].source.localPath | String | Optional | 로컬 경로 (type=local 시) |
-| profiles[].source.ftpHost | String | Optional | 외부 FTP 호스트 (type=ftp 시) |
-| profiles[].source.ftpPort | Number | Optional | 외부 FTP 포트. 기본: 21 |
-| profiles[].source.ftpUser | String | Optional | 외부 FTP 사용자 |
-| profiles[].source.ftpPass | String | Optional | 외부 FTP 비밀번호 |
-| profiles[].source.ftpBasePath | String | Optional | 외부 FTP 기본 경로 |
-| profiles[].source.minioEndpoint | String | Optional | MinIO 호스트 (type=minio 시) |
-| profiles[].source.minioPort | Number | Optional | MinIO 포트. 기본: 9000 |
-| profiles[].source.minioBucket | String | Optional | MinIO 버킷명 |
-| profiles[].source.minioAccessKey | String | Optional | MinIO Access Key |
-| profiles[].source.minioSecretKey | String | Optional | MinIO Secret Key |
-| profiles[].source.minioUseSSL | Boolean | Optional | SSL 사용 여부. 기본: false |
-| profiles[].source.minioBasePath | String | Optional | 오브젝트 prefix (선택) |
+| profileId | String | Required (PK) | 프로필 ID (자동 생성: `prof_` 접두어) |
+| name | String | Required | 프로필 표시명 (예: `Windows v2.0`) |
+| osVer | String | Optional | 대상 OS 버전 (OS_VERSION_LIST 값). 빈 문자열 = "모든 OS" |
+| version | String | Optional | 배포 버전 (free text, 예: `2.0.0`) |
+| tasks | Array | Optional | 배포 태스크 목록 |
+| tasks[].taskId | String | Required | 태스크 ID (자동 생성: `task_` 접두어) |
+| tasks[].type | String | Optional | `copy` (파일 업로드) 또는 `exec` (원격 명령). 기본: `copy` |
+| tasks[].name | String | Required | 태스크 표시명 (예: `Agent Binary`) |
+| tasks[].stopOnFail | Boolean | Optional | `true`: 실패 시 해당 eqpId의 후속 태스크 스킵. 기본: `false` |
+| tasks[].sourcePath | String | Optional | copy용: 소스 경로 (trailing `/` = directory) |
+| tasks[].targetPath | String | Optional | copy용: basePath 기준 상대경로 (예: `bin/agent.jar`) |
+| tasks[].commandLine | String | Optional | exec용: 실행 명령어 (예: `net`, `./bin/install.bat`) |
+| tasks[].args | [String] | Optional | exec용: 명령어 인수 배열 (예: `["stop", "svc"]`) |
+| tasks[].timeout | Number | Optional | exec용: 실행 타임아웃(ms). 기본: 30000 |
+| tasks[].description | String | Optional | 태스크 설명 |
+| source | Object | Optional | 업데이트 소스 설정 |
+| source.type | String | Optional | 소스 타입: `local`, `ftp`, 또는 `minio`. 기본: `local` |
+| source.localPath | String | Optional | 로컬 경로 (type=local 시) |
+| source.ftpHost | String | Optional | 외부 FTP 호스트 (type=ftp 시) |
+| source.ftpPort | Number | Optional | 외부 FTP 포트. 기본: 21 |
+| source.ftpUser | String | Optional | 외부 FTP 사용자 |
+| source.ftpPass | String | Optional | 외부 FTP 비밀번호 |
+| source.ftpBasePath | String | Optional | 외부 FTP 기본 경로 |
+| source.minioEndpoint | String | Optional | MinIO 호스트 (type=minio 시) |
+| source.minioPort | Number | Optional | MinIO 포트. 기본: 9000 |
+| source.minioBucket | String | Optional | MinIO 버킷명 |
+| source.minioAccessKey | String | Optional | MinIO Access Key |
+| source.minioSecretKey | String | Optional | MinIO Secret Key |
+| source.minioUseSSL | Boolean | Optional | SSL 사용 여부. 기본: false |
+| source.minioBasePath | String | Optional | 오브젝트 prefix (선택) |
 | updatedBy | String | Optional | 수정자 (기본: `system`) |
 | createdAt | Date | Auto | 생성일 |
 | updatedAt | Date | Auto | 수정일 |
 
 ### Indexes
 
-- `{ agentGroup: 1 }` (unique)
+- `{ agentGroup: 1, profileId: 1 }` (unique 복합)
+- `{ agentGroup: 1 }` (프로필 목록 조회용)
+
+### API (per-profile REST)
+
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| GET    | `/api/clients/update-settings/:agentGroup`                     | 프로필 목록 조회 — `{ agentGroup, profiles: [...] }` |
+| POST   | `/api/clients/update-settings/:agentGroup/profiles`            | 프로필 생성 (201 + 생성된 profile 반환) |
+| PUT    | `/api/clients/update-settings/:agentGroup/profiles/:profileId` | 프로필 전체 교체 |
+| DELETE | `/api/clients/update-settings/:agentGroup/profiles/:profileId` | 프로필 삭제 (204) |
+
+전체 배열 PUT은 **없음** — 서로 다른 profile을 동시 편집해도 last-write-wins로 소실되지 않습니다.
 
 ### 마이그레이션
 
-서버 시작 시 `initializeUpdateSettings()`가 레거시 문서를 자동 감지하여 변환합니다:
-- Migration A: flat `packages[]` + `source` → `profiles: [{ ..., tasks: [] }]` (기존 `packages`, `source` 필드 `$unset`)
-- Migration B: `profiles[].packages[]` → `profiles[].tasks[]` (packageId→taskId, type=copy 기본)
+구 스키마(`agentGroup`당 1 doc + `profiles[]` 배열)에서 신 스키마로의 전환은 **일회성 스크립트**로 수행합니다:
+
+```bash
+cd server
+npm run migrate:update-settings -- --dry-run   # 변환 결과 미리보기
+npm run migrate:update-settings -- --yes       # 실제 적용
+```
+
+스크립트는 `profiles` 필드를 가진 문서를 찾아 `(agentGroup, profileId)` 단일 문서 N개로 flatten하고, 신 문서 count 검증 후에만 구 문서를 삭제합니다. 구 `agentGroup_1` unique 인덱스도 자동으로 drop합니다. 재실행 안전 (idempotent).
+
+**부팅 가드**: 마이그레이션 미수행 시 서버가 즉시 실패합니다 — `UPDATE_SETTINGS contains N legacy documents. Run: npm run migrate:update-settings`. 조용한 데이터 손실 대신 시끄러운 실패를 선호합니다.
+
+📖 **운영자용 전체 runbook**: [UPDATE_SETTINGS_SCHEMA_MIGRATION.md](./UPDATE_SETTINGS_SCHEMA_MIGRATION.md) (사전 요구사항·검증·롤백·트러블슈팅·롤아웃 후 정리 포함)
+
+모든 환경 전환 완료 후 스크립트·부팅 가드·이 문서는 후속 PR로 제거 예정입니다.
 
 ### 배포 실행 모델
 
@@ -652,35 +674,36 @@ for each eqpId (병렬):
 
 - osVer가 비어있는 프로필은 "모든 OS"로 간주하여 항상 표시
 
-### Sample Data
+### Sample Data (2 documents for same agentGroup)
 
 ```javascript
+// Document 1
 {
   agentGroup: "ars_agent",
-  profiles: [
-    {
-      profileId: "prof_a1b2c3d4",
-      name: "Windows v2.0",
-      osVer: "Windows",
-      version: "2.0.0",
-      tasks: [
-        { taskId: "task_1", type: "exec", name: "Stop Service", commandLine: "net", args: ["stop", "ARSAgent"], timeout: 30000, stopOnFail: true },
-        { taskId: "task_2", type: "copy", name: "Agent Binary", sourcePath: "bin/agent.jar", targetPath: "bin/agent.jar" },
-        { taskId: "task_3", type: "exec", name: "Start Service", commandLine: "net", args: ["start", "ARSAgent"], timeout: 30000 }
-      ],
-      source: { type: "local", localPath: "/opt/releases/ars-agent/win-2.0" }
-    },
-    {
-      profileId: "prof_e5f6g7h8",
-      name: "Linux v2.0",
-      osVer: "Redhat",
-      version: "2.0.0",
-      tasks: [
-        { taskId: "task_1", type: "copy", name: "Agent Binary", sourcePath: "bin/agent.jar", targetPath: "bin/agent.jar" }
-      ],
-      source: { type: "ftp", ftpHost: "release-server", ftpBasePath: "/releases/linux" }
-    }
+  profileId: "prof_a1b2c3d4",
+  name: "Windows v2.0",
+  osVer: "Windows",
+  version: "2.0.0",
+  tasks: [
+    { taskId: "task_1", type: "exec", name: "Stop Service", commandLine: "net", args: ["stop", "ARSAgent"], timeout: 30000, stopOnFail: true },
+    { taskId: "task_2", type: "copy", name: "Agent Binary", sourcePath: "bin/agent.jar", targetPath: "bin/agent.jar" },
+    { taskId: "task_3", type: "exec", name: "Start Service", commandLine: "net", args: ["start", "ARSAgent"], timeout: 30000 }
   ],
+  source: { type: "local", localPath: "/opt/releases/ars-agent/win-2.0" },
+  updatedBy: "admin"
+}
+
+// Document 2
+{
+  agentGroup: "ars_agent",
+  profileId: "prof_e5f6g7h8",
+  name: "Linux v2.0",
+  osVer: "Redhat",
+  version: "2.0.0",
+  tasks: [
+    { taskId: "task_1", type: "copy", name: "Agent Binary", sourcePath: "bin/agent.jar", targetPath: "bin/agent.jar" }
+  ],
+  source: { type: "ftp", ftpHost: "release-server", ftpBasePath: "/releases/linux" },
   updatedBy: "admin"
 }
 ```

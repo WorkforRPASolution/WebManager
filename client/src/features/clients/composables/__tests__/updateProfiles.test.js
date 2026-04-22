@@ -230,6 +230,12 @@ describe('createProfileFromSnapshot', () => {
     expect(p._nameError).toBeNull()
   })
 
+  it('G3a: starts dirty so user must click Save Profile to POST', () => {
+    const p = createProfileFromSnapshot(profSnap, [], getKey)
+    expect(p._dirty).toBe(true)
+    expect(p._saveError).toBeNull()
+  })
+
   it('G4: source 독립 복사', () => {
     const p = createProfileFromSnapshot(profSnap, [], getKey)
     profSnap.source.ftpHost = 'changed'
