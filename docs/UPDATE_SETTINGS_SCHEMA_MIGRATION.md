@@ -3,6 +3,17 @@
 > **일회성 운영 작업**. 환경별로 한 번 실행 후 스크립트와 부팅 가드는 후속 PR에서 제거됩니다.
 > 이 문서는 dev → staging → prod 롤아웃 시 운영자가 참조하는 runbook입니다.
 
+## 마이그레이션 단계 요약
+
+이 컬렉션은 **2단계 마이그레이션**으로 구성됩니다. 순서대로 실행해야 합니다.
+
+| 단계 | 스크립트 | 목적 |
+|------|---------|------|
+| 1 | `migrate:update-settings` | 레거시 `profiles[]` nesting → per-profile document 변환 |
+| 2 | `migrate:update-settings-unique` | `(agentGroup, profileId)` 허수 unique → `(agentGroup, name, osVer, version)` 진짜 unique 교체 |
+
+단계 2는 단계 1이 완료된 환경에서만 실행합니다. 두 단계 모두 idempotent하므로 중간 실패 후 재실행 안전합니다.
+
 ---
 
 ## 배경
@@ -247,6 +258,90 @@ db.UPDATE_SETTINGS.dropIndex("agentGroup_1")
 
 ---
 
+## 단계 2 — Unique index 강화 (`migrate:update-settings-unique`)
+
+### 배경
+
+단계 1 후 unique index는 `(agentGroup, profileId)`지만, `profileId`는 시스템이 발급하는 UUID이기 때문에 이 조합은 **절대 충돌할 수 없는 허수 unique** — DB 제약이 실질적으로 아무것도 방어하지 않습니다.
+
+사용자가 UpdateModal dropdown에서 profile을 고를 때 보는 식별자는 `{name} ({osVer||'All OS'}) v{version}`입니다. 이 화면 문자열이 **완전히 동일한 두 profile이 DB에 공존할 수 있어** 잘못된 배포 위험이 있습니다.
+
+단계 2는 unique를 `(agentGroup, name, osVer, version)`으로 교체해 화면 문자열 유일성을 DB 레벨로 끌어올립니다. `profileId`는 REST URL과 audit documentId 식별자로 유지되며 non-unique lookup index로 재생성됩니다.
+
+### 2-1. Dry-run으로 중복 사전 점검
+
+```bash
+cd server
+npm run migrate:update-settings-unique -- --dry-run
+```
+
+출력 시나리오:
+
+- `✓ New unique index already present — nothing to do.` → 이미 완료 상태, 할 일 없음
+- `Duplicate ... groups: 0` + `✓ No duplicates. Apply mode would swap the index.` → 안전, 다음 단계 진행
+- `⚠ Duplicates block the new unique index:` → **수동 정리 필요** (아래 2-2 참조)
+
+### 2-2. 중복이 발견된 경우 수동 정리
+
+출력에 나열된 그룹 각각에 대해:
+
+```
+agentGroup=ars_agent  name="Win v2.0"  osVer="Windows 11"  version="2.0"  count=2
+  [0] profileId=prof_a1b2  updatedAt=2026-03-01T...
+  [1] profileId=prof_c3d4  updatedAt=2026-04-10T...
+```
+
+가장 최신 `updatedAt`을 기준으로 유지할 profile을 결정하고, 나머지는 MongoDB Compass 또는 mongosh로 직접 삭제하거나 Web UI에서 이름을 변경합니다.
+
+```javascript
+db.UPDATE_SETTINGS.deleteOne({ _id: ObjectId("...") })  // 중복 profileId의 _id
+```
+
+정리 후 dry-run을 재실행해 0 확인 후 apply 진행.
+
+### 2-3. 실제 적용
+
+```bash
+npm run migrate:update-settings-unique -- --yes
+```
+
+성공 시 출력:
+```
+=== Result ===
+  Legacy index dropped:      true
+  New unique index created:  true
+  ✓ Unique index swap complete.
+```
+
+### 2-4. 검증
+
+MongoDB Compass 또는 mongosh:
+
+```javascript
+db.UPDATE_SETTINGS.getIndexes()
+// 기대 결과:
+// [
+//   { name: "_id_", key: { _id: 1 } },
+//   { name: "agentGroup_name_osVer_version_unique",
+//     key: { agentGroup: 1, name: 1, osVer: 1, version: 1 }, unique: true },
+//   { name: "agentGroup_1_profileId_1", key: { agentGroup: 1, profileId: 1 } }
+// ]
+```
+
+부팅 가드가 신 unique index 부재 시 즉시 throw하므로, 서버가 정상 기동하면 단계 2도 성공적으로 적용된 것입니다.
+
+### 2-5. 문제 해결
+
+**부팅 실패: "UPDATE_SETTINGS unique index migration required"**
+
+→ 단계 2 미실행. `npm run migrate:update-settings-unique -- --yes` 실행 후 재기동.
+
+**apply 시 E11000 duplicate key**
+
+→ dry-run을 건너뛰고 apply를 돌려서 중복이 걸린 케이스. 스크립트는 실패 후 상태를 남기지 않으므로, dry-run으로 중복 확인 후 재시도.
+
+---
+
 ## 롤백
 
 ### 코드만 롤백 (DB는 신 shape 유지)
@@ -269,8 +364,13 @@ db.UPDATE_SETTINGS.dropIndex("agentGroup_1")
 1. 후속 PR에서 다음 파일들 삭제/제거:
    - `server/scripts/migrate-update-settings.js`
    - `server/scripts/migrate-update-settings.test.js`
-   - `server/package.json`의 `migrate:update-settings` 스크립트 항목
-   - `server/features/clients/updateSettingsService.js`의 부팅 가드 5줄 (`countDocuments({profiles: {$exists: true}})` 블록)
+   - `server/scripts/tighten-update-settings-unique.js`
+   - `server/scripts/tighten-update-settings-unique.test.js`
+   - `server/scripts/scan-update-settings-duplicates.js`
+   - `server/scripts/lib/scanUpdateSettingsDuplicates.js`
+   - `server/scripts/lib/scanUpdateSettingsDuplicates.test.js`
+   - `server/package.json`의 `migrate:update-settings` / `migrate:update-settings-unique` 스크립트 항목
+   - `server/features/clients/updateSettingsService.js`의 부팅 가드 2개 블록 (legacy shape + new unique index 체크)
    - `docs/UPDATE_SETTINGS_SCHEMA_MIGRATION.md` (이 문서)
 2. `docs/SCHEMA.md` UPDATE_SETTINGS 섹션에서 "마이그레이션" 소단락 제거 또는 historical note로 축약
 3. `docs/DEPLOYMENT.md` 업그레이드 섹션의 포인터 제거
@@ -281,8 +381,12 @@ db.UPDATE_SETTINGS.dropIndex("agentGroup_1")
 
 | 파일 | 역할 |
 |------|------|
-| `server/scripts/migrate-update-settings.js` | CLI 마이그레이션 스크립트 (일회성) |
-| `server/scripts/migrate-update-settings.test.js` | 마이그레이션 로직 단위 테스트 (idempotent + dropIndex 검증) |
+| `server/scripts/migrate-update-settings.js` | 단계 1: 레거시 `profiles[]` → per-profile 변환 (일회성) |
+| `server/scripts/migrate-update-settings.test.js` | 단계 1 단위 테스트 (idempotent + dropIndex 검증) |
+| `server/scripts/tighten-update-settings-unique.js` | 단계 2: unique index 강화 스크립트 (일회성) |
+| `server/scripts/tighten-update-settings-unique.test.js` | 단계 2 단위 테스트 (중복 차단 + idempotent + index swap) |
+| `server/scripts/scan-update-settings-duplicates.js` | 중복 사전 점검 (read-only) |
+| `server/scripts/lib/scanUpdateSettingsDuplicates.js` | 중복 aggregate 공용 모듈 |
 | `server/features/clients/updateSettingsModel.js` | 신 스키마 (per-profile document) |
 | `server/features/clients/updateSettingsService.js` | 부팅 가드 + per-profile CRUD |
 | `server/features/clients/updateController.js` | 4개 REST 엔드포인트 |

@@ -437,6 +437,10 @@ cd server && npm run reset:buckets -- --keep-logs  # batch 로그 유지
   - Audit 로그가 `create`/`update`/`delete` 액션으로 profile 단위 분리 기록 (`documentId: {agentGroup}:{profileId}`)
   - 일회성 마이그레이션 스크립트 + 부팅 가드 (상세: `docs/UPDATE_SETTINGS_SCHEMA_MIGRATION.md`)
   - UpdateSettingsModal.vue 액션 기반 재설계 (글로벌 Save → per-profile "Save Profile" / "Create Profile", NEW 뱃지, 미저장 profile 구분)
+- UPDATE_SETTINGS unique 강화 (`(agentGroup, profileId)` 허수 unique → `(agentGroup, name, osVer, version)` 진짜 unique)
+  - `profileId`는 UUID라 구 unique는 사실상 충돌 불가능 — 화면 문자열 `{name} ({osVer||'All OS'}) v{version}`의 DB 레벨 유일성 확보
+  - 서버 create/update에 409 Conflict 명시적 체크(`code: 'PROFILE_DUPLICATE'`) + UpdateSettingsModal inline 중복 validation (`hasProfileDuplicate` util)
+  - 2단계 마이그레이션 스크립트 + 부팅 가드 (상세: `docs/UPDATE_SETTINGS_SCHEMA_MIGRATION.md` 단계 2)
 
 ## Redis Key 구조 (Agent 상태)
 

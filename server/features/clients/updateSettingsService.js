@@ -12,6 +12,7 @@ const crypto = require('crypto')
 let UpdateSettings = require('./updateSettingsModel')
 const { createAuditLog, calculateChanges } = require('../../shared/models/webmanagerLogModel')
 const { createLogger } = require('../../shared/logger')
+const { ApiError } = require('../../shared/middleware/errorHandler')
 const log = createLogger('clients')
 
 /** @internal Replace model for testing */
@@ -75,7 +76,7 @@ function cleanProfile(profile) {
 }
 
 async function initializeUpdateSettings() {
-  // Boot guard: abort if any legacy (profiles[]) documents remain.
+  // Boot guard 1: abort if any legacy (profiles[]) documents remain.
   // Must run BEFORE createIndexes() because the legacy schema's unique
   // { agentGroup: 1 } index conflicts with the new compound index.
   // Post-rollout, both this guard and scripts/migrate-update-settings.js will be removed.
@@ -89,6 +90,23 @@ async function initializeUpdateSettings() {
   }
 
   await UpdateSettings.createIndexes()
+
+  // Boot guard 2: require the user-identifier compound unique. The legacy
+  // (agentGroup, profileId) unique was a vacuous constraint because profileId
+  // is a fresh UUID. Post-rollout this guard and scripts/tighten-update-settings-unique.js
+  // will be removed.
+  const indexes = await UpdateSettings.collection.indexes()
+  const hasNewUnique = indexes.some(
+    idx => idx.name === 'agentGroup_name_osVer_version_unique' && idx.unique
+  )
+  if (!hasNewUnique) {
+    log.error(
+      'UPDATE_SETTINGS missing unique index on (agentGroup,name,osVer,version). ' +
+      'Run: npm run migrate:update-settings-unique'
+    )
+    throw new Error('UPDATE_SETTINGS unique index migration required')
+  }
+
   log.info('  + UPDATE_SETTINGS collection ready')
 }
 
@@ -100,8 +118,25 @@ async function getProfile(agentGroup, profileId) {
   return UpdateSettings.findOne({ agentGroup, profileId }).lean()
 }
 
+function duplicateError(cleaned) {
+  const err = ApiError.conflict(
+    `Profile already exists: name="${cleaned.name}" osVer="${cleaned.osVer}" version="${cleaned.version}"`
+  )
+  err.code = 'PROFILE_DUPLICATE'
+  return err
+}
+
 async function createProfile(agentGroup, data, updatedBy = 'system') {
   const cleaned = cleanProfile(data)
+
+  const clash = await UpdateSettings.findOne({
+    agentGroup,
+    name: cleaned.name,
+    osVer: cleaned.osVer,
+    version: cleaned.version
+  }).lean()
+  if (clash) throw duplicateError(cleaned)
+
   const doc = await UpdateSettings.create({
     agentGroup,
     ...cleaned,
@@ -126,6 +161,15 @@ async function updateProfile(agentGroup, profileId, data, updatedBy = 'system') 
 
   // profileId in payload is ignored — path param is authoritative.
   const cleaned = cleanProfile({ ...data, profileId })
+
+  const clash = await UpdateSettings.findOne({
+    agentGroup,
+    name: cleaned.name,
+    osVer: cleaned.osVer,
+    version: cleaned.version,
+    profileId: { $ne: profileId }
+  }).lean()
+  if (clash) throw duplicateError(cleaned)
 
   const result = await UpdateSettings.findOneAndUpdate(
     { agentGroup, profileId },

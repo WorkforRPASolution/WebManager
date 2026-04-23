@@ -575,7 +575,7 @@ Log Viewer에서 FTP로 조회할 로그 디렉토리와 파일명 필터를 관
 
 ## UPDATE_SETTINGS (소프트웨어 업데이트 설정)
 
-**1 document = 1 profile.** 복합키 `(agentGroup, profileId)`로 식별되는 per-profile 문서. OS별·버전별 다중 배포 구성을 지원합니다.
+**1 document = 1 profile.** 기술적 식별자는 `profileId`(UUID)지만, **사용자 식별자 유일성은 `(agentGroup, name, osVer, version)` compound unique**로 DB 레벨에서 보장합니다 — UpdateModal dropdown에 같은 문자열이 두 번 나오는 상황 원천 차단. OS별·버전별 다중 배포 구성을 지원합니다.
 
 ### Fields
 
@@ -618,8 +618,11 @@ Log Viewer에서 FTP로 조회할 로그 디렉토리와 파일명 필터를 관
 
 ### Indexes
 
-- `{ agentGroup: 1, profileId: 1 }` (unique 복합)
-- `{ agentGroup: 1 }` (프로필 목록 조회용)
+- `{ agentGroup: 1, name: 1, osVer: 1, version: 1 }` (**unique 복합 — 사용자 식별자**)
+- `{ agentGroup: 1, profileId: 1 }` (non-unique, REST URL·audit documentId lookup)
+- `{ agentGroup: 1 }` 단독 쿼리는 복합 index leftmost-prefix로 커버됨 (별도 선언 불필요)
+
+> `profileId`는 매번 UUID 기반으로 발급되므로 `(agentGroup, profileId)` 단독으로는 사실상 충돌 불가능한 허수 unique. 화면 문자열 `{name} ({osVer||'All OS'}) v{version}`의 유일성을 DB 레벨로 끌어올리기 위해 compound unique를 사용자 필드 조합으로 전환했습니다.
 
 ### API (per-profile REST)
 
@@ -634,17 +637,26 @@ Log Viewer에서 FTP로 조회할 로그 디렉토리와 파일명 필터를 관
 
 ### 마이그레이션
 
-구 스키마(`agentGroup`당 1 doc + `profiles[]` 배열)에서 신 스키마로의 전환은 **일회성 스크립트**로 수행합니다:
+**2단계 일회성 스크립트**로 수행합니다:
 
 ```bash
 cd server
-npm run migrate:update-settings -- --dry-run   # 변환 결과 미리보기
-npm run migrate:update-settings -- --yes       # 실제 적용
+# 단계 1: 레거시 profiles[] nesting → per-profile 변환
+npm run migrate:update-settings -- --dry-run
+npm run migrate:update-settings -- --yes
+
+# 단계 2: 허수 unique → 사용자 식별자 compound unique 교체
+npm run migrate:update-settings-unique -- --dry-run
+npm run migrate:update-settings-unique -- --yes
 ```
 
-스크립트는 `profiles` 필드를 가진 문서를 찾아 `(agentGroup, profileId)` 단일 문서 N개로 flatten하고, 신 문서 count 검증 후에만 구 문서를 삭제합니다. 구 `agentGroup_1` unique 인덱스도 자동으로 drop합니다. 재실행 안전 (idempotent).
+- 단계 1은 `profiles` 필드가 있는 문서를 flatten하고 구 `agentGroup_1` unique를 drop
+- 단계 2는 `(agentGroup, name, osVer, version)` 조합 중복 사전 점검 → 없을 때만 index swap. 중복 발견 시 운영자가 수동 정리 후 재실행
+- 두 단계 모두 재실행 안전 (idempotent)
 
-**부팅 가드**: 마이그레이션 미수행 시 서버가 즉시 실패합니다 — `UPDATE_SETTINGS contains N legacy documents. Run: npm run migrate:update-settings`. 조용한 데이터 손실 대신 시끄러운 실패를 선호합니다.
+**부팅 가드**: 미수행 시 서버가 즉시 실패합니다.
+- 단계 1 미수행: `UPDATE_SETTINGS contains N legacy documents. Run: npm run migrate:update-settings`
+- 단계 2 미수행: `UPDATE_SETTINGS missing unique index on (agentGroup,name,osVer,version). Run: npm run migrate:update-settings-unique`
 
 📖 **운영자용 전체 runbook**: [UPDATE_SETTINGS_SCHEMA_MIGRATION.md](./UPDATE_SETTINGS_SCHEMA_MIGRATION.md) (사전 요구사항·검증·롤백·트러블슈팅·롤아웃 후 정리 포함)
 

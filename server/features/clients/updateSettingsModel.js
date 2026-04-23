@@ -36,9 +36,15 @@ const updateProfileSchema = new Schema({
   timestamps: true
 })
 
-// Compound index supports { agentGroup } queries via leftmost-prefix matching,
-// so no separate { agentGroup: 1 } index is needed.
-updateProfileSchema.index({ agentGroup: 1, profileId: 1 }, { unique: true })
+// User-identifier unique: what the operator sees in the UpdateModal dropdown
+// (`{name} ({osVer||'All OS'}) v{version}`). Prevents two profiles from rendering
+// as identical lines. Leftmost-prefix covers { agentGroup } queries too.
+updateProfileSchema.index(
+  { agentGroup: 1, name: 1, osVer: 1, version: 1 },
+  { unique: true, name: 'agentGroup_name_osVer_version_unique' }
+)
+// Lookup index for REST URL / audit documentId (profileId is a stable UUID).
+updateProfileSchema.index({ agentGroup: 1, profileId: 1 })
 
 module.exports = webManagerConnection.model('UpdateSettings', updateProfileSchema)
 module.exports.taskSchema = taskSchema

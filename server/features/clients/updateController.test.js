@@ -149,6 +149,22 @@ describe('updateController', () => {
       await createProfile(req, mockRes())
       expect(mockCreateProfile).toHaveBeenCalledWith('ars', { name: 'P1' }, 'unknown')
     })
+
+    it('propagates 409 ApiError from service when duplicate', async () => {
+      const conflictErr = Object.assign(
+        new Error('Profile already exists: name="X" osVer="Win11" version="1.0"'),
+        { statusCode: 409, code: 'PROFILE_DUPLICATE' }
+      )
+      mockCreateProfile.mockRejectedValue(conflictErr)
+
+      const req = mockReq({
+        params: { agentGroup: 'ars' },
+        body: { name: 'X', osVer: 'Win11', version: '1.0' }
+      })
+      await expect(createProfile(req, mockRes())).rejects.toMatchObject({
+        statusCode: 409, code: 'PROFILE_DUPLICATE'
+      })
+    })
   })
 
   // -----------------------------------------------------------
@@ -182,6 +198,22 @@ describe('updateController', () => {
         body: { name: 'P', tasks: [{ name: 't', type: 'exec', commandLine: '' }] }
       })
       await expect(updateProfile(req, mockRes())).rejects.toThrow('Exec task requires commandLine')
+    })
+
+    it('propagates 409 ApiError from service when duplicate', async () => {
+      const conflictErr = Object.assign(
+        new Error('Profile already exists'),
+        { statusCode: 409, code: 'PROFILE_DUPLICATE' }
+      )
+      mockUpdateProfile.mockRejectedValue(conflictErr)
+
+      const req = mockReq({
+        params: { agentGroup: 'ars', profileId: 'p1' },
+        body: { name: 'X', osVer: 'Win11', version: '1.0' }
+      })
+      await expect(updateProfile(req, mockRes())).rejects.toMatchObject({
+        statusCode: 409, code: 'PROFILE_DUPLICATE'
+      })
     })
   })
 

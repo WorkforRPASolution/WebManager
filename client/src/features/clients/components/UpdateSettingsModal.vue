@@ -544,7 +544,7 @@ import { updateSettingsApi } from '../api'
 import { osVersionApi } from '../../equipment-info/api'
 import { useResizableModal } from '@/shared/composables/useResizableModal'
 import { useToast } from '@/shared/composables/useToast'
-import { createProfileSnapshot, createTaskSnapshot, createProfileFromSnapshot, createTaskFromSnapshot } from '../composables/updateProfileUtils'
+import { createProfileSnapshot, createTaskSnapshot, createProfileFromSnapshot, createTaskFromSnapshot, hasProfileDuplicate } from '../composables/updateProfileUtils'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -789,6 +789,8 @@ function moveTask(index, direction) {
 
 /**
  * Validate a single profile. Sets inline errors. Returns true if valid.
+ * Also enforces DB-level unique (agentGroup, name, osVer, version) locally:
+ * same (name, osVer, version) must not exist in another local profile.
  */
 function validateProfile(profile) {
   if (!profile) return false
@@ -796,6 +798,9 @@ function validateProfile(profile) {
   profile._nameError = null
   if (!profile.name || !profile.name.trim()) {
     profile._nameError = 'Required'
+    valid = false
+  } else if (hasProfileDuplicate(profile, profiles.value)) {
+    profile._nameError = 'Duplicates another profile (same name, OS, version)'
     valid = false
   }
   for (const task of profile.tasks) {
@@ -887,7 +892,12 @@ async function saveProfile() {
     showSuccess(`Profile "${profile.name}" saved`)
     emit('saved')
   } catch (error) {
-    profile._saveError = error.response?.data?.message || error.message || 'Failed to save'
+    const serverMsg = error.response?.data?.error || error.response?.data?.message
+    profile._saveError = serverMsg || error.message || 'Failed to save'
+    // Highlight the name field on 409 duplicate — that's the user-actionable field.
+    if (error.response?.status === 409) {
+      profile._nameError = 'Duplicates existing profile on server'
+    }
     showError(profile._saveError)
   } finally {
     saving.value = false

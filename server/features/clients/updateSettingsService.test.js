@@ -26,7 +26,10 @@ const mockModel = {
   findOne: vi.fn(),
   findOneAndUpdate: vi.fn(),
   findOneAndDelete: vi.fn(),
-  create: vi.fn()
+  create: vi.fn(),
+  collection: {
+    indexes: vi.fn()
+  }
 }
 
 _setModel(mockModel)
@@ -211,7 +214,11 @@ describe('getProfile', () => {
 // ─── createProfile ──────────────────────────────────────────────
 
 describe('createProfile', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Default: no duplicate present
+    mockModel.findOne.mockReturnValue(chainLean(null))
+  })
 
   it('creates profile with cleaned data and audit log', async () => {
     const created = {
@@ -250,6 +257,30 @@ describe('createProfile', () => {
     const call = mockModel.create.mock.calls[0][0]
     expect(call.updatedBy).toBe('system')
   })
+
+  it('throws 409 when (agentGroup,name,osVer,version) already exists', async () => {
+    mockModel.findOne.mockReturnValue(chainLean({
+      agentGroup: 'EQP', profileId: 'prof_existing', name: 'Dup', osVer: 'Win11', version: '1.0'
+    }))
+
+    await expect(
+      createProfile('EQP', { name: 'Dup', osVer: 'Win11', version: '1.0' }, 'admin')
+    ).rejects.toMatchObject({ statusCode: 409, code: 'PROFILE_DUPLICATE' })
+
+    expect(mockModel.create).not.toHaveBeenCalled()
+  })
+
+  it('checks duplicates by the correct (agentGroup,name,osVer,version) query', async () => {
+    mockModel.create.mockImplementation(async (data) => ({ ...data, toObject: () => data }))
+    await createProfile('EQP', { name: 'X', osVer: 'Win11', version: '1.0' }, 'admin')
+
+    expect(mockModel.findOne).toHaveBeenCalledWith({
+      agentGroup: 'EQP',
+      name: 'X',
+      osVer: 'Win11',
+      version: '1.0'
+    })
+  })
 })
 
 // ─── updateProfile ──────────────────────────────────────────────
@@ -261,7 +292,10 @@ describe('updateProfile', () => {
     const previous = { agentGroup: 'EQP', profileId: 'prof_1', name: 'Old', tasks: [] }
     const updated = { agentGroup: 'EQP', profileId: 'prof_1', name: 'New', tasks: [] }
 
-    mockModel.findOne.mockReturnValue(chainLean(previous))
+    // 1st findOne: load previous. 2nd findOne: duplicate check (null = no clash).
+    mockModel.findOne
+      .mockReturnValueOnce(chainLean(previous))
+      .mockReturnValueOnce(chainLean(null))
     mockModel.findOneAndUpdate.mockReturnValue(chainLean(updated))
 
     const result = await updateProfile('EQP', 'prof_1', { name: 'New' }, 'admin')
@@ -284,13 +318,51 @@ describe('updateProfile', () => {
   it('ignores profileId in payload — path param is authoritative', async () => {
     const previous = { agentGroup: 'EQP', profileId: 'prof_1', name: 'Old', tasks: [] }
     const updated = { agentGroup: 'EQP', profileId: 'prof_1', name: 'New', tasks: [] }
-    mockModel.findOne.mockReturnValue(chainLean(previous))
+    // First findOne: load previous. Second findOne: duplicate check returns null.
+    mockModel.findOne
+      .mockReturnValueOnce(chainLean(previous))
+      .mockReturnValueOnce(chainLean(null))
     mockModel.findOneAndUpdate.mockReturnValue(chainLean(updated))
 
     await updateProfile('EQP', 'prof_1', { profileId: 'prof_MALICIOUS', name: 'New' }, 'admin')
 
     const call = mockModel.findOneAndUpdate.mock.calls[0]
     expect(call[1].$set.profileId).toBe('prof_1')
+  })
+
+  it('throws 409 when another profile already uses (name,osVer,version)', async () => {
+    const previous = { agentGroup: 'EQP', profileId: 'prof_1', name: 'Old', tasks: [] }
+    const clash = { agentGroup: 'EQP', profileId: 'prof_other', name: 'Dup', osVer: 'Win11', version: '1.0' }
+    mockModel.findOne
+      .mockReturnValueOnce(chainLean(previous))
+      .mockReturnValueOnce(chainLean(clash))
+
+    await expect(
+      updateProfile('EQP', 'prof_1', { name: 'Dup', osVer: 'Win11', version: '1.0' }, 'admin')
+    ).rejects.toMatchObject({ statusCode: 409, code: 'PROFILE_DUPLICATE' })
+
+    expect(mockModel.findOneAndUpdate).not.toHaveBeenCalled()
+  })
+
+  it('allows self-update to same (name,osVer,version) — excludes own profileId', async () => {
+    const previous = { agentGroup: 'EQP', profileId: 'prof_1', name: 'Same', osVer: 'Win11', version: '1.0', tasks: [] }
+    const updated = { ...previous }
+    mockModel.findOne
+      .mockReturnValueOnce(chainLean(previous))
+      .mockReturnValueOnce(chainLean(null))  // no other profile matches
+    mockModel.findOneAndUpdate.mockReturnValue(chainLean(updated))
+
+    await updateProfile('EQP', 'prof_1', { name: 'Same', osVer: 'Win11', version: '1.0' }, 'admin')
+
+    // Duplicate check must exclude self
+    const dupCall = mockModel.findOne.mock.calls[1][0]
+    expect(dupCall).toEqual({
+      agentGroup: 'EQP',
+      name: 'Same',
+      osVer: 'Win11',
+      version: '1.0',
+      profileId: { $ne: 'prof_1' }
+    })
   })
 })
 
@@ -321,9 +393,12 @@ describe('deleteProfile', () => {
 describe('initializeUpdateSettings — boot guard', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('succeeds when no legacy documents exist', async () => {
+  it('succeeds when no legacy documents and new unique index is present', async () => {
     mockModel.createIndexes.mockResolvedValue()
     mockModel.countDocuments.mockResolvedValue(0)
+    mockModel.collection.indexes.mockResolvedValue([
+      { name: 'agentGroup_name_osVer_version_unique', unique: true }
+    ])
 
     await expect(initializeUpdateSettings()).resolves.toBeUndefined()
     expect(mockModel.countDocuments).toHaveBeenCalledWith({ profiles: { $exists: true } })
@@ -334,5 +409,17 @@ describe('initializeUpdateSettings — boot guard', () => {
     mockModel.countDocuments.mockResolvedValue(3)
 
     await expect(initializeUpdateSettings()).rejects.toThrow('UPDATE_SETTINGS migration required')
+  })
+
+  it('throws when new unique index is missing', async () => {
+    mockModel.createIndexes.mockResolvedValue()
+    mockModel.countDocuments.mockResolvedValue(0)
+    mockModel.collection.indexes.mockResolvedValue([
+      { name: 'agentGroup_1_profileId_1', unique: true }  // old index only
+    ])
+
+    await expect(initializeUpdateSettings()).rejects.toThrow(
+      'UPDATE_SETTINGS unique index migration required'
+    )
   })
 })

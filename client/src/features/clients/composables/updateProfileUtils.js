@@ -44,6 +44,26 @@ export function createTaskFromSnapshot(snapshot, existingNames, getNextKey) {
   }
 }
 
+/**
+ * Returns true if another profile in the list shares (name, osVer, version)
+ * with `profile`. Self-exclusion uses `_key` identity.
+ *
+ * Mirrors the server-side unique constraint on (agentGroup, name, osVer, version)
+ * so the UI catches the collision before a 409 round-trip.
+ */
+export function hasProfileDuplicate(profile, profiles) {
+  const myName = (profile.name || '').trim()
+  if (!myName) return false
+  const myOsVer = (profile.osVer || '').trim()
+  const myVersion = (profile.version || '').trim()
+  return profiles.some(p =>
+    p._key !== profile._key
+    && (p.name || '').trim() === myName
+    && (p.osVer || '').trim() === myOsVer
+    && (p.version || '').trim() === myVersion
+  )
+}
+
 export function createProfileFromSnapshot(snapshot, existingNames, getNextKey) {
   return {
     _key: getNextKey(), profileId: null,
