@@ -39,12 +39,22 @@ describe('ARSAGENT_SCHEMA', () => {
   // ── cronTabFields ──
 
   describe('cronTabFields', () => {
-    it('has 7 fields: name, type, arg, no-email, key, timeout, retry', () => {
+    it('has 8 fields: schedule, name, type, arg, no-email, key, timeout, retry', () => {
       const keys = Object.keys(ARSAGENT_SCHEMA.cronTabFields)
-      expect(keys).toHaveLength(7)
+      expect(keys).toHaveLength(8)
       expect(keys).toEqual(expect.arrayContaining([
-        'name', 'type', 'arg', 'no-email', 'key', 'timeout', 'retry'
+        'schedule', 'name', 'type', 'arg', 'no-email', 'key', 'timeout', 'retry'
       ]))
+    })
+
+    it('schedule is required and has cron-schedule type', () => {
+      expect(ARSAGENT_SCHEMA.cronTabFields.schedule.required).toBe(true)
+      expect(ARSAGENT_SCHEMA.cronTabFields.schedule.type).toBe('cron-schedule')
+    })
+
+    it('schedule appears first in field order (first key)', () => {
+      const keys = Object.keys(ARSAGENT_SCHEMA.cronTabFields)
+      expect(keys[0]).toBe('schedule')
     })
 
     it('name is required', () => {
@@ -205,8 +215,9 @@ describe('OPTIONAL_FIELDS', () => {
 // ===========================================================================
 
 describe('CRONTAB_DEFAULTS', () => {
-  it('has correct default values', () => {
+  it('has correct default values including schedule seed', () => {
     expect(CRONTAB_DEFAULTS).toEqual({
+      schedule: '0 * * * * ?',
       name: '',
       type: 'AR',
       arg: '',
@@ -241,6 +252,7 @@ describe('buildARSAgentOutput', () => {
     ErrorTrigger: [{ alid: 'TRIGGER_1' }, { alid: 'TRIGGER_2' }],
     AccessLogLists: ['__source1__', '__source2__'],
     CronTab: [{
+      schedule: '0 * * * * ?',
       name: 'CronTab_Test', type: 'AR', arg: 'arg1;arg2',
       'no-email': 'success;fail', key: 1, timeout: '30 seconds', retry: '3 minutes'
     }],
@@ -295,37 +307,53 @@ describe('buildARSAgentOutput', () => {
   it('CronTab with all fields filled includes all', () => {
     const out = buildARSAgentOutput(fullFormData)
     expect(out.CronTab).toEqual([{
+      schedule: '0 * * * * ?',
       name: 'CronTab_Test', type: 'AR', arg: 'arg1;arg2',
       'no-email': 'success;fail', key: 1, timeout: '30 seconds', retry: '3 minutes'
     }])
   })
 
+  it('CronTab JSON key order: schedule → type → name → arg → ...', () => {
+    const out = buildARSAgentOutput(fullFormData)
+    const keys = Object.keys(out.CronTab[0])
+    expect(keys).toEqual(['schedule', 'type', 'name', 'arg', 'no-email', 'key', 'timeout', 'retry'])
+  })
+
+  it('CronTab schedule is always included (required)', () => {
+    const data = {
+      ...fullFormData,
+      CronTab: [{ schedule: '0 */5 * * * ?', name: 'Test', type: 'AR', arg: '', 'no-email': '', key: '', timeout: '', retry: '' }]
+    }
+    const out = buildARSAgentOutput(data)
+    expect(out.CronTab[0].schedule).toBe('0 */5 * * * ?')
+  })
+
   it('CronTab with empty arg omits arg', () => {
-    const data = { ...fullFormData, CronTab: [{ name: 'Test', type: 'AR', arg: '', 'no-email': '', key: '', timeout: '', retry: '' }] }
+    const data = { ...fullFormData, CronTab: [{ schedule: '0 * * * * ?', name: 'Test', type: 'AR', arg: '', 'no-email': '', key: '', timeout: '', retry: '' }] }
     const out = buildARSAgentOutput(data)
     expect(out.CronTab[0]).not.toHaveProperty('arg')
   })
 
   it('CronTab with empty no-email omits no-email', () => {
-    const data = { ...fullFormData, CronTab: [{ name: 'Test', type: 'AR', arg: '', 'no-email': '', key: '', timeout: '', retry: '' }] }
+    const data = { ...fullFormData, CronTab: [{ schedule: '0 * * * * ?', name: 'Test', type: 'AR', arg: '', 'no-email': '', key: '', timeout: '', retry: '' }] }
     const out = buildARSAgentOutput(data)
     expect(out.CronTab[0]).not.toHaveProperty('no-email')
   })
 
   it('CronTab with empty key omits key', () => {
-    const data = { ...fullFormData, CronTab: [{ name: 'Test', type: 'AR', arg: '', 'no-email': '', key: '', timeout: '', retry: '' }] }
+    const data = { ...fullFormData, CronTab: [{ schedule: '0 * * * * ?', name: 'Test', type: 'AR', arg: '', 'no-email': '', key: '', timeout: '', retry: '' }] }
     const out = buildARSAgentOutput(data)
     expect(out.CronTab[0]).not.toHaveProperty('key')
   })
 
   it('CronTab with empty timeout omits timeout', () => {
-    const data = { ...fullFormData, CronTab: [{ name: 'Test', type: 'AR', arg: '', 'no-email': '', key: '', timeout: '', retry: '' }] }
+    const data = { ...fullFormData, CronTab: [{ schedule: '0 * * * * ?', name: 'Test', type: 'AR', arg: '', 'no-email': '', key: '', timeout: '', retry: '' }] }
     const out = buildARSAgentOutput(data)
     expect(out.CronTab[0]).not.toHaveProperty('timeout')
   })
 
   it('CronTab with empty retry omits retry', () => {
-    const data = { ...fullFormData, CronTab: [{ name: 'Test', type: 'AR', arg: '', 'no-email': '', key: '', timeout: '', retry: '' }] }
+    const data = { ...fullFormData, CronTab: [{ schedule: '0 * * * * ?', name: 'Test', type: 'AR', arg: '', 'no-email': '', key: '', timeout: '', retry: '' }] }
     const out = buildARSAgentOutput(data)
     expect(out.CronTab[0]).not.toHaveProperty('retry')
   })
@@ -381,16 +409,18 @@ describe('buildARSAgentOutput', () => {
     const data = {
       ...fullFormData,
       CronTab: [
-        { name: 'Job1', type: 'AR', arg: 'a', 'no-email': '', key: '', timeout: '', retry: '' },
-        { name: 'Job2', type: 'EN', arg: '', 'no-email': 'fail', key: 2, timeout: '10 seconds', retry: '' }
+        { schedule: '0 * * * * ?', name: 'Job1', type: 'AR', arg: 'a', 'no-email': '', key: '', timeout: '', retry: '' },
+        { schedule: '0 0 9 ? * MON', name: 'Job2', type: 'EN', arg: '', 'no-email': 'fail', key: 2, timeout: '10 seconds', retry: '' }
       ]
     }
     const out = buildARSAgentOutput(data)
     expect(out.CronTab).toHaveLength(2)
     expect(out.CronTab[0].name).toBe('Job1')
+    expect(out.CronTab[0].schedule).toBe('0 * * * * ?')
     expect(out.CronTab[0].arg).toBe('a')
     expect(out.CronTab[0]).not.toHaveProperty('no-email')
     expect(out.CronTab[1].name).toBe('Job2')
+    expect(out.CronTab[1].schedule).toBe('0 0 9 ? * MON')
     expect(out.CronTab[1]['no-email']).toBe('fail')
     expect(out.CronTab[1].key).toBe(2)
     expect(out.CronTab[1]).not.toHaveProperty('retry')

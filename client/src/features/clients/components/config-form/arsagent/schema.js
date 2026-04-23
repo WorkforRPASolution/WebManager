@@ -5,6 +5,7 @@
  */
 
 export const CRONTAB_DEFAULTS = {
+  schedule: '0 * * * * ?',
   name: '', type: 'AR', arg: '', 'no-email': '', key: '', timeout: '', retry: '',
   suspend: [], resume: []
 }
@@ -50,7 +51,13 @@ export const ARSAGENT_SCHEMA = {
   },
 
   cronTabFields: {
-    name: { type: 'text', label: 'Action 이름', required: true, description: '실행할 시나리오 또는 작업의 이름입니다.', placeholder: 'Scenario_Check' },
+    schedule: {
+      type: 'cron-schedule',
+      label: 'Schedule (Quartz Cron)',
+      required: true,
+      description: 'Akka QuartzSchedulerExtension 형식의 cron 표현식입니다. 6필드 (초 분 시 일 월 요일). 프리셋을 고르거나 직접 편집하세요.',
+      placeholder: '0 * * * * ?'
+    },
     type: {
       type: 'select', label: 'Action 타입', required: true,
       description: 'AR: 시나리오 실행, SR: 코드 시나리오, EN: 이메일 발송, PU: 팝업 실행, SA: 트리거 실행 제한, RA: 트리거 실행 제한 해제',
@@ -63,6 +70,7 @@ export const ARSAGENT_SCHEMA = {
         { value: 'RA', label: 'RA (트리거 실행 제한 해제)' }
       ]
     },
+    name: { type: 'text', label: 'Action 이름', required: true, description: '실행할 시나리오 또는 작업의 이름입니다.', placeholder: 'Scenario_Check' },
     arg: { type: 'text', label: '인자 (Arguments)', required: false, description: '작업에 전달할 인자입니다. 세미콜론(;)으로 구분합니다.', placeholder: 'arg1;arg2' },
     'no-email': { type: 'no-email', label: '이메일 비발송 조건', required: false, description: '이메일 알림을 보내지 않을 결과값입니다. 세미콜론(;)으로 구분합니다.' },
     key: { type: 'number', label: '실행 키', required: false, description: '동일한 키를 가진 작업은 동시에 실행되지 않습니다.', placeholder: '1' },
@@ -146,7 +154,10 @@ export function buildARSAgentOutput(formData, validTriggerNames = null) {
   result.AccessLogLists = d.AccessLogLists || []
 
   result.CronTab = (d.CronTab || []).map(entry => {
-    const out = { name: entry.name, type: entry.type }
+    const out = {}
+    if (entry.schedule !== undefined && entry.schedule !== '') out.schedule = entry.schedule
+    out.type = entry.type
+    out.name = entry.name
     if (entry.arg !== undefined && entry.arg !== '') out.arg = entry.arg
     if (entry['no-email'] !== undefined && entry['no-email'] !== '') out['no-email'] = entry['no-email']
     if (entry.key !== undefined && entry.key !== '') out.key = Number(entry.key)

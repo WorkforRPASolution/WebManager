@@ -140,10 +140,17 @@
 
           <div v-if="expandedCronTabs.has(index)" class="p-4 border-t border-gray-200 dark:border-dark-border space-y-4">
             <div class="grid grid-cols-2 gap-4">
-              <div v-for="(fieldDef, fieldKey) in schema.cronTabFields" :key="fieldKey">
+              <div v-for="(fieldDef, fieldKey) in schema.cronTabFields" :key="fieldKey"
+                :class="fieldDef.type === 'cron-schedule' ? 'col-span-2' : ''">
                 <FormField :label="fieldDef.label" :description="fieldDef.description" :required="fieldDef.required">
+                  <CronScheduleInput
+                    v-if="fieldDef.type === 'cron-schedule'"
+                    :modelValue="cron[fieldKey]"
+                    :readOnly="readOnly"
+                    @update:modelValue="updateCronTabField(index, fieldKey, $event)"
+                  />
                   <select
-                    v-if="fieldDef.type === 'select'"
+                    v-else-if="fieldDef.type === 'select'"
                     :value="cron[fieldKey]"
                     @change="updateCronTabField(index, fieldKey, $event.target.value)"
                     :disabled="readOnly"
@@ -370,6 +377,7 @@ import { describeARSAgent } from './description'
 import { isNoEmailChecked } from '../shared/formatUtils'
 import FormField from '../shared/components/FormField.vue'
 import SuspendResumeEditor from '../shared/components/SuspendResumeEditor.vue'
+import CronScheduleInput from '@/shared/components/CronScheduleInput.vue'
 
 const props = defineProps({
   modelValue: { type: Object, default: () => ({}) },
