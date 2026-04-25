@@ -316,10 +316,10 @@
                         </div>
                       </div>
                       <div>
-                        <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Args (space-separated)</label>
+                        <label class="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase mb-0.5">Args (use "..." for tokens with spaces)</label>
                         <input v-model="task._argsText" @input="onArgsInput(task)"
                           class="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-dark-bg text-gray-900 dark:text-white border-gray-300 dark:border-dark-border focus:ring-2 focus:ring-green-500 font-mono"
-                          placeholder="/y /force (optional)" />
+                          placeholder='/c start "" /MIN "C:\Path With Spaces\app.exe" /min:30' />
                       </div>
                     </template>
 
@@ -530,6 +530,7 @@ import { osVersionApi } from '../../equipment-info/api'
 import { useResizableModal } from '@/shared/composables/useResizableModal'
 import { useToast } from '@/shared/composables/useToast'
 import { createProfileSnapshot, createTaskSnapshot, createProfileFromSnapshot, createTaskFromSnapshot } from '../composables/updateProfileUtils'
+import { parseArgs, stringifyArgs } from '@/shared/utils/shellArgs'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -609,7 +610,7 @@ async function loadData() {
         description: task.description || '',
         stopOnFail: !!task.stopOnFail,
         commandLine: task.commandLine || '',
-        _argsText: (task.args || []).join(' '),
+        _argsText: stringifyArgs(task.args || []),
         timeout: Math.round((task.timeout || 30000) / 1000),
         _nameError: null,
         _sourcePathError: null,
@@ -804,7 +805,8 @@ async function handleSave() {
         if (task.type === 'exec') {
           base.commandLine = (task.commandLine || '').trim()
           const argsStr = (task._argsText || '').trim()
-          if (argsStr) base.args = argsStr.split(/\s+/)
+          const parsed = argsStr ? parseArgs(argsStr) : []
+          if (parsed.length > 0) base.args = parsed
           base.timeout = (task.timeout || 30) * 1000 // sec → ms
         } else {
           base.sourcePath = (task.sourcePath || '').trim()
