@@ -1,6 +1,25 @@
 import { ref, watch } from 'vue'
 
 /**
+ * 클립보드 텍스트를 dataRows (2D 배열) 로 파싱.
+ *
+ * - CRLF/CR 을 LF 로 정규화
+ * - 끝에 붙은 빈 행만 제거 (엑셀이 trailing newline 을 붙이는 경우 대응).
+ *   중간 빈 행은 보존 — 사용자가 실제로 빈 셀을 복사한 경우다.
+ * - tab 이 있으면 열 분리, 없고 newline 만 있으면 단일열 세로 복사로 처리.
+ */
+export function parseClipboardText(text) {
+  if (!text) return []
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/\n+$/, '')
+  if (!normalized) return []
+  const hasTab = normalized.includes('\t')
+  const hasNewline = normalized.includes('\n')
+  if (hasTab) return normalized.split('\n').map(row => row.split('\t'))
+  if (hasNewline) return normalized.split('\n').map(row => [row])
+  return [[normalized]]
+}
+
+/**
  * AG Grid 셀 범위 선택 및 일괄 편집 공통 Composable
  *
  * 기능:
@@ -563,21 +582,9 @@ export function useDataGridCellSelection(options) {
 
     event.preventDefault()
 
-    // 클립보드 데이터 파싱
-    const hasTab = pastedText.includes('\t')
-    const hasNewline = pastedText.includes('\n')
-    let dataRows
-
-    if (hasTab) {
-      // 스프레드시트 형식: 탭으로 열 구분, 줄바꿈으로 행 구분
-      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => row.split('\t'))
-    } else if (hasNewline) {
-      // 세로 복사 형식: 줄바꿈으로 행 구분
-      dataRows = pastedText.split('\n').filter(row => row.trim()).map(row => [row])
-    } else {
-      // 단일 셀 값
-      dataRows = [[pastedText.trim()]]
-    }
+    // 클립보드 데이터 파싱 (CRLF 정규화 + 중간 빈 행 보존)
+    const dataRows = parseClipboardText(pastedText)
+    if (dataRows.length === 0) return false
 
     // 단일 값이고 다중 셀이 선택된 경우 → 모든 선택된 셀에 채우기
     const isSingleValue = dataRows.length === 1 && dataRows[0].length === 1

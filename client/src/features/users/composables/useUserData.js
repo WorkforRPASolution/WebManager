@@ -149,7 +149,7 @@ export function useUserData() {
       process: '',
       processes: [],  // Multi-process array field
       authority: '',
-      authorityManager: 2,
+      authorityManager: 0,
       note: '',
       email: '',
       department: ''
