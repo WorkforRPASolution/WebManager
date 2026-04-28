@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col w-full h-full">
-    <div ref="gridContainer" class="flex-1 min-h-0 ag-grid-custom-scrollbar" tabindex="0">
+    <div ref="gridContainer" class="flex-1 min-h-0 ag-grid-custom-scrollbar" @copy="handleCopy" tabindex="0">
       <AgGridVue
         :theme="gridTheme"
         :rowData="rowData"
@@ -290,6 +290,65 @@ const onSelectionChanged = () => {
   const selectedRows = gridApi.value.getSelectedRows()
   const selectedIds = selectedRows.map(row => row.eqpId || row.id)
   emit('selection-change', selectedIds)
+}
+
+// 셀 값을 클립보드용 사람이 보는 텍스트로 변환 (특수 렌더러 컬럼 라벨 매핑)
+function formatCellForCopy(field, value) {
+  // null 도 'Unknown' 라벨로 변환되어야 하므로 serviceStatus 가 먼저
+  if (field === 'serviceStatus') {
+    const labels = {
+      running: 'Running', stopped: 'Stopped', unreachable: 'Unreachable',
+      not_installed: 'Not Installed', loading: '', unknown: 'Unknown'
+    }
+    return labels[classifyServiceState(value)] ?? ''
+  }
+  if (field === 'aliveStatus') {
+    if (!value || value.redisUnavailable || value.alive === false) return ''
+    return value.uptimeFormatted || ''
+  }
+  if (value === null || value === undefined) return ''
+  if (field === 'status') {
+    return String(value).toLowerCase() === 'online' ? 'On' : 'Off'
+  }
+  return String(value)
+}
+
+const handleCopy = (event) => {
+  if (!gridApi.value) return
+
+  // 사용자가 텍스트 드래그/더블클릭으로 선택한 게 있으면 브라우저 기본 동작
+  const sel = window.getSelection()
+  if (sel && sel.toString()) return
+
+  let copyData = ''
+
+  // 포커스된 셀이 있으면 그 셀 값 (data field 가 있는 컬럼만 — 체크박스 컬럼 제외)
+  const focused = gridApi.value.getFocusedCell()
+  const focusedField = focused?.column.getColDef().field
+  if (focusedField) {
+    const rowNode = gridApi.value.getDisplayedRowAtIndex(focused.rowIndex)
+    if (rowNode) {
+      copyData = formatCellForCopy(focusedField, rowNode.data[focusedField])
+    }
+  }
+
+  // 포커스 없으면 체크박스로 선택된 행 전체 (visual 컬럼 순서, 탭/줄바꿈)
+  if (!copyData) {
+    const selectedRows = gridApi.value.getSelectedRows()
+    if (selectedRows.length > 0) {
+      const fields = (gridApi.value.getAllDisplayedColumns() || [])
+        .map(c => c.getColDef().field)
+        .filter(Boolean)
+      copyData = selectedRows.map(row =>
+        fields.map(f => formatCellForCopy(f, row[f])).join('\t')
+      ).join('\n')
+    }
+  }
+
+  if (copyData) {
+    event.preventDefault()
+    event.clipboardData.setData('text/plain', copyData)
+  }
 }
 
 const onCellClicked = (params) => {
