@@ -173,10 +173,12 @@ DELETE /api/clients/:id/log-files            # 파일 삭제 (FTP delete)
 POST   /api/clients/log-tail-stream          # 실시간 Tailing (SSE)
 POST   /api/clients/:id/detect-base-path     # basePath 자동 감지 (RPC)
 
-GET    /api/clients/update-settings/:agentGroup  # 업데이트 설정 조회 (profiles[])
-PUT    /api/clients/update-settings/:agentGroup  # 업데이트 설정 저장 (body: { profiles })
-POST   /api/clients/update-source/list           # 소스 파일 목록 조회
-POST   /api/clients/update/deploy                # 소프트웨어 배포 (body: profileId 필수, SSE 진행률)
+GET    /api/clients/update-settings/:agentGroup                       # 프로필 목록 조회 ({ agentGroup, profiles: [...] })
+POST   /api/clients/update-settings/:agentGroup/profiles              # 프로필 생성 (per-profile REST)
+PUT    /api/clients/update-settings/:agentGroup/profiles/:profileId   # 프로필 수정
+DELETE /api/clients/update-settings/:agentGroup/profiles/:profileId   # 프로필 삭제
+POST   /api/clients/update-source/list                                 # 소스 파일 목록 조회
+POST   /api/clients/update/deploy                                      # 소프트웨어 배포 (body: profileId 필수, SSE 진행률)
 
 GET    /api/users                            # 사용자 목록 (필터/페이지네이션)
 POST   /api/users                            # 사용자 다중 생성
@@ -298,7 +300,7 @@ cd server && npm run reset:buckets -- --yes # 확인 생략
 cd server && npm run reset:buckets -- --keep-logs  # batch 로그 유지
 ```
 
-## Current Status (2026-04-13)
+## Current Status (2026-04-22)
 - 메가 메뉴 + 사이드바 + 탭 바 레이아웃 완료
 - 다크/라이트 모드 지원
 - MongoDB API 연동 완료
@@ -429,6 +431,16 @@ cd server && npm run reset:buckets -- --keep-logs  # batch 로그 유지
 - System Logs FilterBar 단일 select → MultiSelect 다중 선택 전환
 - Email Info category 에디터 개선 (Type(opt) → Group(필수), Process 객체→문자열 정규화)
 - Software Update Settings Copy & Paste (프로필/태스크 클립보드 복사 + 유니크 이름 생성 + TDD 21 테스트)
+- UPDATE_SETTINGS 스키마 per-profile 정규화 (`(agentGroup, profileId)` 복합키 per-document)
+  - 1 doc = 1 profile로 변경 (구 `profiles[]` 배열 nesting 제거)
+  - REST API per-profile CRUD (`POST/PUT/DELETE /profiles[/:profileId]`) — 전체 배열 replace 제거로 동시 편집 손실 해소
+  - Audit 로그가 `create`/`update`/`delete` 액션으로 profile 단위 분리 기록 (`documentId: {agentGroup}:{profileId}`)
+  - 일회성 마이그레이션 스크립트 + 부팅 가드 (상세: `docs/UPDATE_SETTINGS_SCHEMA_MIGRATION.md`)
+  - UpdateSettingsModal.vue 액션 기반 재설계 (글로벌 Save → per-profile "Save Profile" / "Create Profile", NEW 뱃지, 미저장 profile 구분)
+- UPDATE_SETTINGS unique 강화 (`(agentGroup, profileId)` 허수 unique → `(agentGroup, name, osVer, version)` 진짜 unique)
+  - `profileId`는 UUID라 구 unique는 사실상 충돌 불가능 — 화면 문자열 `{name} ({osVer||'All OS'}) v{version}`의 DB 레벨 유일성 확보
+  - 서버 create/update에 409 Conflict 명시적 체크(`code: 'PROFILE_DUPLICATE'`) + UpdateSettingsModal inline 중복 validation (`hasProfileDuplicate` util)
+  - 2단계 마이그레이션 스크립트 + 부팅 가드 (상세: `docs/UPDATE_SETTINGS_SCHEMA_MIGRATION.md` 단계 2)
 
 ## Redis Key 구조 (Agent 상태)
 

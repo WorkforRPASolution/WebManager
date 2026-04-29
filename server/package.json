@@ -10,6 +10,8 @@
     "setup:admin": "node scripts/setupAdmin.js",
     "seed:recovery": "node scripts/seedRecoveryData.js",
     "reset:buckets": "node scripts/resetRecoveryBuckets.js",
+    "migrate:update-settings": "node scripts/migrate-update-settings.js",
+    "migrate:update-settings-unique": "node scripts/tighten-update-settings-unique.js",
     "seed:all": "node scripts/seedRolePermissions.js && node scripts/setupAdmin.js",
     "test": "vitest run",
     "test:watch": "vitest"

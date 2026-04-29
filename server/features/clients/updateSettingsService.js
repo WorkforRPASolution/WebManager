@@ -1,11 +1,18 @@
 /**
- * Update Settings Service - CRUD and initialization
+ * Update Settings Service - per-profile CRUD
+ *
+ * 1 document = 1 profile in UPDATE_SETTINGS.
+ * Composite key: (agentGroup, profileId).
+ *
+ * Legacy shape detection (profiles[] array per agentGroup) triggers boot abort —
+ * run `npm run migrate:update-settings` before starting the server.
  */
 
 const crypto = require('crypto')
 let UpdateSettings = require('./updateSettingsModel')
 const { createAuditLog, calculateChanges } = require('../../shared/models/webmanagerLogModel')
 const { createLogger } = require('../../shared/logger')
+const { ApiError } = require('../../shared/middleware/errorHandler')
 const log = createLogger('clients')
 
 /** @internal Replace model for testing */
@@ -42,13 +49,17 @@ function sanitizeSource(source) {
   return clean
 }
 
-function cleanProfiles(profiles) {
-  return profiles.map(p => ({
-    profileId: p.profileId || 'prof_' + crypto.randomUUID().split('-')[0],
-    name: (p.name || '').trim(),
-    osVer: (p.osVer || '').trim(),
-    version: (p.version || '').trim(),
-    tasks: (p.tasks || []).map(task => ({
+/**
+ * Normalize a single profile payload.
+ * Auto-generates profileId and taskIds when missing. Trims strings. Sanitizes source.
+ */
+function cleanProfile(profile) {
+  return {
+    profileId: profile.profileId || 'prof_' + crypto.randomUUID().split('-')[0],
+    name: (profile.name || '').trim(),
+    osVer: (profile.osVer || '').trim(),
+    version: (profile.version || '').trim(),
+    tasks: (profile.tasks || []).map(task => ({
       taskId: task.taskId || 'task_' + crypto.randomUUID().split('-')[0],
       type: task.type || 'copy',
       name: (task.name || '').trim(),
@@ -60,132 +71,121 @@ function cleanProfiles(profiles) {
       ...(Array.isArray(task.args) ? { args: task.args } : {}),
       timeout: task.timeout || 30000
     })),
-    source: sanitizeSource(p.source)
-  }))
+    source: sanitizeSource(profile.source)
+  }
 }
 
 async function initializeUpdateSettings() {
+  // Boot guard 1: abort if any legacy (profiles[]) documents remain.
+  // Must run BEFORE createIndexes() because the legacy schema's unique
+  // { agentGroup: 1 } index conflicts with the new compound index.
+  // Post-rollout, both this guard and scripts/migrate-update-settings.js will be removed.
+  const legacyCount = await UpdateSettings.countDocuments({ profiles: { $exists: true } })
+  if (legacyCount > 0) {
+    log.error(
+      `UPDATE_SETTINGS contains ${legacyCount} legacy documents. ` +
+      `Run: npm run migrate:update-settings`
+    )
+    throw new Error('UPDATE_SETTINGS migration required')
+  }
+
   await UpdateSettings.createIndexes()
 
-  // Migration: convert legacy documents (packages without profiles) to profile format
-  const legacy = await UpdateSettings.find({
-    packages: { $exists: true, $ne: [] },
-    $or: [{ profiles: { $exists: false } }, { profiles: { $size: 0 } }]
-  }).lean()
-
-  for (const doc of legacy) {
-    await UpdateSettings.updateOne(
-      { _id: doc._id },
-      {
-        $set: {
-          profiles: [{
-            profileId: 'prof_default',
-            name: 'Default',
-            osVer: '',
-            version: '',
-            tasks: (doc.packages || []).map(pkg => ({
-              taskId: (pkg.packageId || '').replace(/^pkg_/, 'task_'),
-              type: 'copy',
-              name: pkg.name,
-              sourcePath: pkg.targetPath,
-              targetPath: pkg.targetPath
-            })),
-            source: doc.source || {}
-          }]
-        },
-        $unset: { packages: 1, source: 1 }
-      }
+  // Boot guard 2: require the user-identifier compound unique. The legacy
+  // (agentGroup, profileId) unique was a vacuous constraint because profileId
+  // is a fresh UUID. Post-rollout this guard and scripts/tighten-update-settings-unique.js
+  // will be removed.
+  const indexes = await UpdateSettings.collection.indexes()
+  const hasNewUnique = indexes.some(
+    idx => idx.name === 'agentGroup_name_osVer_version_unique' && idx.unique
+  )
+  if (!hasNewUnique) {
+    log.error(
+      'UPDATE_SETTINGS missing unique index on (agentGroup,name,osVer,version). ' +
+      'Run: npm run migrate:update-settings-unique'
     )
-  }
-
-  if (legacy.length) {
-    log.info(`[UpdateSettings] Migrated ${legacy.length} legacy documents to profiles with tasks`)
-  }
-
-  // Migration B: convert profiles.packages[] → profiles.tasks[]
-  const withPackages = await UpdateSettings.find({
-    'profiles.packages': { $exists: true }
-  }).lean()
-
-  let migratedBCount = 0
-  for (const doc of withPackages) {
-    const hasPackages = doc.profiles.some(p => Array.isArray(p.packages) && p.packages.length > 0)
-    if (!hasPackages) continue
-
-    const migrated = doc.profiles.map(p => {
-      if (!Array.isArray(p.packages) || p.packages.length === 0) return p
-      const { packages, ...rest } = p
-      return {
-        ...rest,
-        tasks: packages.map(pkg => ({
-          taskId: (pkg.packageId || '').replace(/^pkg_/, 'task_'),
-          type: 'copy',
-          name: pkg.name,
-          sourcePath: pkg.targetPath,
-          targetPath: pkg.targetPath,
-          ...(pkg.description ? { description: pkg.description } : {})
-        }))
-      }
-    })
-    await UpdateSettings.updateOne({ _id: doc._id }, { $set: { profiles: migrated } })
-    migratedBCount++
-  }
-  if (migratedBCount) {
-    log.info(`[UpdateSettings] Migration B: converted packages→tasks in ${migratedBCount} documents`)
-  }
-
-  // Clean source fields: strip irrelevant fields from existing profiles
-  const allDocs = await UpdateSettings.find({ profiles: { $exists: true, $ne: [] } }).lean()
-  let cleanedCount = 0
-  for (const doc of allDocs) {
-    const cleaned = doc.profiles.map(p => ({
-      ...p,
-      source: sanitizeSource(p.source)
-    }))
-    const needsUpdate = JSON.stringify(doc.profiles) !== JSON.stringify(cleaned)
-    if (needsUpdate) {
-      await UpdateSettings.updateOne({ _id: doc._id }, { $set: { profiles: cleaned } })
-      cleanedCount++
-    }
-  }
-  if (cleanedCount) {
-    log.info(`[UpdateSettings] Cleaned source fields in ${cleanedCount} documents`)
+    throw new Error('UPDATE_SETTINGS unique index migration required')
   }
 
   log.info('  + UPDATE_SETTINGS collection ready')
 }
 
-async function getDocument(agentGroup) {
-  return UpdateSettings.findOne({ agentGroup }).lean()
+async function listProfiles(agentGroup) {
+  return UpdateSettings.find({ agentGroup }).lean()
 }
 
 async function getProfile(agentGroup, profileId) {
-  const doc = await UpdateSettings.findOne({ agentGroup }).lean()
-  return (doc?.profiles || []).find(p => p.profileId === profileId) || null
+  return UpdateSettings.findOne({ agentGroup, profileId }).lean()
 }
 
-async function saveUpdateSettings(agentGroup, profiles, updatedBy = 'system') {
-  // Get previous state for audit
-  const previousDoc = await UpdateSettings.findOne({ agentGroup }).lean()
+function duplicateError(cleaned) {
+  const err = ApiError.conflict(
+    `Profile already exists: name="${cleaned.name}" osVer="${cleaned.osVer}" version="${cleaned.version}"`
+  )
+  err.code = 'PROFILE_DUPLICATE'
+  return err
+}
 
-  const cleanedProfiles = cleanProfiles(profiles)
+async function createProfile(agentGroup, data, updatedBy = 'system') {
+  const cleaned = cleanProfile(data)
+
+  const clash = await UpdateSettings.findOne({
+    agentGroup,
+    name: cleaned.name,
+    osVer: cleaned.osVer,
+    version: cleaned.version
+  }).lean()
+  if (clash) throw duplicateError(cleaned)
+
+  const doc = await UpdateSettings.create({
+    agentGroup,
+    ...cleaned,
+    updatedBy
+  })
+  const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc
+
+  createAuditLog({
+    collectionName: 'UPDATE_SETTINGS',
+    documentId: `${agentGroup}:${plain.profileId}`,
+    action: 'create',
+    newData: plain,
+    userId: updatedBy
+  }).catch(err => log.error(`Audit log failed: ${err.message}`))
+
+  return plain
+}
+
+async function updateProfile(agentGroup, profileId, data, updatedBy = 'system') {
+  const previous = await UpdateSettings.findOne({ agentGroup, profileId }).lean()
+  if (!previous) return null
+
+  // profileId in payload is ignored — path param is authoritative.
+  const cleaned = cleanProfile({ ...data, profileId })
+
+  const clash = await UpdateSettings.findOne({
+    agentGroup,
+    name: cleaned.name,
+    osVer: cleaned.osVer,
+    version: cleaned.version,
+    profileId: { $ne: profileId }
+  }).lean()
+  if (clash) throw duplicateError(cleaned)
+
   const result = await UpdateSettings.findOneAndUpdate(
-    { agentGroup },
-    { $set: { profiles: cleanedProfiles, updatedBy }, $unset: { packages: 1, source: 1 } },
-    { returnDocument: 'after', upsert: true }
+    { agentGroup, profileId },
+    { $set: { ...cleaned, updatedBy } },
+    { returnDocument: 'after' }
   ).lean()
 
-  // Audit logging (fire-and-forget)
-  const changes = calculateChanges(
-    { profiles: previousDoc?.profiles || [] },
-    { profiles: cleanedProfiles }
-  )
+  const changes = calculateChanges(previous, result)
   if (Object.keys(changes).length > 0) {
     createAuditLog({
       collectionName: 'UPDATE_SETTINGS',
-      documentId: agentGroup,
+      documentId: `${agentGroup}:${profileId}`,
       action: 'update',
       changes,
+      previousData: previous,
+      newData: result,
       userId: updatedBy
     }).catch(err => log.error(`Audit log failed: ${err.message}`))
   }
@@ -193,12 +193,29 @@ async function saveUpdateSettings(agentGroup, profiles, updatedBy = 'system') {
   return result
 }
 
+async function deleteProfile(agentGroup, profileId, updatedBy = 'system') {
+  const previous = await UpdateSettings.findOneAndDelete({ agentGroup, profileId }).lean()
+  if (!previous) return null
+
+  createAuditLog({
+    collectionName: 'UPDATE_SETTINGS',
+    documentId: `${agentGroup}:${profileId}`,
+    action: 'delete',
+    previousData: previous,
+    userId: updatedBy
+  }).catch(err => log.error(`Audit log failed: ${err.message}`))
+
+  return previous
+}
+
 module.exports = {
   initializeUpdateSettings,
-  getDocument,
+  listProfiles,
   getProfile,
-  saveUpdateSettings,
-  cleanProfiles,
+  createProfile,
+  updateProfile,
+  deleteProfile,
+  cleanProfile,
   sanitizeSource,
   _setModel
 }

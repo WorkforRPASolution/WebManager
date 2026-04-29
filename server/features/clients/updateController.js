@@ -1,6 +1,6 @@
 /**
  * Update Controller
- * Handles software update settings and deployment
+ * Handles per-profile Update Settings CRUD and software deployment.
  */
 
 let updateSettingsService = require('./updateSettingsService')
@@ -19,39 +19,73 @@ function _setDeps(deps) {
 }
 
 /**
- * GET /api/clients/update-settings/:agentGroup
+ * Validate a single profile payload (used by POST and PUT).
+ * Throws ApiError.badRequest on failure.
  */
-async function getUpdateSettings(req, res) {
-  const { agentGroup } = req.params
-  const doc = await updateSettingsService.getDocument(agentGroup)
-  res.json(doc || { agentGroup, profiles: [] })
+function validateProfilePayload(profile) {
+  if (!profile || typeof profile !== 'object') {
+    throw ApiError.badRequest('profile body is required')
+  }
+  if (!profile.name?.trim()) {
+    throw ApiError.badRequest('profile must have a name')
+  }
+  for (const task of (profile.tasks || [])) {
+    if (!task.name?.trim()) throw ApiError.badRequest('Each task requires a name')
+    if (task.type === 'exec') {
+      if (!task.commandLine?.trim()) throw ApiError.badRequest('Exec task requires commandLine')
+    } else {
+      if (!task.sourcePath?.trim() || !task.targetPath?.trim())
+        throw ApiError.badRequest('Copy task requires sourcePath and targetPath')
+    }
+  }
 }
 
 /**
- * PUT /api/clients/update-settings/:agentGroup
+ * GET /api/clients/update-settings/:agentGroup
+ * Returns { agentGroup, profiles: [...] } — UI consumption compat.
  */
-async function saveUpdateSettings(req, res) {
+async function listUpdateSettings(req, res) {
   const { agentGroup } = req.params
-  const { profiles } = req.body
+  const profiles = await updateSettingsService.listProfiles(agentGroup)
+  res.json({ agentGroup, profiles })
+}
 
-  if (!Array.isArray(profiles)) throw ApiError.badRequest('profiles must be an array')
-
-  for (const p of profiles) {
-    if (!p.name?.trim()) throw ApiError.badRequest('Each profile must have a name')
-    for (const task of (p.tasks || [])) {
-      if (!task.name?.trim()) throw ApiError.badRequest('Each task requires a name')
-      if (task.type === 'exec') {
-        if (!task.commandLine?.trim()) throw ApiError.badRequest('Exec task requires commandLine')
-      } else {
-        if (!task.sourcePath?.trim() || !task.targetPath?.trim())
-          throw ApiError.badRequest('Copy task requires sourcePath and targetPath')
-      }
-    }
-  }
+/**
+ * POST /api/clients/update-settings/:agentGroup/profiles
+ * Create a new profile.
+ */
+async function createProfile(req, res) {
+  const { agentGroup } = req.params
+  validateProfilePayload(req.body)
 
   const updatedBy = req.user?.singleid || 'unknown'
-  const doc = await updateSettingsService.saveUpdateSettings(agentGroup, profiles, updatedBy)
-  res.json(doc)
+  const profile = await updateSettingsService.createProfile(agentGroup, req.body, updatedBy)
+  res.status(201).json(profile)
+}
+
+/**
+ * PUT /api/clients/update-settings/:agentGroup/profiles/:profileId
+ * Update an existing profile.
+ */
+async function updateProfile(req, res) {
+  const { agentGroup, profileId } = req.params
+  validateProfilePayload(req.body)
+
+  const updatedBy = req.user?.singleid || 'unknown'
+  const profile = await updateSettingsService.updateProfile(agentGroup, profileId, req.body, updatedBy)
+  if (!profile) throw ApiError.notFound(`Profile not found: ${profileId}`)
+  res.json(profile)
+}
+
+/**
+ * DELETE /api/clients/update-settings/:agentGroup/profiles/:profileId
+ */
+async function deleteProfile(req, res) {
+  const { agentGroup, profileId } = req.params
+  const updatedBy = req.user?.singleid || 'unknown'
+  const removed = await updateSettingsService.deleteProfile(agentGroup, profileId, updatedBy)
+  if (!removed) throw ApiError.notFound(`Profile not found: ${profileId}`)
+  res.status(204).end()
 }
 
 /**
@@ -93,7 +127,6 @@ async function deployUpdate(req, res) {
     const result = await updateService.deployUpdate(agentGroup, profileId, taskIds, targetEqpIds, (progress) => {
       sse.send(progress)
     })
-    // Audit logging (fire-and-forget)
     createActionLog({
       action: 'deploy',
       targetType: 'software_update',
@@ -132,8 +165,10 @@ async function testSourceConnection(req, res) {
 }
 
 module.exports = {
-  getUpdateSettings,
-  saveUpdateSettings,
+  listUpdateSettings,
+  createProfile,
+  updateProfile,
+  deleteProfile,
   listUpdateSourceFiles,
   testSourceConnection,
   deployUpdate,

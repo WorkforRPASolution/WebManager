@@ -110,11 +110,23 @@ export const logApi = {
   ),
 }
 
-// Update Settings API
+// Update Settings API — per-profile CRUD
 export const updateSettingsApi = {
+  // GET: returns { agentGroup, profiles: [...] }
   getSettings: (agentGroup) => api.get(`/clients/update-settings/${agentGroup}`),
-  saveSettings: (agentGroup, profiles) =>
-    api.put(`/clients/update-settings/${agentGroup}`, { profiles }),
+
+  // POST: creates a new profile, returns created profile (with assigned profileId)
+  createProfile: (agentGroup, profile) =>
+    api.post(`/clients/update-settings/${agentGroup}/profiles`, profile),
+
+  // PUT: replaces a single profile's contents
+  updateProfile: (agentGroup, profileId, profile) =>
+    api.put(`/clients/update-settings/${agentGroup}/profiles/${profileId}`, profile),
+
+  // DELETE: removes a single profile
+  deleteProfile: (agentGroup, profileId) =>
+    api.delete(`/clients/update-settings/${agentGroup}/profiles/${profileId}`),
+
   listSourceFiles: (source, relativePath) =>
     api.post('/clients/update-source/list', { source, relativePath }),
   testSourceConnection: (source) =>

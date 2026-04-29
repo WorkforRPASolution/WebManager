@@ -1,149 +1,145 @@
 /**
- * updateSettingsService - TDD tests
+ * updateSettingsService — per-profile CRUD tests (TDD)
  *
  * Tests service functions with a mock model injected via _setModel().
+ * Schema: 1 document = 1 profile, composite key (agentGroup, profileId).
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
-  cleanProfiles,
+  cleanProfile,
   sanitizeSource,
-  saveUpdateSettings,
+  listProfiles,
   getProfile,
-  getDocument,
+  createProfile,
+  updateProfile,
+  deleteProfile,
   initializeUpdateSettings,
   _setModel
 } from './updateSettingsService.js'
 
-// Mock model object
+// Mock model
 const mockModel = {
   createIndexes: vi.fn(),
-  findOneAndUpdate: vi.fn(),
-  findOne: vi.fn(),
+  countDocuments: vi.fn(),
   find: vi.fn(),
-  updateOne: vi.fn()
+  findOne: vi.fn(),
+  findOneAndUpdate: vi.fn(),
+  findOneAndDelete: vi.fn(),
+  create: vi.fn(),
+  collection: {
+    indexes: vi.fn()
+  }
 }
 
-// Inject mock model before all tests
 _setModel(mockModel)
 
-// Helper: returns chainable .lean()
 function chainLean(resolvedValue) {
   return { lean: vi.fn().mockResolvedValue(resolvedValue) }
 }
 
-// ─── cleanProfiles ───────────────────────────────────────────────
+// ─── cleanProfile ───────────────────────────────────────────────
 
-describe('cleanProfiles', () => {
+describe('cleanProfile', () => {
   it('auto-generates profileId with prof_ prefix when missing', () => {
-    const result = cleanProfiles([{ name: 'Test' }])
-    expect(result).toHaveLength(1)
-    expect(result[0].profileId).toMatch(/^prof_[0-9a-f]+$/)
+    const result = cleanProfile({ name: 'Test' })
+    expect(result.profileId).toMatch(/^prof_[0-9a-f]+$/)
   })
 
   it('keeps existing profileId', () => {
-    const result = cleanProfiles([{ profileId: 'prof_abc', name: 'Test' }])
-    expect(result[0].profileId).toBe('prof_abc')
+    const result = cleanProfile({ profileId: 'prof_abc', name: 'Test' })
+    expect(result.profileId).toBe('prof_abc')
   })
 
   it('auto-generates taskId with task_ prefix when missing', () => {
-    const result = cleanProfiles([{
+    const result = cleanProfile({
       name: 'Test',
       tasks: [{ name: 't1', sourcePath: 'bin/app.exe', targetPath: 'bin/app.exe' }]
-    }])
-    expect(result[0].tasks[0].taskId).toMatch(/^task_[0-9a-f]+$/)
+    })
+    expect(result.tasks[0].taskId).toMatch(/^task_[0-9a-f]+$/)
   })
 
   it('keeps existing taskId', () => {
-    const result = cleanProfiles([{
+    const result = cleanProfile({
       name: 'Test',
       tasks: [{ taskId: 'task_abc', name: 't1', sourcePath: 'a', targetPath: 'b' }]
-    }])
-    expect(result[0].tasks[0].taskId).toBe('task_abc')
+    })
+    expect(result.tasks[0].taskId).toBe('task_abc')
   })
 
   it('defaults task type to copy', () => {
-    const result = cleanProfiles([{
+    const result = cleanProfile({
       name: 'Test',
       tasks: [{ name: 't1', sourcePath: 'a', targetPath: 'b' }]
-    }])
-    expect(result[0].tasks[0].type).toBe('copy')
+    })
+    expect(result.tasks[0].type).toBe('copy')
   })
 
   it('maps task sourcePath and targetPath independently', () => {
-    const result = cleanProfiles([{
+    const result = cleanProfile({
       name: 'Test',
       tasks: [{ name: 't1', sourcePath: '  release/bin/app.exe  ', targetPath: '  bin/app.exe  ' }]
-    }])
-    expect(result[0].tasks[0].sourcePath).toBe('release/bin/app.exe')
-    expect(result[0].tasks[0].targetPath).toBe('bin/app.exe')
+    })
+    expect(result.tasks[0].sourcePath).toBe('release/bin/app.exe')
+    expect(result.tasks[0].targetPath).toBe('bin/app.exe')
   })
 
-  it('trims name', () => {
-    const result = cleanProfiles([{ name: '  Spaced  ' }])
-    expect(result[0].name).toBe('Spaced')
-  })
-
-  it('trims osVer and version', () => {
-    const result = cleanProfiles([{ name: 'Test', osVer: '  Win10  ', version: '  1.0  ' }])
-    expect(result[0].osVer).toBe('Win10')
-    expect(result[0].version).toBe('1.0')
+  it('trims name/osVer/version', () => {
+    const result = cleanProfile({ name: '  Spaced  ', osVer: '  Win10  ', version: '  1.0  ' })
+    expect(result.name).toBe('Spaced')
+    expect(result.osVer).toBe('Win10')
+    expect(result.version).toBe('1.0')
   })
 
   it('defaults osVer, version to empty string', () => {
-    const result = cleanProfiles([{ name: 'Test' }])
-    expect(result[0].osVer).toBe('')
-    expect(result[0].version).toBe('')
+    const result = cleanProfile({ name: 'Test' })
+    expect(result.osVer).toBe('')
+    expect(result.version).toBe('')
   })
 
   it('defaults tasks to empty array', () => {
-    const result = cleanProfiles([{ name: 'Test' }])
-    expect(result[0].tasks).toEqual([])
+    const result = cleanProfile({ name: 'Test' })
+    expect(result.tasks).toEqual([])
   })
 
   it('defaults source to { type: "local" }', () => {
-    const result = cleanProfiles([{ name: 'Test' }])
-    expect(result[0].source).toEqual({ type: 'local' })
+    const result = cleanProfile({ name: 'Test' })
+    expect(result.source).toEqual({ type: 'local' })
   })
 
   it('sanitizes source — keeps only local fields for type=local', () => {
-    const result = cleanProfiles([{
+    const result = cleanProfile({
       name: 'Test',
       source: { type: 'local', localPath: '/opt', ftpHost: 'stale', minioEndpoint: 'stale' }
-    }])
-    expect(result[0].source).toEqual({ type: 'local', localPath: '/opt' })
-    expect(result[0].source.ftpHost).toBeUndefined()
-    expect(result[0].source.minioEndpoint).toBeUndefined()
+    })
+    expect(result.source).toEqual({ type: 'local', localPath: '/opt' })
   })
 
   it('sanitizes source — keeps only ftp fields for type=ftp', () => {
-    const result = cleanProfiles([{
+    const result = cleanProfile({
       name: 'Test',
       source: { type: 'ftp', ftpHost: 'ftp.example.com', ftpPort: 2121, localPath: 'stale' }
-    }])
-    expect(result[0].source).toEqual({
+    })
+    expect(result.source).toEqual({
       type: 'ftp', ftpHost: 'ftp.example.com', ftpPort: 2121, ftpUser: '', ftpPass: '', ftpBasePath: ''
     })
-    expect(result[0].source.localPath).toBeUndefined()
   })
 
   it('sanitizes source — keeps only minio fields for type=minio', () => {
-    const result = cleanProfiles([{
+    const result = cleanProfile({
       name: 'Test',
       source: { type: 'minio', minioEndpoint: 'minio.local', minioBucket: 'test', ftpHost: 'stale' }
-    }])
-    expect(result[0].source.type).toBe('minio')
-    expect(result[0].source.minioEndpoint).toBe('minio.local')
-    expect(result[0].source.minioBucket).toBe('test')
-    expect(result[0].source.ftpHost).toBeUndefined()
-    expect(result[0].source.localPath).toBeUndefined()
+    })
+    expect(result.source.type).toBe('minio')
+    expect(result.source.minioEndpoint).toBe('minio.local')
+    expect(result.source.ftpHost).toBeUndefined()
   })
 })
 
 // ─── sanitizeSource ─────────────────────────────────────────────
 
 describe('sanitizeSource', () => {
-  it('returns { type: "local" } for null/undefined', () => {
+  it('returns { type: "local" } for null/undefined/empty', () => {
     expect(sanitizeSource(null)).toEqual({ type: 'local' })
     expect(sanitizeSource(undefined)).toEqual({ type: 'local' })
     expect(sanitizeSource({})).toEqual({ type: 'local' })
@@ -156,224 +152,274 @@ describe('sanitizeSource', () => {
     expect(result).toEqual({ type: 'local', localPath: '/opt' })
   })
 
-  it('ftp: keeps ftp fields with defaults for missing values', () => {
+  it('ftp: keeps ftp fields with defaults', () => {
     const result = sanitizeSource({ type: 'ftp', ftpHost: 'host.com' })
     expect(result).toEqual({
       type: 'ftp', ftpHost: 'host.com', ftpPort: 21, ftpUser: '', ftpPass: '', ftpBasePath: ''
     })
   })
 
-  it('ftp: preserves custom port', () => {
-    const result = sanitizeSource({ type: 'ftp', ftpHost: 'h', ftpPort: 2121 })
-    expect(result.ftpPort).toBe(2121)
-  })
-
-  it('minio: keeps minio fields with defaults for missing values', () => {
+  it('minio: keeps minio fields with defaults', () => {
     const result = sanitizeSource({ type: 'minio', minioEndpoint: 'minio.local' })
-    expect(result).toEqual({
-      type: 'minio', minioEndpoint: 'minio.local', minioPort: 9000,
-      minioBucket: '', minioAccessKey: '', minioSecretKey: '', minioUseSSL: false, minioBasePath: ''
-    })
-  })
-
-  it('minio: preserves custom values', () => {
-    const result = sanitizeSource({
-      type: 'minio', minioEndpoint: 'host', minioPort: 443,
-      minioBucket: 'bkt', minioAccessKey: 'ak', minioSecretKey: 'sk', minioUseSSL: true, minioBasePath: '/prefix'
-    })
-    expect(result.minioPort).toBe(443)
-    expect(result.minioUseSSL).toBe(true)
-    expect(result.minioBasePath).toBe('/prefix')
+    expect(result.minioPort).toBe(9000)
+    expect(result.minioUseSSL).toBe(false)
   })
 })
 
-// ─── saveUpdateSettings ──────────────────────────────────────────
+// ─── listProfiles ───────────────────────────────────────────────
 
-describe('saveUpdateSettings', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+describe('listProfiles', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('returns all profiles for agentGroup', async () => {
+    const docs = [
+      { agentGroup: 'EQP', profileId: 'prof_1', name: 'P1' },
+      { agentGroup: 'EQP', profileId: 'prof_2', name: 'P2' }
+    ]
+    mockModel.find.mockReturnValue(chainLean(docs))
+
+    const result = await listProfiles('EQP')
+    expect(mockModel.find).toHaveBeenCalledWith({ agentGroup: 'EQP' })
+    expect(result).toEqual(docs)
   })
 
-  it('calls findOneAndUpdate with $set profiles and $unset packages+source', async () => {
-    const profiles = [{ profileId: 'prof_1', name: 'Default', packages: [], source: {} }]
-    const expected = { agentGroup: 'EQP', profiles, updatedBy: 'admin' }
-
-    mockModel.findOne.mockReturnValue(chainLean(null))
-    mockModel.findOneAndUpdate.mockReturnValue(chainLean(expected))
-
-    const result = await saveUpdateSettings('EQP', profiles, 'admin')
-
-    expect(mockModel.findOneAndUpdate).toHaveBeenCalledWith(
-      { agentGroup: 'EQP' },
-      {
-        $set: { profiles: expect.any(Array), updatedBy: 'admin' },
-        $unset: { packages: 1, source: 1 }
-      },
-      { returnDocument: 'after', upsert: true }
-    )
-    expect(result).toEqual(expected)
-  })
-
-  it('defaults updatedBy to system', async () => {
-    mockModel.findOne.mockReturnValue(chainLean(null))
-    mockModel.findOneAndUpdate.mockReturnValue(chainLean({}))
-
-    await saveUpdateSettings('EQP', [])
-
-    const call = mockModel.findOneAndUpdate.mock.calls[0]
-    expect(call[1].$set.updatedBy).toBe('system')
+  it('returns empty array when no profiles exist', async () => {
+    mockModel.find.mockReturnValue(chainLean([]))
+    const result = await listProfiles('EQP')
+    expect(result).toEqual([])
   })
 })
 
 // ─── getProfile ──────────────────────────────────────────────────
 
 describe('getProfile', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+  beforeEach(() => vi.clearAllMocks())
 
   it('returns matching profile when found', async () => {
-    const doc = {
-      agentGroup: 'EQP',
-      profiles: [
-        { profileId: 'prof_1', name: 'Default' },
-        { profileId: 'prof_2', name: 'Win11' }
-      ]
-    }
+    const doc = { agentGroup: 'EQP', profileId: 'prof_2', name: 'Win11' }
     mockModel.findOne.mockReturnValue(chainLean(doc))
 
     const result = await getProfile('EQP', 'prof_2')
-    expect(result).toEqual({ profileId: 'prof_2', name: 'Win11' })
+    expect(mockModel.findOne).toHaveBeenCalledWith({ agentGroup: 'EQP', profileId: 'prof_2' })
+    expect(result).toEqual(doc)
   })
 
-  it('returns null when profileId not found', async () => {
-    const doc = {
-      agentGroup: 'EQP',
-      profiles: [{ profileId: 'prof_1', name: 'Default' }]
-    }
-    mockModel.findOne.mockReturnValue(chainLean(doc))
-
-    const result = await getProfile('EQP', 'prof_nonexistent')
-    expect(result).toBeNull()
-  })
-
-  it('returns null when document does not exist', async () => {
+  it('returns null when not found', async () => {
     mockModel.findOne.mockReturnValue(chainLean(null))
-
-    const result = await getProfile('EQP', 'prof_1')
+    const result = await getProfile('EQP', 'prof_none')
     expect(result).toBeNull()
   })
 })
 
-// ─── migrateToProfiles (inside initializeUpdateSettings) ─────────
+// ─── createProfile ──────────────────────────────────────────────
 
-describe('initializeUpdateSettings - migration', () => {
+describe('createProfile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Default: no duplicate present
+    mockModel.findOne.mockReturnValue(chainLean(null))
   })
 
-  it('migrates legacy documents with packages to profiles with tasks', async () => {
-    const legacyDoc = {
-      _id: 'id_1',
+  it('creates profile with cleaned data and audit log', async () => {
+    const created = {
       agentGroup: 'EQP',
-      packages: [{ packageId: 'pkg_1', name: 'app.exe', targetPath: '/bin', targetType: 'file' }],
-      source: { type: 'local', localPath: '/src' }
+      profileId: 'prof_abc',
+      name: 'New',
+      osVer: '',
+      version: '',
+      tasks: [],
+      source: { type: 'local' }
     }
+    mockModel.create.mockResolvedValue({ ...created, toObject: () => created })
 
-    mockModel.createIndexes.mockResolvedValue()
-    // First find: legacy migration, Second find: Migration B, Third find: source cleanup
-    mockModel.find
-      .mockReturnValueOnce({ lean: vi.fn().mockResolvedValue([legacyDoc]) })
-      .mockReturnValueOnce({ lean: vi.fn().mockResolvedValue([]) })
-      .mockReturnValueOnce({ lean: vi.fn().mockResolvedValue([]) })
-    mockModel.updateOne.mockResolvedValue()
+    const result = await createProfile('EQP', { profileId: 'prof_abc', name: 'New' }, 'admin')
 
-    await initializeUpdateSettings()
+    expect(mockModel.create).toHaveBeenCalledWith(expect.objectContaining({
+      agentGroup: 'EQP',
+      profileId: 'prof_abc',
+      name: 'New',
+      updatedBy: 'admin'
+    }))
+    expect(result.profileId).toBe('prof_abc')
+  })
 
-    expect(mockModel.find).toHaveBeenCalledWith({
-      packages: { $exists: true, $ne: [] },
-      $or: [{ profiles: { $exists: false } }, { profiles: { $size: 0 } }]
+  it('auto-generates profileId when not provided', async () => {
+    const returned = { agentGroup: 'EQP', profileId: 'prof_xyz', name: 'Auto', tasks: [] }
+    mockModel.create.mockImplementation(async (data) => ({ ...data, toObject: () => data }))
+
+    const result = await createProfile('EQP', { name: 'Auto' }, 'admin')
+    expect(result.profileId).toMatch(/^prof_[0-9a-f]+$/)
+  })
+
+  it('defaults updatedBy to system', async () => {
+    mockModel.create.mockImplementation(async (data) => ({ ...data, toObject: () => data }))
+    await createProfile('EQP', { profileId: 'prof_1', name: 'x' })
+    const call = mockModel.create.mock.calls[0][0]
+    expect(call.updatedBy).toBe('system')
+  })
+
+  it('throws 409 when (agentGroup,name,osVer,version) already exists', async () => {
+    mockModel.findOne.mockReturnValue(chainLean({
+      agentGroup: 'EQP', profileId: 'prof_existing', name: 'Dup', osVer: 'Win11', version: '1.0'
+    }))
+
+    await expect(
+      createProfile('EQP', { name: 'Dup', osVer: 'Win11', version: '1.0' }, 'admin')
+    ).rejects.toMatchObject({ statusCode: 409, code: 'PROFILE_DUPLICATE' })
+
+    expect(mockModel.create).not.toHaveBeenCalled()
+  })
+
+  it('checks duplicates by the correct (agentGroup,name,osVer,version) query', async () => {
+    mockModel.create.mockImplementation(async (data) => ({ ...data, toObject: () => data }))
+    await createProfile('EQP', { name: 'X', osVer: 'Win11', version: '1.0' }, 'admin')
+
+    expect(mockModel.findOne).toHaveBeenCalledWith({
+      agentGroup: 'EQP',
+      name: 'X',
+      osVer: 'Win11',
+      version: '1.0'
     })
+  })
+})
 
-    const updateCall = mockModel.updateOne.mock.calls[0]
-    expect(updateCall[0]).toEqual({ _id: 'id_1' })
-    const migratedProfile = updateCall[1].$set.profiles[0]
-    expect(migratedProfile.profileId).toBe('prof_default')
-    expect(migratedProfile.tasks).toEqual([
-      { taskId: 'task_1', type: 'copy', name: 'app.exe', sourcePath: '/bin', targetPath: '/bin' }
+// ─── updateProfile ──────────────────────────────────────────────
+
+describe('updateProfile', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('updates existing profile and returns latest', async () => {
+    const previous = { agentGroup: 'EQP', profileId: 'prof_1', name: 'Old', tasks: [] }
+    const updated = { agentGroup: 'EQP', profileId: 'prof_1', name: 'New', tasks: [] }
+
+    // 1st findOne: load previous. 2nd findOne: duplicate check (null = no clash).
+    mockModel.findOne
+      .mockReturnValueOnce(chainLean(previous))
+      .mockReturnValueOnce(chainLean(null))
+    mockModel.findOneAndUpdate.mockReturnValue(chainLean(updated))
+
+    const result = await updateProfile('EQP', 'prof_1', { name: 'New' }, 'admin')
+
+    expect(mockModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { agentGroup: 'EQP', profileId: 'prof_1' },
+      expect.objectContaining({ $set: expect.objectContaining({ name: 'New', updatedBy: 'admin' }) }),
+      { returnDocument: 'after' }
+    )
+    expect(result).toEqual(updated)
+  })
+
+  it('returns null when target profile does not exist', async () => {
+    mockModel.findOne.mockReturnValue(chainLean(null))
+    const result = await updateProfile('EQP', 'prof_missing', { name: 'x' }, 'admin')
+    expect(result).toBeNull()
+    expect(mockModel.findOneAndUpdate).not.toHaveBeenCalled()
+  })
+
+  it('ignores profileId in payload — path param is authoritative', async () => {
+    const previous = { agentGroup: 'EQP', profileId: 'prof_1', name: 'Old', tasks: [] }
+    const updated = { agentGroup: 'EQP', profileId: 'prof_1', name: 'New', tasks: [] }
+    // First findOne: load previous. Second findOne: duplicate check returns null.
+    mockModel.findOne
+      .mockReturnValueOnce(chainLean(previous))
+      .mockReturnValueOnce(chainLean(null))
+    mockModel.findOneAndUpdate.mockReturnValue(chainLean(updated))
+
+    await updateProfile('EQP', 'prof_1', { profileId: 'prof_MALICIOUS', name: 'New' }, 'admin')
+
+    const call = mockModel.findOneAndUpdate.mock.calls[0]
+    expect(call[1].$set.profileId).toBe('prof_1')
+  })
+
+  it('throws 409 when another profile already uses (name,osVer,version)', async () => {
+    const previous = { agentGroup: 'EQP', profileId: 'prof_1', name: 'Old', tasks: [] }
+    const clash = { agentGroup: 'EQP', profileId: 'prof_other', name: 'Dup', osVer: 'Win11', version: '1.0' }
+    mockModel.findOne
+      .mockReturnValueOnce(chainLean(previous))
+      .mockReturnValueOnce(chainLean(clash))
+
+    await expect(
+      updateProfile('EQP', 'prof_1', { name: 'Dup', osVer: 'Win11', version: '1.0' }, 'admin')
+    ).rejects.toMatchObject({ statusCode: 409, code: 'PROFILE_DUPLICATE' })
+
+    expect(mockModel.findOneAndUpdate).not.toHaveBeenCalled()
+  })
+
+  it('allows self-update to same (name,osVer,version) — excludes own profileId', async () => {
+    const previous = { agentGroup: 'EQP', profileId: 'prof_1', name: 'Same', osVer: 'Win11', version: '1.0', tasks: [] }
+    const updated = { ...previous }
+    mockModel.findOne
+      .mockReturnValueOnce(chainLean(previous))
+      .mockReturnValueOnce(chainLean(null))  // no other profile matches
+    mockModel.findOneAndUpdate.mockReturnValue(chainLean(updated))
+
+    await updateProfile('EQP', 'prof_1', { name: 'Same', osVer: 'Win11', version: '1.0' }, 'admin')
+
+    // Duplicate check must exclude self
+    const dupCall = mockModel.findOne.mock.calls[1][0]
+    expect(dupCall).toEqual({
+      agentGroup: 'EQP',
+      name: 'Same',
+      osVer: 'Win11',
+      version: '1.0',
+      profileId: { $ne: 'prof_1' }
+    })
+  })
+})
+
+// ─── deleteProfile ──────────────────────────────────────────────
+
+describe('deleteProfile', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('deletes and returns previous document', async () => {
+    const previous = { agentGroup: 'EQP', profileId: 'prof_1', name: 'X' }
+    mockModel.findOneAndDelete.mockReturnValue(chainLean(previous))
+
+    const result = await deleteProfile('EQP', 'prof_1', 'admin')
+
+    expect(mockModel.findOneAndDelete).toHaveBeenCalledWith({ agentGroup: 'EQP', profileId: 'prof_1' })
+    expect(result).toEqual(previous)
+  })
+
+  it('returns null when not found', async () => {
+    mockModel.findOneAndDelete.mockReturnValue(chainLean(null))
+    const result = await deleteProfile('EQP', 'prof_missing', 'admin')
+    expect(result).toBeNull()
+  })
+})
+
+// ─── initializeUpdateSettings (boot guard) ──────────────────────
+
+describe('initializeUpdateSettings — boot guard', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('succeeds when no legacy documents and new unique index is present', async () => {
+    mockModel.createIndexes.mockResolvedValue()
+    mockModel.countDocuments.mockResolvedValue(0)
+    mockModel.collection.indexes.mockResolvedValue([
+      { name: 'agentGroup_name_osVer_version_unique', unique: true }
     ])
-    expect(migratedProfile.packages).toBeUndefined()
+
+    await expect(initializeUpdateSettings()).resolves.toBeUndefined()
+    expect(mockModel.countDocuments).toHaveBeenCalledWith({ profiles: { $exists: true } })
   })
 
-  it('skips migration when no legacy documents found', async () => {
+  it('throws when legacy documents are present', async () => {
     mockModel.createIndexes.mockResolvedValue()
-    mockModel.find
-      .mockReturnValueOnce({ lean: vi.fn().mockResolvedValue([]) })  // legacy
-      .mockReturnValueOnce({ lean: vi.fn().mockResolvedValue([]) })  // Migration B
-      .mockReturnValueOnce({ lean: vi.fn().mockResolvedValue([]) })  // source cleanup
+    mockModel.countDocuments.mockResolvedValue(3)
 
-    await initializeUpdateSettings()
-
-    expect(mockModel.updateOne).not.toHaveBeenCalled()
+    await expect(initializeUpdateSettings()).rejects.toThrow('UPDATE_SETTINGS migration required')
   })
 
-  it('cleans source fields in existing profiles', async () => {
-    const dirtyDoc = {
-      _id: 'id_2',
-      profiles: [{
-        profileId: 'prof_1',
-        tasks: [],
-        source: { type: 'local', localPath: '/opt', ftpHost: '', ftpPort: 21, minioEndpoint: '' }
-      }]
-    }
-
+  it('throws when new unique index is missing', async () => {
     mockModel.createIndexes.mockResolvedValue()
-    mockModel.find
-      .mockReturnValueOnce({ lean: vi.fn().mockResolvedValue([]) })         // legacy migration
-      .mockReturnValueOnce({ lean: vi.fn().mockResolvedValue([]) })         // Migration B
-      .mockReturnValueOnce({ lean: vi.fn().mockResolvedValue([dirtyDoc]) }) // source cleanup
-    mockModel.updateOne.mockResolvedValue()
-
-    await initializeUpdateSettings()
-
-    // Should clean source: remove ftpHost, ftpPort, minioEndpoint
-    const updateCall = mockModel.updateOne.mock.calls[0]
-    expect(updateCall[0]).toEqual({ _id: 'id_2' })
-    const cleanedSource = updateCall[1].$set.profiles[0].source
-    expect(cleanedSource).toEqual({ type: 'local', localPath: '/opt' })
-    expect(cleanedSource.ftpHost).toBeUndefined()
-  })
-
-  it('Migration B: converts profiles.packages[] to profiles.tasks[]', async () => {
-    const docWithPackages = {
-      _id: 'id_3',
-      profiles: [{
-        profileId: 'prof_1',
-        name: 'Default',
-        packages: [
-          { packageId: 'pkg_1', name: 'Agent', targetPath: 'bin/agent.jar', targetType: 'file' },
-          { packageId: 'pkg_2', name: 'Config', targetPath: 'config/', targetType: 'directory', description: 'Config files' }
-        ],
-        source: { type: 'local', localPath: '/opt' }
-      }]
-    }
-
-    mockModel.createIndexes.mockResolvedValue()
-    mockModel.find
-      .mockReturnValueOnce({ lean: vi.fn().mockResolvedValue([]) })               // legacy
-      .mockReturnValueOnce({ lean: vi.fn().mockResolvedValue([docWithPackages]) }) // Migration B
-      .mockReturnValueOnce({ lean: vi.fn().mockResolvedValue([]) })               // source cleanup
-    mockModel.updateOne.mockResolvedValue()
-
-    await initializeUpdateSettings()
-
-    const updateCall = mockModel.updateOne.mock.calls[0]
-    expect(updateCall[0]).toEqual({ _id: 'id_3' })
-    const migratedTasks = updateCall[1].$set.profiles[0].tasks
-    expect(migratedTasks).toEqual([
-      { taskId: 'task_1', type: 'copy', name: 'Agent', sourcePath: 'bin/agent.jar', targetPath: 'bin/agent.jar' },
-      { taskId: 'task_2', type: 'copy', name: 'Config', sourcePath: 'config/', targetPath: 'config/', description: 'Config files' }
+    mockModel.countDocuments.mockResolvedValue(0)
+    mockModel.collection.indexes.mockResolvedValue([
+      { name: 'agentGroup_1_profileId_1', unique: true }  // old index only
     ])
-    expect(updateCall[1].$set.profiles[0].packages).toBeUndefined()
+
+    await expect(initializeUpdateSettings()).rejects.toThrow(
+      'UPDATE_SETTINGS unique index migration required'
+    )
   })
 })

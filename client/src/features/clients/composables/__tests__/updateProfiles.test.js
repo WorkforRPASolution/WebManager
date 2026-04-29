@@ -5,7 +5,8 @@ import {
   createTaskSnapshot,
   createProfileSnapshot,
   createTaskFromSnapshot,
-  createProfileFromSnapshot
+  createProfileFromSnapshot,
+  hasProfileDuplicate
 } from '../updateProfileUtils'
 
 describe('filterProfilesByClientOs', () => {
@@ -230,6 +231,12 @@ describe('createProfileFromSnapshot', () => {
     expect(p._nameError).toBeNull()
   })
 
+  it('G3a: starts dirty so user must click Save Profile to POST', () => {
+    const p = createProfileFromSnapshot(profSnap, [], getKey)
+    expect(p._dirty).toBe(true)
+    expect(p._saveError).toBeNull()
+  })
+
   it('G4: source 독립 복사', () => {
     const p = createProfileFromSnapshot(profSnap, [], getKey)
     profSnap.source.ftpHost = 'changed'
@@ -244,5 +251,72 @@ describe('createProfileFromSnapshot', () => {
     const p2 = createProfileFromSnapshot(profSnap, existing, getKey)
     expect(p1.name).toBe('Windows (copy)')
     expect(p2.name).toBe('Windows (copy 2)')
+  })
+})
+
+// --- hasProfileDuplicate ---
+
+describe('hasProfileDuplicate', () => {
+  const makeProfile = (key, name, osVer, version) => ({
+    _key: key, name, osVer, version
+  })
+
+  it('H1: 같은 (name, osVer, version) 조합 존재 → true', () => {
+    const target = makeProfile('k1', 'Agent', 'Win11', '1.0')
+    const list = [
+      target,
+      makeProfile('k2', 'Agent', 'Win11', '1.0')  // duplicate
+    ]
+    expect(hasProfileDuplicate(target, list)).toBe(true)
+  })
+
+  it('H2: osVer만 다르면 → false', () => {
+    const target = makeProfile('k1', 'Agent', 'Win11', '1.0')
+    const list = [
+      target,
+      makeProfile('k2', 'Agent', 'Win10', '1.0')
+    ]
+    expect(hasProfileDuplicate(target, list)).toBe(false)
+  })
+
+  it('H3: version만 다르면 → false', () => {
+    const target = makeProfile('k1', 'Agent', 'Win11', '1.0')
+    const list = [
+      target,
+      makeProfile('k2', 'Agent', 'Win11', '2.0')
+    ]
+    expect(hasProfileDuplicate(target, list)).toBe(false)
+  })
+
+  it('H4: 자기 자신(_key 일치)은 제외', () => {
+    const target = makeProfile('k1', 'Agent', 'Win11', '1.0')
+    expect(hasProfileDuplicate(target, [target])).toBe(false)
+  })
+
+  it('H5: name 공백이면 체크하지 않음 → false', () => {
+    const target = makeProfile('k1', '  ', '', '')
+    const list = [
+      target,
+      makeProfile('k2', '', '', '')
+    ]
+    expect(hasProfileDuplicate(target, list)).toBe(false)
+  })
+
+  it('H6: osVer/version 누락은 빈 문자열로 간주', () => {
+    const target = { _key: 'k1', name: 'A' }  // no osVer/version
+    const list = [
+      target,
+      { _key: 'k2', name: 'A', osVer: '', version: '' }
+    ]
+    expect(hasProfileDuplicate(target, list)).toBe(true)
+  })
+
+  it('H7: 공백 다르게(trim 필요) 입력 → 같은 조합으로 간주', () => {
+    const target = makeProfile('k1', '  Agent  ', 'Win11', '1.0')
+    const list = [
+      target,
+      makeProfile('k2', 'Agent', 'Win11', '1.0')
+    ]
+    expect(hasProfileDuplicate(target, list)).toBe(true)
   })
 })

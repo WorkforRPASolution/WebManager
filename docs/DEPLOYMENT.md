@@ -7,8 +7,10 @@
 4. [의존성 설치](#의존성-설치)
 5. [빌드](#빌드)
 6. [실행](#실행)
-7. [접속 확인](#접속-확인)
-8. [문제 해결](#문제-해결)
+7. [초기 데이터 설정](#초기-데이터-설정)
+8. [업그레이드 마이그레이션](#업그레이드-마이그레이션-기존-배포-업그레이드-시)
+9. [접속 확인](#접속-확인)
+10. [문제 해결](#문제-해결)
 
 ---
 
@@ -360,6 +362,42 @@ npm run setup:admin -- --delete
 > 비밀번호 분실 시 초기화: `npm run setup:admin -- --reset`
 
 ### Step 4: 서버 실행 후 접속 확인
+
+---
+
+## 업그레이드 마이그레이션 (기존 배포 업그레이드 시)
+
+새 버전을 기존 환경에 배포할 때, DB 스키마 변경이 포함된 경우 해당 마이그레이션 스크립트를 실행해야 합니다. 마이그레이션 없이 신 버전 서버를 기동하면 부팅 가드가 즉시 실패시킵니다 — 조용한 데이터 손실 방지 설계.
+
+### 현재 유효한 마이그레이션
+
+| 항목 | 적용 시점 | 명령 | 가이드 |
+|------|---------|------|--------|
+| UPDATE_SETTINGS per-profile 정규화 | 단계 1: 구 shape(`profiles[]` 배열) → per-document | `npm run migrate:update-settings -- --yes` | [UPDATE_SETTINGS_SCHEMA_MIGRATION.md](./UPDATE_SETTINGS_SCHEMA_MIGRATION.md) |
+| UPDATE_SETTINGS unique 강화 | 단계 2: `(agentGroup, profileId)` → `(agentGroup, name, osVer, version)` | `npm run migrate:update-settings-unique -- --yes` | [UPDATE_SETTINGS_SCHEMA_MIGRATION.md](./UPDATE_SETTINGS_SCHEMA_MIGRATION.md) |
+
+### 표준 업그레이드 절차
+
+1. **서버 중단** (PM2 / nssm / 서비스 매니저)
+2. **DB 백업**: `mongodump --uri="$WEBMANAGER_DB_URI" --collection=UPDATE_SETTINGS --out=./backup-YYYYMMDD`
+3. **신 버전 코드 배포** + `npm install`
+4. **단계 1 — per-profile 변환 (dry-run → apply)**:
+   ```bash
+   cd server
+   npm run migrate:update-settings -- --dry-run
+   npm run migrate:update-settings -- --yes
+   ```
+   성공 시 `✓ Verification passed — no legacy documents remain.` 출력
+5. **단계 2 — unique index 강화 (dry-run → apply)**:
+   ```bash
+   npm run migrate:update-settings-unique -- --dry-run
+   npm run migrate:update-settings-unique -- --yes
+   ```
+   dry-run에서 중복 발견 시 runbook의 **2-2 수동 정리** 절차를 먼저 수행. 성공 시 `✓ Unique index swap complete.`
+6. **서버 재기동** — 부팅 로그에 `+ UPDATE_SETTINGS collection ready` 보여야 정상
+7. **UI 검증** + **Audit 로그 확인** (상세는 위 링크 가이드 참조)
+
+**실패 시**: 부팅 가드 메시지가 `Run: npm run migrate:update-settings[-unique]`를 직접 가리킵니다. 두 스크립트 모두 idempotent하므로 재실행 안전.
 
 ---
 

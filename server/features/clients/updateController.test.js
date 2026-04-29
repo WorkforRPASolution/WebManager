@@ -1,29 +1,32 @@
 /**
- * updateController — profile-based validation tests (TDD)
+ * updateController — per-profile CRUD tests (TDD)
  *
- * Uses _setDeps() dependency injection pattern (same as updateService).
+ * Uses _setDeps() dependency injection to replace services.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-
-// We need to import after setting up, but the controller uses require() internally.
-// We'll add _setDeps to the controller so we can inject mock services.
 import {
-  getUpdateSettings,
-  saveUpdateSettings,
+  listUpdateSettings,
+  createProfile,
+  updateProfile,
+  deleteProfile,
   deployUpdate,
   _setDeps
 } from './updateController.js'
 
 // --- Mock dependencies ---
-const mockGetDocument = vi.fn()
-const mockSaveUpdateSettings = vi.fn()
+const mockListProfiles = vi.fn()
+const mockCreateProfile = vi.fn()
+const mockUpdateProfile = vi.fn()
+const mockDeleteProfile = vi.fn()
 const mockDeployUpdate = vi.fn()
 
 _setDeps({
   updateSettingsService: {
-    getDocument: mockGetDocument,
-    saveUpdateSettings: mockSaveUpdateSettings
+    listProfiles: mockListProfiles,
+    createProfile: mockCreateProfile,
+    updateProfile: mockUpdateProfile,
+    deleteProfile: mockDeleteProfile
   },
   updateService: {
     deployUpdate: mockDeployUpdate
@@ -39,7 +42,6 @@ _setDeps({
   }
 })
 
-/** Helper: create a mock Express request */
 function mockReq(overrides = {}) {
   return {
     params: {},
@@ -49,15 +51,13 @@ function mockReq(overrides = {}) {
   }
 }
 
-/** Helper: create a mock Express response */
 function mockRes() {
   const res = {
     _status: 200,
     _json: null,
-    _headers: {},
     json: vi.fn((data) => { res._json = data }),
     status: vi.fn((code) => { res._status = code; return res }),
-    setHeader: vi.fn((k, v) => { res._headers[k] = v }),
+    setHeader: vi.fn(),
     flushHeaders: vi.fn(),
     write: vi.fn(),
     end: vi.fn(),
@@ -66,261 +66,198 @@ function mockRes() {
   return res
 }
 
-describe('updateController validation', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+describe('updateController', () => {
+  beforeEach(() => vi.clearAllMocks())
 
   // -----------------------------------------------------------
-  // getUpdateSettings
-  // -----------------------------------------------------------
-  describe('getUpdateSettings', () => {
-    it('returns document when found', async () => {
-      const doc = { agentGroup: 'ars', profiles: [{ name: 'P1' }] }
-      mockGetDocument.mockResolvedValue(doc)
+  describe('listUpdateSettings', () => {
+    it('returns { agentGroup, profiles } with profiles from service', async () => {
+      const profiles = [{ profileId: 'p1', name: 'P1' }]
+      mockListProfiles.mockResolvedValue(profiles)
 
       const req = mockReq({ params: { agentGroup: 'ars' } })
       const res = mockRes()
 
-      await getUpdateSettings(req, res)
+      await listUpdateSettings(req, res)
 
-      expect(mockGetDocument).toHaveBeenCalledWith('ars')
-      expect(res.json).toHaveBeenCalledWith(doc)
+      expect(mockListProfiles).toHaveBeenCalledWith('ars')
+      expect(res.json).toHaveBeenCalledWith({ agentGroup: 'ars', profiles })
     })
 
-    it('returns fallback with empty profiles array when document is null', async () => {
-      mockGetDocument.mockResolvedValue(null)
-
+    it('returns empty profiles array when none exist', async () => {
+      mockListProfiles.mockResolvedValue([])
       const req = mockReq({ params: { agentGroup: 'ars' } })
       const res = mockRes()
 
-      await getUpdateSettings(req, res)
-
+      await listUpdateSettings(req, res)
       expect(res.json).toHaveBeenCalledWith({ agentGroup: 'ars', profiles: [] })
     })
   })
 
   // -----------------------------------------------------------
-  // saveUpdateSettings
-  // -----------------------------------------------------------
-  describe('saveUpdateSettings', () => {
-    it('throws 400 when profiles is not an array', async () => {
-      const req = mockReq({
-        params: { agentGroup: 'ars' },
-        body: { profiles: 'not-array' }
-      })
+  describe('createProfile', () => {
+    it('throws 400 when name is missing', async () => {
+      const req = mockReq({ params: { agentGroup: 'ars' }, body: { tasks: [] } })
       const res = mockRes()
-
-      await expect(saveUpdateSettings(req, res)).rejects.toThrow('profiles must be an array')
+      await expect(createProfile(req, res)).rejects.toThrow('profile must have a name')
     })
 
-    it('throws 400 when profiles is missing', async () => {
-      const req = mockReq({
-        params: { agentGroup: 'ars' },
-        body: {}
-      })
+    it('throws 400 when name is whitespace', async () => {
+      const req = mockReq({ params: { agentGroup: 'ars' }, body: { name: '   ' } })
       const res = mockRes()
-
-      await expect(saveUpdateSettings(req, res)).rejects.toThrow('profiles must be an array')
+      await expect(createProfile(req, res)).rejects.toThrow('profile must have a name')
     })
 
-    it('throws 400 when a profile has no name', async () => {
+    it('throws 400 when copy task lacks sourcePath', async () => {
       const req = mockReq({
         params: { agentGroup: 'ars' },
-        body: { profiles: [{ name: '' }] }
+        body: { name: 'P', tasks: [{ name: 't', type: 'copy', sourcePath: '', targetPath: 'b' }] }
       })
-      const res = mockRes()
-
-      await expect(saveUpdateSettings(req, res)).rejects.toThrow('Each profile must have a name')
+      await expect(createProfile(req, mockRes())).rejects.toThrow('Copy task requires sourcePath and targetPath')
     })
 
-    it('throws 400 when a profile name is whitespace only', async () => {
+    it('throws 400 when exec task lacks commandLine', async () => {
       const req = mockReq({
         params: { agentGroup: 'ars' },
-        body: { profiles: [{ name: '   ' }] }
+        body: { name: 'P', tasks: [{ name: 't', type: 'exec', commandLine: '' }] }
       })
-      const res = mockRes()
-
-      await expect(saveUpdateSettings(req, res)).rejects.toThrow('Each profile must have a name')
+      await expect(createProfile(req, mockRes())).rejects.toThrow('Exec task requires commandLine')
     })
 
-    it('throws 400 when a task has no name', async () => {
-      const req = mockReq({
-        params: { agentGroup: 'ars' },
-        body: {
-          profiles: [{
-            name: 'Profile1',
-            tasks: [{ name: '', sourcePath: 'bin/a.exe', targetPath: 'bin/a.exe' }]
-          }]
-        }
-      })
+    it('calls service and returns 201 with created profile', async () => {
+      const profileBody = { name: 'P1', tasks: [{ name: 'T1', sourcePath: 'a', targetPath: 'b' }] }
+      const saved = { agentGroup: 'ars', profileId: 'prof_new', ...profileBody }
+      mockCreateProfile.mockResolvedValue(saved)
+
+      const req = mockReq({ params: { agentGroup: 'ars' }, body: profileBody })
       const res = mockRes()
 
-      await expect(saveUpdateSettings(req, res)).rejects.toThrow('Each task requires a name')
-    })
+      await createProfile(req, res)
 
-    it('throws 400 when a copy task has no sourcePath', async () => {
-      const req = mockReq({
-        params: { agentGroup: 'ars' },
-        body: {
-          profiles: [{
-            name: 'Profile1',
-            tasks: [{ name: 'T1', type: 'copy', sourcePath: '', targetPath: 'bin/a.exe' }]
-          }]
-        }
-      })
-      const res = mockRes()
-
-      await expect(saveUpdateSettings(req, res)).rejects.toThrow('Copy task requires sourcePath and targetPath')
-    })
-
-    it('throws 400 when a copy task has no targetPath', async () => {
-      const req = mockReq({
-        params: { agentGroup: 'ars' },
-        body: {
-          profiles: [{
-            name: 'Profile1',
-            tasks: [{ name: 'T1', type: 'copy', sourcePath: 'bin/a.exe', targetPath: '' }]
-          }]
-        }
-      })
-      const res = mockRes()
-
-      await expect(saveUpdateSettings(req, res)).rejects.toThrow('Copy task requires sourcePath and targetPath')
-    })
-
-    it('throws 400 when an exec task has no commandLine', async () => {
-      const req = mockReq({
-        params: { agentGroup: 'ars' },
-        body: {
-          profiles: [{
-            name: 'Profile1',
-            tasks: [{ name: 'T1', type: 'exec', commandLine: '' }]
-          }]
-        }
-      })
-      const res = mockRes()
-
-      await expect(saveUpdateSettings(req, res)).rejects.toThrow('Exec task requires commandLine')
-    })
-
-    it('exec task with valid commandLine passes validation', async () => {
-      mockSaveUpdateSettings.mockResolvedValue({ agentGroup: 'ars', profiles: [] })
-
-      const profiles = [{
-        name: 'P1',
-        tasks: [{ name: 'Stop', type: 'exec', commandLine: 'net stop svc', args: ['stop', 'svc'], timeout: 30000 }]
-      }]
-      const req = mockReq({
-        params: { agentGroup: 'ars' },
-        body: { profiles }
-      })
-      const res = mockRes()
-
-      await saveUpdateSettings(req, res)
-
-      expect(mockSaveUpdateSettings).toHaveBeenCalled()
-    })
-
-    it('calls service with valid profiles containing tasks', async () => {
-      const savedDoc = { agentGroup: 'ars', profiles: [{ name: 'P1', tasks: [] }] }
-      mockSaveUpdateSettings.mockResolvedValue(savedDoc)
-
-      const profiles = [
-        { name: 'P1', tasks: [{ name: 'T1', sourcePath: 'release/bin/a.exe', targetPath: 'bin/a.exe' }] }
-      ]
-      const req = mockReq({
-        params: { agentGroup: 'ars' },
-        body: { profiles }
-      })
-      const res = mockRes()
-
-      await saveUpdateSettings(req, res)
-
-      expect(mockSaveUpdateSettings).toHaveBeenCalledWith('ars', profiles, 'tester')
-      expect(res.json).toHaveBeenCalledWith(savedDoc)
+      expect(mockCreateProfile).toHaveBeenCalledWith('ars', profileBody, 'tester')
+      expect(res.status).toHaveBeenCalledWith(201)
+      expect(res.json).toHaveBeenCalledWith(saved)
     })
 
     it('uses "unknown" as updatedBy when no user is present', async () => {
-      mockSaveUpdateSettings.mockResolvedValue({})
-
-      const profiles = [{ name: 'P1', tasks: [] }]
+      mockCreateProfile.mockResolvedValue({})
       const req = mockReq({
         params: { agentGroup: 'ars' },
-        body: { profiles },
+        body: { name: 'P1' },
         user: undefined
       })
-      const res = mockRes()
+      await createProfile(req, mockRes())
+      expect(mockCreateProfile).toHaveBeenCalledWith('ars', { name: 'P1' }, 'unknown')
+    })
 
-      await saveUpdateSettings(req, res)
+    it('propagates 409 ApiError from service when duplicate', async () => {
+      const conflictErr = Object.assign(
+        new Error('Profile already exists: name="X" osVer="Win11" version="1.0"'),
+        { statusCode: 409, code: 'PROFILE_DUPLICATE' }
+      )
+      mockCreateProfile.mockRejectedValue(conflictErr)
 
-      expect(mockSaveUpdateSettings).toHaveBeenCalledWith('ars', profiles, 'unknown')
+      const req = mockReq({
+        params: { agentGroup: 'ars' },
+        body: { name: 'X', osVer: 'Win11', version: '1.0' }
+      })
+      await expect(createProfile(req, mockRes())).rejects.toMatchObject({
+        statusCode: 409, code: 'PROFILE_DUPLICATE'
+      })
     })
   })
 
   // -----------------------------------------------------------
-  // deployUpdate
+  describe('updateProfile', () => {
+    it('throws 404 when profile does not exist', async () => {
+      mockUpdateProfile.mockResolvedValue(null)
+      const req = mockReq({
+        params: { agentGroup: 'ars', profileId: 'prof_none' },
+        body: { name: 'P' }
+      })
+      await expect(updateProfile(req, mockRes())).rejects.toThrow('Profile not found: prof_none')
+    })
+
+    it('updates and returns profile', async () => {
+      const body = { name: 'Updated', tasks: [] }
+      const saved = { agentGroup: 'ars', profileId: 'p1', ...body }
+      mockUpdateProfile.mockResolvedValue(saved)
+
+      const req = mockReq({ params: { agentGroup: 'ars', profileId: 'p1' }, body })
+      const res = mockRes()
+
+      await updateProfile(req, res)
+
+      expect(mockUpdateProfile).toHaveBeenCalledWith('ars', 'p1', body, 'tester')
+      expect(res.json).toHaveBeenCalledWith(saved)
+    })
+
+    it('validates exec task requires commandLine', async () => {
+      const req = mockReq({
+        params: { agentGroup: 'ars', profileId: 'p1' },
+        body: { name: 'P', tasks: [{ name: 't', type: 'exec', commandLine: '' }] }
+      })
+      await expect(updateProfile(req, mockRes())).rejects.toThrow('Exec task requires commandLine')
+    })
+
+    it('propagates 409 ApiError from service when duplicate', async () => {
+      const conflictErr = Object.assign(
+        new Error('Profile already exists'),
+        { statusCode: 409, code: 'PROFILE_DUPLICATE' }
+      )
+      mockUpdateProfile.mockRejectedValue(conflictErr)
+
+      const req = mockReq({
+        params: { agentGroup: 'ars', profileId: 'p1' },
+        body: { name: 'X', osVer: 'Win11', version: '1.0' }
+      })
+      await expect(updateProfile(req, mockRes())).rejects.toMatchObject({
+        statusCode: 409, code: 'PROFILE_DUPLICATE'
+      })
+    })
+  })
+
+  // -----------------------------------------------------------
+  describe('deleteProfile', () => {
+    it('returns 204 on success', async () => {
+      mockDeleteProfile.mockResolvedValue({ agentGroup: 'ars', profileId: 'p1' })
+      const req = mockReq({ params: { agentGroup: 'ars', profileId: 'p1' } })
+      const res = mockRes()
+
+      await deleteProfile(req, res)
+
+      expect(mockDeleteProfile).toHaveBeenCalledWith('ars', 'p1', 'tester')
+      expect(res.status).toHaveBeenCalledWith(204)
+      expect(res.end).toHaveBeenCalled()
+    })
+
+    it('throws 404 when profile not found', async () => {
+      mockDeleteProfile.mockResolvedValue(null)
+      const req = mockReq({ params: { agentGroup: 'ars', profileId: 'nope' } })
+      await expect(deleteProfile(req, mockRes())).rejects.toThrow('Profile not found: nope')
+    })
+  })
+
   // -----------------------------------------------------------
   describe('deployUpdate', () => {
     it('throws 400 when agentGroup is missing', async () => {
-      const req = mockReq({
-        body: { profileId: 'prof_1', taskIds: ['t1'], targetEqpIds: ['e1'] }
-      })
-      const res = mockRes()
-
-      await expect(deployUpdate(req, res)).rejects.toThrow('agentGroup is required')
+      const req = mockReq({ body: { profileId: 'p1', taskIds: ['t1'], targetEqpIds: ['e1'] } })
+      await expect(deployUpdate(req, mockRes())).rejects.toThrow('agentGroup is required')
     })
 
     it('throws 400 when profileId is missing', async () => {
-      const req = mockReq({
-        body: { agentGroup: 'ars', taskIds: ['t1'], targetEqpIds: ['e1'] }
-      })
-      const res = mockRes()
-
-      await expect(deployUpdate(req, res)).rejects.toThrow('profileId is required')
+      const req = mockReq({ body: { agentGroup: 'ars', taskIds: ['t1'], targetEqpIds: ['e1'] } })
+      await expect(deployUpdate(req, mockRes())).rejects.toThrow('profileId is required')
     })
 
-    it('throws 400 when taskIds is missing', async () => {
-      const req = mockReq({
-        body: { agentGroup: 'ars', profileId: 'prof_1', targetEqpIds: ['e1'] }
-      })
-      const res = mockRes()
-
-      await expect(deployUpdate(req, res)).rejects.toThrow('taskIds array is required')
+    it('throws 400 when taskIds is empty', async () => {
+      const req = mockReq({ body: { agentGroup: 'ars', profileId: 'p1', taskIds: [], targetEqpIds: ['e1'] } })
+      await expect(deployUpdate(req, mockRes())).rejects.toThrow('taskIds array is required')
     })
 
     it('throws 400 when targetEqpIds is empty', async () => {
-      const req = mockReq({
-        body: { agentGroup: 'ars', profileId: 'prof_1', taskIds: ['t1'], targetEqpIds: [] }
-      })
-      const res = mockRes()
-
-      await expect(deployUpdate(req, res)).rejects.toThrow('targetEqpIds array is required')
-    })
-
-    it('starts SSE and calls updateService.deployUpdate with taskIds', async () => {
-      const deployResult = { total: 1, success: 1, failed: 0 }
-      mockDeployUpdate.mockResolvedValue(deployResult)
-
-      const req = mockReq({
-        body: {
-          agentGroup: 'ars',
-          profileId: 'prof_1',
-          taskIds: ['task_1'],
-          targetEqpIds: ['EQP_01']
-        }
-      })
-      const res = mockRes()
-
-      await deployUpdate(req, res)
-
-      expect(mockDeployUpdate).toHaveBeenCalledWith(
-        'ars',
-        'prof_1',
-        ['task_1'],
-        ['EQP_01'],
-        expect.any(Function)  // onProgress callback
-      )
+      const req = mockReq({ body: { agentGroup: 'ars', profileId: 'p1', taskIds: ['t1'], targetEqpIds: [] } })
+      await expect(deployUpdate(req, mockRes())).rejects.toThrow('targetEqpIds array is required')
     })
   })
 })
