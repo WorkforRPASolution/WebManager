@@ -135,12 +135,18 @@
         <div class="grid grid-cols-3 gap-3">
           <FormField :schema="schema.fields.prefix">
             <input type="text" :value="source.prefix" @input="updateField(idx, 'prefix', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.prefix.placeholder" class="form-input" />
+            <p v-if="tokenPreview(source, 'prefix')" class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+              현재 시각 기준 → <span class="font-mono">{{ tokenPreview(source, 'prefix') }}</span>
+            </p>
           </FormField>
           <FormField :schema="schema.fields.wildcard">
             <input type="text" :value="source.wildcard" @input="updateField(idx, 'wildcard', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.wildcard.placeholder" class="form-input" />
           </FormField>
           <FormField :schema="schema.fields.suffix">
             <input type="text" :value="source.suffix" @input="updateField(idx, 'suffix', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.suffix.placeholder" class="form-input" />
+            <p v-if="tokenPreview(source, 'suffix')" class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+              현재 시각 기준 → <span class="font-mono">{{ tokenPreview(source, 'suffix') }}</span>
+            </p>
           </FormField>
         </div>
 
@@ -171,6 +177,9 @@
         <div v-if="getAxis(source, 'dateAxis') !== 'normal'" class="grid grid-cols-2 gap-3">
           <FormField :schema="schema.fields.date_subdir_format">
             <input type="text" :value="source.date_subdir_format" @input="updateField(idx, 'date_subdir_format', $event.target.value)" :disabled="readOnly" :placeholder="schema.fields.date_subdir_format.placeholder" class="form-input" />
+            <p v-if="tokenPreview(source, 'subdir')" class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+              현재 시각 기준 → <span class="font-mono">{{ tokenPreview(source, 'subdir') }}</span>
+            </p>
           </FormField>
         </div>
 
@@ -348,6 +357,8 @@ import FormTagInput from '../shared/components/FormTagInput.vue'
 import FormField from '../shared/components/FormField.vue'
 import FormCheckbox from '../shared/components/FormCheckbox.vue'
 import AccessLogTestPanel from './AccessLogTestPanel.vue'
+import { previewToken } from './testEngine'
+import { jodaSubdirFormat } from '../shared/formatUtils'
 
 const props = defineProps({
   modelValue: { type: Object, default: () => ({}) },
@@ -387,6 +398,25 @@ const sources = computed(() => {
 
 function toggleExpand(idx) {
   expanded[idx] = !expanded[idx]
+}
+
+// 입력값에 Joda 토큰이 들어있고 게이팅을 통과해 실제로 치환된 경우에만 미리보기 문자열 반환.
+// 빈 문자열을 반환하면 호출 측에서 미리보기 영역을 노출하지 않음.
+const JODA_TOKENS = ['yyyy', 'MM', 'dd', 'HH', 'mm', 'ss']
+
+function tokenPreview(source, fieldRole) {
+  const dateAxis = getAxis(source, 'dateAxis')
+  if (fieldRole === 'subdir') {
+    const value = source.date_subdir_format || ''
+    if (!value || dateAxis === 'normal') return ''
+    if (!JODA_TOKENS.some(t => value.includes(t))) return ''
+    const resolved = jodaSubdirFormat(value).format(new Date())
+    return resolved !== value ? resolved : ''
+  }
+  const value = source[fieldRole] || ''
+  if (!value) return ''
+  const resolved = previewToken(value, fieldRole, dateAxis)
+  return resolved !== value ? resolved : ''
 }
 
 function getAxis(source, axis) {

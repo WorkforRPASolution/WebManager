@@ -104,22 +104,29 @@ export const ACCESS_LOG_SCHEMA = {
     },
     prefix: {
       type: 'text', label: '접두사 (Prefix)',
-      description: '로그 파일명의 접두사입니다. 예: "log_"이면 log_20240101.txt 형태의 파일을 매칭합니다.',
+      description: '로그 파일명의 접두사입니다. 예: "log_"이면 log_20240101.txt 형태의 파일을 매칭합니다. ' +
+                   '날짜모드가 "날짜접두사"일 때만 yyyy/MM/dd/HH/mm/ss 토큰이 현재 시각으로 치환됩니다 (예: Log_yyyyMMdd → Log_20260503). ' +
+                   "리터럴로 사용하려면 작은따옴표로 감싸세요 (예: 'yyyy'_log → yyyy_log).",
       placeholder: 'log_'
     },
     wildcard: {
       type: 'text', label: '와일드카드 (Wildcard)',
-      description: '파일명 중간 부분의 와일드카드 패턴입니다. 비워두면 와일드카드를 사용하지 않습니다.',
+      description: '파일명 중간 부분의 와일드카드 패턴입니다. 입력값은 항상 리터럴로 매칭됩니다 (날짜 토큰 해석 안 함). 비워두면 와일드카드를 사용하지 않습니다.',
       placeholder: ''
     },
     suffix: {
       type: 'text', label: '접미사 (Suffix)',
-      description: '로그 파일의 확장자입니다. 예: ".txt", ".log"',
+      description: '로그 파일의 확장자/접미사입니다. 예: ".txt", ".log". ' +
+                   '날짜모드가 "날짜접미사"일 때만 yyyy/MM/dd/HH/mm/ss 토큰이 현재 시각으로 치환됩니다 (예: _yyyyMMdd.txt → _20260503.txt). ' +
+                   '리터럴로 사용하려면 작은따옴표로 감싸세요.',
       placeholder: '.txt'
     },
     date_subdir_format: {
       type: 'text', label: '날짜 하위 디렉토리 포맷',
-      description: "날짜 기반 하위 디렉토리 패턴입니다 (Java SimpleDateFormat). 예: \"'\\\\' yyyy '\\\\' MM '\\\\' dd\" → \\2024\\01\\15",
+      description: '날짜 기반 하위 디렉토리 패턴입니다 (Joda DateTimeFormat). ' +
+                   '토큰: yyyy / MM / dd / HH / mm / ss. ' +
+                   "리터럴은 작은따옴표로 감싸세요 (예: '\\\\'yyyy'\\\\'MM → \\2026\\05). " +
+                   "''는 작은따옴표 한 글자입니다.",
       placeholder: "'\\\\'yyyy'\\\\'MM'\\\\'dd"
     },
     charset: {

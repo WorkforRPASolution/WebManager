@@ -4,7 +4,8 @@ import {
   testMultilineBlocks,
   testExtractAppend,
   testLogTimeFilter,
-  testLineGroup
+  testLineGroup,
+  previewToken
 } from '../testEngine'
 
 // ===========================================================================
@@ -217,7 +218,7 @@ describe('testAccessLogPath', () => {
     expect(filterStep.passed).toBe(false)
   })
 
-  it('28. Prefix with Joda tokens - resolves to current date and matches', () => {
+  it('28. Prefix with Joda tokens - resolves to current date and matches (date_prefix mode)', () => {
     const now = new Date()
     const y = String(now.getFullYear())
     const m = String(now.getMonth() + 1).padStart(2, '0')
@@ -226,7 +227,8 @@ describe('testAccessLogPath', () => {
     const source = {
       directory: 'D:\\EARS\\Log',
       prefix: 'Log_yyyyMMdd',
-      suffix: '.txt'
+      suffix: '.txt',
+      log_type: 'date_prefix_single'
     }
     const result = testAccessLogPath(source, `D:\\EARS\\Log\\Log_${dateStr}.txt`)
     expect(result.matched).toBe(true)
@@ -237,7 +239,7 @@ describe('testAccessLogPath', () => {
     expect(prefixStep.detail).toContain('원본: "Log_yyyyMMdd"')
   })
 
-  it('29. Prefix with Joda tokens - does NOT match wrong date', () => {
+  it('29. Prefix with Joda tokens - does NOT match wrong date (date_prefix mode)', () => {
     const now = new Date()
     const yesterday = new Date(now.getTime() - 86400000)
     const y = String(yesterday.getFullYear())
@@ -247,7 +249,8 @@ describe('testAccessLogPath', () => {
     const source = {
       directory: 'D:\\EARS\\Log',
       prefix: 'Log_yyyyMMdd',
-      suffix: '.txt'
+      suffix: '.txt',
+      log_type: 'date_prefix_single'
     }
     const result = testAccessLogPath(source, `D:\\EARS\\Log\\Log_${dateStr}.txt`)
     expect(result.matched).toBe(false)
@@ -258,7 +261,7 @@ describe('testAccessLogPath', () => {
     expect(prefixStep.detail).toContain('현재 날짜 기준 예상 접두사')
   })
 
-  it('30. Suffix with Joda tokens - resolves to current date and matches', () => {
+  it('30. Suffix with Joda tokens - resolves to current date and matches (date_suffix mode)', () => {
     const now = new Date()
     const y = String(now.getFullYear())
     const m = String(now.getMonth() + 1).padStart(2, '0')
@@ -267,7 +270,8 @@ describe('testAccessLogPath', () => {
     const source = {
       directory: 'D:\\EARS\\Log',
       prefix: 'Log',
-      suffix: '_yyyyMMdd.txt'
+      suffix: '_yyyyMMdd.txt',
+      log_type: 'date_suffix_single'
     }
     const result = testAccessLogPath(source, `D:\\EARS\\Log\\Log_${dateStr}.txt`)
     expect(result.matched).toBe(true)
@@ -290,6 +294,175 @@ describe('testAccessLogPath', () => {
     expect(prefixStep).toBeDefined()
     expect(prefixStep.passed).toBe(true)
     expect(prefixStep.detail).not.toContain('원본')
+  })
+})
+
+
+// ===========================================================================
+// testAccessLogPath - dateAxis 모드 게이팅 (Agent 동작과 정합화)
+// ===========================================================================
+
+describe('testAccessLogPath — dateAxis 모드 게이팅', () => {
+  const now = new Date()
+  const y = String(now.getFullYear())
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  const todayStr = y + m + d
+
+  it('M1: prefix 토큰은 dateAxis=date_prefix 에서만 해석된다 (normal 에서는 리터럴)', () => {
+    const sourceNormal = {
+      directory: 'D:\\Log',
+      prefix: 'yyyyMMdd_log',
+      suffix: '.txt',
+      log_type: 'normal_single'
+    }
+    // normal 모드 — 'yyyyMMdd_log' 리터럴 매칭 시도
+    const literal = testAccessLogPath(sourceNormal, 'D:\\Log\\yyyyMMdd_log.txt')
+    expect(literal.matched).toBe(true)
+
+    // 같은 prefix 인데 오늘 날짜로 치환된 파일 → normal 에서는 매칭 안 됨
+    const resolved = testAccessLogPath(sourceNormal, `D:\\Log\\${todayStr}_log.txt`)
+    expect(resolved.matched).toBe(false)
+  })
+
+  it('M1b: prefix 토큰은 dateAxis=date_prefix 에서 해석된다', () => {
+    const source = {
+      directory: 'D:\\Log',
+      prefix: 'yyyyMMdd_log',
+      suffix: '.txt',
+      log_type: 'date_prefix_single'
+    }
+    const result = testAccessLogPath(source, `D:\\Log\\${todayStr}_log.txt`)
+    expect(result.matched).toBe(true)
+    const prefixStep = result.steps.find(s => s.label === 'Prefix')
+    expect(prefixStep.detail).toContain('원본: "yyyyMMdd_log"')
+  })
+
+  it('M2: suffix 토큰은 dateAxis=date_suffix 에서만 해석된다 (normal 에서는 리터럴)', () => {
+    const sourceNormal = {
+      directory: 'D:\\Log',
+      prefix: 'app',
+      suffix: '_HHmm.txt',
+      log_type: 'normal_single'
+    }
+    // normal — 리터럴 '_HHmm.txt' 매칭
+    const literal = testAccessLogPath(sourceNormal, 'D:\\Log\\app_HHmm.txt')
+    expect(literal.matched).toBe(true)
+
+    // date_suffix — 토큰 해석으로 _<HH><mm>.txt
+    const sourceDS = { ...sourceNormal, log_type: 'date_suffix_single' }
+    const literalInDS = testAccessLogPath(sourceDS, 'D:\\Log\\app_HHmm.txt')
+    expect(literalInDS.matched).toBe(false)
+  })
+
+  it('M3: wildcard 는 모든 dateAxis 에서 리터럴 (ss/MM 약어 안전)', () => {
+    // ss 약어를 wildcard 에 넣고 date_suffix 모드에서도 리터럴 유지되는지
+    const source = {
+      directory: 'D:\\Log',
+      prefix: 'app',
+      wildcard: 'ss_data',
+      suffix: '.log',
+      log_type: 'date_suffix_single'
+    }
+    // 리터럴 'ss_data' 가 파일명에 있는 경우만 매칭
+    const literal = testAccessLogPath(source, 'D:\\Log\\app_ss_data_x.log')
+    expect(literal.matched).toBe(true)
+    const wcStep = literal.steps.find(s => s.label === 'Wildcard')
+    // 리터럴이므로 detail 에 "현재 날짜 기준 예상" 노출 안 됨
+    expect(wcStep.detail).not.toContain('현재 날짜 기준')
+    expect(wcStep.detail).not.toContain('원본')
+  })
+
+  it('M4: date_subdir_format 은 값이 있으면 항상 해석된다 (UI 가 dateAxis 게이팅)', () => {
+    // log_type=date_single → dateAxis=date
+    const source = {
+      directory: 'D:\\Log',
+      prefix: 'TestLog',
+      suffix: '.log',
+      date_subdir_format: 'yyyyMMdd',
+      log_type: 'date_single'
+    }
+    const result = testAccessLogPath(source, `D:\\Log\\${todayStr}\\TestLog_001.log`)
+    expect(result.matched).toBe(true)
+  })
+
+  it('M5: dateAxis=normal 인 prefix 의 detail 에 "현재 날짜 기준" 안 나옴', () => {
+    const source = {
+      directory: 'D:\\Log',
+      prefix: 'yyyy_log',  // 토큰 포함이지만 normal 모드라 리터럴
+      suffix: '.txt',
+      log_type: 'normal_single'
+    }
+    const result = testAccessLogPath(source, 'D:\\Log\\yyyy_log_x.txt')
+    expect(result.matched).toBe(true)
+    const prefixStep = result.steps.find(s => s.label === 'Prefix')
+    expect(prefixStep.detail).not.toContain('현재 날짜 기준')
+    expect(prefixStep.detail).not.toContain('원본')
+  })
+})
+
+
+// ===========================================================================
+// Joda 인용 이스케이프 (B)
+// ===========================================================================
+
+describe('Joda 인용 이스케이프', () => {
+  it("Q1: prefix=\"'yyyy'_log\" + date_prefix → 리터럴 yyyy_log", () => {
+    const source = {
+      directory: 'D:\\Log',
+      prefix: "'yyyy'_log",
+      suffix: '.txt',
+      log_type: 'date_prefix_single'
+    }
+    const result = testAccessLogPath(source, 'D:\\Log\\yyyy_log_x.txt')
+    expect(result.matched).toBe(true)
+  })
+
+  it('Q2: suffix 인용 + 토큰 혼합 (date_suffix)', () => {
+    const now = new Date()
+    const mm = String(now.getMinutes()).padStart(2, '0')
+    const source = {
+      directory: 'D:\\Log',
+      prefix: 'app',
+      suffix: "_'HH'mm.txt",
+      log_type: 'date_suffix_single'
+    }
+    const result = testAccessLogPath(source, `D:\\Log\\app_HH${mm}.txt`)
+    expect(result.matched).toBe(true)
+  })
+
+  it("Q3: quoted section 안의 '' 는 따옴표 한 글자 (Joda 표준)", () => {
+    // 표준 Joda: 'a''b' = quoted section "a'b". '' 단독은 빈 quoted section.
+    const resolved = previewToken("'a''b'yyyy", 'prefix', 'date_prefix')
+    const y = String(new Date().getFullYear())
+    expect(resolved).toBe(`a'b${y}`)
+  })
+})
+
+
+// ===========================================================================
+// previewToken export
+// ===========================================================================
+
+describe('previewToken (UI 미리보기 진입점)', () => {
+  it('PT1: 게이팅으로 막힌 fieldRole 은 원본 반환', () => {
+    expect(previewToken('yyyy_log', 'prefix', 'normal')).toBe('yyyy_log')
+    expect(previewToken('yyyy_log', 'wildcard', 'date_prefix')).toBe('yyyy_log')
+    expect(previewToken('_HHmm.txt', 'suffix', 'normal')).toBe('_HHmm.txt')
+  })
+
+  it('PT2: 게이팅 통과 + 토큰 검출 시 치환', () => {
+    const y = String(new Date().getFullYear())
+    expect(previewToken('Log_yyyy', 'prefix', 'date_prefix')).toBe(`Log_${y}`)
+  })
+
+  it('PT3: 토큰 없으면 원본 반환 (빈 문자열, 일반 문자열)', () => {
+    expect(previewToken('', 'prefix', 'date_prefix')).toBe('')
+    expect(previewToken('plain_prefix', 'prefix', 'date_prefix')).toBe('plain_prefix')
+  })
+
+  it('PT4: 알 수 없는 fieldRole 은 안전하게 원본 반환', () => {
+    expect(previewToken('yyyy', 'unknown', 'date_prefix')).toBe('yyyy')
   })
 })
 

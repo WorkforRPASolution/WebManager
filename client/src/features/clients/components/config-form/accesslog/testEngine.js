@@ -10,23 +10,57 @@
  */
 
 import { jodaSubdirFormat, timestampFormatToRegex } from '../shared/formatUtils'
+import { decomposeLogType } from './schema'
 
 
 // ---------------------------------------------------------------------------
-// 0-1. resolveJodaTokens
+// 0-1. resolveJodaTokens — Agent 동작과 정합화된 모드 게이팅
 // ---------------------------------------------------------------------------
+//
+// Agent 의 매칭 규칙:
+//   - prefix:   dateAxis === 'date_prefix' 일 때만 토큰 해석
+//   - suffix:   dateAxis === 'date_suffix' 일 때만 토큰 해석
+//   - wildcard: 모든 모드에서 리터럴 (게이팅 없음)
+//   - subdir:   값이 있으면 항상 해석 (UI 가 dateAxis !== 'normal' 에서만 저장)
+// 인용 이스케이프:
+//   - jodaSubdirFormat() 이 표준 Joda 문법 ('리터럴', '' = 따옴표 한 글자) 지원
+
+const TOKEN_RESOLVE_MAP = {
+  prefix:   new Set(['date_prefix']),
+  suffix:   new Set(['date_suffix']),
+  wildcard: new Set(),
+  // subdir 는 별도 함수에서 처리 (값 존재만 보고 해석)
+}
+
+function shouldResolve(fieldRole, dateAxis) {
+  return TOKEN_RESOLVE_MAP[fieldRole]?.has(dateAxis) ?? false
+}
 
 /**
- * Check if a string contains Joda DateTime tokens and resolve them to current date.
- * Returns the original string if no tokens found.
+ * Resolve Joda DateTime tokens in a field string based on field role and dateAxis.
+ * Returns the original string when gating disallows resolution or no tokens present.
+ *
+ * @param {string} str - input field value
+ * @param {string} fieldRole - 'prefix' | 'suffix' | 'wildcard'
+ * @param {string} dateAxis - 'normal' | 'date' | 'date_prefix' | 'date_suffix'
  */
-function resolveJodaTokens(str) {
+function resolveJodaTokens(str, fieldRole, dateAxis) {
   if (!str) return str
+  if (!shouldResolve(fieldRole, dateAxis)) return str
   const JODA_TOKENS = ['yyyy', 'MM', 'dd', 'HH', 'mm', 'ss']
   const hasTokens = JODA_TOKENS.some(t => str.includes(t))
   if (!hasTokens) return str
   const { format: fmt } = jodaSubdirFormat(str)
   return fmt(new Date())
+}
+
+/**
+ * UI/외부에서 미리보기에 사용. resolveJodaTokens 를 그대로 노출.
+ * 토큰이 실제로 치환됐을 때만 의미 있는 값을 반환 — 호출 측에서
+ * `result !== original` 으로 노출 여부를 결정.
+ */
+export function previewToken(str, fieldRole, dateAxis) {
+  return resolveJodaTokens(str, fieldRole, dateAxis)
 }
 
 
@@ -44,6 +78,7 @@ function resolveJodaTokens(str) {
 export function testAccessLogPath(source, filePath) {
   const steps = []
   const src = source || {}
+  const dateAxis = decomposeLogType(src.log_type).dateAxis
 
   // Normalize separators
   const normPath = (filePath || '').replace(/[\\/]+/g, '/')
@@ -154,7 +189,7 @@ export function testAccessLogPath(source, filePath) {
 
   // --- Step: Prefix ---
   if (src.prefix) {
-    const resolvedPrefix = resolveJodaTokens(src.prefix)
+    const resolvedPrefix = resolveJodaTokens(src.prefix, 'prefix', dateAxis)
     const prefixPassed = fileName.startsWith(resolvedPrefix)
     const isResolved = resolvedPrefix !== src.prefix
     steps.push({
@@ -173,7 +208,7 @@ export function testAccessLogPath(source, filePath) {
 
   // --- Step: Suffix ---
   if (src.suffix) {
-    const resolvedSuffix = resolveJodaTokens(src.suffix)
+    const resolvedSuffix = resolveJodaTokens(src.suffix, 'suffix', dateAxis)
     const suffixPassed = fileName.endsWith(resolvedSuffix)
     const isResolved = resolvedSuffix !== src.suffix
     steps.push({
@@ -192,7 +227,8 @@ export function testAccessLogPath(source, filePath) {
 
   // --- Step: Wildcard ---
   if (src.wildcard) {
-    const resolvedWildcard = resolveJodaTokens(src.wildcard)
+    // wildcard 는 모든 모드에서 리터럴 — resolveJodaTokens 는 게이팅으로 원본 반환
+    const resolvedWildcard = resolveJodaTokens(src.wildcard, 'wildcard', dateAxis)
     const wcPassed = fileName.includes(resolvedWildcard)
     const isResolved = resolvedWildcard !== src.wildcard
     steps.push({
