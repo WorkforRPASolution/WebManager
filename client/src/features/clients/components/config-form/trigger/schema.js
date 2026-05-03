@@ -112,7 +112,7 @@ export const TRIGGER_SCRIPT_SCHEMA = {
     }
   },
   defaults: {
-    name: '', arg: '', 'no-email': '', key: 1, timeout: '30 seconds', retry: '3 minutes'
+    name: '', arg: '', 'no-email': '', key: null, timeout: '', retry: ''
   }
 }
 
