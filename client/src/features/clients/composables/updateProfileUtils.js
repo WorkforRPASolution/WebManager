@@ -1,3 +1,19 @@
+// Source defaults for each update source type. The DB only stores the active
+// type's fields, so the modal needs these defaults to render empty inputs when
+// switching types. Kept here (single source) so paste/import paths stay in
+// sync with the modal.
+export const SOURCE_DEFAULTS = {
+  local: { localPath: '' },
+  ftp:   { ftpHost: '', ftpPort: 21, ftpUser: '', ftpPass: '', ftpBasePath: '' },
+  minio: { minioEndpoint: '', minioPort: 9000, minioBucket: '',
+           minioAccessKey: '', minioSecretKey: '', minioUseSSL: false, minioBasePath: '' }
+}
+
+export function makeDefaultSource(type = 'local') {
+  const t = SOURCE_DEFAULTS[type] ? type : 'local'
+  return { type: t, ...SOURCE_DEFAULTS[t] }
+}
+
 export function filterProfilesByClientOs(profiles, clientOsVersions) {
   if (!clientOsVersions.length) return profiles
   return profiles.filter(p => !p.osVer || clientOsVersions.includes(p.osVer))
@@ -65,6 +81,7 @@ export function hasProfileDuplicate(profile, profiles) {
 }
 
 export function createProfileFromSnapshot(snapshot, existingNames, getNextKey) {
+  const hasSource = !!snapshot.source
   return {
     _key: getNextKey(), profileId: null,
     _dirty: true,          // pasted profiles start dirty — user clicks Save Profile to POST
@@ -72,6 +89,75 @@ export function createProfileFromSnapshot(snapshot, existingNames, getNextKey) {
     name: generateUniqueName(snapshot.name, existingNames),
     osVer: snapshot.osVer, version: snapshot.version, _nameError: null,
     tasks: snapshot.tasks.map(t => createTaskFromSnapshot(t, [], getNextKey)),
-    source: { ...snapshot.source }
+    source: hasSource ? { ...snapshot.source } : makeDefaultSource('local'),
+    _sourceError: hasSource ? null : 'Source needs to be configured before save'
   }
+}
+
+// ─── Clipboard serialization ────────────────────────────────────────────────
+//
+// Profile copy/paste also writes to the OS clipboard so users can move
+// profiles between sessions / WebManager instances. The serialized form drops
+// `source` entirely because it carries credentials (ftpPass, minioSecretKey,
+// ...). Pasting from the OS clipboard fills source with makeDefaultSource()
+// and a `_sourceError` flag so the user is forced to re-enter credentials.
+//
+// Tasks have no credential fields, so their snapshot is wrapped as-is.
+//
+// IMPORTANT: if the task schema ever grows credential-bearing fields (e.g.
+// per-task auth), serializeTaskForClipboard MUST sanitize them. Profile-level
+// "delete source" auto-protects future fields under source; tasks have no
+// such umbrella.
+
+const CLIPBOARD_KIND = 'webmanager.update-profile'
+const CLIPBOARD_SCHEMA = 1
+
+function ownProp(obj, key) {
+  return obj != null && Object.prototype.hasOwnProperty.call(obj, key)
+}
+
+export function serializeProfileForClipboard(profile) {
+  const snap = createProfileSnapshot(profile)
+  delete snap.source
+  return JSON.stringify({
+    kind: CLIPBOARD_KIND,
+    schemaVersion: CLIPBOARD_SCHEMA,
+    type: 'profile',
+    data: snap
+  })
+}
+
+export function parseProfileFromClipboard(text) {
+  if (typeof text !== 'string' || !text) return null
+  let parsed
+  try { parsed = JSON.parse(text) } catch { return null }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+  if (!ownProp(parsed, 'kind') || parsed.kind !== CLIPBOARD_KIND) return null
+  if (!ownProp(parsed, 'schemaVersion') || parsed.schemaVersion !== CLIPBOARD_SCHEMA) return null
+  if (!ownProp(parsed, 'type') || parsed.type !== 'profile') return null
+  if (!ownProp(parsed, 'data') || !parsed.data || typeof parsed.data !== 'object') return null
+  if (!Array.isArray(parsed.data.tasks)) return null
+  return parsed.data
+}
+
+export function serializeTaskForClipboard(task) {
+  const snap = createTaskSnapshot(task)
+  return JSON.stringify({
+    kind: CLIPBOARD_KIND,
+    schemaVersion: CLIPBOARD_SCHEMA,
+    type: 'task',
+    data: snap
+  })
+}
+
+export function parseTaskFromClipboard(text) {
+  if (typeof text !== 'string' || !text) return null
+  let parsed
+  try { parsed = JSON.parse(text) } catch { return null }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+  if (!ownProp(parsed, 'kind') || parsed.kind !== CLIPBOARD_KIND) return null
+  if (!ownProp(parsed, 'schemaVersion') || parsed.schemaVersion !== CLIPBOARD_SCHEMA) return null
+  if (!ownProp(parsed, 'type') || parsed.type !== 'task') return null
+  if (!ownProp(parsed, 'data') || !parsed.data || typeof parsed.data !== 'object') return null
+  return parsed.data
 }

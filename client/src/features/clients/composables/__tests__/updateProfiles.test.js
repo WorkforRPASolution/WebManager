@@ -6,7 +6,13 @@ import {
   createProfileSnapshot,
   createTaskFromSnapshot,
   createProfileFromSnapshot,
-  hasProfileDuplicate
+  hasProfileDuplicate,
+  makeDefaultSource,
+  SOURCE_DEFAULTS,
+  serializeProfileForClipboard,
+  parseProfileFromClipboard,
+  serializeTaskForClipboard,
+  parseTaskFromClipboard
 } from '../updateProfileUtils'
 
 describe('filterProfilesByClientOs', () => {
@@ -318,5 +324,272 @@ describe('hasProfileDuplicate', () => {
       makeProfile('k2', 'Agent', 'Win11', '1.0')
     ]
     expect(hasProfileDuplicate(target, list)).toBe(true)
+  })
+})
+
+// --- makeDefaultSource ---
+
+describe('makeDefaultSource', () => {
+  it('M1: 인자 없음 → local', () => {
+    expect(makeDefaultSource()).toEqual({ type: 'local', localPath: '' })
+  })
+
+  it('M2: ftp → ftp default 키 일치', () => {
+    expect(makeDefaultSource('ftp')).toEqual({
+      type: 'ftp', ftpHost: '', ftpPort: 21, ftpUser: '', ftpPass: '', ftpBasePath: ''
+    })
+  })
+
+  it('M3: minio → minio default 키 일치', () => {
+    expect(makeDefaultSource('minio')).toEqual({
+      type: 'minio', minioEndpoint: '', minioPort: 9000, minioBucket: '',
+      minioAccessKey: '', minioSecretKey: '', minioUseSSL: false, minioBasePath: ''
+    })
+  })
+
+  it('M4: 알 수 없는 type → local fallback', () => {
+    expect(makeDefaultSource('weird')).toEqual({ type: 'local', localPath: '' })
+  })
+
+  it('M5: SOURCE_DEFAULTS 가 export 되어 있다 (모달이 동일 default 를 공유 가능)', () => {
+    expect(SOURCE_DEFAULTS).toBeDefined()
+    expect(SOURCE_DEFAULTS.local).toEqual({ localPath: '' })
+    expect(SOURCE_DEFAULTS.ftp.ftpPort).toBe(21)
+    expect(SOURCE_DEFAULTS.minio.minioPort).toBe(9000)
+  })
+})
+
+// --- createProfileFromSnapshot — source 없는 스냅샷 (OS clipboard 경로) ---
+
+describe('createProfileFromSnapshot — source missing', () => {
+  let keyN = 0
+  const getKey = () => `k_${keyN++}`
+  beforeEach(() => { keyN = 300 })
+
+  const snapNoSource = {
+    name: 'External', osVer: '', version: '1.0',
+    tasks: [{ type: 'copy', name: 'X', sourcePath: 's', targetPath: 't',
+      description: '', stopOnFail: false, commandLine: '', _argsText: '', timeout: 30 }]
+    // source intentionally omitted
+  }
+
+  it('N1: source 없으면 local 기본값으로 채움', () => {
+    const p = createProfileFromSnapshot(snapNoSource, [], getKey)
+    expect(p.source).toEqual({ type: 'local', localPath: '' })
+  })
+
+  it('N2: source 없으면 _sourceError 플래그 세팅', () => {
+    const p = createProfileFromSnapshot(snapNoSource, [], getKey)
+    expect(p._sourceError).toBeTruthy()
+    expect(typeof p._sourceError).toBe('string')
+  })
+
+  it('N3: source 있으면 _sourceError = null (회귀 없음)', () => {
+    const snapWithSource = { ...snapNoSource,
+      source: { type: 'local', localPath: '/opt' } }
+    const p = createProfileFromSnapshot(snapWithSource, [], getKey)
+    expect(p._sourceError).toBeNull()
+    expect(p.source).toEqual({ type: 'local', localPath: '/opt' })
+  })
+})
+
+// --- serializeProfileForClipboard / parseProfileFromClipboard ---
+
+describe('serializeProfileForClipboard', () => {
+  const ftpProfile = {
+    _key: 'k_0', profileId: 'prof_1', name: 'FTP-Win', osVer: 'Win10', version: '2.0',
+    _nameError: null,
+    tasks: [{ _key: 'k_1', taskId: 't1', type: 'copy', name: 'Bin',
+      sourcePath: 'src', targetPath: 'tgt', description: '',
+      stopOnFail: false, commandLine: '', _argsText: '', timeout: 30,
+      _nameError: null, _sourcePathError: null, _targetPathError: null, _commandLineError: null }],
+    source: { type: 'ftp', ftpHost: 'h.example', ftpPort: 21,
+      ftpUser: 'admin', ftpPass: 'super-secret', ftpBasePath: '/' }
+  }
+
+  it('S1: 자격증명이 직렬화 결과 어디에도 포함되지 않는다', () => {
+    const serialized = serializeProfileForClipboard(ftpProfile)
+    expect(serialized).not.toContain('super-secret')
+    expect(serialized).not.toContain('ftpPass')
+    expect(serialized).not.toContain('ftpUser')
+    expect(serialized).not.toContain('admin')
+    expect(serialized).not.toContain('minioAccessKey')
+    expect(serialized).not.toContain('minioSecretKey')
+  })
+
+  it('S1b: data 에 source 키 자체가 없다', () => {
+    const parsed = JSON.parse(serializeProfileForClipboard(ftpProfile))
+    expect(parsed.data).not.toHaveProperty('source')
+  })
+
+  it('S2: kind / schemaVersion / type=profile 래퍼 포함', () => {
+    const parsed = JSON.parse(serializeProfileForClipboard(ftpProfile))
+    expect(parsed.kind).toBe('webmanager.update-profile')
+    expect(parsed.schemaVersion).toBe(1)
+    expect(parsed.type).toBe('profile')
+  })
+
+  it('S3: tasks 배열은 보존되며 내부 _key/taskId 등 내부 필드는 제거된다', () => {
+    const parsed = JSON.parse(serializeProfileForClipboard(ftpProfile))
+    expect(parsed.data.tasks).toHaveLength(1)
+    expect(parsed.data.tasks[0]).not.toHaveProperty('_key')
+    expect(parsed.data.tasks[0]).not.toHaveProperty('taskId')
+    expect(parsed.data.tasks[0]).not.toHaveProperty('_nameError')
+    expect(parsed.data.tasks[0].name).toBe('Bin')
+  })
+
+  it('S4: minio 자격증명도 제거', () => {
+    const minioProfile = { ...ftpProfile, source: {
+      type: 'minio', minioEndpoint: 'm', minioPort: 9000, minioBucket: 'b',
+      minioAccessKey: 'AK_xyz', minioSecretKey: 'SK_zzz', minioUseSSL: true, minioBasePath: '' } }
+    const serialized = serializeProfileForClipboard(minioProfile)
+    expect(serialized).not.toContain('AK_xyz')
+    expect(serialized).not.toContain('SK_zzz')
+  })
+})
+
+describe('parseProfileFromClipboard', () => {
+  const valid = JSON.stringify({
+    kind: 'webmanager.update-profile', schemaVersion: 1, type: 'profile',
+    data: { name: 'X', osVer: '', version: '1.0', tasks: [] }
+  })
+
+  it('R1: serialize → parse round-trip — source 만 빠진 동일 구조', () => {
+    const profile = {
+      _key: 'k_0', profileId: 'p1', name: 'A', osVer: 'W10', version: '2.0',
+      _nameError: null,
+      tasks: [{ _key: 'k_1', taskId: 't1', type: 'exec', name: 'Run',
+        sourcePath: '', targetPath: '', description: 'd', stopOnFail: true,
+        commandLine: 'echo hi', _argsText: '-y', timeout: 60,
+        _nameError: null, _sourcePathError: null, _targetPathError: null, _commandLineError: null }],
+      source: { type: 'local', localPath: '/opt' }
+    }
+    const serialized = serializeProfileForClipboard(profile)
+    const data = parseProfileFromClipboard(serialized)
+    expect(data.name).toBe('A')
+    expect(data.osVer).toBe('W10')
+    expect(data.version).toBe('2.0')
+    expect(data).not.toHaveProperty('source')
+    expect(data.tasks).toHaveLength(1)
+    expect(data.tasks[0].commandLine).toBe('echo hi')
+  })
+
+  it('P1: 빈 문자열 / null / undefined → null', () => {
+    expect(parseProfileFromClipboard('')).toBeNull()
+    expect(parseProfileFromClipboard(null)).toBeNull()
+    expect(parseProfileFromClipboard(undefined)).toBeNull()
+  })
+
+  it('P2: 잘못된 JSON → null', () => {
+    expect(parseProfileFromClipboard('not json')).toBeNull()
+    expect(parseProfileFromClipboard('{')).toBeNull()
+  })
+
+  it('P3: kind 불일치 → null (외부 임의 JSON 차단)', () => {
+    expect(parseProfileFromClipboard(JSON.stringify({
+      kind: 'other.kind', schemaVersion: 1, type: 'profile', data: { tasks: [] }
+    }))).toBeNull()
+  })
+
+  it('P4: schemaVersion 불일치 → null', () => {
+    expect(parseProfileFromClipboard(JSON.stringify({
+      kind: 'webmanager.update-profile', schemaVersion: 99,
+      type: 'profile', data: { tasks: [] }
+    }))).toBeNull()
+  })
+
+  it('P5: type=task → null (혼동 차단)', () => {
+    expect(parseProfileFromClipboard(JSON.stringify({
+      kind: 'webmanager.update-profile', schemaVersion: 1, type: 'task',
+      data: { name: 'T', tasks: [] }
+    }))).toBeNull()
+  })
+
+  it('P6: data.tasks 가 배열 아님 → null', () => {
+    expect(parseProfileFromClipboard(JSON.stringify({
+      kind: 'webmanager.update-profile', schemaVersion: 1, type: 'profile',
+      data: { tasks: 'not-array' }
+    }))).toBeNull()
+  })
+
+  it('P7: 프로토타입 체인에만 kind 가 있는 객체 → null (prototype pollution 방어)', () => {
+    // Object.create 로 prototype 에 'kind' 를 두고, own property 는 data 만 둠
+    const proto = { kind: 'webmanager.update-profile', schemaVersion: 1, type: 'profile' }
+    const obj = Object.create(proto)
+    obj.data = { tasks: [] }
+    // 실제 클립보드는 string 이므로 JSON.stringify 결과는 own enumerable 만 직렬화됨
+    // → kind 가 빠진 JSON 이라 null. 직접 객체를 줄 경우(공격 시뮬레이션)는 함수 입력
+    // 이 string 이 아니라 null. typeof !== 'string' 가드로도 차단됨.
+    expect(parseProfileFromClipboard(obj)).toBeNull()
+    expect(parseProfileFromClipboard(JSON.stringify(obj))).toBeNull()
+  })
+
+  it('P8: parsed 가 Array 인 경우 → null', () => {
+    expect(parseProfileFromClipboard(JSON.stringify([1, 2, 3]))).toBeNull()
+  })
+
+  it('P9: valid 한 payload → data 객체 반환', () => {
+    expect(parseProfileFromClipboard(valid)).toEqual({
+      name: 'X', osVer: '', version: '1.0', tasks: []
+    })
+  })
+})
+
+// --- serializeTaskForClipboard / parseTaskFromClipboard ---
+
+describe('serializeTaskForClipboard / parseTaskFromClipboard', () => {
+  const task = { _key: 'k_0', taskId: 't1', type: 'exec', name: 'Run',
+    sourcePath: '', targetPath: '', description: 'd', stopOnFail: true,
+    commandLine: 'svc start', _argsText: '-y', timeout: 60,
+    _nameError: null, _sourcePathError: null, _targetPathError: null, _commandLineError: null }
+
+  it('TS1: round-trip (kind/schemaVersion/type=task)', () => {
+    const serialized = serializeTaskForClipboard(task)
+    const parsed = JSON.parse(serialized)
+    expect(parsed.kind).toBe('webmanager.update-profile')
+    expect(parsed.schemaVersion).toBe(1)
+    expect(parsed.type).toBe('task')
+    expect(parsed.data.name).toBe('Run')
+    expect(parsed.data.commandLine).toBe('svc start')
+    expect(parsed.data).not.toHaveProperty('_key')
+    expect(parsed.data).not.toHaveProperty('taskId')
+  })
+
+  it('TP1: kind 불일치 → null', () => {
+    expect(parseTaskFromClipboard(JSON.stringify({
+      kind: 'other', schemaVersion: 1, type: 'task', data: {}
+    }))).toBeNull()
+  })
+
+  it('TP2: type=profile 인 payload → null (혼동 차단)', () => {
+    expect(parseTaskFromClipboard(JSON.stringify({
+      kind: 'webmanager.update-profile', schemaVersion: 1, type: 'profile',
+      data: { tasks: [] }
+    }))).toBeNull()
+  })
+
+  it('TP3: 잘못된 JSON → null', () => {
+    expect(parseTaskFromClipboard('garbage')).toBeNull()
+    expect(parseTaskFromClipboard('')).toBeNull()
+    expect(parseTaskFromClipboard(null)).toBeNull()
+  })
+
+  it('TP4: prototype 에만 kind 존재 → null', () => {
+    const proto = { kind: 'webmanager.update-profile', schemaVersion: 1, type: 'task' }
+    const obj = Object.create(proto)
+    obj.data = { type: 'copy' }
+    expect(parseTaskFromClipboard(JSON.stringify(obj))).toBeNull()
+  })
+
+  it('TP5: parsed 가 Array → null', () => {
+    expect(parseTaskFromClipboard(JSON.stringify([1]))).toBeNull()
+  })
+
+  it('TP6: valid round-trip', () => {
+    const serialized = serializeTaskForClipboard(task)
+    const data = parseTaskFromClipboard(serialized)
+    expect(data.commandLine).toBe('svc start')
+    expect(data.timeout).toBe(60)
+    expect(data.stopOnFail).toBe(true)
   })
 })

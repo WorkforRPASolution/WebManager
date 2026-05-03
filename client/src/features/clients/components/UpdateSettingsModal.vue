@@ -107,7 +107,7 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
               </button>
-              <button @click="pasteProfile" :disabled="!hasClipboardProfile"
+              <button @click="pasteProfile" :disabled="!hasClipboardProfile && !osClipboardAvailable"
                 class="flex items-center justify-center px-2 py-1.5 text-xs border border-gray-300 dark:border-dark-border rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
                 title="Paste profile">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -158,7 +158,7 @@
                   <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Deploy Tasks</h4>
                   <div class="flex items-center gap-2">
                     <button
-                      @click="pasteTask" :disabled="!hasClipboardTask"
+                      @click="pasteTask" :disabled="!hasClipboardTask && !osClipboardAvailable"
                       class="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title="Paste task"
                     >
@@ -343,8 +343,21 @@
 
               <!-- Source Section -->
               <div>
-                <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-3">Update Source</h4>
-                <div class="bg-gray-50 dark:bg-dark-bg rounded-lg p-4 space-y-4">
+                <h4 class="text-sm font-semibold uppercase tracking-wider mb-3 flex items-center gap-2"
+                  :class="selectedProfile._sourceError ? 'text-amber-600 dark:text-amber-400' : 'text-gray-700 dark:text-gray-300'">
+                  Update Source
+                  <span v-if="selectedProfile._sourceError"
+                    class="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 normal-case tracking-normal">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.48 0L3.16 16.25A2 2 0 005 19z" />
+                    </svg>
+                    needs setup
+                  </span>
+                </h4>
+                <div class="rounded-lg p-4 space-y-4 transition-colors"
+                  :class="selectedProfile._sourceError
+                    ? 'bg-amber-50 dark:bg-amber-900/20 ring-1 ring-amber-300 dark:ring-amber-700/60'
+                    : 'bg-gray-50 dark:bg-dark-bg'">
                   <div class="flex items-center gap-4">
                     <label class="text-sm font-medium text-gray-700 dark:text-gray-300 w-20">Type</label>
                     <select v-model="selectedProfile.source.type" @change="onSourceTypeChange"
@@ -354,6 +367,10 @@
                       <option value="minio">MinIO (S3)</option>
                     </select>
                   </div>
+                  <p v-if="selectedProfile._sourceError"
+                    class="text-xs text-amber-700 dark:text-amber-300 -mt-2 pl-24">
+                    {{ selectedProfile._sourceError }}
+                  </p>
 
                   <!-- Local Source -->
                   <div v-if="selectedProfile.source.type === 'local'" class="flex items-center gap-4">
@@ -544,7 +561,13 @@ import { updateSettingsApi } from '../api'
 import { osVersionApi } from '../../equipment-info/api'
 import { useResizableModal } from '@/shared/composables/useResizableModal'
 import { useToast } from '@/shared/composables/useToast'
-import { createProfileSnapshot, createTaskSnapshot, createProfileFromSnapshot, createTaskFromSnapshot, hasProfileDuplicate } from '../composables/updateProfileUtils'
+import {
+  createProfileSnapshot, createTaskSnapshot,
+  createProfileFromSnapshot, createTaskFromSnapshot,
+  hasProfileDuplicate, makeDefaultSource, SOURCE_DEFAULTS,
+  serializeProfileForClipboard, parseProfileFromClipboard,
+  serializeTaskForClipboard,   parseTaskFromClipboard
+} from '../composables/updateProfileUtils'
 import { parseArgs, stringifyArgs } from '@/shared/utils/shellArgs'
 
 const props = defineProps({
@@ -558,9 +581,21 @@ const emit = defineEmits(['update:modelValue', 'saved'])
 const modalRef = ref(null)
 const { isMaximized, modalStyle, startDrag, startResize, toggleMaximize, center: centerModal } = useResizableModal(modalRef, { defaultWidth: 1024, defaultHeight: 650 })
 
-const { showSuccess, showError } = useToast()
+const { showSuccess, showError, showInfo } = useToast()
 const hasClipboardProfile = ref(!!_clipboardProfile)
 const hasClipboardTask = ref(!!_clipboardTask)
+
+// OS clipboard availability — module scope, evaluated once.
+// Reactivity not needed because the underlying API surface is fixed for the
+// session.  Permission denial is caught at runtime in the try/catch blocks.
+const osClipboardAvailable = !!(typeof navigator !== 'undefined'
+  && navigator.clipboard
+  && typeof navigator.clipboard.readText === 'function')
+
+// In-flight guards — prevent duplicate paste from rapid double-click while
+// awaiting navigator.clipboard.readText().
+let pastingProfile = false
+let pastingTask = false
 
 const loading = ref(false)
 const saving = ref(false)
@@ -576,7 +611,13 @@ function markDirty(profile) {
   if (profile) profile._dirty = true
 }
 function markSelectedDirty() {
-  if (selectedProfile.value) selectedProfile.value._dirty = true
+  if (!selectedProfile.value) return
+  selectedProfile.value._dirty = true
+  // Clear the paste-time _sourceError once the user starts editing —
+  // the warning has served its purpose and shouldn't linger.
+  if (selectedProfile.value._sourceError) {
+    selectedProfile.value._sourceError = null
+  }
 }
 
 watch(() => props.modelValue, async (v) => {
@@ -585,17 +626,6 @@ watch(() => props.modelValue, async (v) => {
     if (props.agentGroup) await loadData()
   }
 })
-
-// Client-side defaults per source type (DB only stores active type fields)
-const SOURCE_DEFAULTS = {
-  local: { localPath: '' },
-  ftp: { ftpHost: '', ftpPort: 21, ftpUser: '', ftpPass: '', ftpBasePath: '' },
-  minio: { minioEndpoint: '', minioPort: 9000, minioBucket: '', minioAccessKey: '', minioSecretKey: '', minioUseSSL: false, minioBasePath: '' }
-}
-
-function makeDefaultSource() {
-  return { type: 'local', ...SOURCE_DEFAULTS.local }
-}
 
 function mapSource(s) {
   const type = s.type || 'local'
@@ -616,6 +646,7 @@ async function loadData() {
       _key: `k_${keyCounter++}`,
       _dirty: false,
       _saveError: null,
+      _sourceError: null,
       profileId: p.profileId,
       name: p.name || '',
       osVer: p.osVer || '',
@@ -656,6 +687,7 @@ function addProfile() {
     _key: `k_${keyCounter++}`,
     _dirty: true,  // new profile starts dirty (needs Save to persist)
     _saveError: null,
+    _sourceError: null,
     profileId: null,
     name: '',
     osVer: '',
@@ -694,36 +726,124 @@ async function deleteProfile() {
   }
 }
 
-function copyProfile() {
+async function copyProfile() {
   if (!selectedProfile.value) return
+
+  // 1) In-memory (with credentials, fast same-session paste)
   _clipboardProfile = createProfileSnapshot(selectedProfile.value)
   hasClipboardProfile.value = true
-  showSuccess(`Profile '${selectedProfile.value.name}' copied`)
+  // 2) Cross-type clear so a stale Task copy can't be pasted by mistake
+  _clipboardTask = null
+  hasClipboardTask.value = false
+
+  // 3) OS clipboard (credentials stripped via serializeProfileForClipboard)
+  let osOk = false
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(serializeProfileForClipboard(selectedProfile.value))
+      osOk = true
+    }
+  } catch { /* permission denied / http context — in-memory still alive */ }
+
+  showSuccess(osOk
+    ? `Profile '${selectedProfile.value.name}' copied (clipboard ready)`
+    : `Profile '${selectedProfile.value.name}' copied (in-memory only)`)
 }
 
-function pasteProfile() {
-  if (!_clipboardProfile) return
-  const existingNames = profiles.value.map(p => p.name)
-  const getNextKey = () => `k_${keyCounter++}`
-  profiles.value.push(createProfileFromSnapshot(_clipboardProfile, existingNames, getNextKey))
-  selectedIndex.value = profiles.value.length - 1
+async function pasteProfile() {
+  if (pastingProfile) return
+  pastingProfile = true
+  try {
+    let snap = null
+    let fromOsClipboard = false
+
+    // 1) In-memory first — same-session copy preserves source/credentials
+    if (_clipboardProfile) snap = _clipboardProfile
+
+    // 2) Fallback: OS clipboard — new session / cross-instance import
+    if (!snap && navigator.clipboard?.readText) {
+      try {
+        const text = await navigator.clipboard.readText()
+        snap = parseProfileFromClipboard(text)
+        if (snap) fromOsClipboard = true
+      } catch { /* permission denied — ignored */ }
+    }
+
+    if (!snap) {
+      showError('No profile in clipboard')
+      return
+    }
+
+    const existingNames = profiles.value.map(p => p.name)
+    const getNextKey = () => `k_${keyCounter++}`
+    const newProfile = createProfileFromSnapshot(snap, existingNames, getNextKey)
+    profiles.value.push(newProfile)
+    selectedIndex.value = profiles.value.length - 1
+
+    if (fromOsClipboard) {
+      showInfo('Pasted from clipboard — source needs to be configured before save')
+    } else {
+      showSuccess(`Pasted '${newProfile.name}' (source preserved)`)
+    }
+  } finally {
+    pastingProfile = false
+  }
 }
 
-function copyTask(index) {
+async function copyTask(index) {
   if (!selectedProfile.value) return
   const src = selectedProfile.value.tasks[index]
   if (!src) return
+
   _clipboardTask = createTaskSnapshot(src)
   hasClipboardTask.value = true
-  showSuccess(`Task '${src.name}' copied`)
+  // Cross-type clear
+  _clipboardProfile = null
+  hasClipboardProfile.value = false
+
+  let osOk = false
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(serializeTaskForClipboard(src))
+      osOk = true
+    }
+  } catch { /* clipboard API unavailable / permission denied */ }
+
+  showSuccess(osOk
+    ? `Task '${src.name}' copied (clipboard ready)`
+    : `Task '${src.name}' copied (in-memory only)`)
 }
 
-function pasteTask() {
-  if (!selectedProfile.value || !_clipboardTask) return
-  const existingNames = selectedProfile.value.tasks.map(t => t.name)
-  const getNextKey = () => `k_${keyCounter++}`
-  selectedProfile.value.tasks.push(createTaskFromSnapshot(_clipboardTask, existingNames, getNextKey))
-  markSelectedDirty()
+async function pasteTask() {
+  if (!selectedProfile.value) return        // profile must be selected
+  if (pastingTask) return
+  pastingTask = true
+  try {
+    let snap = null
+    let fromOsClipboard = false
+
+    if (_clipboardTask) snap = _clipboardTask
+    if (!snap && navigator.clipboard?.readText) {
+      try {
+        const text = await navigator.clipboard.readText()
+        snap = parseTaskFromClipboard(text)
+        if (snap) fromOsClipboard = true
+      } catch { /* permission denied */ }
+    }
+    if (!snap) {
+      showError('No task in clipboard')
+      return
+    }
+
+    const existingNames = selectedProfile.value.tasks.map(t => t.name)
+    const getNextKey = () => `k_${keyCounter++}`
+    selectedProfile.value.tasks.push(createTaskFromSnapshot(snap, existingNames, getNextKey))
+    markSelectedDirty()
+
+    showSuccess(fromOsClipboard ? 'Task pasted from clipboard' : 'Task pasted')
+  } finally {
+    pastingTask = false
+  }
 }
 
 function addTask() {
