@@ -1041,3 +1041,70 @@ export function testTriggerWithFiles(trigger, files, timestampFormat) {
 
   return result
 }
+
+// ---------------------------------------------------------------------------
+// 6. analyzeAllMatches — pattern-only scan, separate from firing semantics
+// ---------------------------------------------------------------------------
+
+const MAX_COLLECTED_LINES = 1000
+
+/**
+ * Scan all input lines and collect every line that matches each non-delay
+ * step's trigger patterns. Independent of firing semantics — used to populate
+ * the "전체 매칭 분석" panel in the UI.
+ *
+ * @param {Array} recipe - recipe steps
+ * @param {Array<string>} lines - all log lines
+ * @returns {{ stepAnalyses: Array }}
+ */
+export function analyzeAllMatches(recipe, lines) {
+  const stepAnalyses = []
+  const recipeArr = Array.isArray(recipe) ? recipe : []
+  const linesArr = Array.isArray(lines) ? lines : []
+
+  for (let si = 0; si < recipeArr.length; si++) {
+    const step = recipeArr[si]
+    const stepName = step.name || `Step_${si + 1}`
+    const stepType = step.type || 'keyword'
+    const triggerItems = Array.isArray(step.trigger) ? step.trigger : []
+
+    let totalMatches = 0
+    const matchedLines = []
+    let truncated = false
+
+    for (let li = 0; li < linesArr.length; li++) {
+      const line = linesArr[li]
+      let matchedPattern = null
+      for (const item of triggerItems) {
+        const r = matchLineWithParams(line, item, stepType)
+        if (r.matched) {
+          matchedPattern = getTriggerSyntax(item)
+          break
+        }
+      }
+      if (matchedPattern) {
+        totalMatches++
+        if (matchedLines.length < MAX_COLLECTED_LINES) {
+          matchedLines.push({
+            lineNum: li + 1,
+            line,
+            pattern: matchedPattern,
+            isFiringLine: false
+          })
+        } else {
+          truncated = true
+        }
+      }
+    }
+
+    stepAnalyses.push({
+      stepName,
+      stepType,
+      totalMatches,
+      matchedLines,
+      truncated
+    })
+  }
+
+  return { stepAnalyses }
+}

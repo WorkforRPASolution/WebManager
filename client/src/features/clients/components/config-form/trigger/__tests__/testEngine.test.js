@@ -5,7 +5,8 @@ import {
   convertSyntaxToRegex,
   parseParams,
   evaluateParams,
-  substituteMultiCaptures
+  substituteMultiCaptures,
+  analyzeAllMatches  // ← 추가
 } from '../testEngine'
 
 // ===========================================================================
@@ -1170,5 +1171,38 @@ describe('executeMultiChain', () => {
     const result = testTriggerPattern(trigger, lines.join('\n'), tsFormat)
     expect(result.isMulti).toBe(true)
     expect(result.multiInstances.length).toBeLessThanOrEqual(20)
+  })
+})
+
+// ===========================================================================
+// analyzeAllMatches
+// ===========================================================================
+
+describe('analyzeAllMatches', () => {
+  it('1. Single regex step — counts and collects all matching lines', () => {
+    const recipe = [
+      { type: 'regex', name: 'step_01', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '' }
+    ]
+    const lines = [
+      'INFO ok',
+      'ERROR fail one',
+      'INFO ok',
+      'ERROR fail two',
+      'ERROR fail three',
+      'INFO ok'
+    ]
+
+    const result = analyzeAllMatches(recipe, lines)
+
+    expect(result.stepAnalyses).toHaveLength(1)
+    const a = result.stepAnalyses[0]
+    expect(a.stepName).toBe('step_01')
+    expect(a.stepType).toBe('regex')
+    expect(a.totalMatches).toBe(3)
+    expect(a.matchedLines).toHaveLength(3)
+    expect(a.matchedLines[0]).toMatchObject({ lineNum: 2, line: 'ERROR fail one' })
+    expect(a.matchedLines[1]).toMatchObject({ lineNum: 4, line: 'ERROR fail two' })
+    expect(a.matchedLines[2]).toMatchObject({ lineNum: 5, line: 'ERROR fail three' })
+    expect(a.truncated).toBe(false)
   })
 })
