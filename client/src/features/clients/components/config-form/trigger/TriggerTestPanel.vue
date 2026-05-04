@@ -286,7 +286,7 @@
               <span>
                 <strong>전체 매칭 분석</strong>
                 · {{ fullAnalysisFor(step.name).totalMatches }}{{ fullAnalysisFor(step.name).truncated ? '+' : '' }}줄 매칭
-                <span class="text-gray-400">(입력 {{ step.testedLineCount || '?' }}줄 중)</span>
+                <span class="text-gray-400">(입력 {{ testResult.fullAnalysis?.totalLines ?? step.testedLineCount ?? '?' }}줄 중)</span>
               </span>
             </button>
             <!-- 펼침 영역 -->

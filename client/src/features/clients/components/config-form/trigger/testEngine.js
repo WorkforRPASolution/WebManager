@@ -1081,7 +1081,7 @@ const MAX_COLLECTED_LINES = 1000
  * @param {Array} recipe - recipe steps
  * @param {Array<string>} lines - all log lines
  * @param {Object} [options] - reserved for future extension (e.g. maxLines override)
- * @returns {{ stepAnalyses: Array }}
+ * @returns {{ stepAnalyses: Array, totalLines: number }}
  */
 export function analyzeAllMatches(recipe, lines, options = {}) {  // eslint-disable-line no-unused-vars
   const stepAnalyses = []
@@ -1136,7 +1136,7 @@ export function analyzeAllMatches(recipe, lines, options = {}) {  // eslint-disa
     })
   }
 
-  return { stepAnalyses }
+  return { stepAnalyses, totalLines: linesArr.length }
 }
 
 /**
