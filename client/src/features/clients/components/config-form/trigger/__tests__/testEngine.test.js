@@ -1237,4 +1237,17 @@ describe('analyzeAllMatches', () => {
     expect(result.stepAnalyses[1].stepName).toBe('step_03')
     expect(result.stepAnalyses.find(s => s.stepName === 'step_02')).toBeUndefined()
   })
+
+  it('4. Multi-step recipe — each step analyzed independently', () => {
+    const recipe = [
+      { type: 'regex', name: 'first', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '' },
+      { type: 'regex', name: 'second', trigger: [{ syntax: '.*WARN.*' }], times: 1, next: '' }
+    ]
+    const lines = ['ERROR a', 'WARN b', 'ERROR c', 'WARN d', 'ERROR e']
+
+    const result = analyzeAllMatches(recipe, lines)
+    expect(result.stepAnalyses).toHaveLength(2)
+    expect(result.stepAnalyses[0].totalMatches).toBe(3)  // ERROR x3
+    expect(result.stepAnalyses[1].totalMatches).toBe(2)  // WARN x2
+  })
 })
