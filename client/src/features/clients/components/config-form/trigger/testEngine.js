@@ -1065,8 +1065,12 @@ export function analyzeAllMatches(recipe, lines, options = {}) {  // eslint-disa
 
   for (let si = 0; si < recipeArr.length; si++) {
     const step = recipeArr[si]
-    const stepName = step.name || `Step_${si + 1}`
     const stepType = step.type || 'keyword'
+
+    // Skip delay steps — they have different semantics (cancel-on-match within time window)
+    if (stepType === 'delay') continue
+
+    const stepName = step.name || `Step_${si + 1}`
     const triggerItems = Array.isArray(step.trigger) ? step.trigger : []
 
     let totalMatches = 0

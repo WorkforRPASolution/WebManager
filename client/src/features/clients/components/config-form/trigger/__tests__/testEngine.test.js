@@ -1221,4 +1221,20 @@ describe('analyzeAllMatches', () => {
     expect(a.matchedLines[0].line).toBe('ERROR line 0')
     expect(a.matchedLines[999].line).toBe('ERROR line 999')
   })
+
+  it('3. Skips delay-type steps — only regex steps appear in stepAnalyses', () => {
+    const recipe = [
+      { type: 'regex', name: 'step_01', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '' },
+      { type: 'delay', name: 'step_02', trigger: [{ syntax: '.*CANCEL.*' }], duration: '10s', next: '' },
+      { type: 'regex', name: 'step_03', trigger: [{ syntax: '.*FATAL.*' }], times: 1, next: '' }
+    ]
+    const lines = ['ERROR a', 'CANCEL b', 'FATAL c']
+
+    const result = analyzeAllMatches(recipe, lines)
+
+    expect(result.stepAnalyses).toHaveLength(2)
+    expect(result.stepAnalyses[0].stepName).toBe('step_01')
+    expect(result.stepAnalyses[1].stepName).toBe('step_03')
+    expect(result.stepAnalyses.find(s => s.stepName === 'step_02')).toBeUndefined()
+  })
 })
