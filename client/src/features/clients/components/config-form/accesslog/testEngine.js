@@ -49,7 +49,9 @@ function resolveJodaTokens(str, fieldRole, dateAxis) {
   if (!shouldResolve(fieldRole, dateAxis)) return str
   const JODA_TOKENS = ['yyyy', 'MM', 'dd', 'HH', 'mm', 'ss']
   const hasTokens = JODA_TOKENS.some(t => str.includes(t))
-  if (!hasTokens) return str
+  // single quote 도 Joda 문법(literal wrapping/escape) — 토큰이 없어도 quote 가 있으면 파서 통과 필요
+  const hasQuote = str.includes("'")
+  if (!hasTokens && !hasQuote) return str
   const { format: fmt } = jodaSubdirFormat(str)
   return fmt(new Date())
 }

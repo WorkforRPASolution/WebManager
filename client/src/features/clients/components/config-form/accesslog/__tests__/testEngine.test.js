@@ -437,6 +437,21 @@ describe('Joda 인용 이스케이프', () => {
     const y = String(new Date().getFullYear())
     expect(resolved).toBe(`a'b${y}`)
   })
+
+  it("Q4: 토큰 없이 쿼트로만 감싼 literal 도 쿼트가 벗겨져야 함 (Joda 표준)", () => {
+    // 'PARAMS' → PARAMS (quote 가 literal marker 로 처리되어 벗겨짐)
+    expect(previewToken("'PARAMS'", 'prefix', 'date_prefix')).toBe('PARAMS')
+
+    // 실제 매칭 시나리오: prefix="'PARAMS'" 이면 파일명 PARAMS_xxx.txt 가 매칭돼야 함
+    const source = {
+      directory: 'D:\\Log',
+      prefix: "'PARAMS'",
+      suffix: '.txt',
+      log_type: 'date_prefix_single'
+    }
+    const result = testAccessLogPath(source, 'D:\\Log\\PARAMS_xxx.txt')
+    expect(result.matched).toBe(true)
+  })
 })
 
 
