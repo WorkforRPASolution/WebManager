@@ -1205,4 +1205,20 @@ describe('analyzeAllMatches', () => {
     expect(a.matchedLines[2]).toMatchObject({ lineNum: 5, line: 'ERROR fail three' })
     expect(a.truncated).toBe(false)
   })
+
+  it('2. Collection cap — 1500 matches → matchedLines.length=1000, truncated=true, totalMatches=1500', () => {
+    const recipe = [
+      { type: 'regex', name: 'step_01', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '' }
+    ]
+    const lines = []
+    for (let i = 0; i < 1500; i++) lines.push(`ERROR line ${i}`)
+
+    const result = analyzeAllMatches(recipe, lines)
+    const a = result.stepAnalyses[0]
+    expect(a.totalMatches).toBe(1500)
+    expect(a.matchedLines).toHaveLength(1000)
+    expect(a.truncated).toBe(true)
+    expect(a.matchedLines[0].line).toBe('ERROR line 0')
+    expect(a.matchedLines[999].line).toBe('ERROR line 999')
+  })
 })
