@@ -289,7 +289,41 @@
                 <span class="text-gray-400">(입력 {{ step.testedLineCount || '?' }}줄 중)</span>
               </span>
             </button>
-            <!-- 펼침 영역은 다음 task에서 추가 -->
+            <!-- 펼침 영역 -->
+            <div v-if="ensureAnalysisState(step.name).open" class="border-t border-gray-200 dark:border-dark-border">
+              <div class="max-h-60 overflow-y-auto px-3 py-2 space-y-0.5 font-mono text-xs">
+                <div
+                  v-for="(m, mi) in fullAnalysisFor(step.name).matchedLines.slice(0, ensureAnalysisState(step.name).visible)"
+                  :key="mi"
+                  class="flex gap-2"
+                  :class="m.isFiringLine ? 'text-green-600 dark:text-green-400 font-medium' : 'text-gray-600 dark:text-gray-400'"
+                >
+                  <span class="text-gray-400 shrink-0">
+                    {{ m.fileName ? `${m.fileName}:${m.lineNum}` : `Line ${m.lineNum}` }}
+                  </span>
+                  <span class="truncate">"{{ m.line }}"</span>
+                  <span v-if="m.isFiringLine" class="shrink-0 text-[10px]">(발동)</span>
+                </div>
+                <div
+                  v-if="fullAnalysisFor(step.name).truncated"
+                  class="text-[10px] text-amber-600 dark:text-amber-400 pt-1"
+                >
+                  … 외 {{ fullAnalysisFor(step.name).totalMatches - fullAnalysisFor(step.name).matchedLines.length }}+ 매칭됨 (수집 상한 초과)
+                </div>
+              </div>
+              <div
+                v-if="ensureAnalysisState(step.name).visible < fullAnalysisFor(step.name).matchedLines.length"
+                class="border-t border-gray-200 dark:border-dark-border px-3 py-1.5 text-center"
+              >
+                <button
+                  type="button"
+                  class="text-xs text-primary-600 dark:text-primary-400 hover:underline"
+                  @click="showMore(step.name)"
+                >
+                  + 더 보기 ({{ ensureAnalysisState(step.name).visible }}/{{ fullAnalysisFor(step.name).matchedLines.length }})
+                </button>
+              </div>
+            </div>
           </div>
         </div>
         </template>
