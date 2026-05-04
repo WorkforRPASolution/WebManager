@@ -1291,4 +1291,18 @@ describe('analyzeAllMatches', () => {
 
     expect(result.fullAnalysis).toBeUndefined()
   })
+
+  it('8. isFiringLine — non-limitation: only first match line marked', () => {
+    const trigger = {
+      recipe: [{ type: 'regex', name: 'step_01', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '' }]
+    }
+    const logText = 'ERROR a\nERROR b\nERROR c'
+    const result = testTriggerPattern(trigger, logText, null)
+
+    const matchedLines = result.fullAnalysis.stepAnalyses[0].matchedLines
+    expect(matchedLines).toHaveLength(3)
+    expect(matchedLines[0].isFiringLine).toBe(true)   // line 1 — fired
+    expect(matchedLines[1].isFiringLine).toBe(false)
+    expect(matchedLines[2].isFiringLine).toBe(false)
+  })
 })

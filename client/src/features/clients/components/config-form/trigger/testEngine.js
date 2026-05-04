@@ -861,6 +861,10 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
     }
 
     const fullAnalysis = analyzeAllMatches(recipe, lines)
+    const firingsForMark = chainResult.allFired
+      ? [{ steps: chainResult.stepResults }]
+      : []
+    markFiringLines(fullAnalysis, firingsForMark)
     return {
       steps: chainResult.stepResults,
       finalResult: {
@@ -955,6 +959,7 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
   }
 
   const fullAnalysis = analyzeAllMatches(recipe, lines)
+  markFiringLines(fullAnalysis, firings)
   return {
     steps: firings.length > 0 ? firings[0].steps : [],
     finalResult: {
@@ -1116,4 +1121,24 @@ export function analyzeAllMatches(recipe, lines, options = {}) {  // eslint-disa
   }
 
   return { stepAnalyses }
+}
+
+/**
+ * Mark matchedLines as isFiringLine=true based on firing positions.
+ * @param {Object} fullAnalysis - { stepAnalyses }
+ * @param {Array} firings - [{ steps: [{ name, matches: [{ lineNum }] }] }]
+ */
+function markFiringLines(fullAnalysis, firings) {
+  if (!fullAnalysis || !Array.isArray(firings)) return
+  for (const firing of firings) {
+    if (!firing.steps) continue
+    for (const stepResult of firing.steps) {
+      if (!stepResult.matches || stepResult.matches.length === 0) continue
+      const firingLineNum = stepResult.matches[0].globalLineNum || stepResult.matches[0].lineNum
+      const analysis = fullAnalysis.stepAnalyses.find(a => a.stepName === stepResult.name)
+      if (!analysis) continue
+      const target = analysis.matchedLines.find(m => m.lineNum === firingLineNum)
+      if (target) target.isFiringLine = true
+    }
+  }
 }
