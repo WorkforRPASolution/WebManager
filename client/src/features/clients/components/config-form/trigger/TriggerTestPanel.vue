@@ -269,6 +269,28 @@
               </div>
             </div>
           </div>
+
+          <!-- 전체 매칭 분석 패널 -->
+          <div
+            v-if="fullAnalysisFor(step.name) && fullAnalysisFor(step.name).totalMatches > 0"
+            class="mt-2 rounded border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg"
+          >
+            <button
+              type="button"
+              class="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-bg-hover transition"
+              @click="toggleAnalysis(step.name)"
+            >
+              <svg class="w-3 h-3 transition-transform" :class="{ 'rotate-90': ensureAnalysisState(step.name).open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+              <span>
+                <strong>전체 매칭 분석</strong>
+                · {{ fullAnalysisFor(step.name).totalMatches }}{{ fullAnalysisFor(step.name).truncated ? '+' : '' }}줄 매칭
+                <span class="text-gray-400">(입력 {{ step.testedLineCount || '?' }}줄 중)</span>
+              </span>
+            </button>
+            <!-- 펼침 영역은 다음 task에서 추가 -->
+          </div>
         </div>
         </template>
 
@@ -312,7 +334,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, reactive } from 'vue'
 import { testTriggerPattern, testTriggerWithFiles } from './testEngine'
 import { formatFileSize } from '../shared/formatUtils'
 
@@ -331,6 +353,26 @@ const uploadedFiles = ref([])
 const fileProcessing = ref(false)
 const isDragging = ref(false)
 const fileSummary = ref(null)
+
+// 전체 매칭 분석 패널 상태: stepName -> { open, visible }
+const analysisState = reactive({})
+
+function ensureAnalysisState(stepName) {
+  if (!analysisState[stepName]) {
+    analysisState[stepName] = { open: false, visible: 10 }
+  }
+  return analysisState[stepName]
+}
+
+function toggleAnalysis(stepName) {
+  const s = ensureAnalysisState(stepName)
+  s.open = !s.open
+}
+
+function showMore(stepName) {
+  const s = ensureAnalysisState(stepName)
+  s.visible += 10
+}
 
 const timestampFormat = computed(() => {
   if (tsPreset.value === 'custom') return customTsFormat.value || null
@@ -378,6 +420,7 @@ function runTextTest() {
   testError.value = null
   fileSummary.value = null
   try {
+    for (const k in analysisState) delete analysisState[k]
     testResult.value = testTriggerPattern(props.trigger, logText.value, timestampFormat.value)
   } catch (e) {
     testError.value = `테스트 오류: ${e.message}`
@@ -413,6 +456,7 @@ async function runFileTest() {
   testError.value = null
   fileProcessing.value = true
   try {
+    for (const k in analysisState) delete analysisState[k]
     const fileContents = []
     for (const f of uploadedFiles.value) {
       const content = await f.file.text()
