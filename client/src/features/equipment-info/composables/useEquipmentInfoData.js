@@ -185,7 +185,7 @@ export function useEquipmentInfoData() {
       installdate: '',
       scFirstExcute: '',
       usereleasemsg: 1,
-      usetkincancel: 0,
+      usetkincancel: 1,
     }
     currentData.value.unshift(newRow)
     unsavedNewRows.value.unshift(newRow)  // Track for pagination persistence
@@ -215,7 +215,7 @@ export function useEquipmentInfoData() {
         installdate: rowData.installdate || '',
         scFirstExcute: rowData.scFirstExcute || '',
         usereleasemsg: rowData.usereleasemsg ?? 1,
-        usetkincancel: rowData.usetkincancel ?? 0,
+        usetkincancel: rowData.usetkincancel ?? 1,
         ...(rowData.snapshotTimeDiff != null && { snapshotTimeDiff: rowData.snapshotTimeDiff }),
         ...(rowData.agentPorts && { agentPorts: rowData.agentPorts }),
         ...(rowData.basePath && { basePath: rowData.basePath }),
