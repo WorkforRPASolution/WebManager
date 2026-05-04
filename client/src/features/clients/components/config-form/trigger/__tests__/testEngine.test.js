@@ -1250,4 +1250,22 @@ describe('analyzeAllMatches', () => {
     expect(result.stepAnalyses[0].totalMatches).toBe(3)  // ERROR x3
     expect(result.stepAnalyses[1].totalMatches).toBe(2)  // WARN x2
   })
+
+  it('5. Multi-pattern step — any pattern in trigger array contributes a match', () => {
+    const recipe = [
+      {
+        type: 'regex',
+        name: 'step_01',
+        trigger: [{ syntax: '.*ERROR.*' }, { syntax: '.*FATAL.*' }],
+        times: 1,
+        next: ''
+      }
+    ]
+    const lines = ['ERROR x', 'INFO y', 'FATAL z', 'WARN w', 'ERROR a']
+
+    const result = analyzeAllMatches(recipe, lines)
+    const a = result.stepAnalyses[0]
+    expect(a.totalMatches).toBe(3)
+    expect(a.matchedLines.map(m => m.lineNum)).toEqual([1, 3, 5])
+  })
 })
