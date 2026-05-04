@@ -1305,4 +1305,24 @@ describe('analyzeAllMatches', () => {
     expect(matchedLines[1].isFiringLine).toBe(false)
     expect(matchedLines[2].isFiringLine).toBe(false)
   })
+
+  it('9. isFiringLine — limitation: each firing first match marked', () => {
+    const trigger = {
+      limitation: { duration: '1h', times: 10 },
+      recipe: [{ type: 'regex', name: 'step_01', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '' }]
+    }
+    const logText = [
+      '2026-05-04 10:00:00 ERROR one',
+      '2026-05-04 10:01:00 ERROR two',
+      '2026-05-04 10:02:00 ERROR three'
+    ].join('\n')
+    const result = testTriggerPattern(trigger, logText, 'yyyy-MM-dd HH:mm:ss')
+
+    const matchedLines = result.fullAnalysis.stepAnalyses[0].matchedLines
+    expect(matchedLines).toHaveLength(3)
+    // Each line is its own firing → all 3 marked
+    expect(matchedLines[0].isFiringLine).toBe(true)
+    expect(matchedLines[1].isFiringLine).toBe(true)
+    expect(matchedLines[2].isFiringLine).toBe(true)
+  })
 })
