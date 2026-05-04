@@ -1325,4 +1325,21 @@ describe('analyzeAllMatches', () => {
     expect(matchedLines[1].isFiringLine).toBe(true)
     expect(matchedLines[2].isFiringLine).toBe(true)
   })
+
+  it('10. testTriggerWithFiles — fullAnalysis matchedLines have fileName + local lineNum', () => {
+    const trigger = {
+      recipe: [{ type: 'regex', name: 'step_01', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '' }]
+    }
+    const files = [
+      { name: 'a.log', content: 'INFO a\nERROR a1' },           // global lines 1-2
+      { name: 'b.log', content: 'ERROR b1\nINFO b\nERROR b2' }  // global lines 3-5
+    ]
+    const result = testTriggerWithFiles(trigger, files, null)
+
+    const matchedLines = result.fullAnalysis.stepAnalyses[0].matchedLines
+    expect(matchedLines).toHaveLength(3)
+    expect(matchedLines[0]).toMatchObject({ fileName: 'a.log', lineNum: 2, line: 'ERROR a1' })
+    expect(matchedLines[1]).toMatchObject({ fileName: 'b.log', lineNum: 1, line: 'ERROR b1' })
+    expect(matchedLines[2]).toMatchObject({ fileName: 'b.log', lineNum: 3, line: 'ERROR b2' })
+  })
 })

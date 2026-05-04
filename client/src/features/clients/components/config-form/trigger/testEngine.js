@@ -1048,6 +1048,22 @@ export function testTriggerWithFiles(trigger, files, timestampFormat) {
     }
   }
 
+  // Augment fullAnalysis matchedLines with file info (mirrors steps[].matches augmentation)
+  if (result.fullAnalysis && Array.isArray(result.fullAnalysis.stepAnalyses)) {
+    for (const analysis of result.fullAnalysis.stepAnalyses) {
+      analysis.matchedLines = analysis.matchedLines.map((m) => {
+        const globalIdx = m.lineNum - 1
+        const fileInfo = lineFileMap[globalIdx] || { fileName: 'unknown', localLineNum: m.lineNum }
+        return {
+          ...m,
+          globalLineNum: m.lineNum,
+          lineNum: fileInfo.localLineNum,
+          fileName: fileInfo.fileName
+        }
+      })
+    }
+  }
+
   return result
 }
 
