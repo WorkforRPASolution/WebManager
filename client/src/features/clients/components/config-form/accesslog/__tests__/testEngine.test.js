@@ -452,6 +452,19 @@ describe('Joda 인용 이스케이프', () => {
     const result = testAccessLogPath(source, 'D:\\Log\\PARAMS_xxx.txt')
     expect(result.matched).toBe(true)
   })
+
+  it("Q5: input trim — trailing whitespace 가 매칭에 영향 없어야 함 (server-side 와 정합)", () => {
+    // 사용자가 prefix 에 'PARAMS ' 처럼 trailing space 를 실수로 넣어도
+    // server 의 trim 동작과 일치해야 함
+    const source = {
+      directory: 'D:\\Log ',  // trailing space
+      prefix: 'PARAMS ',
+      suffix: '.txt ',
+      log_type: 'normal_single'
+    }
+    const result = testAccessLogPath(source, 'D:\\Log\\PARAMS_xxx.txt')
+    expect(result.matched).toBe(true)
+  })
 })
 
 

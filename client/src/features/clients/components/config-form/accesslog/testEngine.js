@@ -79,7 +79,21 @@ export function previewToken(str, fieldRole, dateAxis) {
  */
 export function testAccessLogPath(source, filePath) {
   const steps = []
-  const src = source || {}
+  const raw = source || {}
+  // Trim string inputs to match server-side controller — trailing whitespace
+  // shouldn't change matching behavior between local and remote tests.
+  const trim = (v) => (typeof v === 'string' ? v.trim() : v)
+  const src = {
+    ...raw,
+    directory: trim(raw.directory),
+    prefix: trim(raw.prefix),
+    suffix: trim(raw.suffix),
+    wildcard: trim(raw.wildcard),
+    date_subdir_format: trim(raw.date_subdir_format),
+    exclude_suffix: Array.isArray(raw.exclude_suffix)
+      ? raw.exclude_suffix.map(trim).filter(Boolean)
+      : raw.exclude_suffix,
+  }
   const dateAxis = decomposeLogType(src.log_type).dateAxis
 
   // Normalize separators

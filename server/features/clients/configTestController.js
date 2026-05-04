@@ -281,5 +281,7 @@ module.exports = {
   testAccessLog,
   filterByPattern,
   isAbsolutePath,
-  resolveJodaTokens
+  resolveJodaTokens,
+  LOG_TYPE_TO_DATE_AXIS,
+  dateAxisOf,
 }
