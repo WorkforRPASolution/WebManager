@@ -69,17 +69,36 @@ function formatJoda(format, date = new Date()) {
   return result
 }
 
+// Agent 의 매칭 규칙 (client testEngine.js 와 동일):
+//   - prefix:   dateAxis === 'date_prefix' 일 때만 토큰/쿼트 해석
+//   - suffix:   dateAxis === 'date_suffix' 일 때만 토큰/쿼트 해석
+//   - wildcard: 모든 모드에서 리터럴
+const TOKEN_RESOLVE_MAP = {
+  prefix:   new Set(['date_prefix']),
+  suffix:   new Set(['date_suffix']),
+  wildcard: new Set(),
+}
+
+function shouldResolve(fieldRole, dateAxis) {
+  if (!fieldRole) return true // legacy: 게이팅 미지정 시 기존 동작 유지
+  return TOKEN_RESOLVE_MAP[fieldRole]?.has(dateAxis) ?? false
+}
+
 /**
  * Resolve any embedded Joda tokens in a string to concrete values.
  * Used for prefix/suffix/wildcard with date placeholders.
- * Note: this is the same as formatJoda since tokens are simply substituted.
  *
  * @param {string} str
- * @param {Date} date
+ * @param {Date} [date]
+ * @param {Object} [opts]
+ * @param {string} [opts.fieldRole] - 'prefix' | 'suffix' | 'wildcard'
+ * @param {string} [opts.dateAxis] - 'normal' | 'date' | 'date_prefix' | 'date_suffix'
  * @returns {string}
  */
-function resolveJodaTokens(str, date = new Date()) {
+function resolveJodaTokens(str, date = new Date(), opts = {}) {
   if (!str) return str
+  const { fieldRole, dateAxis } = opts
+  if (!shouldResolve(fieldRole, dateAxis)) return str
   const hasTokens = TOKENS.some(t => str.includes(t.token))
   // single quote 도 Joda 문법(literal wrapping/escape) — 토큰이 없어도 quote 가 있으면 파서 통과 필요
   const hasQuote = str.includes("'")

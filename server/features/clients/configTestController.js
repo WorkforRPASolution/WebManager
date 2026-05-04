@@ -10,6 +10,32 @@ const Client = require('./model')
 const { ApiError } = require('../../shared/middleware/errorHandler')
 const { formatJoda, resolveJodaTokens } = require('../../shared/utils/jodaFormat')
 
+// log_type → dateAxis 매핑 (client schema.js LOG_TYPE_REGISTRY 와 동기화 필요)
+// dateAxis 만 알면 충분하므로 lineAxis/postProc 은 생략
+const LOG_TYPE_TO_DATE_AXIS = {
+  // canonical
+  'normal_single':                          'normal',
+  'normal_single_extract_append':           'normal',
+  'normal_multiline':                       'normal',
+  'date_single':                            'date',
+  'date_single_extract_append':             'date',
+  'date_multiline':                         'date',
+  'date_prefix_single':                     'date_prefix',
+  'date_prefix_single_extract_append':      'date_prefix',
+  'date_suffix_single':                     'date_suffix',
+  'date_suffix_single_extract_append':      'date_suffix',
+  // legacy oldName
+  'extract_append':                              'normal',
+  'date_prefix_normal_single':                   'date_prefix',
+  'date_prefix_normal_single_extract_append':    'date_prefix',
+  'date_suffix_normal_single':                   'date_suffix',
+  'date_suffix_normal_single_extract_append':    'date_suffix',
+}
+
+function dateAxisOf(logType) {
+  return LOG_TYPE_TO_DATE_AXIS[logType] || 'normal'
+}
+
 /**
  * POST /api/clients/:id/test-accesslog
  * Test if files matching an AccessLog source pattern exist on a client.
@@ -32,6 +58,7 @@ async function testAccessLog(req, res) {
   const suffix = trimStr(body.suffix)
   const date_subdir_format = trimStr(body.date_subdir_format)
   const agentGroup = trimStr(body.agentGroup)
+  const dateAxis = dateAxisOf(trimStr(body.log_type))
   const exclude_suffix = Array.isArray(body.exclude_suffix)
     ? body.exclude_suffix.map(s => trimStr(s)).filter(Boolean)
     : []
@@ -140,7 +167,7 @@ async function testAccessLog(req, res) {
     let resolvedWildcard = null
 
     if (prefix) {
-      resolvedPrefix = resolveJodaTokens(prefix, new Date())
+      resolvedPrefix = resolveJodaTokens(prefix, new Date(), { fieldRole: 'prefix', dateAxis })
       const before = pool.length
       pool = pool.filter(f => f.name.startsWith(resolvedPrefix))
       const isResolved = resolvedPrefix !== prefix
@@ -154,7 +181,7 @@ async function testAccessLog(req, res) {
     }
 
     if (suffix) {
-      resolvedSuffix = resolveJodaTokens(suffix, new Date())
+      resolvedSuffix = resolveJodaTokens(suffix, new Date(), { fieldRole: 'suffix', dateAxis })
       const before = pool.length
       pool = pool.filter(f => f.name.endsWith(resolvedSuffix))
       const isResolved = resolvedSuffix !== suffix
@@ -168,7 +195,8 @@ async function testAccessLog(req, res) {
     }
 
     if (wildcard) {
-      resolvedWildcard = resolveJodaTokens(wildcard, new Date())
+      // wildcard 는 모든 모드에서 리터럴 (게이팅으로 원본 반환됨)
+      resolvedWildcard = resolveJodaTokens(wildcard, new Date(), { fieldRole: 'wildcard', dateAxis })
       const before = pool.length
       pool = pool.filter(f => f.name.includes(resolvedWildcard))
       const isResolved = resolvedWildcard !== wildcard

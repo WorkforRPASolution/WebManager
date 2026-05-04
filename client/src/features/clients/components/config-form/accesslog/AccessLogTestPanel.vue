@@ -218,7 +218,8 @@ async function runRemoteTest() {
       wildcard: props.source.wildcard,
       suffix: props.source.suffix,
       exclude_suffix: props.source.exclude_suffix,
-      date_subdir_format: props.source.date_subdir_format
+      date_subdir_format: props.source.date_subdir_format,
+      log_type: props.source.log_type
     }, props.agentGroup)
     if (res.data.error) {
       remoteError.value = res.data.error
