@@ -80,9 +80,10 @@ function formatJoda(format, date = new Date()) {
  */
 function resolveJodaTokens(str, date = new Date()) {
   if (!str) return str
-  // If no tokens at all, return as-is (avoids quote-escape side effects)
   const hasTokens = TOKENS.some(t => str.includes(t.token))
-  if (!hasTokens) return str
+  // single quote 도 Joda 문법(literal wrapping/escape) — 토큰이 없어도 quote 가 있으면 파서 통과 필요
+  const hasQuote = str.includes("'")
+  if (!hasTokens && !hasQuote) return str
   return formatJoda(str, date)
 }
 
