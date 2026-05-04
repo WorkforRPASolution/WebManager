@@ -174,6 +174,13 @@
               {{ step.matchCount }}/{{ step.required.times }}회 매칭
               {{ stepStatusLabel(step) }}
             </span>
+            <span
+              v-if="fullAnalysisFor(step.name) && fullAnalysisFor(step.name).totalMatches > 0"
+              class="ml-1 inline-flex items-center px-1.5 py-0.5 text-[10px] rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark-bg text-gray-600 dark:text-gray-400"
+              :title="`패턴 자체는 입력에서 ${fullAnalysisFor(step.name).totalMatches}줄 매칭됨 (발동 조건 충족 후 스캔 중단)`"
+            >
+              총 {{ fullAnalysisFor(step.name).totalMatches }}줄 매칭{{ fullAnalysisFor(step.name).truncated ? '+' : '' }}
+            </span>
             <span v-if="showNextAction(step)" class="text-primary-600 dark:text-primary-400">{{ step.nextAction }}</span>
           </div>
 
@@ -359,6 +366,12 @@ function stepStatusLabel(step) {
 
 function showNextAction(step) {
   return (step.fired || step.timedOut) && step.nextAction
+}
+
+function fullAnalysisFor(stepName) {
+  const sas = testResult.value?.fullAnalysis?.stepAnalyses
+  if (!Array.isArray(sas)) return null
+  return sas.find(a => a.stepName === stepName) || null
 }
 
 function runTextTest() {
