@@ -1268,4 +1268,27 @@ describe('analyzeAllMatches', () => {
     expect(a.totalMatches).toBe(3)
     expect(a.matchedLines.map(m => m.lineNum)).toEqual([1, 3, 5])
   })
+
+  it('6. testTriggerPattern result includes fullAnalysis (non-MULTI)', () => {
+    const trigger = {
+      recipe: [{ type: 'regex', name: 'step_01', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '' }]
+    }
+    const logText = 'ERROR a\nINFO b\nERROR c\nERROR d'
+    const result = testTriggerPattern(trigger, logText, null)
+
+    expect(result.fullAnalysis).toBeDefined()
+    expect(result.fullAnalysis.stepAnalyses).toHaveLength(1)
+    expect(result.fullAnalysis.stepAnalyses[0].totalMatches).toBe(3)
+  })
+
+  it('7. testTriggerPattern with MULTI class — no fullAnalysis', () => {
+    const trigger = {
+      class: 'MULTI',
+      recipe: [{ type: 'regex', name: 'step_01', trigger: [{ syntax: '.*ERROR.*' }], times: 1, next: '' }]
+    }
+    const logText = 'ERROR a\nERROR b'
+    const result = testTriggerPattern(trigger, logText, null)
+
+    expect(result.fullAnalysis).toBeUndefined()
+  })
 })

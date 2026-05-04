@@ -860,6 +860,7 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
       message = `${lastStep.name}에서 대기 중 (${lastStep.matchCount}/${lastStep.required.times}회)`
     }
 
+    const fullAnalysis = analyzeAllMatches(recipe, lines)
     return {
       steps: chainResult.stepResults,
       finalResult: {
@@ -869,7 +870,8 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
       firings: chainResult.allFired
         ? [{ steps: chainResult.stepResults, fired: true, suppressed: false, firingTimestamp: chainResult.firingTimestamp }]
         : [],
-      limitation: null
+      limitation: null,
+      fullAnalysis
     }
   }
 
@@ -952,6 +954,7 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
     }
   }
 
+  const fullAnalysis = analyzeAllMatches(recipe, lines)
   return {
     steps: firings.length > 0 ? firings[0].steps : [],
     finalResult: {
@@ -971,7 +974,8 @@ export function testTriggerPattern(trigger, logText, timestampFormat) {
       totalFirings: completedFirings.length,
       allowedFirings: allowedFirings.length,
       suppressedFirings: suppressedFirings.length
-    }
+    },
+    fullAnalysis
   }
 }
 
